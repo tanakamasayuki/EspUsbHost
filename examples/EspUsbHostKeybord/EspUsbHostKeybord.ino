@@ -1,18 +1,23 @@
-#include "EspUsbHostKeybord.h"
+#include "EspUsbHost.h"
 
-class MyEspUsbHostKeybord : public EspUsbHostKeybord {
-public:
-  void onKey(usb_transfer_t *transfer) {
-    uint8_t *const p = transfer->data_buffer;
-    Serial.printf("onKey %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+class MyEspUsbHost : public EspUsbHost {
+  void onKeyboardType(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+    if (' ' <= ascii && ascii <= '~') {
+      Serial.printf("%c", ascii);
+    } else if (ascii == '\r') {
+      Serial.println();
+    }
   };
 };
 
-MyEspUsbHostKeybord usbHost;
+MyEspUsbHost usbHost;
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
+
   usbHost.begin();
+  usbHost.setHIDLocal(HID_LOCAL_Japan_Katakana);
 }
 
 void loop() {
