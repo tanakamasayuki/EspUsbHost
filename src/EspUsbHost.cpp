@@ -15,7 +15,7 @@ void EspUsbHost::begin(void) {
   }
 
   const usb_host_client_config_t client_config = {
-    .is_synchronous = false,
+    .is_synchronous = true,
     .max_num_event_msg = 10,
     .async = {
       .client_event_callback = this->_clientEventCallback,
