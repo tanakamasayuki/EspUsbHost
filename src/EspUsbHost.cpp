@@ -219,6 +219,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
 
     case USB_CONFIGURATION_DESC:
       {
+#if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO)
         const usb_config_desc_t *config_desc = (const usb_config_desc_t *)p;
         ESP_LOGI("EspUsbHost", "USB_CONFIGURATION_DESC(0x02) bLength=%d, bDescriptorType=%d, wTotalLength=%d, bNumInterfaces=%d, bConfigurationValue=%d, iConfiguration=%d, bmAttributes=0x%x, bMaxPower=%dmA",
                  config_desc->bLength,
@@ -229,6 +230,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
                  config_desc->iConfiguration,
                  config_desc->bmAttributes,
                  config_desc->bMaxPower * 2);
+#endif
       }
       break;
 
@@ -333,6 +335,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
 
     case USB_INTERFACE_ASSOC_DESC:
       {
+#if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO)
         const usb_iad_desc_t *iad_desc = (const usb_iad_desc_t *)p;
         ESP_LOGI("EspUsbHost", "USB_INTERFACE_ASSOC_DESC(0x0b) bLength=%d, bDescriptorType=%d, bFirstInterface=%d, bInterfaceCount=%d, bFunctionClass=0x%x, bFunctionSubClass=0x%x, bFunctionProtocol=0x%x, iFunction=%d",
                  iad_desc->bLength,
@@ -343,6 +346,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
                  iad_desc->bFunctionSubClass,
                  iad_desc->bFunctionProtocol,
                  iad_desc->iFunction);
+#endif
       }
       break;
 
