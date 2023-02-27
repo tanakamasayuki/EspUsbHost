@@ -1,5 +1,32 @@
 #include "EspUsbHost.h"
 
+void EspUsbHost::_printPcapText(const char *title, uint16_t function, uint8_t direction, uint8_t endpoint, uint8_t type, uint8_t size, uint8_t stage, const uint8_t *data) {
+  uint8_t urbsize = 0x1c;
+  if (stage == 0xff) {
+    urbsize = 0x1b;
+  }
+
+  String data_str = "";
+  for (int i = 0; i < size; i++) {
+    if (data[i] < 16) {
+      data_str += "0";
+    }
+    data_str += String(data[i], HEX) + " ";
+  }
+
+  printf("\n");
+  printf("[PCAP TEXT]%s\n", title);
+  printf("0000  %02x 00 00 00 00 00 00 00 00 00 00 00 00 00 %02x %02x\n", urbsize, (function & 0xff), ((function >> 8) & 0xff));
+  printf("0010  %02x 01 00 01 00 %02x %02x %02x 00 00 00", direction, endpoint, type, size);
+  if (stage != 0xff) {
+    printf(" %02x\n", stage);
+  } else {
+    printf("\n");
+  }
+  printf("00%02x  %s\n", urbsize, data_str.c_str());
+  printf("\n");
+}
+
 void EspUsbHost::begin(void) {
   usbTransferSize = 0;
 
@@ -49,7 +76,14 @@ void EspUsbHost::_clientEventCallback(const usb_host_client_event_msg_t *eventMs
       if (err != ESP_OK) {
         ESP_LOGI("EspUsbHost", "usb_host_device_info() err=%x", err);
       } else {
-        ESP_LOGI("EspUsbHost", "usb_host_device_info() ESP_OK, speed=%d, dev_addr=%d, vMaxPacketSize0=%d, bConfigurationValue=%d, str_desc_manufacturer=\"%s\", str_desc_product=\"%s\", str_desc_serial_num=\"%s\"",
+        ESP_LOGI("EspUsbHost", "usb_host_device_info() ESP_OK\n"
+                               "# speed                 = %d\n"
+                               "# dev_addr              = %d\n"
+                               "# vMaxPacketSize0       = %d\n"
+                               "# bConfigurationValue   = %d\n"
+                               "# str_desc_manufacturer = \"%s\"\n"
+                               "# str_desc_product      = \"%s\"\n"
+                               "# str_desc_serial_num   = \"%s\"",
                  dev_info.speed,
                  dev_info.dev_addr,
                  dev_info.bMaxPacketSize0,
@@ -64,7 +98,26 @@ void EspUsbHost::_clientEventCallback(const usb_host_client_event_msg_t *eventMs
       if (err != ESP_OK) {
         ESP_LOGI("EspUsbHost", "usb_host_get_device_descriptor() err=%x", err);
       } else {
-        ESP_LOGI("EspUsbHost", "usb_host_get_device_descriptor() ESP_OK, bLength=%d, bDescriptorType=%d, bcdUSB=0x%x, bDeviceClass=0x%x, bDeviceSubClass=0x%x, bDeviceProtocol=0x%x, bMaxPacketSize0=%d, idVendor=0x%x, idProduct=0x%x, bcdDevice=0x%x, iManufacturer=%d, iProduct=%d, iSerialNumber=%d, bNumConfigurations=%d",
+        const uint8_t setup[8] = { 0x80, 0x06, 0x00, 0x01, 0x00, 0x00, 0x12, 0x00 };
+        _printPcapText("GET DESCRIPTOR Request DEVICE", 0x000b, 0x00, 0x80, 0x02, sizeof(setup), 0x00, setup);
+        _printPcapText("GET DESCRIPTOR Response DEVICE", 0x0008, 0x01, 0x80, 0x02, sizeof(usb_device_desc_t), 0x03, (const uint8_t *)dev_desc);
+
+        ESP_LOGI("EspUsbHost", "usb_host_get_device_descriptor() ESP_OK\n"
+                               "#### DESCRIPTOR DEVICE ####\n"
+                               "# bLength            = %d\n"
+                               "# bDescriptorType    = %d\n"
+                               "# bcdUSB             = 0x%x\n"
+                               "# bDeviceClass       = 0x%x\n"
+                               "# bDeviceSubClass    = 0x%x\n"
+                               "# bDeviceProtocol    = 0x%x\n"
+                               "# bMaxPacketSize0    = %d\n"
+                               "# idVendor           = 0x%x\n"
+                               "# idProduct          = 0x%x\n"
+                               "# bcdDevice          = 0x%x\n"
+                               "# iManufacturer      = %d\n"
+                               "# iProduct           = %d\n"
+                               "# iSerialNumber      = %d\n"
+                               "# bNumConfigurations = %d",
                  dev_desc->bLength,
                  dev_desc->bDescriptorType,
                  dev_desc->bcdUSB,
@@ -86,7 +139,19 @@ void EspUsbHost::_clientEventCallback(const usb_host_client_event_msg_t *eventMs
       if (err != ESP_OK) {
         ESP_LOGI("EspUsbHost", "usb_host_get_active_config_descriptor() err=%x", err);
       } else {
-        ESP_LOGI("EspUsbHost", "usb_host_get_active_config_descriptor() ESP_OK, bLength=%d, bDescriptorType=%d, wTotalLength=%d, bNumInterfaces=%d, bConfigurationValue=%d, iConfiguration=%d, bmAttributes=0x%x, bMaxPower=%dmA",
+        const uint8_t setup[8] = { 0x80, 0x06, 0x00, 0x02, 0x00, 0x00, 0x09, 0x00 };
+        _printPcapText("GET DESCRIPTOR Request CONFIGURATION", 0x000b, 0x00, 0x80, 0x02, sizeof(setup), 0x00, setup);
+        _printPcapText("GET DESCRIPTOR Response CONFIGURATION", 0x0008, 0x01, 0x80, 0x02, sizeof(usb_config_desc_t), 0x03, (const uint8_t *)config_desc);
+
+        ESP_LOGI("EspUsbHost", "usb_host_get_active_config_descriptor() ESP_OK\n"
+                               "# bLength             = %d\n"
+                               "# bDescriptorType     = %d\n"
+                               "# wTotalLength        = %d\n"
+                               "# bNumInterfaces      = %d\n"
+                               "# bConfigurationValue = %d\n"
+                               "# iConfiguration      = %d\n"
+                               "# bmAttributes        = 0x%x\n"
+                               "# bMaxPower           = %dmA",
                  config_desc->bLength,
                  config_desc->bDescriptorType,
                  config_desc->wTotalLength,
@@ -153,6 +218,11 @@ void EspUsbHost::_clientEventCallback(const usb_host_client_event_msg_t *eventMs
 void EspUsbHost::_configCallback(const usb_config_desc_t *config_desc) {
   const uint8_t *p = &config_desc->val[0];
   uint8_t bLength;
+
+  const uint8_t setup[8] = { 0x80, 0x06, 0x00, 0x02, 0x00, 0x00, config_desc->wTotalLength, 0x00 };
+  _printPcapText("GET DESCRIPTOR Request CONFIGURATION", 0x000b, 0x00, 0x80, 0x02, sizeof(setup), 0x00, setup);
+  _printPcapText("GET DESCRIPTOR Response CONFIGURATION", 0x0008, 0x01, 0x80, 0x02, config_desc->wTotalLength, 0x03, (const uint8_t *)config_desc);
+
   for (int i = 0; i < config_desc->wTotalLength; i += bLength, p += bLength) {
     bLength = *p;
     if ((i + bLength) <= config_desc->wTotalLength) {
@@ -221,7 +291,15 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
       {
 #if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO)
         const usb_config_desc_t *config_desc = (const usb_config_desc_t *)p;
-        ESP_LOGI("EspUsbHost", "USB_CONFIGURATION_DESC(0x02) bLength=%d, bDescriptorType=%d, wTotalLength=%d, bNumInterfaces=%d, bConfigurationValue=%d, iConfiguration=%d, bmAttributes=0x%x, bMaxPower=%dmA",
+        ESP_LOGI("EspUsbHost", "USB_CONFIGURATION_DESC(0x02)\n"
+                               "# bLength             = %d\n"
+                               "# bDescriptorType     = %d\n"
+                               "# wTotalLength        = %d\n"
+                               "# bNumInterfaces      = %d\n"
+                               "# bConfigurationValue = %d\n"
+                               "# iConfiguration      = %d\n"
+                               "# bmAttributes        = 0x%x\n"
+                               "# bMaxPower           = %dmA",
                  config_desc->bLength,
                  config_desc->bDescriptorType,
                  config_desc->wTotalLength,
@@ -256,7 +334,16 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
     case USB_INTERFACE_DESC:
       {
         const usb_intf_desc_t *intf = (const usb_intf_desc_t *)p;
-        ESP_LOGI("EspUsbHost", "USB_INTERFACE_DESC(0x04) bLength=%d, bDescriptorType=%d, bInterfaceNumber=%d, bAlternateSetting=%d, bNumEndpoints=%d, bInterfaceClass=0x%x, bInterfaceSubClass=0x%x, bInterfaceProtocol=0x%x, iInterface=%d",
+        ESP_LOGI("EspUsbHost", "USB_INTERFACE_DESC(0x04)\n"
+                               "# bLength            = %d\n"
+                               "# bDescriptorType    = %d\n"
+                               "# bInterfaceNumber   = %d\n"
+                               "# bAlternateSetting  = %d\n"
+                               "# bNumEndpoints      = %d\n"
+                               "# bInterfaceClass    = 0x%x\n"
+                               "# bInterfaceSubClass = 0x%x\n"
+                               "# bInterfaceProtocol = 0x%x\n"
+                               "# iInterface         = %d",
                  intf->bLength,
                  intf->bDescriptorType,
                  intf->bInterfaceNumber,
@@ -284,7 +371,13 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
     case USB_ENDPOINT_DESC:
       {
         const usb_ep_desc_t *ep_desc = (const usb_ep_desc_t *)p;
-        ESP_LOGI("EspUsbHost", "USB_ENDPOINT_DESC(0x05) bLength=%d, bDescriptorType=%d, bEndpointAddress=0x%x(EndpointID=%d, Direction=%s), bmAttributes=0x%x(%s), wMaxPacketSize=%d, bInterval=%d",
+        ESP_LOGI("EspUsbHost", "USB_ENDPOINT_DESC(0x05)\n"
+                               "# bLength          = %d\n"
+                               "# bDescriptorType  = %d\n"
+                               "# bEndpointAddress = 0x%x(EndpointID=%d, Direction=%s)\n"
+                               "# bmAttributes     = 0x%x(%s)\n"
+                               "# wMaxPacketSize   = %d\n"
+                               "# bInterval        = %d",
                  ep_desc->bLength,
                  ep_desc->bDescriptorType,
                  ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc), USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT",
@@ -323,7 +416,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
 
           this->usbTransfer[this->usbTransferSize]->device_handle = this->deviceHandle;
           this->usbTransfer[this->usbTransferSize]->bEndpointAddress = ep_desc->bEndpointAddress;
-          this->usbTransfer[this->usbTransferSize]->callback = this->_onData;
+          this->usbTransfer[this->usbTransferSize]->callback = this->_onReceive;
           this->usbTransfer[this->usbTransferSize]->context = this;
           this->usbTransfer[this->usbTransferSize]->num_bytes = ep_desc->wMaxPacketSize;
           interval = ep_desc->bInterval;
@@ -337,7 +430,15 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
       {
 #if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO)
         const usb_iad_desc_t *iad_desc = (const usb_iad_desc_t *)p;
-        ESP_LOGI("EspUsbHost", "USB_INTERFACE_ASSOC_DESC(0x0b) bLength=%d, bDescriptorType=%d, bFirstInterface=%d, bInterfaceCount=%d, bFunctionClass=0x%x, bFunctionSubClass=0x%x, bFunctionProtocol=0x%x, iFunction=%d",
+        ESP_LOGI("EspUsbHost", "USB_INTERFACE_ASSOC_DESC(0x0b)\n"
+                               "# bLength           = %d\n"
+                               "# bDescriptorType   = %d\n"
+                               "# bFirstInterface   = %d\n"
+                               "# bInterfaceCount   = %d\n"
+                               "# bFunctionClass    = 0x%x\n"
+                               "# bFunctionSubClass = 0x%x\n"
+                               "# bFunctionProtocol = 0x%x\n"
+                               "# iFunction         = %d",
                  iad_desc->bLength,
                  iad_desc->bDescriptorType,
                  iad_desc->bFirstInterface,
@@ -353,7 +454,14 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
     case USB_HID_DESC:
       {
         const tusb_hid_descriptor_hid_t *hid_desc = (const tusb_hid_descriptor_hid_t *)p;
-        ESP_LOGI("EspUsbHost", "USB_HID_DESC(0x21) bLength=%d, bDescriptorType=0x%x, bcdHID=0x%x, bCountryCode=0x%x, bNumDescriptors=%d, bReportType=0x%x, wReportLength=%d",
+        ESP_LOGI("EspUsbHost", "USB_HID_DESC(0x21)\n"
+                               "# bLength         = %d\n"
+                               "# bDescriptorType = 0x%x\n"
+                               "# bcdHID          = 0x%x\n"
+                               "# bCountryCode    = 0x%x\n"
+                               "# bNumDescriptors = %d\n"
+                               "# bReportType     = 0x%x\n"
+                               "# wReportLength   = %d",
                  hid_desc->bLength,
                  hid_desc->bDescriptorType,
                  hid_desc->bcdHID,
@@ -362,6 +470,8 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
                  hid_desc->bReportType,
                  hid_desc->wReportLength);
         _bCountryCode = hid_desc->bCountryCode;
+
+        submitControl(0x81, 0x00, 0x22, 0x0000, 136);
       }
       break;
 
@@ -386,11 +496,13 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
   }
 }
 
-void EspUsbHost::_onData(usb_transfer_t *transfer) {
+void EspUsbHost::_onReceive(usb_transfer_t *transfer) {
   EspUsbHost *usbHost = (EspUsbHost *)transfer->context;
   endpoint_data_t *endpoint_data = &usbHost->endpoint_data_list[(transfer->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_NUM_MASK)];
 
 #if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE)
+  _printPcapText("URB_INTERRUPT in", 0x0009, 0x01, transfer->bEndpointAddress, 0x01, transfer->actual_num_bytes, 0xff, (const uint8_t *)transfer->data_buffer);
+
   String buffer_str = "";
   for (int i = 0; i < transfer->actual_num_bytes; i++) {
     if (transfer->data_buffer[i] < 16) {
@@ -399,7 +511,18 @@ void EspUsbHost::_onData(usb_transfer_t *transfer) {
     buffer_str += String(transfer->data_buffer[i], HEX) + " ";
   }
   buffer_str.trim();
-  ESP_LOGV("EspUsbHost", "bInterfaceClass=0x%x, bInterfaceSubClass=0x%x, bInterfaceProtocol=0x%x, bCountryCode=0x%x > usb_transfer_t data_buffer=[%s], data_buffer_size=%d, num_bytes=%d, actual_num_bytes=%d, flags=0x%x, bEndpointAddress=0x%x, timeout_ms=%d, num_isoc_packets=%d",
+  ESP_LOGV("EspUsbHost", "transfer\n"
+                         "# bInterfaceClass    = 0x%x\n"
+                         "# bInterfaceSubClass = 0x%x\n"
+                         "# bInterfaceProtocol = 0x%x\n"
+                         "# bCountryCode       = 0x%x > usb_transfer_t data_buffer=[%s]\n"
+                         "# data_buffer_size   = %d\n"
+                         "# num_bytes          = %d\n"
+                         "# actual_num_bytes   = %d\n"
+                         "# flags              = 0x%x\n"
+                         "# bEndpointAddress   = 0x%x\n"
+                         "# timeout_ms         = %d\n"
+                         "# num_isoc_packets   = %d",
            endpoint_data->bInterfaceClass,
            endpoint_data->bInterfaceSubClass,
            endpoint_data->bInterfaceProtocol,
@@ -439,7 +562,7 @@ void EspUsbHost::_onData(usb_transfer_t *transfer) {
           for (int i = 0; i < 6; i++) {
             if (report.keycode[i] != 0 && last_report.keycode[i] == 0) {
               // Type
-              usbHost->onKeyboardType(usbHost->getKeycodeToAscii(report.keycode[i], shift), report.keycode[i], shift);
+              usbHost->onKeyboardKey(usbHost->getKeycodeToAscii(report.keycode[i], shift), report.keycode[i], shift);
             }
           }
 
@@ -462,11 +585,11 @@ void EspUsbHost::_onData(usb_transfer_t *transfer) {
         }
       }
     } else {
-      //usbHost->_onDataGamepad();
+      //usbHost->_onReceiveGamepad();
     }
   }
 
-  usbHost->onData(transfer);
+  usbHost->onReceive(transfer);
 }
 
 void EspUsbHost::onMouse(hid_mouse_report_t report, uint8_t last_buttons) {
@@ -595,7 +718,7 @@ uint8_t EspUsbHost::getKeycodeToAscii(uint8_t keycode, uint8_t shift) {
   }
 }
 
-void EspUsbHost::onKeyboardType(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+void EspUsbHost::onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
   if (' ' <= ascii && ascii <= '~') {
     // printable
     ESP_LOGV("EspUsbHost", "Keyboard Type=0x%02x(%c), keycode=0x%02x, modifier=0x%02x",
@@ -613,4 +736,59 @@ void EspUsbHost::onKeyboardType(uint8_t ascii, uint8_t keycode, uint8_t modifier
 
 void EspUsbHost::setHIDLocal(hid_local_enum_t code) {
   hidLocal = code;
+}
+
+esp_err_t EspUsbHost::submitControl(const uint8_t bmRequestType, const uint8_t bDescriptorIndex, const uint8_t bDescriptorType, const uint16_t wInterfaceNumber, const uint16_t wDescriptorLength) {
+  usb_transfer_t *transfer;
+  usb_host_transfer_alloc(wDescriptorLength + 9, 0, &transfer);
+
+  transfer->num_bytes = wDescriptorLength + 8;
+  transfer->data_buffer[0] = bmRequestType;
+  transfer->data_buffer[1] = 0x06;
+  transfer->data_buffer[2] = bDescriptorIndex;
+  transfer->data_buffer[3] = bDescriptorType;
+  transfer->data_buffer[4] = wInterfaceNumber & 0xff;
+  transfer->data_buffer[5] = wInterfaceNumber >> 8;
+  transfer->data_buffer[6] = wDescriptorLength & 0xff;
+  transfer->data_buffer[7] = wDescriptorLength >> 8;
+
+  transfer->device_handle = deviceHandle;
+  transfer->bEndpointAddress = 0x00;
+  transfer->callback = _onReceiveControl;
+  transfer->context = this;
+
+  //submitControl(0x81, 0x00, 0x22, 0x0000, 136);
+  if (bmRequestType == 0x81 && bDescriptorIndex == 0x00 && bDescriptorType == 0x22) {
+    _printPcapText("GET DESCRIPTOR Request HID Report", 0x0028, 0x00, 0x80, 0x02, 8, 0, transfer->data_buffer);
+  }
+
+  esp_err_t err = usb_host_transfer_submit_control(clientHandle, transfer);
+  if (err != ESP_OK) {
+    ESP_LOGI("EspUsbHost", "usb_host_transfer_submit_control() err=%x", err);
+  }
+  return err;
+}
+
+void EspUsbHost::_onReceiveControl(usb_transfer_t *transfer) {
+  EspUsbHost *usbHost = (EspUsbHost *)transfer->context;
+
+  _printPcapText("GET DESCRIPTOR Response HID Report", 0x0008, 0x01, 0x80, 0x02, transfer->actual_num_bytes - 8, 0x03, &transfer->data_buffer[8]);
+
+  ESP_LOGV("EspUsbHost", "_onReceiveControl()\n"
+                         "# data_buffer_size   = %d\n"
+                         "# num_bytes          = %d\n"
+                         "# actual_num_bytes   = %d\n"
+                         "# flags              = 0x%x\n"
+                         "# bEndpointAddress   = 0x%x\n"
+                         "# timeout_ms         = %d\n"
+                         "# num_isoc_packets   = %d",
+           transfer->data_buffer_size,
+           transfer->num_bytes,
+           transfer->actual_num_bytes,
+           transfer->flags,
+           transfer->bEndpointAddress,
+           transfer->timeout_ms,
+           transfer->num_isoc_packets);
+
+  usb_host_transfer_free(transfer);
 }
