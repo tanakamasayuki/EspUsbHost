@@ -1,7 +1,7 @@
 #include "EspUsbHost.h"
 
 class MyEspUsbHost : public EspUsbHost {
-  void onKeyboardType(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
+  void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
     if (' ' <= ascii && ascii <= '~') {
       Serial.printf("%c", ascii);
     } else if (ascii == '\r') {

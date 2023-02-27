@@ -42,14 +42,18 @@ public:
   void _configCallback(const usb_config_desc_t *config_desc);
   void onConfig(const uint8_t bDescriptorType, const uint8_t *p);
   static String getUsbDescString(const usb_str_desc_t *str_desc);
-  static void _onData(usb_transfer_t *transfer);
+  static void _onReceive(usb_transfer_t *transfer);
 
-  virtual void onData(const usb_transfer_t *transfer){};
+  static void _printPcapText(const char* title, uint16_t function, uint8_t direction, uint8_t endpoint, uint8_t type, uint8_t size, uint8_t stage, const uint8_t *data);
+  esp_err_t submitControl(const uint8_t bmRequestType, const uint8_t bDescriptorIndex, const uint8_t bDescriptorType, const uint16_t wInterfaceNumber, const uint16_t wDescriptorLength);
+  static void _onReceiveControl(usb_transfer_t *transfer);
+
+  virtual void onReceive(const usb_transfer_t *transfer){};
   virtual void onGone(const usb_host_client_event_msg_t *eventMsg){};
 
   virtual uint8_t getKeycodeToAscii(uint8_t keycode, uint8_t shift);
   virtual void onKeyboard(hid_keyboard_report_t report, hid_keyboard_report_t last_report);
-  virtual void onKeyboardType(uint8_t ascii, uint8_t keycode, uint8_t modifier);
+  virtual void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier);
 
   virtual void onMouse(hid_mouse_report_t report, uint8_t last_buttons);
   virtual void onMouseButtons(hid_mouse_report_t report, uint8_t last_buttons);
