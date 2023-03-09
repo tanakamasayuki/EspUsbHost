@@ -13,12 +13,14 @@ public:
   unsigned long lastCheck;
 
   struct endpoint_data_t {
+    uint8_t bInterfaceNumber;
     uint8_t bInterfaceClass;
     uint8_t bInterfaceSubClass;
     uint8_t bInterfaceProtocol;
     uint8_t bCountryCode;    
   };
   endpoint_data_t endpoint_data_list[17];
+  uint8_t _bInterfaceNumber;
   uint8_t _bInterfaceClass;
   uint8_t _bInterfaceSubClass;
   uint8_t _bInterfaceProtocol;
@@ -62,6 +64,10 @@ public:
   void _onDataGamepad();
 
   void setHIDLocal(hid_local_enum_t code);
+
+  static uint8_t getItem(uint8_t val){
+    return val & 0xfc;
+  }
 };
 
 #define HID_KEYCODE_TO_ASCII_JA   \
