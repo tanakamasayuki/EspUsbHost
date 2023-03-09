@@ -1,6 +1,7 @@
 #include "EspUsbHost.h"
 
 void EspUsbHost::_printPcapText(const char *title, uint16_t function, uint8_t direction, uint8_t endpoint, uint8_t type, uint8_t size, uint8_t stage, const uint8_t *data) {
+#if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO)
   uint8_t urbsize = 0x1c;
   if (stage == 0xff) {
     urbsize = 0x1b;
@@ -25,6 +26,7 @@ void EspUsbHost::_printPcapText(const char *title, uint16_t function, uint8_t di
   }
   printf("00%02x  %s\n", urbsize, data_str.c_str());
   printf("\n");
+#endif
 }
 
 void EspUsbHost::begin(void) {
@@ -219,7 +221,7 @@ void EspUsbHost::_configCallback(const usb_config_desc_t *config_desc) {
   const uint8_t *p = &config_desc->val[0];
   uint8_t bLength;
 
-  const uint8_t setup[8] = { 0x80, 0x06, 0x00, 0x02, 0x00, 0x00, config_desc->wTotalLength, 0x00 };
+  const uint8_t setup[8] = { 0x80, 0x06, 0x00, 0x02, 0x00, 0x00, (uint8_t)config_desc->wTotalLength, 0x00 };
   _printPcapText("GET DESCRIPTOR Request CONFIGURATION", 0x000b, 0x00, 0x80, 0x02, sizeof(setup), 0x00, setup);
   _printPcapText("GET DESCRIPTOR Response CONFIGURATION", 0x0008, 0x01, 0x80, 0x02, config_desc->wTotalLength, 0x03, (const uint8_t *)config_desc);
 
@@ -361,6 +363,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
           ESP_LOGI("EspUsbHost", "usb_host_interface_claim() ESP_OK");
           this->usbInterface[this->usbInterfaceSize] = intf->bInterfaceNumber;
           this->usbInterfaceSize++;
+          _bInterfaceNumber = intf->bInterfaceNumber;
           _bInterfaceClass = intf->bInterfaceClass;
           _bInterfaceSubClass = intf->bInterfaceSubClass;
           _bInterfaceProtocol = intf->bInterfaceProtocol;
@@ -394,6 +397,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
           return;
         }
 
+        this->endpoint_data_list[USB_EP_DESC_GET_EP_NUM(ep_desc)].bInterfaceNumber = _bInterfaceNumber;
         this->endpoint_data_list[USB_EP_DESC_GET_EP_NUM(ep_desc)].bInterfaceClass = _bInterfaceClass;
         this->endpoint_data_list[USB_EP_DESC_GET_EP_NUM(ep_desc)].bInterfaceSubClass = _bInterfaceSubClass;
         this->endpoint_data_list[USB_EP_DESC_GET_EP_NUM(ep_desc)].bInterfaceProtocol = _bInterfaceProtocol;
@@ -471,7 +475,7 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
                  hid_desc->wReportLength);
         _bCountryCode = hid_desc->bCountryCode;
 
-        submitControl(0x81, 0x00, 0x22, 0x0000, 136);
+        submitControl(0x81, 0x00, 0x22, _bInterfaceNumber, hid_desc->wReportLength);
       }
       break;
 
@@ -740,7 +744,7 @@ void EspUsbHost::setHIDLocal(hid_local_enum_t code) {
 
 esp_err_t EspUsbHost::submitControl(const uint8_t bmRequestType, const uint8_t bDescriptorIndex, const uint8_t bDescriptorType, const uint16_t wInterfaceNumber, const uint16_t wDescriptorLength) {
   usb_transfer_t *transfer;
-  usb_host_transfer_alloc(wDescriptorLength + 9, 0, &transfer);
+  usb_host_transfer_alloc(wDescriptorLength + 8 + 1, 0, &transfer);
 
   transfer->num_bytes = wDescriptorLength + 8;
   transfer->data_buffer[0] = bmRequestType;
@@ -770,8 +774,6 @@ esp_err_t EspUsbHost::submitControl(const uint8_t bmRequestType, const uint8_t b
 }
 
 void EspUsbHost::_onReceiveControl(usb_transfer_t *transfer) {
-  EspUsbHost *usbHost = (EspUsbHost *)transfer->context;
-
   _printPcapText("GET DESCRIPTOR Response HID Report", 0x0008, 0x01, 0x80, 0x02, transfer->actual_num_bytes - 8, 0x03, &transfer->data_buffer[8]);
 
   ESP_LOGV("EspUsbHost", "_onReceiveControl()\n"
@@ -789,6 +791,508 @@ void EspUsbHost::_onReceiveControl(usb_transfer_t *transfer) {
            transfer->bEndpointAddress,
            transfer->timeout_ms,
            transfer->num_isoc_packets);
+
+#if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO)
+  printf("=====================================================\n");
+  uint16_t page = 0;
+  uint8_t level = 0;
+  uint8_t size = 0;
+  uint8_t reportId = 0;
+  uint8_t collection = 0;
+  uint8_t usage = 0;
+  uint8_t *p = &transfer->data_buffer[8];
+  for (int i = 0; i < (transfer->actual_num_bytes - 8); i += size) {
+    size = (p[i] & 3) + 1;
+
+    // RAW data
+    printf("[");
+    for (int j = 0; j < size; j++) {
+      // Hex
+      printf(" %02x", p[i + j]);
+    }
+    for (int j = 0; j < (3 - size); j++) {
+      // Padding
+      printf("   ");
+    }
+    printf(" ] ");
+
+    // pre
+    if (p[i] == 0xc0) {
+      // END_COLLECTION
+      level--;
+    }
+
+    // level padding
+    for (int j = 0; j < level; j++) {
+      printf("  ");
+    }
+
+    // item
+    uint8_t item = getItem(p[i]);
+    int16_t val = (int8_t)p[i + 1];
+    if (size == 3) {
+      val = *(int16_t *)&p[i + 1];
+    }
+    if (item == getItem(0x05)) {
+      printf("USAGE_PAGE ");
+      page = p[i + 1];
+      if (page == 0x01) {
+        printf("(Generic Desktop)");
+      } else if (page == 0x02) {
+        printf("(Simulation Controls)");
+      } else if (page == 0x03) {
+        printf("(VR Controls)");
+      } else if (page == 0x04) {
+        printf("(Sport Controls)");
+      } else if (page == 0x05) {
+        printf("(Game Controls)");
+      } else if (page == 0x06) {
+        printf("(Generic Device Controls)");
+      } else if (page == 0x07) {
+        printf("(Keyboard/Keypad)");
+      } else if (page == 0x08) {
+        printf("(LED)");
+      } else if (page == 0x09) {
+        printf("(Button)");
+      } else if (page == 0x0a) {
+        printf("(Ordinal)");
+      } else if (page == 0x0b) {
+        printf("(Telephony Device)");
+      } else if (page == 0x0c) {
+        printf("(Consumer)");
+      } else if (page == 0x0d) {
+        printf("(Digitizers)");
+      } else if (page == 0x0e) {
+        printf("(Haptics)");
+      } else if (page == 0x0f) {
+        printf("(Physical Input Device)");
+      } else if (page == 0x10) {
+        printf("(Unicode)");
+      } else if (page == 0x11) {
+        printf("(SoC)");
+      } else if (page == 0x12) {
+        printf("(Eye and Head Trackers)");
+      } else if (page == 0x14) {
+        printf("(Auxiliary Display)");
+      } else if (page == 0x20) {
+        printf("(Sensors)");
+      } else if (page == 0x40) {
+        printf("(Medical Instrument)");
+      } else if (page == 0x41) {
+        printf("(Braille Display)");
+      } else if (page == 0x59) {
+        printf("(Lighting And Illumination)");
+      } else if (page == 0x80) {
+        printf("(Monitor)");
+      } else if (page == 0x81) {
+        printf("(Monitor Enumerated)");
+      } else if (page == 0x82) {
+        printf("(VESA Virtual Controls)");
+      } else if (page == 0x84) {
+        printf("(Power)");
+      } else if (page == 0x85) {
+        printf("(Battery System)");
+      } else if (page == 0x8c) {
+        printf("(Barcode Scanner)");
+      } else if (page == 0x8d) {
+        printf("(Scales)");
+      } else if (page == 0x8e) {
+        printf("(Magnetic Stripe Reader)");
+      } else if (page == 0x90) {
+        printf("(Camera Control)");
+      } else if (page == 0x91) {
+        printf("(Arcade)");
+      } else if (page == 0x92) {
+        printf("(Gaming Device)");
+      } else {
+        if (size == 2) {
+          printf("(Vendor 0x%02x)", p[i + 1]);
+        } else {
+          printf("(Vendor 0x%02x%02x)", p[i + 2], p[i + 1]);
+        }
+      }
+    } else if (item == getItem(0x09)) {
+      printf("USAGE ");
+      usage = p[i + 1];
+      if (page == 0x01) {
+        // Generic Desktop Page (0x01)
+        if (usage == 0x00) {
+          printf("(Undefined)");
+        } else if (usage == 0x01) {
+          printf("(Pointer)");
+        } else if (usage == 0x02) {
+          printf("(Mouse)");
+        } else if (usage == 0x04) {
+          printf("(Joystick)");
+        } else if (usage == 0x05) {
+          printf("(Gamepad)");
+        } else if (usage == 0x06) {
+          printf("(Keyboard)");
+        } else if (usage == 0x07) {
+          printf("(Keypad)");
+        } else if (usage == 0x30) {
+          printf("(X)");
+        } else if (usage == 0x31) {
+          printf("(Y)");
+        } else if (usage == 0x32) {
+          printf("(Z)");
+        } else if (usage == 0x33) {
+          printf("(Rx)");
+        } else if (usage == 0x34) {
+          printf("(Ry)");
+        } else if (usage == 0x35) {
+          printf("(Rz)");
+        } else if (usage == 0x36) {
+          printf("(Slider)");
+        } else if (usage == 0x37) {
+          printf("(Dial)");
+        } else if (usage == 0x38) {
+          printf("(Wheel)");
+        } else if (usage == 0x39) {
+          printf("(Hat Switch)");
+        } else if (usage == 0x39) {
+          printf("(Hat Switch)");
+        } else if (usage == 0x3A) {
+          printf("(Counted Buffer)");
+        } else if (usage == 0x3B) {
+          printf("(Byte Count)");
+        } else if (usage == 0x3C) {
+          printf("(Motion Wakeup)");
+        } else if (usage == 0x3D) {
+          printf("(Start)");
+        } else if (usage == 0x3E) {
+          printf("(Select)");
+        } else if (usage == 0x40) {
+          printf("(Vx)");
+        } else if (usage == 0x41) {
+          printf("(Vy)");
+        } else if (usage == 0x42) {
+          printf("(Vz)");
+        } else if (usage == 0x43) {
+          printf("(Vbrx)");
+        } else if (usage == 0x44) {
+          printf("(Vbry)");
+        } else if (usage == 0x45) {
+          printf("(Vbrz)");
+        } else if (usage == 0x46) {
+          printf("(Vno)");
+        } else if (usage == 0x47) {
+          printf("(Feature Notification)");
+        } else if (usage == 0x48) {
+          printf("(Resolution Multiplier)");
+        } else if (usage == 0x49) {
+          printf("(Qx)");
+        } else if (usage == 0x4A) {
+          printf("(Qy)");
+        } else if (usage == 0x4B) {
+          printf("(Qz)");
+        } else if (usage == 0x4C) {
+          printf("(Qw)");
+        } else if (usage == 0x80) {
+          printf("(System Control)");
+        } else if (usage == 0x81) {
+          printf("(System Power Down)");
+        } else if (usage == 0x82) {
+          printf("(System Sleep)");
+        } else if (usage == 0x83) {
+          printf("(System Wake Up)");
+        } else if (usage == 0x84) {
+          printf("(System Context Menu)");
+        } else if (usage == 0x85) {
+          printf("(System Main Menu)");
+        } else if (usage == 0x86) {
+          printf("(System App Menu)");
+        } else if (usage == 0x87) {
+          printf("(System Menu Help)");
+        } else if (usage == 0x88) {
+          printf("(System Menu Exit)");
+        } else if (usage == 0x89) {
+          printf("(System Menu Select)");
+        } else if (usage == 0x8A) {
+          printf("(System Menu Right)");
+        } else if (usage == 0x8B) {
+          printf("(System Menu Left)");
+        } else if (usage == 0x8C) {
+          printf("(System Menu Up)");
+        } else if (usage == 0x8D) {
+          printf("(System Menu Down)");
+        } else if (usage == 0x8E) {
+          printf("(System Cold Restart)");
+        } else if (usage == 0x8F) {
+          printf("(System Warm Restart)");
+        } else if (usage == 0x90) {
+          printf("(D-pad Up)");
+        } else if (usage == 0x91) {
+          printf("(D-pad Down)");
+        } else if (usage == 0x92) {
+          printf("(D-pad Right)");
+        } else if (usage == 0x93) {
+          printf("(D-pad Left)");
+        } else if (usage == 0x94) {
+          printf("(Index Trigger)");
+        } else if (usage == 0x95) {
+          printf("(Palm Trigger)");
+        } else if (usage == 0x96) {
+          printf("(Thumbstick)");
+        } else if (usage == 0x97) {
+          printf("(System Function Shift)");
+        } else if (usage == 0x98) {
+          printf("(System Function Shift Lock)");
+        } else if (usage == 0x99) {
+          printf("(System Function Shift Lock Indicator)");
+        } else if (usage == 0x9A) {
+          printf("(System Dismiss Notification)");
+        } else if (usage == 0x9B) {
+          printf("(System Do Not Disturb)");
+        } else if (usage == 0xA0) {
+          printf("(System Dock)");
+        } else if (usage == 0xA1) {
+          printf("(System Undock)");
+        } else if (usage == 0xA2) {
+          printf("(System Setup)");
+        } else if (usage == 0xA3) {
+          printf("(System Break)");
+        } else if (usage == 0xA4) {
+          printf("(System Debugger Break)");
+        } else if (usage == 0xA5) {
+          printf("(Application Break)");
+        } else if (usage == 0xA6) {
+          printf("(Application Debugger Break)");
+        } else if (usage == 0xA7) {
+          printf("(System Speaker Mute)");
+        } else if (usage == 0xA8) {
+          printf("(System Hibernate)");
+        } else if (usage == 0xA9) {
+          printf("(System Microphone Mute)");
+        } else if (usage == 0xB0) {
+          printf("(System Display Invert)");
+        } else if (usage == 0xB1) {
+          printf("(System Display Internal)");
+        } else if (usage == 0xB2) {
+          printf("(System Display External)");
+        } else if (usage == 0xB3) {
+          printf("(System Display Both)");
+        } else if (usage == 0xB4) {
+          printf("(System Display Dual)");
+        } else if (usage == 0xB5) {
+          printf("(System Display Toggle Int/Ext Mode)");
+        } else if (usage == 0xB6) {
+          printf("(System Display Swap Primary/Secondary)");
+        } else if (usage == 0xB7) {
+          printf("(System Display Toggle LCD Autoscale)");
+        } else if (usage == 0xC0) {
+          printf("(Sensor Zone)");
+        } else if (usage == 0xC1) {
+          printf("(RPM)");
+        } else if (usage == 0xC2) {
+          printf("(Coolant Level)");
+        } else if (usage == 0xC3) {
+          printf("(Coolant Critical Level)");
+        } else if (usage == 0xC4) {
+          printf("(Coolant Pump)");
+        } else if (usage == 0xC5) {
+          printf("(Chassis Enclosure)");
+        } else if (usage == 0xC6) {
+          printf("(Wireless Radio Button)");
+        } else if (usage == 0xC7) {
+          printf("(Wireless Radio LED)");
+        } else if (usage == 0xC8) {
+          printf("(Wireless Radio Slider Switch)");
+        } else if (usage == 0xC9) {
+          printf("(System Display Rotation Lock Button)");
+        } else if (usage == 0xCA) {
+          printf("(System Display Rotation Lock Slider Switch)");
+        } else if (usage == 0xCB) {
+          printf("(Control Enable)");
+        } else if (usage == 0xD0) {
+          printf("(Dockable Device Unique ID)");
+        } else if (usage == 0xD1) {
+          printf("(Dockable Device Vendor ID)");
+        } else if (usage == 0xD2) {
+          printf("(Dockable Device Primary Usage Page)");
+        } else if (usage == 0xD3) {
+          printf("(Dockable Device Primary Usage ID)");
+        } else if (usage == 0xD4) {
+          printf("(Dockable Device Docking State)");
+        } else if (usage == 0xD5) {
+          printf("(Dockable Device Display Occlusion)");
+        } else if (usage == 0xD6) {
+          printf("(Dockable Device Object Type)");
+        } else if (usage == 0xE0) {
+          printf("(Call Active LED)");
+        } else if (usage == 0xE1) {
+          printf("(Call Mute Toggle)");
+        } else if (usage == 0xE2) {
+          printf("(Call Mute LED)");
+        } else {
+          printf("(? ? ? ?)");
+        }
+      } else {
+        printf("(0x%02x)", usage);
+      }
+    } else if (item == getItem(0x15)) {
+      printf("LOGICAL_MINIMUM ");
+      printf("(%d)", val);
+    } else if (item == getItem(0x19)) {
+      printf("USAGE_MINIMUM ");
+      if (size == 2) {
+        printf("(0x%02x)", p[i + 1]);
+      } else {
+        printf("(0x%02x%02x)", p[i + 2], p[i + 1]);
+      }
+    } else if (item == getItem(0x25)) {
+      printf("LOGICAL_MAXIMUM ");
+      printf("(%d)", val);
+    } else if (item == getItem(0x29)) {
+      printf("USAGE_MAXIMUM ");
+      if (size == 2) {
+        printf("(0x%02x)", p[i + 1]);
+      } else {
+        printf("(0x%02x%02x)", p[i + 2], p[i + 1]);
+      }
+    } else if (item == getItem(0x35)) {
+      printf("PHYSIAL_MINIMUM ");
+      printf("(%d)", val);
+    } else if (item == getItem(0x45)) {
+      printf("PHYSIAL_MAXIMUM ");
+      printf("(%d)", val);
+    } else if (item == getItem(0x55)) {
+      printf("UNIT_EXPONENT ");
+      if (size == 2) {
+        printf("(0x%02x)", p[i + 1]);
+      } else {
+        printf("(0x%02x%02x)", p[i + 2], p[i + 1]);
+      }
+    } else if (item == getItem(0x65)) {
+      printf("UNIT ");
+      if (size == 2) {
+        printf("(0x%02x)", p[i + 1]);
+      } else {
+        printf("(0x%02x%02x)", p[i + 2], p[i + 1]);
+      }
+    } else if (item == getItem(0x75)) {
+      printf("REPORT_SIZE ");
+      printf("(%d)", val);
+    } else if (item == getItem(0x81)) {
+      printf("INPUT ");
+      uint8_t val = p[i + 1];
+      printf("(");
+      if (val & (1 << 0)) {
+        // 1
+        printf("Cnst,");
+      } else {
+        // 0
+        printf("Data,");
+      }
+      if (val & (1 << 1)) {
+        // 1
+        printf("Var,");
+      } else {
+        // 0
+        printf("Ary,");
+      }
+      if (val & (1 << 2)) {
+        // 1
+        printf("Rel");
+      } else {
+        // 0
+        printf("Abs");
+      }
+      printf(")");
+    } else if (item == getItem(0x85)) {
+      printf("REPORT_ID ");
+      reportId = p[i + 1];
+      printf("(%d)", reportId);
+    } else if (item == getItem(0x91)) {
+      printf("OUTPUT ");
+      uint8_t val = p[i + 1];
+      printf("(");
+      if (val & (1 << 0)) {
+        // 1
+        printf("Cnst,");
+      } else {
+        // 0
+        printf("Data,");
+      }
+      if (val & (1 << 1)) {
+        // 1
+        printf("Var,");
+      } else {
+        // 0
+        printf("Ary,");
+      }
+      if (val & (1 << 2)) {
+        // 1
+        printf("Rel");
+      } else {
+        // 0
+        printf("Abs");
+      }
+      printf(")");
+    } else if (item == getItem(0x95)) {
+      printf("REPORT_COUNT ");
+      printf("(%d)", val);
+    } else if (item == getItem(0xa1)) {
+      printf("COLLECTION ");
+      level++;
+      collection = p[i + 1];
+      if (collection == 0x00) {
+        printf("(Physical)");
+      } else if (collection == 0x01) {
+        printf("(Application)");
+      } else if (collection == 0x02) {
+        printf("(Logical)");
+      } else {
+        printf("(? ? ? ?)");
+      }
+    } else if (item == getItem(0xa4)) {
+      printf("PUSH");
+    } else if (item == getItem(0xa9)) {
+      printf("DELIMITER ");
+      if (p[i + 1] == 0x01) {
+        printf("(Open)");
+      } else {
+        printf("(Close)");
+      }
+    } else if (item == getItem(0xb1)) {
+      printf("FEATURE ");
+      uint8_t val = p[i + 1];
+      printf("(");
+      if (val & (1 << 0)) {
+        // 1
+        printf("Cnst,");
+      } else {
+        // 0
+        printf("Data,");
+      }
+      if (val & (1 << 1)) {
+        // 1
+        printf("Var,");
+      } else {
+        // 0
+        printf("Ary,");
+      }
+      if (val & (1 << 2)) {
+        // 1
+        printf("Rel");
+      } else {
+        // 0
+        printf("Abs");
+      }
+      printf(")");
+    } else if (item == getItem(0xb4)) {
+      printf("POP");
+    } else if (item == getItem(0xc0)) {
+      printf("END_COLLECTION");
+    } else {
+      printf("? ? ? ?");
+    }
+
+    printf("\n");
+  }
+
+  printf("-----------------------------------------------------\n");
+#endif
 
   usb_host_transfer_free(transfer);
 }
