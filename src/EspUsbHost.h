@@ -36,6 +36,7 @@ public:
   uint8_t usbInterfaceSize;
 
   hid_local_enum_t hidLocal;
+  bool firstIteration = true;
 
   void begin(void);
   void task(void);
@@ -51,7 +52,7 @@ public:
   static void _onReceiveControl(usb_transfer_t *transfer);
 
   virtual void onReceive(const usb_transfer_t *transfer){};
-  virtual void onGone(const usb_host_client_event_msg_t *eventMsg){};
+  virtual void onGone(const usb_host_client_event_msg_t *eventMsg){this->isReady = false;};
 
   virtual uint8_t getKeycodeToAscii(uint8_t keycode, uint8_t shift);
   virtual void onKeyboard(hid_keyboard_report_t report, hid_keyboard_report_t last_report);
