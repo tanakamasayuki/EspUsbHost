@@ -206,7 +206,7 @@ void EspUsbHost::_clientEventCallback(const usb_host_client_event_msg_t *eventMs
         usbHost->usbInterfaceSize = 0;
 
         usb_host_device_close(usbHost->clientHandle, usbHost->deviceHandle);
-
+        isReady = false;
         usbHost->onGone(eventMsg);
       }
       break;
@@ -256,6 +256,20 @@ void EspUsbHost::task(void) {
         if (this->usbTransfer[i] == NULL) {
           continue;
         }
+
+        if ((usbTransfer[i]->status != 0) && !(this->firstIteration)){
+          
+          esp_err_t err = usb_host_endpoint_halt(this->deviceHandle, usbTransfer[i]->bEndpointAddress);
+          ESP_LOGI("EspUsbHost","usb_host_endpoint_halt: %s", esp_err_to_name(err));
+
+          err = usb_host_endpoint_clear(this->deviceHandle, usbTransfer[i]->bEndpointAddress);
+          ESP_LOGI("EspUsbHost","usb_host_endpoint_clear: %s", esp_err_to_name(err));
+
+          this->firstIteration= true;
+          ESP_LOGI("firstIteration", "=%d",this->firstIteration);
+        } 
+
+       
 
         esp_err_t err = usb_host_transfer_submit(this->usbTransfer[i]);
         if (err != ESP_OK && err != ESP_ERR_NOT_FINISHED && err != ESP_ERR_INVALID_STATE) {
@@ -503,7 +517,8 @@ void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
 void EspUsbHost::_onReceive(usb_transfer_t *transfer) {
   EspUsbHost *usbHost = (EspUsbHost *)transfer->context;
   endpoint_data_t *endpoint_data = &usbHost->endpoint_data_list[(transfer->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_NUM_MASK)];
-
+   usbHost->firstIteration= false;
+   
 #if (ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE)
   _printPcapText("URB_INTERRUPT in", 0x0009, 0x01, transfer->bEndpointAddress, 0x01, transfer->actual_num_bytes, 0xff, (const uint8_t *)transfer->data_buffer);
 
@@ -526,7 +541,8 @@ void EspUsbHost::_onReceive(usb_transfer_t *transfer) {
                          "# flags              = 0x%x\n"
                          "# bEndpointAddress   = 0x%x\n"
                          "# timeout_ms         = %d\n"
-                         "# num_isoc_packets   = %d",
+                         "# num_isoc_packets   = %d\n"
+                         "# transfer_err_code  = %d",
            endpoint_data->bInterfaceClass,
            endpoint_data->bInterfaceSubClass,
            endpoint_data->bInterfaceProtocol,
@@ -538,15 +554,17 @@ void EspUsbHost::_onReceive(usb_transfer_t *transfer) {
            transfer->flags,
            transfer->bEndpointAddress,
            transfer->timeout_ms,
-           transfer->num_isoc_packets);
+           transfer->num_isoc_packets,
+           transfer->status);
 #endif
 
   if (endpoint_data->bInterfaceClass == USB_CLASS_HID) {
-    if (endpoint_data->bInterfaceSubClass == HID_SUBCLASS_BOOT) {
+    //if (endpoint_data->bInterfaceSubClass == HID_SUBCLASS_BOOT) {
+    if (1) {
       if (endpoint_data->bInterfaceProtocol == HID_ITF_PROTOCOL_KEYBOARD) {
         static hid_keyboard_report_t last_report = {};
 
-        if (transfer->data_buffer[2] == HID_KEY_NUM_LOCK) {
+        if ((transfer->data_buffer[2] == HID_KEY_NUM_LOCK) || (transfer->status!=0)) {
           // HID_KEY_NUM_LOCK TODO!
         } else if (memcmp(&last_report, transfer->data_buffer, sizeof(last_report))) {
           // chenge
@@ -564,8 +582,10 @@ void EspUsbHost::_onReceive(usb_transfer_t *transfer) {
 
           bool shift = (report.modifier & KEYBOARD_MODIFIER_LEFTSHIFT) || (report.modifier & KEYBOARD_MODIFIER_RIGHTSHIFT);
           for (int i = 0; i < 6; i++) {
-            if (report.keycode[i] != 0 && last_report.keycode[i] == 0) {
+            //if (report.keycode[i] != 0 && last_report.keycode[i] == 0) {
+            if (report.keycode[i] != 0 ) {
               // Type
+              ESP_LOGI("hit onKeyboardKey", "=%x",report.keycode[i]);
               usbHost->onKeyboardKey(usbHost->getKeycodeToAscii(report.keycode[i], shift), report.keycode[i], shift);
             }
           }
@@ -589,6 +609,7 @@ void EspUsbHost::_onReceive(usb_transfer_t *transfer) {
         }
       }
     } else {
+
       //usbHost->_onReceiveGamepad();
     }
   }
