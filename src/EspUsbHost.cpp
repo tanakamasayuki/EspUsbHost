@@ -773,6 +773,10 @@ esp_err_t EspUsbHost::submitControl(const uint8_t bmRequestType, const uint8_t b
   return err;
 }
 
+void EspUsbHost::onConfig(const uint8_t bDescriptorType, const uint8_t *p) {
+    // Implementação vazia para evitar erro de vtable
+}
+
 void EspUsbHost::_onReceiveControl(usb_transfer_t *transfer) {
   _printPcapText("GET DESCRIPTOR Response HID Report", 0x0008, 0x01, 0x80, 0x02, transfer->actual_num_bytes - 8, 0x03, &transfer->data_buffer[8]);
 
