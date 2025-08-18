@@ -4,7 +4,26 @@
 #include <Arduino.h>
 #include <usb/usb_host.h>
 #include <class/hid/hid.h>
-#include <rom/usb/usb_common.h>
+
+#if __has_include(<rom/usb/usb_common.h>)
+  #include <rom/usb/usb_common.h>
+#else
+  #define USB_DEVICE_DESC              0x01
+  #define USB_CONFIGURATION_DESC       0x02
+  #define USB_STRING_DESC              0x03
+  #define USB_INTERFACE_DESC           0x04
+  #define USB_ENDPOINT_DESC            0x05
+  #define USB_DEVICE_QUAL_DESC         0x06
+  #define USB_INTERFACE_ASSOC_DESC     0x0B
+  #define USB_DEVICE_CAPABILITY_DESC   0x10
+  #define USB_HID_DESC                 0x21
+  #define USB_HID_REPORT_DESC          0x22
+  #define USB_DFU_FUNCTIONAL_DESC      0x21
+  #define USB_ASSOCIATION_DESC         0x0B
+  #define USB_BINARY_OBJECT_STORE_DESC 0x0F
+#endif
+
+
 
 class EspUsbHost {
 public:
@@ -179,3 +198,4 @@ public:
     {'='   , '='    }, /* 0x67 */ \
 
 #endif
+
