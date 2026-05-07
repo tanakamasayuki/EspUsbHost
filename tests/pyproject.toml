@@ -1,0 +1,11 @@
+[project]
+name = "demo-add-library-tests"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8",
+    "pytest-embedded>=2.0",
+    "pytest-embedded-serial>=2.0",
+    "pytest-embedded-arduino-cli>=1.1",
+    "pytest-html>=4.1.1",
+]
