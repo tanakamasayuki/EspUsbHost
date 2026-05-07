@@ -1,0 +1,34 @@
+profiles:
+  esp32s3:
+    fqbn: esp32:esp32:esp32s3:USBMode=default,DebugLevel=verbose
+    platforms:
+      - platform: esp32:esp32 (3.3.8)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../
+
+  esp32s3-psram:
+    fqbn: esp32:esp32:esp32s3:USBMode=default,DebugLevel=verbose,PSRAM=enabled
+    platforms:
+      - platform: esp32:esp32 (3.3.8)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../
+
+  esp32s3-psramopi:
+    fqbn: esp32:esp32:esp32s3:USBMode=default,DebugLevel=verbose,PSRAM=opi
+    platforms:
+      - platform: esp32:esp32 (3.3.8)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../
+
+  host:
+    fqbn: lang-ship:host:host
+    platforms:
+      - platform: lang-ship:host (1.0.5)
+        platform_index_url: https://tanakamasayuki.github.io/lang-ship-arduino-core/package_lang-ship_index.json
+    libraries:
+      - dir: ../../
+
+default_profile: esp32s3

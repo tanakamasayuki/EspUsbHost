@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Test / tooling caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+report.html
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local dependency locks
+uv.lock
+
+# Arduino CLI build outputs inside sketch directories
+tests/**/build/
