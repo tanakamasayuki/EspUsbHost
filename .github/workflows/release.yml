@@ -1,0 +1,170 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_level:
+        description: "Version component to bump when forcing a release (major, minor, patch)"
+        required: false
+        default: "patch"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_BRANCH: release
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Bump version
+        id: version
+        run: |
+          LEVEL="${{ github.event.inputs.version_level || 'patch' }}"
+          OUT=$(python tools/bump_version.py --level "$LEVEL")
+          VERSION=$(printf '%s\n' "$OUT" | sed -n '1p')
+          HEADER=$(printf '%s\n' "$OUT" | sed -n '2p')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_header=$HEADER" >> "$GITHUB_OUTPUT"
+
+      - name: Stage files
+        run: |
+          git add library.properties
+          if [ -f CHANGELOG.md ]; then
+            git add CHANGELOG.md
+          fi
+          # Leave sketch.yaml updates unstaged on the default branch; they will be committed on the release branch.
+          # If bump_version.py created a version header, include it in the commit
+          if [ -n "${{ steps.version.outputs.version_header }}" ] && [ -f "${{ steps.version.outputs.version_header }}" ]; then
+            git add "${{ steps.version.outputs.version_header }}"
+          fi
+
+      - name: Commit changes
+        run: |
+          git commit -m "Release ${{ steps.version.outputs.version }}" || echo "No changes to commit."
+
+      - name: Push default branch
+        run: git push origin HEAD:"$DEFAULT_BRANCH"
+
+      - name: Prepare release branch with release-only files
+        id: release_branch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git checkout -B "$RELEASE_BRANCH"
+          git rm -r --ignore-unmatch tests
+          git ls-files 'examples/sketch.yaml' 'examples/**/sketch.yaml' | sort -u | xargs -r git add
+          if git diff --cached --quiet; then
+            echo "No release-only changes to commit."
+          else
+            git commit -m "Release assets v${VERSION}"
+          fi
+          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Build release archive
+        id: archive
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCHIVE="${{ github.event.repository.name }}-${VERSION}.zip"
+          PREFIX="${{ github.event.repository.name }}"
+          WORKDIR="$(pwd)"
+          TEMP_DIR="$(mktemp -d)"
+
+          # Copy tracked files from the release branch working tree.
+          rsync -a --files-from=<(git ls-files -- . ':!:tests' ':!:tests/**') ./ "$TEMP_DIR/$PREFIX/"
+          (cd "$TEMP_DIR" && zip -r "$WORKDIR/$ARCHIVE" "$PREFIX")
+          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Build release notes
+        id: release_notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python <<'PY'
+          import os
+          import pathlib
+          import re
+
+          version = os.environ["VERSION"]
+          changelog_path = pathlib.Path("CHANGELOG.md")
+          notes = ""
+
+          if changelog_path.exists():
+              content = changelog_path.read_text(encoding="utf-8")
+              pattern = re.compile(
+                  rf"^## {re.escape(version)}\s*$\n(?P<body>.*?)(?=^## |\Z)",
+                  re.MULTILINE | re.DOTALL,
+              )
+              match = pattern.search(content)
+              if match:
+                  notes = match.group("body").strip()
+
+          release_body = f"Release v{version}."
+          if notes:
+              release_body = f"{release_body}\n\n## Changelog\n{notes}"
+          else:
+              release_body = f"{release_body}\n\n- Library version bumped to v{version}."
+
+          output_path = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write("body<<EOF\n")
+              fh.write(release_body)
+              fh.write("\nEOF\n")
+          PY
+
+      - name: Create tag and push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: create_tag_and_push
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          git checkout "$RELEASE_BRANCH"
+          # create tag only if it doesn't exist locally
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists locally; skipping tag creation."
+          else
+            git tag "$TAG"
+          fi
+          git push origin "$RELEASE_BRANCH" --force-with-lease
+          # push the tag; if remote already has same tag, this will be a no-op
+          git push origin "$TAG"
+
+      - name: Publish release
+        if: steps.create_tag_and_push.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.version.outputs.version }}
+          ARCHIVE: ${{ steps.archive.outputs.archive }}
+          RELEASE_BODY: ${{ steps.release_notes.outputs.body }}
+          TARGET: ${{ steps.release_branch.outputs.branch }}
+        run: |
+          NOTES_FILE="$(mktemp)"
+          printf '%s\n' "$RELEASE_BODY" > "$NOTES_FILE"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file "$NOTES_FILE"
+            gh release upload "$TAG" "$ARCHIVE" --clobber
+          else
+            gh release create "$TAG" "$ARCHIVE" \
+              --title "$TAG" \
+              --notes-file "$NOTES_FILE" \
+              --target "$TARGET"
+          fi
