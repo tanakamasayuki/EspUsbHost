@@ -5,9 +5,11 @@ static const char *TAG __attribute__((unused)) = "EspUsbHost";
 
 static constexpr uint8_t USB_CLASS_HID_VALUE = 0x03;
 static constexpr uint8_t USB_CLASS_HUB_VALUE = 0x09;
+static constexpr uint8_t USB_CLASS_AUDIO_VALUE = 0x01;
 static constexpr uint8_t USB_CLASS_CDC_CONTROL_VALUE = 0x02;
 static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
+static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_KEYBOARD_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_MOUSE_VALUE = 0x02;
@@ -18,6 +20,9 @@ static constexpr uint8_t CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE = 0x22;
 static constexpr uint8_t CDC_SET_REQUEST_TYPE = 0x21;
 static constexpr uint8_t VENDOR_OUT_REQUEST_TYPE = 0x40;
 static constexpr uint8_t VENDOR_INTERFACE_OUT_REQUEST_TYPE = 0x41;
+static constexpr uint8_t MIDI_CIN_NOTE_OFF = 0x08;
+static constexpr uint8_t MIDI_CIN_NOTE_ON = 0x09;
+static constexpr uint8_t MIDI_CIN_CONTROL_CHANGE = 0x0b;
 
 static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
 {
@@ -191,6 +196,11 @@ void EspUsbHost::onHIDInput(HIDInputCallback callback)
 void EspUsbHost::onSerialData(SerialDataCallback callback)
 {
   serialDataCallback_ = callback;
+}
+
+void EspUsbHost::onMidiMessage(MidiMessageCallback callback)
+{
+  midiMessageCallback_ = callback;
 }
 
 void EspUsbHost::onConsumerControl(ConsumerControlCallback callback)
@@ -420,6 +430,85 @@ bool EspUsbHost::setSerialBaudRate(uint32_t baud)
   return true;
 }
 
+bool EspUsbHost::midiReady() const
+{
+  return hasMidiOutEndpoint_ && deviceHandle_;
+}
+
+bool EspUsbHost::midiSend(const uint8_t *data, size_t length)
+{
+  if (!hasMidiOutEndpoint_ || !deviceHandle_)
+  {
+    ESP_LOGW(TAG, "midiSend() called before a MIDI OUT endpoint is ready");
+    return false;
+  }
+  if (length > 0 && !data)
+  {
+    ESP_LOGW(TAG, "midiSend() called with null data");
+    return false;
+  }
+
+  const size_t packetSize = length > midiOutPacketSize_ ? length : midiOutPacketSize_;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(packetSize, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(MIDI OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  if (length > 0)
+  {
+    memcpy(transfer->data_buffer, data, length);
+  }
+  transfer->device_handle = deviceHandle_;
+  transfer->bEndpointAddress = midiOutEndpointAddress_;
+  transfer->callback = serialOutTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = length;
+
+  err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(MIDI OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+  return true;
+}
+
+bool EspUsbHost::midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
+{
+  const uint8_t packet[4] = {
+      MIDI_CIN_NOTE_ON,
+      static_cast<uint8_t>(0x90 | (channel & 0x0f)),
+      static_cast<uint8_t>(note & 0x7f),
+      static_cast<uint8_t>(velocity & 0x7f)};
+  return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity)
+{
+  const uint8_t packet[4] = {
+      MIDI_CIN_NOTE_OFF,
+      static_cast<uint8_t>(0x80 | (channel & 0x0f)),
+      static_cast<uint8_t>(note & 0x7f),
+      static_cast<uint8_t>(velocity & 0x7f)};
+  return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value)
+{
+  const uint8_t packet[4] = {
+      MIDI_CIN_CONTROL_CHANGE,
+      static_cast<uint8_t>(0xb0 | (channel & 0x0f)),
+      static_cast<uint8_t>(control & 0x7f),
+      static_cast<uint8_t>(value & 0x7f)};
+  return midiSend(packet, sizeof(packet));
+}
+
 int EspUsbHost::lastError() const
 {
   return lastError_;
@@ -599,6 +688,11 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   hasVendorSerialInterface_ = false;
   vendorSerialSupported_ = false;
   vendorSerialInterfaceNumber_ = 0;
+  hasMidiInterface_ = false;
+  midiInterfaceNumber_ = 0;
+  hasMidiOutEndpoint_ = false;
+  midiOutEndpointAddress_ = 0;
+  midiOutPacketSize_ = 0;
 
   esp_err_t err = usb_host_device_open(clientHandle_, address, &deviceHandle_);
   if (err != ESP_OK)
@@ -651,7 +745,8 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   const bool isHub = devDesc && (devDesc->bDeviceClass == USB_CLASS_HUB_VALUE || configHasInterfaceClass(configDesc, USB_CLASS_HUB_VALUE));
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
   const bool hasCdc = configHasInterfaceClass(configDesc, USB_CLASS_CDC_CONTROL_VALUE) || configHasInterfaceClass(configDesc, USB_CLASS_CDC_DATA_VALUE);
-  if (isHub || (!hasHid && !hasCdc && !vendorSerialSupported_))
+  const bool hasAudio = configHasInterfaceClass(configDesc, USB_CLASS_AUDIO_VALUE);
+  if (isHub || (!hasHid && !hasCdc && !hasAudio && !vendorSerialSupported_))
   {
     ESP_LOGI(TAG, "Ignoring %s device at address=%u", isHub ? "hub" : "unsupported", address);
     usb_host_device_close(clientHandle_, deviceHandle_);
@@ -711,6 +806,11 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   hasVendorSerialInterface_ = false;
   vendorSerialSupported_ = false;
   vendorSerialInterfaceNumber_ = 0;
+  hasMidiInterface_ = false;
+  midiInterfaceNumber_ = 0;
+  hasMidiOutEndpoint_ = false;
+  midiOutEndpointAddress_ = 0;
+  midiOutPacketSize_ = 0;
 }
 
 void EspUsbHost::parseConfigDescriptor(const usb_config_desc_t *configDesc)
@@ -756,9 +856,13 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isVendorSerialInterface = vendorSerialSupported_ &&
                                          currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE &&
                                          !hasVendorSerialInterface_;
+    const bool isMidiInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+                                 currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
+                                 !hasMidiInterface_;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
+        isMidiInterface ||
         isVendorSerialInterface)
     {
       currentClaimResult_ = usb_host_interface_claim(clientHandle_, deviceHandle_, currentInterfaceNumber_, intf->bAlternateSetting);
@@ -795,6 +899,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                    vendorSerialName(deviceInfo_.vid),
                    vendorSerialInterfaceNumber_);
           configureVendorSerial();
+        }
+        else if (isMidiInterface)
+        {
+          hasMidiInterface_ = true;
+          midiInterfaceNumber_ = currentInterfaceNumber_;
+          ESP_LOGI(TAG, "USB MIDI interface ready: iface=%u", midiInterfaceNumber_);
         }
       }
       else
@@ -870,6 +980,67 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       {
         ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
                  currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(deviceInfo_.vid),
+                 endpoint->interfaceNumber,
+                 endpoint->address,
+                 ep->wMaxPacketSize);
+      }
+      return;
+    }
+
+    if (currentClaimResult_ == ESP_OK &&
+        currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+        currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
+        isBulk)
+    {
+      if (!isIn)
+      {
+        hasMidiOutEndpoint_ = true;
+        midiOutEndpointAddress_ = ep->bEndpointAddress;
+        midiOutPacketSize_ = ep->wMaxPacketSize;
+        ESP_LOGI(TAG, "USB MIDI bulk OUT endpoint ready: iface=%u ep=0x%02x size=%u",
+                 currentInterfaceNumber_,
+                 ep->bEndpointAddress,
+                 ep->wMaxPacketSize);
+        return;
+      }
+
+      EndpointState *endpoint = allocateEndpoint();
+      if (!endpoint)
+      {
+        ESP_LOGW(TAG, "No endpoint slots available");
+        setLastError(ESP_ERR_NO_MEM);
+        return;
+      }
+
+      esp_err_t err = usb_host_transfer_alloc(ep->wMaxPacketSize, 0, &endpoint->transfer);
+      if (err != ESP_OK)
+      {
+        endpoint->inUse = false;
+        ESP_LOGW(TAG, "usb_host_transfer_alloc(MIDI IN) failed: %s", esp_err_to_name(err));
+        setLastError(err);
+        return;
+      }
+
+      endpoint->address = ep->bEndpointAddress;
+      endpoint->interfaceNumber = currentInterfaceNumber_;
+      endpoint->interfaceClass = currentInterfaceClass_;
+      endpoint->interfaceSubClass = currentInterfaceSubClass_;
+      endpoint->interfaceProtocol = currentInterfaceProtocol_;
+      endpoint->transfer->device_handle = deviceHandle_;
+      endpoint->transfer->bEndpointAddress = ep->bEndpointAddress;
+      endpoint->transfer->callback = transferCallback;
+      endpoint->transfer->context = this;
+      endpoint->transfer->num_bytes = ep->wMaxPacketSize;
+
+      err = usb_host_transfer_submit(endpoint->transfer);
+      if (err != ESP_OK)
+      {
+        ESP_LOGW(TAG, "usb_host_transfer_submit(MIDI IN) failed: %s", esp_err_to_name(err));
+        setLastError(err);
+      }
+      else
+      {
+        ESP_LOGI(TAG, "USB MIDI bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
                  endpoint->interfaceNumber,
                  endpoint->address,
                  ep->wMaxPacketSize);
@@ -1018,6 +1189,11 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     {
       transferKind = "CDC serial input";
     }
+    else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
+             endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_MIDI_STREAMING)
+    {
+      transferKind = "USB MIDI input";
+    }
     else if (vendorSerialSupported_ && endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE)
     {
       transferKind = "VCP serial input";
@@ -1028,15 +1204,15 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
              transfer->bEndpointAddress,
              transfer->actual_num_bytes);
 
-    EspUsbHostHIDInput input;
-    input.address = deviceInfo_.address;
-    input.interfaceNumber = endpoint->interfaceNumber;
-    input.subclass = endpoint->interfaceSubClass;
-    input.protocol = endpoint->interfaceProtocol;
-    input.data = transfer->data_buffer;
-    input.length = transfer->actual_num_bytes;
-    if (hidInputCallback_)
+    if (endpoint->interfaceClass == USB_CLASS_HID_VALUE && hidInputCallback_)
     {
+      EspUsbHostHIDInput input;
+      input.address = deviceInfo_.address;
+      input.interfaceNumber = endpoint->interfaceNumber;
+      input.subclass = endpoint->interfaceSubClass;
+      input.protocol = endpoint->interfaceProtocol;
+      input.data = transfer->data_buffer;
+      input.length = transfer->actual_num_bytes;
       hidInputCallback_(input);
     }
 
@@ -1081,6 +1257,11 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
              (vendorSerialSupported_ && endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE))
     {
       handleSerial(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
+    }
+    else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
+             endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_MIDI_STREAMING)
+    {
+      handleMidi(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
     }
   }
   else if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
@@ -1213,6 +1394,38 @@ void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size
   serial.data = data;
   serial.length = length;
   serialDataCallback_(serial);
+}
+
+void EspUsbHost::handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length)
+{
+  if (!midiMessageCallback_ || !data || length < 4)
+  {
+    return;
+  }
+
+  for (size_t offset = 0; offset + 3 < length; offset += 4)
+  {
+    const uint8_t *packet = data + offset;
+    EspUsbHostMidiMessage message;
+    message.address = deviceInfo_.address;
+    message.interfaceNumber = endpoint.interfaceNumber;
+    message.cable = packet[0] >> 4;
+    message.codeIndex = packet[0] & 0x0f;
+    message.status = packet[1];
+    message.data1 = packet[2];
+    message.data2 = packet[3];
+    message.raw = packet;
+    message.length = 4;
+
+    ESP_LOGD(TAG, "MIDI iface=%u cable=%u cin=0x%02x status=0x%02x data1=0x%02x data2=0x%02x",
+             message.interfaceNumber,
+             message.cable,
+             message.codeIndex,
+             message.status,
+             message.data1,
+             message.data2);
+    midiMessageCallback_(message);
+  }
 }
 
 void EspUsbHost::handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length)

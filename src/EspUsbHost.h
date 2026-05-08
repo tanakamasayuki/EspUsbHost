@@ -109,6 +109,19 @@ struct EspUsbHostSerialData
   size_t length = 0;
 };
 
+struct EspUsbHostMidiMessage
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t cable = 0;
+  uint8_t codeIndex = 0;
+  uint8_t status = 0;
+  uint8_t data1 = 0;
+  uint8_t data2 = 0;
+  const uint8_t *raw = nullptr;
+  size_t length = 0;
+};
+
 struct EspUsbHostConsumerControlEvent
 {
   uint8_t interfaceNumber = 0;
@@ -157,6 +170,7 @@ public:
   using MouseCallback = std::function<void(const EspUsbHostMouseEvent &)>;
   using HIDInputCallback = std::function<void(const EspUsbHostHIDInput &)>;
   using SerialDataCallback = std::function<void(const EspUsbHostSerialData &)>;
+  using MidiMessageCallback = std::function<void(const EspUsbHostMidiMessage &)>;
   using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
   using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
   using VendorInputCallback = std::function<void(const EspUsbHostVendorInput &)>;
@@ -176,6 +190,7 @@ public:
   void onMouse(MouseCallback callback);
   void onHIDInput(HIDInputCallback callback);
   void onSerialData(SerialDataCallback callback);
+  void onMidiMessage(MidiMessageCallback callback);
   void onConsumerControl(ConsumerControlCallback callback);
   void onGamepad(GamepadCallback callback);
   void onVendorInput(VendorInputCallback callback);
@@ -193,6 +208,11 @@ public:
   bool sendSerial(const char *text);
   bool serialReady() const;
   bool setSerialBaudRate(uint32_t baud);
+  bool midiReady() const;
+  bool midiSend(const uint8_t *data, size_t length);
+  bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity);
+  bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity);
+  bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value);
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock);
 
   int lastError() const;
@@ -235,6 +255,7 @@ private:
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length);
@@ -291,6 +312,11 @@ private:
   bool hasVendorSerialInterface_ = false;
   bool vendorSerialSupported_ = false;
   uint8_t vendorSerialInterfaceNumber_ = 0;
+  bool hasMidiInterface_ = false;
+  uint8_t midiInterfaceNumber_ = 0;
+  bool hasMidiOutEndpoint_ = false;
+  uint8_t midiOutEndpointAddress_ = 0;
+  uint16_t midiOutPacketSize_ = 0;
   EspUsbHostCdcSerial *cdcSerial_ = nullptr;
 
   EndpointState endpoints_[16];
@@ -310,6 +336,7 @@ private:
   MouseCallback mouseCallback_;
   HIDInputCallback hidInputCallback_;
   SerialDataCallback serialDataCallback_;
+  MidiMessageCallback midiMessageCallback_;
   ConsumerControlCallback consumerControlCallback_;
   GamepadCallback gamepadCallback_;
   VendorInputCallback vendorInputCallback_;
