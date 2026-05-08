@@ -102,6 +102,57 @@ bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
   return event.moved || event.buttonsChanged;
 }
 
+bool espUsbHostParseConsumerControlReport(uint8_t interfaceNumber,
+                                          const uint8_t *data,
+                                          size_t length,
+                                          uint16_t previousUsage,
+                                          EspUsbHostConsumerControlEvent &event) {
+  if (!data || length < 2) {
+    return false;
+  }
+
+  const uint16_t usage = static_cast<uint16_t>(data[0]) | (static_cast<uint16_t>(data[1]) << 8);
+  if (usage == previousUsage) {
+    return false;
+  }
+
+  event = EspUsbHostConsumerControlEvent();
+  event.interfaceNumber = interfaceNumber;
+  event.usage = usage ? usage : previousUsage;
+  event.pressed = usage != 0;
+  event.released = usage == 0 && previousUsage != 0;
+  return event.pressed || event.released;
+}
+
+bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
+                                  const uint8_t *data,
+                                  size_t length,
+                                  uint32_t previousButtons,
+                                  EspUsbHostGamepadEvent &event) {
+  if (!data || length < 11) {
+    return false;
+  }
+
+  event = EspUsbHostGamepadEvent();
+  event.interfaceNumber = interfaceNumber;
+  event.x = static_cast<int8_t>(data[0]);
+  event.y = static_cast<int8_t>(data[1]);
+  event.z = static_cast<int8_t>(data[2]);
+  event.rz = static_cast<int8_t>(data[3]);
+  event.rx = static_cast<int8_t>(data[4]);
+  event.ry = static_cast<int8_t>(data[5]);
+  event.hat = data[6];
+  event.buttons = static_cast<uint32_t>(data[7]) |
+                  (static_cast<uint32_t>(data[8]) << 8) |
+                  (static_cast<uint32_t>(data[9]) << 16) |
+                  (static_cast<uint32_t>(data[10]) << 24);
+  event.previousButtons = previousButtons;
+  event.changed = event.x != 0 || event.y != 0 || event.z != 0 || event.rz != 0 ||
+                  event.rx != 0 || event.ry != 0 || event.hat != 0 ||
+                  event.buttons != event.previousButtons;
+  return event.changed;
+}
+
 uint8_t espUsbHostBuildKeyboardLedReport(bool numLock, bool capsLock, bool scrollLock) {
   uint8_t leds = 0;
   if (numLock) {
