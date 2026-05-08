@@ -135,7 +135,6 @@ private:
   void releaseEndpoints();
   void releaseInterfaces();
   void setLastError(esp_err_t err);
-  uint8_t keycodeToAscii(uint8_t keycode, uint8_t modifiers) const;
   static String usbString(const usb_str_desc_t *strDesc);
 
   EspUsbHostConfig config_;
