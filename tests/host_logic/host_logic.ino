@@ -77,6 +77,41 @@ static void testKeyboardDiff()
   check(count == 1 && events[0].pressed && events[0].ascii == 'A' && events[0].modifiers == 0x02, "keyboard_shift_a");
 }
 
+static void testMouseReport()
+{
+  EspUsbHostMouseEvent event;
+
+  const uint8_t idle[3] = {0x00, 0x00, 0x00};
+  check(!espUsbHostParseBootMouseReport(2, idle, sizeof(idle), 0x00, event), "mouse_idle_no_event");
+
+  const uint8_t move[4] = {0x00, 0x05, 0xfd, 0x01};
+  check(espUsbHostParseBootMouseReport(2, move, sizeof(move), 0x00, event) &&
+        event.interfaceNumber == 2 &&
+        event.moved &&
+        !event.buttonsChanged &&
+        event.x == 5 &&
+        event.y == -3 &&
+        event.wheel == 1,
+        "mouse_move_wheel");
+
+  const uint8_t press[3] = {ESP_USB_HOST_MOUSE_LEFT, 0x00, 0x00};
+  check(espUsbHostParseBootMouseReport(2, press, sizeof(press), 0x00, event) &&
+        !event.moved &&
+        event.buttonsChanged &&
+        event.buttons == ESP_USB_HOST_MOUSE_LEFT &&
+        event.previousButtons == 0x00,
+        "mouse_button_press");
+
+  const uint8_t release[3] = {0x00, 0x00, 0x00};
+  check(espUsbHostParseBootMouseReport(2, release, sizeof(release), ESP_USB_HOST_MOUSE_LEFT, event) &&
+        event.buttonsChanged &&
+        event.buttons == 0x00 &&
+        event.previousButtons == ESP_USB_HOST_MOUSE_LEFT,
+        "mouse_button_release");
+
+  check(!espUsbHostParseBootMouseReport(2, press, 2, 0x00, event), "mouse_short_invalid");
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -86,6 +121,7 @@ void setup()
   testKeycodeToAscii();
   testKeyboardReportValidation();
   testKeyboardDiff();
+  testMouseReport();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
 }

@@ -81,6 +81,27 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
   return KEYCODE_TO_ASCII_US[keycode][shift];
 }
 
+bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
+                                    const uint8_t *data,
+                                    size_t length,
+                                    uint8_t previousButtons,
+                                    EspUsbHostMouseEvent &event) {
+  if (!data || length < 3) {
+    return false;
+  }
+
+  event = EspUsbHostMouseEvent();
+  event.interfaceNumber = interfaceNumber;
+  event.previousButtons = previousButtons;
+  event.buttons = data[0];
+  event.x = static_cast<int8_t>(data[1]);
+  event.y = static_cast<int8_t>(data[2]);
+  event.wheel = length > 3 ? static_cast<int8_t>(data[3]) : 0;
+  event.moved = event.x != 0 || event.y != 0 || event.wheel != 0;
+  event.buttonsChanged = event.buttons != event.previousButtons;
+  return event.moved || event.buttonsChanged;
+}
+
 size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
                                      const EspUsbHostKeyboardReport &previousReport,
                                      const EspUsbHostKeyboardReport &currentReport,
