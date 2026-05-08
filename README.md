@@ -16,6 +16,7 @@ The first implementation target is HID boot keyboard/mouse with background USB p
 
 - `EspUsbHostKeybord`: HID boot keyboard input
 - `EspUsbHostMouse`: HID boot mouse input
+- `EspUsbHostKeyboardLeds`: HID boot keyboard LED output
 - `EspUsbHostHIDRawDump`: raw HID input report dump
 - `EspUsbHostHubProbe`: USB Host/Hub enumeration probe
 
