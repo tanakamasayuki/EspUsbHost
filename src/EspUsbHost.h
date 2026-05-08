@@ -111,16 +111,16 @@ private:
     usb_transfer_t *transfer = nullptr;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
-    bool keyboardSawIdle = false;
-    uint8_t keyboardIdleReports = 0;
     uint8_t lastMouseButtons = 0;
   };
 
   static void taskEntry(void *arg);
+  static void clientTaskEntry(void *arg);
   static void clientEventCallback(const usb_host_client_event_msg_t *eventMsg, void *arg);
   static void transferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
+  void clientTaskLoop();
   void handleClientEvent(const usb_host_client_event_msg_t *eventMsg);
   void handleNewDevice(uint8_t address);
   void handleDeviceGone(usb_device_handle_t goneHandle);
@@ -140,6 +140,7 @@ private:
 
   EspUsbHostConfig config_;
   TaskHandle_t taskHandle_ = nullptr;
+  TaskHandle_t clientTaskHandle_ = nullptr;
   volatile bool running_ = false;
   volatile bool ready_ = false;
   esp_err_t lastError_ = ESP_OK;

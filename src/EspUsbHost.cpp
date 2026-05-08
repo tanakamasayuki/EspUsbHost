@@ -4,6 +4,7 @@ static const char *TAG = "EspUsbHost";
 
 static constexpr uint8_t HID_BOOT_KEYBOARD_REPORT_SIZE = 8;
 static constexpr uint8_t USB_CLASS_HID_VALUE = 0x03;
+static constexpr uint8_t USB_CLASS_HUB_VALUE = 0x09;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_KEYBOARD_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_MOUSE_VALUE = 0x02;
@@ -36,18 +37,6 @@ static uint8_t keypadKeycodeToAscii(uint8_t keycode) {
   }
 }
 
-static bool isKeyboardReportIdle(const uint8_t *data) {
-  if (data[0] != 0 || data[1] != 0) {
-    return false;
-  }
-  for (int i = 2; i < HID_BOOT_KEYBOARD_REPORT_SIZE; i++) {
-    if (data[i] != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
 static bool isBootKeyboardReportValid(const uint8_t *data) {
   if (data[1] != 0) {
     return false;
@@ -59,6 +48,24 @@ static bool isBootKeyboardReportValid(const uint8_t *data) {
     }
   }
   return true;
+}
+
+static bool configHasInterfaceClass(const usb_config_desc_t *configDesc, uint8_t interfaceClass) {
+  const uint8_t *p = reinterpret_cast<const uint8_t *>(configDesc);
+  for (int i = 0; i < configDesc->wTotalLength;) {
+    const uint8_t length = p[i];
+    if (length < 2 || i + length > configDesc->wTotalLength) {
+      return false;
+    }
+    if (p[i + 1] == USB_INTERFACE_DESC) {
+      const usb_intf_desc_t *intf = reinterpret_cast<const usb_intf_desc_t *>(&p[i]);
+      if (intf->bInterfaceClass == interfaceClass) {
+        return true;
+      }
+    }
+    i += length;
+  }
+  return false;
 }
 
 static const uint8_t KEYCODE_TO_ASCII_JP[128][2] = {
@@ -127,6 +134,15 @@ void EspUsbHost::end() {
   }
 
   running_ = false;
+  if (clientTaskHandle_) {
+    for (int i = 0; i < 200 && clientTaskHandle_; i++) {
+      delay(1);
+    }
+    if (clientTaskHandle_) {
+      vTaskDelete(clientTaskHandle_);
+      clientTaskHandle_ = nullptr;
+    }
+  }
   if (taskHandle_) {
     for (int i = 0; i < 200 && taskHandle_; i++) {
       delay(1);
@@ -179,10 +195,14 @@ void EspUsbHost::taskEntry(void *arg) {
   static_cast<EspUsbHost *>(arg)->taskLoop();
 }
 
+void EspUsbHost::clientTaskEntry(void *arg) {
+  static_cast<EspUsbHost *>(arg)->clientTaskLoop();
+}
+
 void EspUsbHost::taskLoop() {
   usb_host_config_t hostConfig = {};
   hostConfig.skip_phy_setup = false;
-  hostConfig.intr_flags = ESP_INTR_FLAG_LEVEL1;
+  hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
 
   esp_err_t err = usb_host_install(&hostConfig);
   if (err != ESP_OK) {
@@ -211,24 +231,34 @@ void EspUsbHost::taskLoop() {
     return;
   }
 
-  ready_ = true;
+  BaseType_t created;
+  if (config_.taskCore == tskNO_AFFINITY) {
+    created = xTaskCreate(clientTaskEntry, "EspUsbHostClient", config_.taskStackSize, this, config_.taskPriority, &clientTaskHandle_);
+  } else {
+    created = xTaskCreatePinnedToCore(clientTaskEntry, "EspUsbHostClient", config_.taskStackSize, this, config_.taskPriority, &clientTaskHandle_, config_.taskCore);
+  }
+  if (created != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create USB Host client task");
+    setLastError(ESP_ERR_NO_MEM);
+    running_ = false;
+  }
+
+  ready_ = running_;
   ESP_LOGI(TAG, "USB Host started");
 
   while (running_) {
     uint32_t eventFlags = 0;
-    err = usb_host_lib_handle_events(pdMS_TO_TICKS(10), &eventFlags);
+    err = usb_host_lib_handle_events(portMAX_DELAY, &eventFlags);
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
       ESP_LOGW(TAG, "usb_host_lib_handle_events() failed: %s", esp_err_to_name(err));
       setLastError(err);
     }
-
-    err = usb_host_client_handle_events(clientHandle_, pdMS_TO_TICKS(10));
-    if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
-      ESP_LOGW(TAG, "usb_host_client_handle_events() failed: %s", esp_err_to_name(err));
-      setLastError(err);
-    }
   }
 
+  if (clientTaskHandle_) {
+    vTaskDelete(clientTaskHandle_);
+    clientTaskHandle_ = nullptr;
+  }
   releaseEndpoints();
   releaseInterfaces();
   if (deviceHandle_) {
@@ -245,6 +275,18 @@ void EspUsbHost::taskLoop() {
   ready_ = false;
   taskHandle_ = nullptr;
   ESP_LOGI(TAG, "USB Host stopped");
+  vTaskDelete(nullptr);
+}
+
+void EspUsbHost::clientTaskLoop() {
+  while (running_) {
+    esp_err_t err = usb_host_client_handle_events(clientHandle_, portMAX_DELAY);
+    if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
+      ESP_LOGW(TAG, "usb_host_client_handle_events() failed: %s", esp_err_to_name(err));
+      setLastError(err);
+    }
+  }
+  clientTaskHandle_ = nullptr;
   vTaskDelete(nullptr);
 }
 
@@ -297,10 +339,6 @@ void EspUsbHost::handleNewDevice(uint8_t address) {
              deviceInfo_.vid, deviceInfo_.pid, deviceInfo_.manufacturer, deviceInfo_.product, deviceInfo_.serial);
   }
 
-  if (deviceConnectedCallback_) {
-    deviceConnectedCallback_(deviceInfo_);
-  }
-
   const usb_config_desc_t *configDesc = nullptr;
   err = usb_host_get_active_config_descriptor(deviceHandle_, &configDesc);
   if (err != ESP_OK || !configDesc) {
@@ -308,6 +346,20 @@ void EspUsbHost::handleNewDevice(uint8_t address) {
     setLastError(err);
     return;
   }
+
+  const bool isHub = devDesc && (devDesc->bDeviceClass == USB_CLASS_HUB_VALUE || configHasInterfaceClass(configDesc, USB_CLASS_HUB_VALUE));
+  const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
+  if (isHub || !hasHid) {
+    ESP_LOGI(TAG, "Ignoring %s device at address=%u", isHub ? "hub" : "non-HID", address);
+    usb_host_device_close(clientHandle_, deviceHandle_);
+    deviceHandle_ = nullptr;
+    return;
+  }
+
+  if (deviceConnectedCallback_) {
+    deviceConnectedCallback_(deviceInfo_);
+  }
+
   parseConfigDescriptor(configDesc);
 }
 
@@ -474,23 +526,8 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
     return;
   }
 
-  if (!endpoint.keyboardSawIdle) {
-    if (!isKeyboardReportIdle(data)) {
-      memcpy(endpoint.lastKeyboardReport, data, HID_BOOT_KEYBOARD_REPORT_SIZE);
-      return;
-    }
-    endpoint.keyboardIdleReports++;
-    if (endpoint.keyboardIdleReports < 2) {
-      memcpy(endpoint.lastKeyboardReport, data, HID_BOOT_KEYBOARD_REPORT_SIZE);
-      return;
-    }
-    endpoint.keyboardSawIdle = true;
-  }
-
   if (!endpoint.keyboardReportReady) {
-    memcpy(endpoint.lastKeyboardReport, data, HID_BOOT_KEYBOARD_REPORT_SIZE);
     endpoint.keyboardReportReady = true;
-    return;
   }
 
   const uint8_t modifiers = data[0];
