@@ -14,10 +14,10 @@ Current coverage:
 - `hid_keyboard`: pairs with the Arduino USB keyboard examples.
 - `hid_mouse`: pairs with `USB/examples/Mouse/ButtonMouseControl`.
 - `hid_keyboard_mouse`: pairs with `USB/examples/KeyboardAndMouseControl`.
+- `hid_consumer_control`: pairs with `USB/examples/ConsumerControl`.
+- `hid_gamepad`: pairs with `USB/examples/Gamepad`.
+- `hid_vendor`: pairs with `USB/examples/HIDVendor`.
 
 Planned coverage:
 
-- Consumer Control: raw HID input validation for media keys.
-- Gamepad: raw HID input validation for buttons, axes, and hat.
-- Custom HID / HID Vendor: descriptor and report transport validation.
-
+- Custom HID: descriptor and report transport validation.

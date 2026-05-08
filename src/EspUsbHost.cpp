@@ -122,6 +122,18 @@ void EspUsbHost::onHIDInput(HIDInputCallback callback) {
   hidInputCallback_ = callback;
 }
 
+void EspUsbHost::onConsumerControl(ConsumerControlCallback callback) {
+  consumerControlCallback_ = callback;
+}
+
+void EspUsbHost::onGamepad(GamepadCallback callback) {
+  gamepadCallback_ = callback;
+}
+
+void EspUsbHost::onVendorInput(VendorInputCallback callback) {
+  vendorInputCallback_ = callback;
+}
+
 void EspUsbHost::setKeyboardLayout(EspUsbHostKeyboardLayout layout) {
   keyboardLayout_ = layout;
 }
@@ -556,10 +568,16 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer) {
     }
 
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE) {
-      if (transfer->actual_num_bytes >= 5 && transfer->data_buffer[0] == 0x02) {
+      if (transfer->actual_num_bytes >= 5 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE) {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
-      } else if (transfer->actual_num_bytes >= 9 && transfer->data_buffer[0] == 0x01) {
+      } else if (transfer->actual_num_bytes >= 9 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_KEYBOARD) {
         handleKeyboard(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1);
+      } else if (transfer->actual_num_bytes >= 3 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_CONSUMER_CONTROL) {
+        handleConsumerControl(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1);
+      } else if (transfer->actual_num_bytes >= 12 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_GAMEPAD) {
+        handleGamepad(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1);
+      } else if (transfer->actual_num_bytes >= 2 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_VENDOR) {
+        handleVendorInput(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1);
       } else if (endpoint->interfaceSubClass == HID_SUBCLASS_BOOT_VALUE &&
                  endpoint->interfaceProtocol == HID_PROTOCOL_KEYBOARD_VALUE) {
         handleKeyboard(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
@@ -634,7 +652,9 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
     return;
   }
 
-  if (endpoint.interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE && length >= 5 && data[0] == 0x02) {
+  if (endpoint.interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
+      length >= 5 &&
+      data[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE) {
     data += 1;
     length -= 1;
   }
@@ -657,6 +677,74 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
            event.previousButtons);
   mouseCallback_(event);
   endpoint.lastMouseButtons = event.buttons;
+}
+
+void EspUsbHost::handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length) {
+  if (!consumerControlCallback_) {
+    return;
+  }
+
+  EspUsbHostConsumerControlEvent event;
+  if (!espUsbHostParseConsumerControlReport(endpoint.interfaceNumber,
+                                            data,
+                                            length,
+                                            endpoint.lastConsumerUsage,
+                                            event)) {
+    return;
+  }
+
+  ESP_LOGD(TAG, "ConsumerControl iface=%u usage=0x%04x pressed=%u released=%u",
+           event.interfaceNumber,
+           event.usage,
+           event.pressed ? 1 : 0,
+           event.released ? 1 : 0);
+  consumerControlCallback_(event);
+  endpoint.lastConsumerUsage = event.pressed ? event.usage : 0;
+}
+
+void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length) {
+  if (!gamepadCallback_) {
+    return;
+  }
+
+  EspUsbHostGamepadEvent event;
+  if (!espUsbHostParseGamepadReport(endpoint.interfaceNumber,
+                                    data,
+                                    length,
+                                    endpoint.lastGamepadButtons,
+                                    event)) {
+    return;
+  }
+
+  ESP_LOGD(TAG, "Gamepad iface=%u x=%d y=%d z=%d rz=%d rx=%d ry=%d hat=%u buttons=0x%08lx previous=0x%08lx",
+           event.interfaceNumber,
+           event.x,
+           event.y,
+           event.z,
+           event.rz,
+           event.rx,
+           event.ry,
+           event.hat,
+           static_cast<unsigned long>(event.buttons),
+           static_cast<unsigned long>(event.previousButtons));
+  gamepadCallback_(event);
+  endpoint.lastGamepadButtons = event.buttons;
+}
+
+void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length) {
+  if (!vendorInputCallback_) {
+    return;
+  }
+
+  EspUsbHostVendorInput input;
+  input.interfaceNumber = endpoint.interfaceNumber;
+  input.data = data;
+  input.length = length;
+
+  ESP_LOGD(TAG, "VendorInput iface=%u length=%u",
+           input.interfaceNumber,
+           static_cast<unsigned>(input.length));
+  vendorInputCallback_(input);
 }
 
 EspUsbHost::EndpointState *EspUsbHost::findEndpoint(uint8_t endpointAddress) {

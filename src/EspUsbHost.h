@@ -40,6 +40,12 @@ static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK = 0x04;
 static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_COMPOSE = 0x08;
 static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_KANA = 0x10;
 
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_KEYBOARD = 0x01;
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_MOUSE = 0x02;
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_GAMEPAD = 0x03;
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_CONSUMER_CONTROL = 0x04;
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_VENDOR = 0x06;
+
 struct EspUsbHostConfig {
   uint32_t taskStackSize = 4096;
   UBaseType_t taskPriority = 5;
@@ -84,12 +90,42 @@ struct EspUsbHostHIDInput {
   size_t length = 0;
 };
 
+struct EspUsbHostConsumerControlEvent {
+  uint8_t interfaceNumber = 0;
+  uint16_t usage = 0;
+  bool pressed = false;
+  bool released = false;
+};
+
+struct EspUsbHostGamepadEvent {
+  uint8_t interfaceNumber = 0;
+  int8_t x = 0;
+  int8_t y = 0;
+  int8_t z = 0;
+  int8_t rz = 0;
+  int8_t rx = 0;
+  int8_t ry = 0;
+  uint8_t hat = 0;
+  uint32_t buttons = 0;
+  uint32_t previousButtons = 0;
+  bool changed = false;
+};
+
+struct EspUsbHostVendorInput {
+  uint8_t interfaceNumber = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
 class EspUsbHost {
 public:
   using DeviceCallback = std::function<void(const EspUsbHostDeviceInfo &)>;
   using KeyboardCallback = std::function<void(const EspUsbHostKeyboardEvent &)>;
   using MouseCallback = std::function<void(const EspUsbHostMouseEvent &)>;
   using HIDInputCallback = std::function<void(const EspUsbHostHIDInput &)>;
+  using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
+  using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
+  using VendorInputCallback = std::function<void(const EspUsbHostVendorInput &)>;
 
   EspUsbHost();
   ~EspUsbHost();
@@ -104,6 +140,9 @@ public:
   void onKeyboard(KeyboardCallback callback);
   void onMouse(MouseCallback callback);
   void onHIDInput(HIDInputCallback callback);
+  void onConsumerControl(ConsumerControlCallback callback);
+  void onGamepad(GamepadCallback callback);
+  void onVendorInput(VendorInputCallback callback);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
   bool sendHIDReport(uint8_t interfaceNumber,
@@ -128,6 +167,8 @@ private:
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
     uint8_t lastMouseButtons = 0;
+    uint16_t lastConsumerUsage = 0;
+    uint32_t lastGamepadButtons = 0;
   };
 
   static void taskEntry(void *arg);
@@ -146,6 +187,9 @@ private:
   void handleTransfer(usb_transfer_t *transfer);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length);
 
   EndpointState *findEndpoint(uint8_t endpointAddress);
   EndpointState *allocateEndpoint();
@@ -186,6 +230,9 @@ private:
   KeyboardCallback keyboardCallback_;
   MouseCallback mouseCallback_;
   HIDInputCallback hidInputCallback_;
+  ConsumerControlCallback consumerControlCallback_;
+  GamepadCallback gamepadCallback_;
+  VendorInputCallback vendorInputCallback_;
 };
 
 #endif

@@ -135,6 +135,61 @@ static void testKeyboardLedReport()
         "keyboard_led_all");
 }
 
+static void testConsumerControlReport()
+{
+  EspUsbHostConsumerControlEvent event;
+
+  const uint8_t volumeUp[2] = {0xe9, 0x00};
+  check(espUsbHostParseConsumerControlReport(3, volumeUp, sizeof(volumeUp), 0x0000, event) &&
+            event.interfaceNumber == 3 &&
+            event.usage == 0x00e9 &&
+            event.pressed &&
+            !event.released,
+        "consumer_volume_up_press");
+
+  const uint8_t idle[2] = {0x00, 0x00};
+  check(espUsbHostParseConsumerControlReport(3, idle, sizeof(idle), 0x00e9, event) &&
+            event.usage == 0x00e9 &&
+            !event.pressed &&
+            event.released,
+        "consumer_volume_up_release");
+
+  check(!espUsbHostParseConsumerControlReport(3, volumeUp, sizeof(volumeUp), 0x00e9, event), "consumer_same_ignored");
+  check(!espUsbHostParseConsumerControlReport(3, volumeUp, 1, 0x0000, event), "consumer_short_invalid");
+}
+
+static void testGamepadReport()
+{
+  EspUsbHostGamepadEvent event;
+
+  const uint8_t active[11] = {
+      10, static_cast<uint8_t>(-10), 20, static_cast<uint8_t>(-20),
+      30, static_cast<uint8_t>(-30), 3,
+      0x05, 0x00, 0x00, 0x00};
+  check(espUsbHostParseGamepadReport(4, active, sizeof(active), 0x00000000, event) &&
+            event.interfaceNumber == 4 &&
+            event.x == 10 &&
+            event.y == -10 &&
+            event.z == 20 &&
+            event.rz == -20 &&
+            event.rx == 30 &&
+            event.ry == -30 &&
+            event.hat == 3 &&
+            event.buttons == 0x00000005 &&
+            event.previousButtons == 0x00000000 &&
+            event.changed,
+        "gamepad_active");
+
+  const uint8_t idle[11] = {};
+  check(!espUsbHostParseGamepadReport(4, idle, sizeof(idle), 0x00000000, event), "gamepad_idle_ignored");
+  check(espUsbHostParseGamepadReport(4, idle, sizeof(idle), 0x00000005, event) &&
+            event.buttons == 0x00000000 &&
+            event.previousButtons == 0x00000005 &&
+            event.changed,
+        "gamepad_button_release");
+  check(!espUsbHostParseGamepadReport(4, active, 10, 0x00000000, event), "gamepad_short_invalid");
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -146,6 +201,8 @@ void setup()
   testKeyboardDiff();
   testMouseReport();
   testKeyboardLedReport();
+  testConsumerControlReport();
+  testGamepadReport();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
 }

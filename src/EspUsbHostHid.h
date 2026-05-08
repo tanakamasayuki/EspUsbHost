@@ -16,6 +16,16 @@ bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
                                     size_t length,
                                     uint8_t previousButtons,
                                     EspUsbHostMouseEvent &event);
+bool espUsbHostParseConsumerControlReport(uint8_t interfaceNumber,
+                                          const uint8_t *data,
+                                          size_t length,
+                                          uint16_t previousUsage,
+                                          EspUsbHostConsumerControlEvent &event);
+bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
+                                  const uint8_t *data,
+                                  size_t length,
+                                  uint32_t previousButtons,
+                                  EspUsbHostGamepadEvent &event);
 uint8_t espUsbHostBuildKeyboardLedReport(bool numLock, bool capsLock, bool scrollLock);
 
 size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
