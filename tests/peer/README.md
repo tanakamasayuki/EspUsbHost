@@ -11,13 +11,15 @@ uv run --env-file .env pytest peer/
 
 Current coverage:
 
+- `custom_hid`: pairs with `USB/examples/CustomHIDDevice`.
 - `hid_keyboard`: pairs with the Arduino USB keyboard examples.
 - `hid_mouse`: pairs with `USB/examples/Mouse/ButtonMouseControl`.
 - `hid_keyboard_mouse`: pairs with `USB/examples/KeyboardAndMouseControl`.
 - `hid_consumer_control`: pairs with `USB/examples/ConsumerControl`.
+- `hid_system_control`: pairs with `USB/examples/SystemControl`.
 - `hid_gamepad`: pairs with `USB/examples/Gamepad`.
 - `hid_vendor`: pairs with `USB/examples/HIDVendor`.
 
 Planned coverage:
 
-- Custom HID: descriptor and report transport validation.
+- HID output reports and feature reports.

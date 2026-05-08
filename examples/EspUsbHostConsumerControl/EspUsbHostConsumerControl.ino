@@ -37,11 +37,10 @@ void setup()
                            { Serial.println("disconnected"); });
 
   usb.onConsumerControl([](const EspUsbHostConsumerControlEvent &event)
-                        {
-    Serial.printf("consumer %s usage=0x%04x %s\n",
-                  event.pressed ? "press" : "release",
-                  event.usage,
-                  consumerUsageName(event.usage)); });
+                        { Serial.printf("consumer %s usage=0x%04x %s\n",
+                                        event.pressed ? "press" : "release",
+                                        event.usage,
+                                        consumerUsageName(event.usage)); });
 
   if (!usb.begin())
   {

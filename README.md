@@ -18,8 +18,10 @@ The first implementation target is HID keyboard, mouse, consumer control, and ga
 - `EspUsbHostMouse`: HID boot mouse input
 - `EspUsbHostKeyboardLeds`: HID boot keyboard LED output
 - `EspUsbHostConsumerControl`: HID consumer control input
+- `EspUsbHostSystemControl`: HID system control input
 - `EspUsbHostGamepad`: HID gamepad input
 - `EspUsbHostHIDVendor`: HID vendor input
+- `EspUsbHostCustomHID`: generic/custom HID input report dump
 - `EspUsbHostHIDRawDump`: raw HID input report dump
 - `EspUsbHostHubProbe`: USB Host/Hub enumeration probe
 
@@ -60,6 +62,7 @@ void loop() {
 - `void onMouse(MouseCallback callback)`
 - `void onHIDInput(HIDInputCallback callback)`
 - `void onConsumerControl(ConsumerControlCallback callback)`
+- `void onSystemControl(SystemControlCallback callback)`
 - `void onGamepad(GamepadCallback callback)`
 - `void onVendorInput(VendorInputCallback callback)`
 - `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
