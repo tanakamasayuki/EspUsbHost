@@ -12,6 +12,13 @@ Arduino library for using ESP32 USB Host from sketches.
 This branch is being rewritten around the API described in `SPEC.ja.md`.
 The first implementation target is HID boot keyboard/mouse with background USB processing.
 
+## Examples
+
+- `EspUsbHostKeybord`: HID boot keyboard input
+- `EspUsbHostMouse`: HID boot mouse input
+- `EspUsbHostHIDRawDump`: raw HID input report dump
+- `EspUsbHostHubProbe`: USB Host/Hub enumeration probe
+
 ## Keyboard example
 
 ```cpp
@@ -51,3 +58,7 @@ void loop() {
 - `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
 - `int lastError() const`
 - `const char *lastErrorName() const`
+
+## Tests
+
+- `tests/host_logic`: USB-independent HID logic tests for key conversion, keyboard report diffs, and mouse report parsing
