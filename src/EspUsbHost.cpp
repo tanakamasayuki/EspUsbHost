@@ -526,30 +526,27 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
 }
 
 void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length) {
-  if (length < 3 || !mouseCallback_) {
+  if (!mouseCallback_) {
     return;
   }
 
   EspUsbHostMouseEvent event;
-  event.interfaceNumber = endpoint.interfaceNumber;
-  event.previousButtons = endpoint.lastMouseButtons;
-  event.buttons = data[0];
-  event.x = static_cast<int8_t>(data[1]);
-  event.y = static_cast<int8_t>(data[2]);
-  event.wheel = length > 3 ? static_cast<int8_t>(data[3]) : 0;
-  event.moved = event.x != 0 || event.y != 0 || event.wheel != 0;
-  event.buttonsChanged = event.buttons != event.previousButtons;
-
-  if (event.moved || event.buttonsChanged) {
-    ESP_LOGD(TAG, "Mouse iface=%u x=%d y=%d wheel=%d buttons=0x%02x previous=0x%02x",
-             event.interfaceNumber,
-             event.x,
-             event.y,
-             event.wheel,
-             event.buttons,
-             event.previousButtons);
-    mouseCallback_(event);
+  if (!espUsbHostParseBootMouseReport(endpoint.interfaceNumber,
+                                      data,
+                                      length,
+                                      endpoint.lastMouseButtons,
+                                      event)) {
+    return;
   }
+
+  ESP_LOGD(TAG, "Mouse iface=%u x=%d y=%d wheel=%d buttons=0x%02x previous=0x%02x",
+           event.interfaceNumber,
+           event.x,
+           event.y,
+           event.wheel,
+           event.buttons,
+           event.previousButtons);
+  mouseCallback_(event);
   endpoint.lastMouseButtons = event.buttons;
 }
 

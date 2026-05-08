@@ -11,6 +11,12 @@ struct EspUsbHostKeyboardReport {
   uint8_t data[ESP_USB_HOST_BOOT_KEYBOARD_REPORT_SIZE] = {};
 };
 
+bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
+                                    const uint8_t *data,
+                                    size_t length,
+                                    uint8_t previousButtons,
+                                    EspUsbHostMouseEvent &event);
+
 size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
                                      const EspUsbHostKeyboardReport &previousReport,
                                      const EspUsbHostKeyboardReport &currentReport,
