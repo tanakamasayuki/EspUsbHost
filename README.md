@@ -24,6 +24,7 @@ Common USB serial VCP devices are detected experimentally and use the same seria
 - `EspUsbHostHIDVendor`: HID vendor input
 - `EspUsbHostCustomHID`: generic/custom HID input report dump
 - `EspUsbHostUSBSerial`: CDC ACM USB serial input/output
+- `EspUsbHostMIDI`: USB MIDI input/output
 - `EspUsbHostHIDRawDump`: raw HID input report dump
 - `EspUsbHostHubProbe`: USB Host/Hub enumeration probe
 
@@ -74,6 +75,11 @@ void loop() {
 - `bool sendSerial(const char *text)`
 - `bool serialReady() const`
 - `bool setSerialBaudRate(uint32_t baud)`
+- `bool midiReady() const`
+- `bool midiSend(const uint8_t *data, size_t length)`
+- `bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity)`
+- `bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity)`
+- `bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value)`
 - `bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock)`
 - `int lastError() const`
 - `const char *lastErrorName() const`
