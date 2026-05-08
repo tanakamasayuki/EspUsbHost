@@ -56,6 +56,8 @@ void loop() {
 - `void onMouse(MouseCallback callback)`
 - `void onHIDInput(HIDInputCallback callback)`
 - `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
+- `bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId, const uint8_t *data, size_t length)`
+- `bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock)`
 - `int lastError() const`
 - `const char *lastErrorName() const`
 
