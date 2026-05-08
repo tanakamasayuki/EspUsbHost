@@ -112,6 +112,19 @@ static void testMouseReport()
   check(!espUsbHostParseBootMouseReport(2, press, 2, 0x00, event), "mouse_short_invalid");
 }
 
+static void testKeyboardLedReport()
+{
+  check(espUsbHostBuildKeyboardLedReport(false, false, false) == 0x00, "keyboard_led_none");
+  check(espUsbHostBuildKeyboardLedReport(true, false, false) == ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK, "keyboard_led_num");
+  check(espUsbHostBuildKeyboardLedReport(false, true, false) == ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK, "keyboard_led_caps");
+  check(espUsbHostBuildKeyboardLedReport(false, false, true) == ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK, "keyboard_led_scroll");
+  check(espUsbHostBuildKeyboardLedReport(true, true, true) ==
+          (ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK |
+           ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK |
+           ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK),
+        "keyboard_led_all");
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -122,6 +135,7 @@ void setup()
   testKeyboardReportValidation();
   testKeyboardDiff();
   testMouseReport();
+  testKeyboardLedReport();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
 }

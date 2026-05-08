@@ -191,16 +191,7 @@ bool EspUsbHost::setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock) {
     return false;
   }
 
-  uint8_t leds = 0;
-  if (numLock) {
-    leds |= ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK;
-  }
-  if (capsLock) {
-    leds |= ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK;
-  }
-  if (scrollLock) {
-    leds |= ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK;
-  }
+  uint8_t leds = espUsbHostBuildKeyboardLedReport(numLock, capsLock, scrollLock);
 
   return sendHIDReport(keyboardInterfaceNumber_,
                        ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,

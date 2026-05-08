@@ -102,6 +102,20 @@ bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
   return event.moved || event.buttonsChanged;
 }
 
+uint8_t espUsbHostBuildKeyboardLedReport(bool numLock, bool capsLock, bool scrollLock) {
+  uint8_t leds = 0;
+  if (numLock) {
+    leds |= ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK;
+  }
+  if (capsLock) {
+    leds |= ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK;
+  }
+  if (scrollLock) {
+    leds |= ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK;
+  }
+  return leds;
+}
+
 size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
                                      const EspUsbHostKeyboardReport &previousReport,
                                      const EspUsbHostKeyboardReport &currentReport,
