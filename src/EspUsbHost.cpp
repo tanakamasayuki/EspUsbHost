@@ -203,7 +203,7 @@ void EspUsbHost::taskLoop() {
     vTaskDelete(clientTaskHandle_);
     clientTaskHandle_ = nullptr;
   }
-  releaseEndpoints();
+  releaseEndpoints(true);
   releaseInterfaces();
   if (deviceHandle_) {
     usb_host_device_close(clientHandle_, deviceHandle_);
@@ -309,7 +309,7 @@ void EspUsbHost::handleNewDevice(uint8_t address) {
 
 void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle) {
   ESP_LOGI(TAG, "Device disconnected");
-  releaseEndpoints();
+  releaseEndpoints(false);
   releaseInterfaces();
   if (deviceHandle_) {
     usb_host_device_close(clientHandle_, deviceHandle_);
@@ -573,13 +573,20 @@ EspUsbHost::EndpointState *EspUsbHost::allocateEndpoint() {
   return nullptr;
 }
 
-void EspUsbHost::releaseEndpoints() {
+void EspUsbHost::releaseEndpoints(bool clearEndpoints) {
   for (EndpointState &endpoint : endpoints_) {
     if (!endpoint.inUse) {
       continue;
     }
     if (endpoint.transfer) {
-      usb_host_endpoint_clear(deviceHandle_, endpoint.address);
+      if (clearEndpoints && deviceHandle_) {
+        esp_err_t err = usb_host_endpoint_clear(deviceHandle_, endpoint.address);
+        if (err != ESP_OK) {
+          ESP_LOGD(TAG, "usb_host_endpoint_clear(0x%02x) failed: %s",
+                   endpoint.address,
+                   esp_err_to_name(err));
+        }
+      }
       usb_host_transfer_free(endpoint.transfer);
     }
     endpoint = EndpointState();
