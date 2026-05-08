@@ -10,7 +10,8 @@ Arduino library for using ESP32 USB Host from sketches.
 ## Current status
 
 This branch is being rewritten around the API described in `SPEC.ja.md`.
-The first implementation target is HID keyboard, mouse, consumer control, and gamepad input with background USB processing.
+The first implementation target is HID and CDC ACM input/output with background USB processing.
+Common USB serial VCP devices are detected experimentally and use the same serial stream path when bulk endpoints are available.
 
 ## Examples
 
@@ -22,6 +23,7 @@ The first implementation target is HID keyboard, mouse, consumer control, and ga
 - `EspUsbHostGamepad`: HID gamepad input
 - `EspUsbHostHIDVendor`: HID vendor input
 - `EspUsbHostCustomHID`: generic/custom HID input report dump
+- `EspUsbHostUSBSerial`: CDC ACM USB serial input/output
 - `EspUsbHostHIDRawDump`: raw HID input report dump
 - `EspUsbHostHubProbe`: USB Host/Hub enumeration probe
 
@@ -61,17 +63,37 @@ void loop() {
 - `void onKeyboard(KeyboardCallback callback)`
 - `void onMouse(MouseCallback callback)`
 - `void onHIDInput(HIDInputCallback callback)`
+- `void onSerialData(SerialDataCallback callback)`
 - `void onConsumerControl(ConsumerControlCallback callback)`
 - `void onSystemControl(SystemControlCallback callback)`
 - `void onGamepad(GamepadCallback callback)`
 - `void onVendorInput(VendorInputCallback callback)`
 - `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
 - `bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId, const uint8_t *data, size_t length)`
+- `bool sendSerial(const uint8_t *data, size_t length)`
+- `bool sendSerial(const char *text)`
+- `bool serialReady() const`
+- `bool setSerialBaudRate(uint32_t baud)`
 - `bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock)`
 - `int lastError() const`
 - `const char *lastErrorName() const`
 
+`EspUsbHostCdcSerial` implements the usual Arduino `Stream` / `Print` style API:
+
+- `bool begin(uint32_t baud = 115200)`
+- `void end()`
+- `bool connected() const`
+- `int available()`
+- `int read()`
+- `int peek()`
+- `void flush()`
+- `size_t write(uint8_t data)`
+- `size_t write(const uint8_t *buffer, size_t size)`
+- `bool setBaudRate(uint32_t baud)`
+- `bool setDtr(bool enable)`
+- `bool setRts(bool enable)`
+
 ## Tests
 
 - `tests/standalone/host_logic`: USB-independent HID logic tests
-- `tests/peer`: two-board USB HID tests using an ESP32-S3 device peer
+- `tests/peer`: two-board USB tests using an ESP32-S3 device peer
