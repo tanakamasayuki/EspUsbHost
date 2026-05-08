@@ -5,11 +5,14 @@ static int failCount = 0;
 
 static void check(bool condition, const char *name)
 {
-  if (condition) {
+  if (condition)
+  {
     Serial.print("PASS ");
     Serial.println(name);
     passCount++;
-  } else {
+  }
+  else
+  {
     Serial.print("FAIL ");
     Serial.println(name);
     failCount++;
@@ -86,27 +89,27 @@ static void testMouseReport()
 
   const uint8_t move[4] = {0x00, 0x05, 0xfd, 0x01};
   check(espUsbHostParseBootMouseReport(2, move, sizeof(move), 0x00, event) &&
-        event.interfaceNumber == 2 &&
-        event.moved &&
-        !event.buttonsChanged &&
-        event.x == 5 &&
-        event.y == -3 &&
-        event.wheel == 1,
+            event.interfaceNumber == 2 &&
+            event.moved &&
+            !event.buttonsChanged &&
+            event.x == 5 &&
+            event.y == -3 &&
+            event.wheel == 1,
         "mouse_move_wheel");
 
   const uint8_t press[3] = {ESP_USB_HOST_MOUSE_LEFT, 0x00, 0x00};
   check(espUsbHostParseBootMouseReport(2, press, sizeof(press), 0x00, event) &&
-        !event.moved &&
-        event.buttonsChanged &&
-        event.buttons == ESP_USB_HOST_MOUSE_LEFT &&
-        event.previousButtons == 0x00,
+            !event.moved &&
+            event.buttonsChanged &&
+            event.buttons == ESP_USB_HOST_MOUSE_LEFT &&
+            event.previousButtons == 0x00,
         "mouse_button_press");
 
   const uint8_t release[3] = {0x00, 0x00, 0x00};
   check(espUsbHostParseBootMouseReport(2, release, sizeof(release), ESP_USB_HOST_MOUSE_LEFT, event) &&
-        event.buttonsChanged &&
-        event.buttons == 0x00 &&
-        event.previousButtons == ESP_USB_HOST_MOUSE_LEFT,
+            event.buttonsChanged &&
+            event.buttons == 0x00 &&
+            event.previousButtons == ESP_USB_HOST_MOUSE_LEFT,
         "mouse_button_release");
 
   check(!espUsbHostParseBootMouseReport(2, press, 2, 0x00, event), "mouse_short_invalid");
@@ -119,16 +122,16 @@ static void testKeyboardLedReport()
   check(espUsbHostBuildKeyboardLedReport(false, true, false) == ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK, "keyboard_led_caps");
   check(espUsbHostBuildKeyboardLedReport(false, false, true) == ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK, "keyboard_led_scroll");
   check(espUsbHostBuildKeyboardLedReport(true, true, true) ==
-          (ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK |
-           ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK |
-           ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK),
+            (ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK |
+             ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK |
+             ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK),
         "keyboard_led_all");
 }
 
 void setup()
 {
   Serial.begin(115200);
-  delay(1000);
+  delay(5000);
 
   Serial.println("TEST_BEGIN host_logic");
   testKeycodeToAscii();
