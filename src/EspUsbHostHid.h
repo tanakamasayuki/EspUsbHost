@@ -16,6 +16,7 @@ bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
                                     size_t length,
                                     uint8_t previousButtons,
                                     EspUsbHostMouseEvent &event);
+uint8_t espUsbHostBuildKeyboardLedReport(bool numLock, bool capsLock, bool scrollLock);
 
 size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
                                      const EspUsbHostKeyboardReport &previousReport,

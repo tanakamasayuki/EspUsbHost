@@ -30,6 +30,16 @@ static constexpr uint8_t ESP_USB_HOST_MOUSE_MIDDLE = 0x04;
 static constexpr uint8_t ESP_USB_HOST_MOUSE_BACK = 0x08;
 static constexpr uint8_t ESP_USB_HOST_MOUSE_FORWARD = 0x10;
 
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_TYPE_INPUT = 0x01;
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT = 0x02;
+static constexpr uint8_t ESP_USB_HOST_HID_REPORT_TYPE_FEATURE = 0x03;
+
+static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK = 0x01;
+static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK = 0x02;
+static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK = 0x04;
+static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_COMPOSE = 0x08;
+static constexpr uint8_t ESP_USB_HOST_KEYBOARD_LED_KANA = 0x10;
+
 struct EspUsbHostConfig {
   uint32_t taskStackSize = 4096;
   UBaseType_t taskPriority = 5;
@@ -96,6 +106,12 @@ public:
   void onHIDInput(HIDInputCallback callback);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
+  bool sendHIDReport(uint8_t interfaceNumber,
+                     uint8_t reportType,
+                     uint8_t reportId,
+                     const uint8_t *data,
+                     size_t length);
+  bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock);
 
   int lastError() const;
   const char *lastErrorName() const;
@@ -118,6 +134,7 @@ private:
   static void clientTaskEntry(void *arg);
   static void clientEventCallback(const usb_host_client_event_msg_t *eventMsg, void *arg);
   static void transferCallback(usb_transfer_t *transfer);
+  static void controlTransferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
   void clientTaskLoop();
@@ -150,6 +167,8 @@ private:
   String manufacturer_;
   String product_;
   String serial_;
+  bool hasKeyboardInterface_ = false;
+  uint8_t keyboardInterfaceNumber_ = 0;
 
   EndpointState endpoints_[16];
   uint8_t interfaces_[16] = {};

@@ -8,6 +8,8 @@ static constexpr uint8_t USB_CLASS_HUB_VALUE = 0x09;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_KEYBOARD_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_MOUSE_VALUE = 0x02;
+static constexpr uint8_t HID_CLASS_REQUEST_SET_REPORT = 0x09;
+static constexpr uint8_t HID_SET_REPORT_REQUEST_TYPE = 0x21;
 
 static bool configHasInterfaceClass(const usb_config_desc_t *configDesc, uint8_t interfaceClass) {
   const uint8_t *p = reinterpret_cast<const uint8_t *>(configDesc);
@@ -122,6 +124,89 @@ void EspUsbHost::onHIDInput(HIDInputCallback callback) {
 
 void EspUsbHost::setKeyboardLayout(EspUsbHostKeyboardLayout layout) {
   keyboardLayout_ = layout;
+}
+
+bool EspUsbHost::sendHIDReport(uint8_t interfaceNumber,
+                               uint8_t reportType,
+                               uint8_t reportId,
+                               const uint8_t *data,
+                               size_t length) {
+  if (!running_ || !deviceHandle_ || !clientHandle_) {
+    ESP_LOGW(TAG, "sendHIDReport() called while no HID device is open");
+    return false;
+  }
+  if (length > 0 && !data) {
+    ESP_LOGW(TAG, "sendHIDReport() called with null data");
+    return false;
+  }
+  if (reportType != ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT &&
+      reportType != ESP_USB_HOST_HID_REPORT_TYPE_FEATURE) {
+    ESP_LOGW(TAG, "sendHIDReport() unsupported reportType=%u", reportType);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + length, 0, &transfer);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(control) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = HID_SET_REPORT_REQUEST_TYPE;
+  setup->bRequest = HID_CLASS_REQUEST_SET_REPORT;
+  setup->wValue = (static_cast<uint16_t>(reportType) << 8) | reportId;
+  setup->wIndex = interfaceNumber;
+  setup->wLength = length;
+  if (length > 0) {
+    memcpy(transfer->data_buffer + USB_SETUP_PACKET_SIZE, data, length);
+  }
+
+  transfer->device_handle = deviceHandle_;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = controlTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + length;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Set_Report) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+
+  ESP_LOGD(TAG, "HID Set_Report submitted iface=%u type=%u id=%u length=%u",
+           interfaceNumber,
+           reportType,
+           reportId,
+           static_cast<unsigned>(length));
+  return true;
+}
+
+bool EspUsbHost::setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock) {
+  if (!hasKeyboardInterface_) {
+    ESP_LOGW(TAG, "setKeyboardLeds() called before a keyboard interface is ready");
+    return false;
+  }
+
+  uint8_t leds = 0;
+  if (numLock) {
+    leds |= ESP_USB_HOST_KEYBOARD_LED_NUM_LOCK;
+  }
+  if (capsLock) {
+    leds |= ESP_USB_HOST_KEYBOARD_LED_CAPS_LOCK;
+  }
+  if (scrollLock) {
+    leds |= ESP_USB_HOST_KEYBOARD_LED_SCROLL_LOCK;
+  }
+
+  return sendHIDReport(keyboardInterfaceNumber_,
+                       ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
+                       0,
+                       &leds,
+                       sizeof(leds));
 }
 
 int EspUsbHost::lastError() const {
@@ -254,6 +339,8 @@ void EspUsbHost::handleClientEvent(const usb_host_client_event_msg_t *eventMsg) 
 
 void EspUsbHost::handleNewDevice(uint8_t address) {
   ESP_LOGI(TAG, "Device connected: address=%u", address);
+  hasKeyboardInterface_ = false;
+  keyboardInterfaceNumber_ = 0;
 
   esp_err_t err = usb_host_device_open(clientHandle_, address, &deviceHandle_);
   if (err != ESP_OK) {
@@ -322,6 +409,8 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle) {
     deviceDisconnectedCallback_(deviceInfo_);
   }
   deviceInfo_ = EspUsbHostDeviceInfo();
+  hasKeyboardInterface_ = false;
+  keyboardInterfaceNumber_ = 0;
 }
 
 void EspUsbHost::parseConfigDescriptor(const usb_config_desc_t *configDesc) {
@@ -363,6 +452,13 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data) {
         if (currentClaimResult_ == ESP_OK && interfaceCount_ < sizeof(interfaces_)) {
           interfaces_[interfaceCount_++] = currentInterfaceNumber_;
           ESP_LOGI(TAG, "Interface %u claimed", currentInterfaceNumber_);
+          if (currentInterfaceSubClass_ == HID_SUBCLASS_BOOT_VALUE &&
+              currentInterfaceProtocol_ == HID_PROTOCOL_KEYBOARD_VALUE &&
+              !hasKeyboardInterface_) {
+            hasKeyboardInterface_ = true;
+            keyboardInterfaceNumber_ = currentInterfaceNumber_;
+            ESP_LOGI(TAG, "Keyboard interface ready: iface=%u", keyboardInterfaceNumber_);
+          }
         } else {
           ESP_LOGW(TAG, "usb_host_interface_claim(%u) failed: %s", currentInterfaceNumber_, esp_err_to_name(currentClaimResult_));
           setLastError(currentClaimResult_);
@@ -432,6 +528,17 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data) {
 
 void EspUsbHost::transferCallback(usb_transfer_t *transfer) {
   static_cast<EspUsbHost *>(transfer->context)->handleTransfer(transfer);
+}
+
+void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer) {
+  EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
+  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED) {
+    ESP_LOGD(TAG, "control transfer status=%d", transfer->status);
+    if (host) {
+      host->setLastError(ESP_FAIL);
+    }
+  }
+  usb_host_transfer_free(transfer);
 }
 
 void EspUsbHost::handleTransfer(usb_transfer_t *transfer) {
