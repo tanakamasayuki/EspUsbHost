@@ -46,6 +46,19 @@ void loop()
     {
       usb.midiSendControlChange(0, 74, 64);
     }
+    else if (command == 'p')
+    {
+      usb.midiSendProgramChange(0, 10);
+    }
+    else if (command == 'b')
+    {
+      usb.midiSendPitchBendSigned(0, 1024);
+    }
+    else if (command == 's')
+    {
+      const uint8_t sysex[] = {0xf0, 0x7d, 0x01, 0x02, 0xf7};
+      usb.midiSendSysEx(sysex, sizeof(sysex));
+    }
   }
   delay(1);
 }

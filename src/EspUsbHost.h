@@ -213,6 +213,12 @@ public:
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity);
   bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value);
+  bool midiSendProgramChange(uint8_t channel, uint8_t program);
+  bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure);
+  bool midiSendChannelPressure(uint8_t channel, uint8_t pressure);
+  bool midiSendPitchBend(uint8_t channel, uint16_t value);
+  bool midiSendPitchBendSigned(uint8_t channel, int16_t value);
+  bool midiSendSysEx(const uint8_t *data, size_t length);
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock);
 
   int lastError() const;

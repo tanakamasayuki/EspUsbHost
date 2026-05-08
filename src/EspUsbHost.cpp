@@ -20,9 +20,17 @@ static constexpr uint8_t CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE = 0x22;
 static constexpr uint8_t CDC_SET_REQUEST_TYPE = 0x21;
 static constexpr uint8_t VENDOR_OUT_REQUEST_TYPE = 0x40;
 static constexpr uint8_t VENDOR_INTERFACE_OUT_REQUEST_TYPE = 0x41;
+static constexpr uint8_t MIDI_CIN_SYSEX_START = 0x04;
+static constexpr uint8_t MIDI_CIN_SYSEX_END_1BYTE = 0x05;
+static constexpr uint8_t MIDI_CIN_SYSEX_END_2BYTE = 0x06;
+static constexpr uint8_t MIDI_CIN_SYSEX_END_3BYTE = 0x07;
 static constexpr uint8_t MIDI_CIN_NOTE_OFF = 0x08;
 static constexpr uint8_t MIDI_CIN_NOTE_ON = 0x09;
+static constexpr uint8_t MIDI_CIN_POLY_KEYPRESS = 0x0a;
 static constexpr uint8_t MIDI_CIN_CONTROL_CHANGE = 0x0b;
+static constexpr uint8_t MIDI_CIN_PROGRAM_CHANGE = 0x0c;
+static constexpr uint8_t MIDI_CIN_CHANNEL_PRESSURE = 0x0d;
+static constexpr uint8_t MIDI_CIN_PITCH_BEND_CHANGE = 0x0e;
 
 static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
 {
@@ -507,6 +515,110 @@ bool EspUsbHost::midiSendControlChange(uint8_t channel, uint8_t control, uint8_t
       static_cast<uint8_t>(control & 0x7f),
       static_cast<uint8_t>(value & 0x7f)};
   return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendProgramChange(uint8_t channel, uint8_t program)
+{
+  const uint8_t packet[4] = {
+      MIDI_CIN_PROGRAM_CHANGE,
+      static_cast<uint8_t>(0xc0 | (channel & 0x0f)),
+      static_cast<uint8_t>(program & 0x7f),
+      0};
+  return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure)
+{
+  const uint8_t packet[4] = {
+      MIDI_CIN_POLY_KEYPRESS,
+      static_cast<uint8_t>(0xa0 | (channel & 0x0f)),
+      static_cast<uint8_t>(note & 0x7f),
+      static_cast<uint8_t>(pressure & 0x7f)};
+  return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendChannelPressure(uint8_t channel, uint8_t pressure)
+{
+  const uint8_t packet[4] = {
+      MIDI_CIN_CHANNEL_PRESSURE,
+      static_cast<uint8_t>(0xd0 | (channel & 0x0f)),
+      static_cast<uint8_t>(pressure & 0x7f),
+      0};
+  return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendPitchBend(uint8_t channel, uint16_t value)
+{
+  if (value > 16383)
+  {
+    value = 16383;
+  }
+  const uint8_t packet[4] = {
+      MIDI_CIN_PITCH_BEND_CHANGE,
+      static_cast<uint8_t>(0xe0 | (channel & 0x0f)),
+      static_cast<uint8_t>(value & 0x7f),
+      static_cast<uint8_t>((value >> 7) & 0x7f)};
+  return midiSend(packet, sizeof(packet));
+}
+
+bool EspUsbHost::midiSendPitchBendSigned(uint8_t channel, int16_t value)
+{
+  if (value < -8192)
+  {
+    value = -8192;
+  }
+  else if (value > 8191)
+  {
+    value = 8191;
+  }
+  return midiSendPitchBend(channel, static_cast<uint16_t>(value + 8192));
+}
+
+bool EspUsbHost::midiSendSysEx(const uint8_t *data, size_t length)
+{
+  if (length == 0)
+  {
+    return false;
+  }
+  if (!data)
+  {
+    ESP_LOGW(TAG, "midiSendSysEx() called with null data");
+    return false;
+  }
+  if (!hasMidiOutEndpoint_ || !deviceHandle_)
+  {
+    ESP_LOGW(TAG, "midiSendSysEx() called before a MIDI OUT endpoint is ready");
+    return false;
+  }
+
+  const size_t packetCount = (length + 2) / 3;
+  if (packetCount == 0 || packetCount > 64)
+  {
+    ESP_LOGW(TAG, "midiSendSysEx() unsupported length=%u", static_cast<unsigned>(length));
+    return false;
+  }
+
+  uint8_t packets[64 * 4] = {};
+  size_t offset = 0;
+  size_t out = 0;
+  while (offset < length)
+  {
+    const size_t remaining = length - offset;
+    const size_t chunk = remaining >= 3 ? 3 : remaining;
+    uint8_t cin = MIDI_CIN_SYSEX_START;
+    if (remaining <= 3)
+    {
+      cin = chunk == 1 ? MIDI_CIN_SYSEX_END_1BYTE : chunk == 2 ? MIDI_CIN_SYSEX_END_2BYTE
+                                                               : MIDI_CIN_SYSEX_END_3BYTE;
+    }
+    packets[out++] = cin;
+    packets[out++] = data[offset];
+    packets[out++] = chunk > 1 ? data[offset + 1] : 0;
+    packets[out++] = chunk > 2 ? data[offset + 2] : 0;
+    offset += chunk;
+  }
+
+  return midiSend(packets, out);
 }
 
 int EspUsbHost::lastError() const
