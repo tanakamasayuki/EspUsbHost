@@ -1,25 +1,40 @@
 #include "EspUsbHost.h"
 
-class MyEspUsbHost : public EspUsbHost {
-  void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
-    if (' ' <= ascii && ascii <= '~') {
-      Serial.printf("%c", ascii);
-    } else if (ascii == '\r') {
-      Serial.println();
-    }
-  };
-};
+EspUsbHost usb;
 
-MyEspUsbHost usbHost;
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   delay(500);
 
-  usbHost.begin();
-  usbHost.setHIDLocal(HID_LOCAL_Japan_Katakana);
+  usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JP);
+
+  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
+                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n",
+                                        device.vid,
+                                        device.pid,
+                                        device.product); });
+
+  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &)
+                           { Serial.println("disconnected"); });
+
+  usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
+                 {
+      if (event.pressed && event.ascii) {
+        if (event.ascii == '\r') {
+          Serial.println();
+        } else if (' ' <= event.ascii && event.ascii <= '~') {
+          Serial.print((char)event.ascii);
+        }
+      } });
+
+  if (!usb.begin())
+  {
+    Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
+  }
 }
 
-void loop() {
-  usbHost.task();
+void loop()
+{
+  delay(1);
 }

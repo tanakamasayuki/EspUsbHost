@@ -1,57 +1,53 @@
-This is a library for using USB Host with ESP32.
+# EspUsbHost
+
+Arduino library for using ESP32 USB Host from sketches.
 
 ## Target board
-- ESP32-S3-DevKitC
-- M5Stack ATOMS3
 
-## function
-- USB Keybord
-- USB Mouse
+- ESP32-S3
+- Boards supported by Arduino-ESP32 USB Host
 
-## Usage
-```c
+## Current status
+
+This branch is being rewritten around the API described in `SPEC.ja.md`.
+The first implementation target is HID boot keyboard/mouse with background USB processing.
+
+## Keyboard example
+
+```cpp
 #include "EspUsbHost.h"
 
-class MyEspUsbHost : public EspUsbHost {
-  void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) {
-    if (' ' <= ascii && ascii <= '~') {
-      Serial.printf("%c", ascii);
-    } else if (ascii == '\r') {
-      Serial.println();
-    }
-  };
-};
-
-MyEspUsbHost usbHost;
+EspUsbHost usb;
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
 
-  usbHost.begin();
-  usbHost.setHIDLocal(HID_LOCAL_Japan_Katakana);
+  usb.onKeyboard([](const EspUsbHostKeyboardEvent &event) {
+    if (event.pressed && event.ascii) {
+      Serial.print((char)event.ascii);
+    }
+  });
+
+  if (!usb.begin()) {
+    Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
+  }
 }
 
 void loop() {
-  usbHost.task();
 }
 ```
 
-## Virtual function
+## Implemented API
 
-### common
-
-- virtual void onData(const usb_transfer_t *transfer);
-- virtual void onGone(const usb_host_client_event_msg_t *eventMsg);
-
-### Keyboard
-
-- virtual uint8_t getKeycodeToAscii(uint8_t keycode, uint8_t shift);
-- virtual void onKeyboard(hid_keyboard_report_t report, hid_keyboard_report_t last_report);
-- virtual void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier);
-
-### Mouse
-
-- virtual void onMouse(hid_mouse_report_t report, uint8_t last_buttons);
-- virtual void onMouseButtons(hid_mouse_report_t report, uint8_t last_buttons);
-- virtual void onMouseMove(hid_mouse_report_t report);
+- `bool begin()`
+- `bool begin(const EspUsbHostConfig &config)`
+- `void end()`
+- `bool ready() const`
+- `void onDeviceConnected(DeviceCallback callback)`
+- `void onDeviceDisconnected(DeviceCallback callback)`
+- `void onKeyboard(KeyboardCallback callback)`
+- `void onMouse(MouseCallback callback)`
+- `void onHIDInput(HIDInputCallback callback)`
+- `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
+- `int lastError() const`
+- `const char *lastErrorName() const`

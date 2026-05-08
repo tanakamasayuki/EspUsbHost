@@ -12,7 +12,33 @@ EspUsbHost	KEYWORD3
 # Datatypes (KEYWORD1)
 #######################################
 
+EspUsbHostConfig	KEYWORD1
+EspUsbHostDeviceInfo	KEYWORD1
+EspUsbHostKeyboardEvent	KEYWORD1
+EspUsbHostMouseEvent	KEYWORD1
+EspUsbHostHIDInput	KEYWORD1
+EspUsbHostKeyboardLayout	KEYWORD1
+
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
+begin	KEYWORD2
+end	KEYWORD2
+ready	KEYWORD2
+onDeviceConnected	KEYWORD2
+onDeviceDisconnected	KEYWORD2
+onKeyboard	KEYWORD2
+onMouse	KEYWORD2
+onHIDInput	KEYWORD2
+setKeyboardLayout	KEYWORD2
+lastError	KEYWORD2
+lastErrorName	KEYWORD2
+
+ESP_USB_HOST_KEYBOARD_LAYOUT_US	LITERAL1
+ESP_USB_HOST_KEYBOARD_LAYOUT_JP	LITERAL1
+ESP_USB_HOST_MOUSE_LEFT	LITERAL1
+ESP_USB_HOST_MOUSE_RIGHT	LITERAL1
+ESP_USB_HOST_MOUSE_MIDDLE	LITERAL1
+ESP_USB_HOST_MOUSE_BACK	LITERAL1
+ESP_USB_HOST_MOUSE_FORWARD	LITERAL1
