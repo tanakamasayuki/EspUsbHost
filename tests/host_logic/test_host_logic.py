@@ -1,4 +1,4 @@
-def test_basic_runner_host_logic(dut):
+def test_host_logic(dut):
     dut.expect_exact("TEST_BEGIN host_logic")
     dut.expect_exact("PASS key_us_a")
     dut.expect_exact("PASS key_us_shift_a")
