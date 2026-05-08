@@ -258,6 +258,46 @@ bool EspUsbHost::setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock)
                        sizeof(leds));
 }
 
+bool EspUsbHost::sendVendorOutput(const uint8_t *data, size_t length)
+{
+  if (!hasVendorInterface_)
+  {
+    ESP_LOGW(TAG, "sendVendorOutput() called before a vendor HID interface is ready");
+    return false;
+  }
+  if (length > 63)
+  {
+    ESP_LOGW(TAG, "sendVendorOutput() length too large: %u", static_cast<unsigned>(length));
+    return false;
+  }
+  uint8_t report[64] = {};
+  report[0] = ESP_USB_HOST_HID_REPORT_ID_VENDOR;
+  if (length > 0)
+  {
+    memcpy(report + 1, data, length);
+  }
+
+  return sendHIDReport(vendorInterfaceNumber_,
+                       ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
+                       0,
+                       report,
+                       length + 1);
+}
+
+bool EspUsbHost::sendVendorFeature(const uint8_t *data, size_t length)
+{
+  if (!hasVendorInterface_)
+  {
+    ESP_LOGW(TAG, "sendVendorFeature() called before a vendor HID interface is ready");
+    return false;
+  }
+  return sendHIDReport(vendorInterfaceNumber_,
+                       ESP_USB_HOST_HID_REPORT_TYPE_FEATURE,
+                       ESP_USB_HOST_HID_REPORT_ID_VENDOR,
+                       data,
+                       length);
+}
+
 int EspUsbHost::lastError() const
 {
   return lastError_;
@@ -413,6 +453,11 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   ESP_LOGI(TAG, "Device connected: address=%u", address);
   hasKeyboardInterface_ = false;
   keyboardInterfaceNumber_ = 0;
+  hasVendorInterface_ = false;
+  vendorInterfaceNumber_ = 0;
+  hasVendorOutEndpoint_ = false;
+  vendorOutEndpointAddress_ = 0;
+  vendorOutPacketSize_ = 0;
 
   esp_err_t err = usb_host_device_open(clientHandle_, address, &deviceHandle_);
   if (err != ESP_OK)
@@ -494,6 +539,11 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   deviceInfo_ = EspUsbHostDeviceInfo();
   hasKeyboardInterface_ = false;
   keyboardInterfaceNumber_ = 0;
+  hasVendorInterface_ = false;
+  vendorInterfaceNumber_ = 0;
+  hasVendorOutEndpoint_ = false;
+  vendorOutEndpointAddress_ = 0;
+  vendorOutPacketSize_ = 0;
 }
 
 void EspUsbHost::parseConfigDescriptor(const usb_config_desc_t *configDesc)
@@ -566,6 +616,20 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const usb_ep_desc_t *ep = reinterpret_cast<const usb_ep_desc_t *>(data);
     const bool isIn = (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0;
     const bool isInterrupt = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_INT;
+    if (currentClaimResult_ == ESP_OK &&
+        currentInterfaceClass_ == USB_CLASS_HID_VALUE &&
+        !isIn &&
+        isInterrupt)
+    {
+      hasVendorOutEndpoint_ = true;
+      vendorInterfaceNumber_ = currentInterfaceNumber_;
+      vendorOutEndpointAddress_ = ep->bEndpointAddress;
+      vendorOutPacketSize_ = ep->wMaxPacketSize;
+      ESP_LOGI(TAG, "HID interrupt OUT endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
+               currentInterfaceNumber_, ep->bEndpointAddress, ep->wMaxPacketSize, ep->bInterval);
+      return;
+    }
+
     if (currentClaimResult_ != ESP_OK || currentInterfaceClass_ != USB_CLASS_HID_VALUE || !isIn || !isInterrupt)
     {
       ESP_LOGD(TAG, "Skipping endpoint 0x%02x iface=%u class=0x%02x attrs=0x%02x",
@@ -638,6 +702,20 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
   if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
   {
     ESP_LOGD(TAG, "control transfer status=%d", transfer->status);
+    if (host)
+    {
+      host->setLastError(ESP_FAIL);
+    }
+  }
+  usb_host_transfer_free(transfer);
+}
+
+void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
+{
+  EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
+  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+  {
+    ESP_LOGD(TAG, "output transfer status=%d ep=0x%02x", transfer->status, transfer->bEndpointAddress);
     if (host)
     {
       host->setLastError(ESP_FAIL);
@@ -878,6 +956,13 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
 
 void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length)
 {
+  if (!hasVendorInterface_)
+  {
+    hasVendorInterface_ = true;
+    vendorInterfaceNumber_ = endpoint.interfaceNumber;
+    ESP_LOGI(TAG, "Vendor HID interface ready: iface=%u", vendorInterfaceNumber_);
+  }
+
   if (!vendorInputCallback_)
   {
     return;

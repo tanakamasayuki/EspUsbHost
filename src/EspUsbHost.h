@@ -175,6 +175,8 @@ public:
                      uint8_t reportId,
                      const uint8_t *data,
                      size_t length);
+  bool sendVendorOutput(const uint8_t *data, size_t length);
+  bool sendVendorFeature(const uint8_t *data, size_t length);
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock);
 
   int lastError() const;
@@ -203,6 +205,7 @@ private:
   static void clientEventCallback(const usb_host_client_event_msg_t *eventMsg, void *arg);
   static void transferCallback(usb_transfer_t *transfer);
   static void controlTransferCallback(usb_transfer_t *transfer);
+  static void outputTransferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
   void clientTaskLoop();
@@ -241,6 +244,11 @@ private:
   String serial_;
   bool hasKeyboardInterface_ = false;
   uint8_t keyboardInterfaceNumber_ = 0;
+  bool hasVendorInterface_ = false;
+  uint8_t vendorInterfaceNumber_ = 0;
+  bool hasVendorOutEndpoint_ = false;
+  uint8_t vendorOutEndpointAddress_ = 0;
+  uint16_t vendorOutPacketSize_ = 0;
 
   EndpointState endpoints_[16];
   uint8_t interfaces_[16] = {};
