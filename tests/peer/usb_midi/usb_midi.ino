@@ -38,6 +38,23 @@ void loop()
         {
             Serial.printf("MIDI_TX_CC %u\n", usb.midiSendControlChange(0, 74, 64) ? 1 : 0);
         }
+        else if (command == 'p')
+        {
+            Serial.printf("MIDI_TX_PROGRAM %u\n", usb.midiSendProgramChange(0, 10) ? 1 : 0);
+        }
+        else if (command == 'b')
+        {
+            Serial.printf("MIDI_TX_BEND %u\n", usb.midiSendPitchBend(0, 8192 + 1024) ? 1 : 0);
+        }
+        else if (command == 'a')
+        {
+            Serial.printf("MIDI_TX_PRESSURE %u\n", usb.midiSendChannelPressure(0, 77) ? 1 : 0);
+        }
+        else if (command == 's')
+        {
+            const uint8_t sysex[] = {0xf0, 0x7d, 0x01, 0x02, 0xf7};
+            Serial.printf("MIDI_TX_SYSEX %u\n", usb.midiSendSysEx(sysex, sizeof(sysex)) ? 1 : 0);
+        }
     }
     delay(1);
 }

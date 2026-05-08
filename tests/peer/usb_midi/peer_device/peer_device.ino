@@ -32,6 +32,21 @@ void loop()
             MIDI.noteOff(64, 0, 0);
             Serial.println("DEVICE_TX_NOTE_OFF");
         }
+        else if (command == 'p')
+        {
+            MIDI.programChange(10, 0);
+            Serial.println("DEVICE_TX_PROGRAM");
+        }
+        else if (command == 'b')
+        {
+            MIDI.pitchBend(static_cast<uint16_t>(8192 + 1024), 0);
+            Serial.println("DEVICE_TX_BEND");
+        }
+        else if (command == 'a')
+        {
+            MIDI.channelPressure(77, 0);
+            Serial.println("DEVICE_TX_PRESSURE");
+        }
     }
 
     midiEventPacket_t packet = {0, 0, 0, 0};
