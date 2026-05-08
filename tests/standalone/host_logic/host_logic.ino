@@ -190,6 +190,29 @@ static void testGamepadReport()
   check(!espUsbHostParseGamepadReport(4, active, 10, 0x00000000, event), "gamepad_short_invalid");
 }
 
+static void testSystemControlReport()
+{
+  EspUsbHostSystemControlEvent event;
+
+  const uint8_t powerOff[1] = {ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF};
+  check(espUsbHostParseSystemControlReport(5, powerOff, sizeof(powerOff), 0x00, event) &&
+            event.interfaceNumber == 5 &&
+            event.usage == ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF &&
+            event.pressed &&
+            !event.released,
+        "system_power_press");
+
+  const uint8_t idle[1] = {0x00};
+  check(espUsbHostParseSystemControlReport(5, idle, sizeof(idle), ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF, event) &&
+            event.usage == ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF &&
+            !event.pressed &&
+            event.released,
+        "system_power_release");
+
+  check(!espUsbHostParseSystemControlReport(5, powerOff, sizeof(powerOff), ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF, event), "system_same_ignored");
+  check(!espUsbHostParseSystemControlReport(5, powerOff, 0, 0x00, event), "system_short_invalid");
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -203,6 +226,7 @@ void setup()
   testKeyboardLedReport();
   testConsumerControlReport();
   testGamepadReport();
+  testSystemControlReport();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
 }

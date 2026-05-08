@@ -153,6 +153,28 @@ bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
   return event.changed;
 }
 
+bool espUsbHostParseSystemControlReport(uint8_t interfaceNumber,
+                                        const uint8_t *data,
+                                        size_t length,
+                                        uint8_t previousUsage,
+                                        EspUsbHostSystemControlEvent &event) {
+  if (!data || length < 1) {
+    return false;
+  }
+
+  const uint8_t usage = data[0];
+  if (usage == previousUsage) {
+    return false;
+  }
+
+  event = EspUsbHostSystemControlEvent();
+  event.interfaceNumber = interfaceNumber;
+  event.usage = usage ? usage : previousUsage;
+  event.pressed = usage != 0;
+  event.released = usage == 0 && previousUsage != 0;
+  return event.pressed || event.released;
+}
+
 uint8_t espUsbHostBuildKeyboardLedReport(bool numLock, bool capsLock, bool scrollLock) {
   uint8_t leds = 0;
   if (numLock) {

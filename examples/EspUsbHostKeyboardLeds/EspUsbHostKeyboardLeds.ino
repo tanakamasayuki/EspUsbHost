@@ -24,36 +24,43 @@ void setup()
   Serial.println("Keyboard LED control");
   Serial.println("n: NumLock, c: CapsLock, s: ScrollLock, 0: all off");
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
-    Serial.printf("connected: vid=%04x pid=%04x product=%s\n",
-                  device.vid,
-                  device.pid,
-                  device.product);
-  });
+  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
+                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n",
+                                        device.vid,
+                                        device.pid,
+                                        device.product); });
 
-  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &) {
-    Serial.println("disconnected");
-  });
+  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &)
+                           { Serial.println("disconnected"); });
 
-  if (!usb.begin()) {
+  if (!usb.begin())
+  {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
   }
 }
 
 void loop()
 {
-  while (Serial.available()) {
+  while (Serial.available())
+  {
     char command = Serial.read();
-    if (command == 'n') {
+    if (command == 'n')
+    {
       numLock = !numLock;
       applyLeds();
-    } else if (command == 'c') {
+    }
+    else if (command == 'c')
+    {
       capsLock = !capsLock;
       applyLeds();
-    } else if (command == 's') {
+    }
+    else if (command == 's')
+    {
       scrollLock = !scrollLock;
       applyLeds();
-    } else if (command == '0') {
+    }
+    else if (command == '0')
+    {
       numLock = false;
       capsLock = false;
       scrollLock = false;
