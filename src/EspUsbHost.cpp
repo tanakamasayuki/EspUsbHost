@@ -555,10 +555,16 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer) {
       hidInputCallback_(input);
     }
 
-    if (endpoint->interfaceClass == USB_CLASS_HID_VALUE && endpoint->interfaceSubClass == HID_SUBCLASS_BOOT_VALUE) {
-      if (endpoint->interfaceProtocol == HID_PROTOCOL_KEYBOARD_VALUE) {
+    if (endpoint->interfaceClass == USB_CLASS_HID_VALUE) {
+      if (transfer->actual_num_bytes >= 5 && transfer->data_buffer[0] == 0x02) {
+        handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
+      } else if (transfer->actual_num_bytes >= 9 && transfer->data_buffer[0] == 0x01) {
+        handleKeyboard(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1);
+      } else if (endpoint->interfaceSubClass == HID_SUBCLASS_BOOT_VALUE &&
+                 endpoint->interfaceProtocol == HID_PROTOCOL_KEYBOARD_VALUE) {
         handleKeyboard(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
-      } else if (endpoint->interfaceProtocol == HID_PROTOCOL_MOUSE_VALUE) {
+      } else if (endpoint->interfaceSubClass == HID_SUBCLASS_BOOT_VALUE &&
+                 endpoint->interfaceProtocol == HID_PROTOCOL_MOUSE_VALUE) {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
       }
     }
@@ -626,6 +632,11 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
 void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length) {
   if (!mouseCallback_) {
     return;
+  }
+
+  if (endpoint.interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE && length >= 5 && data[0] == 0x02) {
+    data += 1;
+    length -= 1;
   }
 
   EspUsbHostMouseEvent event;

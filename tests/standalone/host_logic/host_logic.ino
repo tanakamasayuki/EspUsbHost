@@ -112,6 +112,13 @@ static void testMouseReport()
             event.previousButtons == ESP_USB_HOST_MOUSE_LEFT,
         "mouse_button_release");
 
+  const uint8_t reportIdMouse[5] = {0x02, 0x00, 0x28, 0x00, 0x00};
+  check(espUsbHostParseBootMouseReport(2, reportIdMouse + 1, sizeof(reportIdMouse) - 1, 0x00, event) &&
+            event.moved &&
+            event.x == 40 &&
+            event.y == 0,
+        "mouse_report_id_payload");
+
   check(!espUsbHostParseBootMouseReport(2, press, 2, 0x00, event), "mouse_short_invalid");
 }
 
