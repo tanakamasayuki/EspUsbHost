@@ -1,3 +1,5 @@
 def test_host_logic(dut, peers):
+    str = "hello, keyboard"
     keyboard = peers["keyboard"]
-    dut.expect_exact("hello, keyboard.")
+    keyboard.write(str)
+    dut.expect_exact(str)

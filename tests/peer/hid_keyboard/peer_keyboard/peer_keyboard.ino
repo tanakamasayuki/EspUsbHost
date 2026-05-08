@@ -11,7 +11,9 @@ void setup()
 
 void loop()
 {
-    const char *str = "hello, keyboard.\n";
-    Keyboard.write((const uint8_t *)str, strlen(str));
-    delay(1000);
+    if (Serial.available() > 0)
+    {
+        Keyboard.write(Serial.read());
+    }
+    delay(1);
 }

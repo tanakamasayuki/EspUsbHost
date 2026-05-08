@@ -9,3 +9,8 @@ dependencies = [
     "pytest-embedded-arduino-cli>=1.1",
     "pytest-html>=4.1.1",
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:record_xml_attribute is an experimental feature:pytest.PytestExperimentalApiWarning",
+]
