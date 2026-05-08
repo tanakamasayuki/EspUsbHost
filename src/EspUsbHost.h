@@ -132,7 +132,7 @@ private:
 
   EndpointState *findEndpoint(uint8_t endpointAddress);
   EndpointState *allocateEndpoint();
-  void releaseEndpoints();
+  void releaseEndpoints(bool clearEndpoints);
   void releaseInterfaces();
   void setLastError(esp_err_t err);
   static String usbString(const usb_str_desc_t *strDesc);
