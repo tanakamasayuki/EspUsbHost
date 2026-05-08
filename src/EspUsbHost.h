@@ -101,6 +101,14 @@ struct EspUsbHostHIDInput
   size_t length = 0;
 };
 
+struct EspUsbHostSerialData
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
 struct EspUsbHostConsumerControlEvent
 {
   uint8_t interfaceNumber = 0;
@@ -139,6 +147,8 @@ struct EspUsbHostSystemControlEvent
   bool released = false;
 };
 
+class EspUsbHostCdcSerial;
+
 class EspUsbHost
 {
 public:
@@ -146,6 +156,7 @@ public:
   using KeyboardCallback = std::function<void(const EspUsbHostKeyboardEvent &)>;
   using MouseCallback = std::function<void(const EspUsbHostMouseEvent &)>;
   using HIDInputCallback = std::function<void(const EspUsbHostHIDInput &)>;
+  using SerialDataCallback = std::function<void(const EspUsbHostSerialData &)>;
   using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
   using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
   using VendorInputCallback = std::function<void(const EspUsbHostVendorInput &)>;
@@ -164,6 +175,7 @@ public:
   void onKeyboard(KeyboardCallback callback);
   void onMouse(MouseCallback callback);
   void onHIDInput(HIDInputCallback callback);
+  void onSerialData(SerialDataCallback callback);
   void onConsumerControl(ConsumerControlCallback callback);
   void onGamepad(GamepadCallback callback);
   void onVendorInput(VendorInputCallback callback);
@@ -177,6 +189,10 @@ public:
                      size_t length);
   bool sendVendorOutput(const uint8_t *data, size_t length);
   bool sendVendorFeature(const uint8_t *data, size_t length);
+  bool sendSerial(const uint8_t *data, size_t length);
+  bool sendSerial(const char *text);
+  bool serialReady() const;
+  bool setSerialBaudRate(uint32_t baud);
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock);
 
   int lastError() const;
@@ -206,6 +222,7 @@ private:
   static void transferCallback(usb_transfer_t *transfer);
   static void controlTransferCallback(usb_transfer_t *transfer);
   static void outputTransferCallback(usb_transfer_t *transfer);
+  static void serialOutTransferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
   void clientTaskLoop();
@@ -217,6 +234,7 @@ private:
   void handleTransfer(usb_transfer_t *transfer);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length);
@@ -226,8 +244,18 @@ private:
   EndpointState *allocateEndpoint();
   void releaseEndpoints(bool clearEndpoints);
   void releaseInterfaces();
+  void configureCdcAcm();
+  void configureVendorSerial();
+  bool submitVendorSerialControl(uint8_t requestType,
+                                 uint8_t request,
+                                 uint16_t value,
+                                 uint16_t index,
+                                 const uint8_t *data = nullptr,
+                                 size_t length = 0);
+  void attachCdcSerial(EspUsbHostCdcSerial *serial);
   void setLastError(esp_err_t err);
   static String usbString(const usb_str_desc_t *strDesc);
+  friend class EspUsbHostCdcSerial;
 
   EspUsbHostConfig config_;
   TaskHandle_t taskHandle_ = nullptr;
@@ -249,6 +277,21 @@ private:
   bool hasVendorOutEndpoint_ = false;
   uint8_t vendorOutEndpointAddress_ = 0;
   uint16_t vendorOutPacketSize_ = 0;
+  bool hasCdcControlInterface_ = false;
+  bool hasCdcDataInterface_ = false;
+  bool cdcConfigured_ = false;
+  uint8_t cdcControlInterfaceNumber_ = 0;
+  uint8_t cdcDataInterfaceNumber_ = 0;
+  bool hasSerialOutEndpoint_ = false;
+  uint8_t serialOutEndpointAddress_ = 0;
+  uint16_t serialOutPacketSize_ = 0;
+  uint32_t serialBaudRate_ = 115200;
+  bool serialDtr_ = true;
+  bool serialRts_ = true;
+  bool hasVendorSerialInterface_ = false;
+  bool vendorSerialSupported_ = false;
+  uint8_t vendorSerialInterfaceNumber_ = 0;
+  EspUsbHostCdcSerial *cdcSerial_ = nullptr;
 
   EndpointState endpoints_[16];
   uint8_t interfaces_[16] = {};
@@ -266,10 +309,46 @@ private:
   KeyboardCallback keyboardCallback_;
   MouseCallback mouseCallback_;
   HIDInputCallback hidInputCallback_;
+  SerialDataCallback serialDataCallback_;
   ConsumerControlCallback consumerControlCallback_;
   GamepadCallback gamepadCallback_;
   VendorInputCallback vendorInputCallback_;
   SystemControlCallback systemControlCallback_;
+};
+
+class EspUsbHostCdcSerial : public Stream
+{
+public:
+  explicit EspUsbHostCdcSerial(EspUsbHost &host);
+
+  bool begin(uint32_t baud = 115200);
+  void end();
+  bool connected() const;
+
+  int available() override;
+  int read() override;
+  int peek() override;
+  void flush() override;
+  size_t write(uint8_t data) override;
+  size_t write(const uint8_t *buffer, size_t size) override;
+  using Print::write;
+
+  bool setBaudRate(uint32_t baud);
+  bool setDtr(bool enable);
+  bool setRts(bool enable);
+
+private:
+  static constexpr size_t RX_BUFFER_SIZE = 512;
+
+  void pushData(const uint8_t *data, size_t length);
+  size_t nextIndex(size_t index) const;
+  friend class EspUsbHost;
+
+  EspUsbHost &host_;
+  uint8_t rxBuffer_[RX_BUFFER_SIZE] = {};
+  size_t rxHead_ = 0;
+  size_t rxTail_ = 0;
+  portMUX_TYPE rxMux_ = portMUX_INITIALIZER_UNLOCKED;
 };
 
 #endif

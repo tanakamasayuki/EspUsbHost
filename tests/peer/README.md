@@ -19,6 +19,7 @@ Current coverage:
 - `hid_system_control`: pairs with `USB/examples/SystemControl`.
 - `hid_gamepad`: pairs with `USB/examples/Gamepad`.
 - `hid_vendor`: pairs with `USB/examples/HIDVendor`.
+- `usb_serial`: pairs with `USB/examples/USBSerial`.
 
 Planned coverage:
 
