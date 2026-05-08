@@ -1,15 +1,93 @@
-#include <DemoAdd.h>
+#include "EspUsbHostHid.h"
+
+static int passCount = 0;
+static int failCount = 0;
+
+static void check(bool condition, const char *name)
+{
+  if (condition) {
+    Serial.print("PASS ");
+    Serial.println(name);
+    passCount++;
+  } else {
+    Serial.print("FAIL ");
+    Serial.println(name);
+    failCount++;
+  }
+}
+
+static EspUsbHostKeyboardReport report(uint8_t modifier,
+                                       uint8_t key0,
+                                       uint8_t key1 = 0,
+                                       uint8_t key2 = 0,
+                                       uint8_t key3 = 0,
+                                       uint8_t key4 = 0,
+                                       uint8_t key5 = 0)
+{
+  EspUsbHostKeyboardReport value;
+  value.data[0] = modifier;
+  value.data[2] = key0;
+  value.data[3] = key1;
+  value.data[4] = key2;
+  value.data[5] = key3;
+  value.data[6] = key4;
+  value.data[7] = key5;
+  return value;
+}
+
+static void testKeycodeToAscii()
+{
+  check(espUsbHostKeycodeToAscii(0x04, 0x00, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == 'a', "key_us_a");
+  check(espUsbHostKeycodeToAscii(0x04, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == 'A', "key_us_shift_a");
+  check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == '@', "key_us_shift_2");
+  check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JP) == '"', "key_jp_shift_2");
+  check(espUsbHostKeycodeToAscii(0x59, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JP) == '1', "keypad_1_shift_ignored");
+  check(espUsbHostKeycodeToAscii(0x63, 0x00, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == '.', "keypad_dot");
+}
+
+static void testKeyboardReportValidation()
+{
+  const uint8_t valid[8] = {0x00, 0x00, 0x04, 0, 0, 0, 0, 0};
+  const uint8_t invalidReserved[8] = {0x00, 0x01, 0x04, 0, 0, 0, 0, 0};
+  const uint8_t invalidKeycode[8] = {0x00, 0x00, 0xe0, 0, 0, 0, 0, 0};
+  check(espUsbHostIsBootKeyboardReportValid(valid, sizeof(valid)), "keyboard_report_valid");
+  check(!espUsbHostIsBootKeyboardReportValid(invalidReserved, sizeof(invalidReserved)), "keyboard_report_reserved_invalid");
+  check(!espUsbHostIsBootKeyboardReportValid(invalidKeycode, sizeof(invalidKeycode)), "keyboard_report_keycode_invalid");
+  check(!espUsbHostIsBootKeyboardReportValid(valid, 7), "keyboard_report_short_invalid");
+}
+
+static void testKeyboardDiff()
+{
+  EspUsbHostKeyboardEvent events[ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS];
+
+  EspUsbHostKeyboardReport empty = report(0, 0);
+  EspUsbHostKeyboardReport pressA = report(0, 0x04);
+  size_t count = espUsbHostBuildKeyboardEvents(1, empty, pressA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  check(count == 1 && events[0].pressed && !events[0].released && events[0].keycode == 0x04 && events[0].ascii == 'a', "keyboard_press_a");
+
+  EspUsbHostKeyboardReport pressAB = report(0, 0x04, 0x05);
+  count = espUsbHostBuildKeyboardEvents(1, pressA, pressAB, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  check(count == 1 && events[0].pressed && events[0].keycode == 0x05 && events[0].ascii == 'b', "keyboard_press_b_while_a_held");
+
+  count = espUsbHostBuildKeyboardEvents(1, pressAB, pressA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  check(count == 1 && events[0].released && events[0].keycode == 0x05, "keyboard_release_b");
+
+  EspUsbHostKeyboardReport shiftA = report(0x02, 0x04);
+  count = espUsbHostBuildKeyboardEvents(1, empty, shiftA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  check(count == 1 && events[0].pressed && events[0].ascii == 'A' && events[0].modifiers == 0x02, "keyboard_shift_a");
+}
 
 void setup()
 {
   Serial.begin(115200);
   delay(1000);
 
-  DemoAdd demo;
-  int result = demo.add(1, 2);
-
-  Serial.print("ADD_RESULT ");
-  Serial.println(result);
+  Serial.println("TEST_BEGIN host_logic");
+  testKeycodeToAscii();
+  testKeyboardReportValidation();
+  testKeyboardDiff();
+  Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
+  Serial.println(failCount == 0 ? "OK" : "NG");
 }
 
 void loop()
