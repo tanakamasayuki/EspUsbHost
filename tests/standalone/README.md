@@ -13,3 +13,11 @@ Set the matching serial port in `.env`:
 ```sh
 TEST_SERIAL_PORT_S3_HUB_HOST=/dev/ttyACM1
 ```
+
+Current standalone suites:
+
+- `host_logic`: USB hardware independent logic checks.
+- `hub_devices`: optional device inventory for CH340, keyboard, MSC, and MIDI. Missing devices are reported as `SKIP`.
+
+`hub_devices` also runs an automatic CH340/CH341 loopback test when a
+`1a86:7523` adapter is connected with TX and RX shorted.
