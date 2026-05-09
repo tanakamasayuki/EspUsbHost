@@ -1,5 +1,5 @@
 profiles:
-  esp32s3:
+  s3_hub_host:
     fqbn: esp32:esp32:esp32s3:USBMode=default
     platforms:
       - platform: esp32:esp32 (3.3.8)
@@ -7,4 +7,4 @@ profiles:
     libraries:
       - dir: ../../../
 
-default_profile: esp32s3
+default_profile: s3_hub_host

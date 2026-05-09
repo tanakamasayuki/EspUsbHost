@@ -9,6 +9,18 @@ Run from `tests`:
 uv run --env-file .env pytest peer/
 ```
 
+Peer tests use these Arduino CLI profile names:
+
+- `s3_peer_host`: ESP32-S3 USB host board running EspUsbHost
+- `s3_peer_device`: ESP32-S3 USB device peer
+
+Set matching serial ports in `.env`:
+
+```sh
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
+TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
+```
+
 Current coverage:
 
 - `custom_hid`: pairs with `USB/examples/CustomHIDDevice`.
