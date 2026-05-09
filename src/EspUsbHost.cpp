@@ -1,7 +1,9 @@
 #include "EspUsbHost.h"
 #include "EspUsbHostHid.h"
 
-static const char *TAG __attribute__((unused)) = "EspUsbHost";
+#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
+static const char *TAG = "EspUsbHost";
+#endif
 
 static constexpr uint8_t USB_CLASS_HID_VALUE = 0x03;
 static constexpr uint8_t USB_CLASS_HUB_VALUE = 0x09;
@@ -47,6 +49,7 @@ static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
   }
 }
 
+#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
 static const char *vendorSerialName(uint16_t vid)
 {
   switch (vid)
@@ -61,6 +64,7 @@ static const char *vendorSerialName(uint16_t vid)
     return "vendor";
   }
 }
+#endif
 
 static bool configHasInterfaceClass(const usb_config_desc_t *configDesc, uint8_t interfaceClass)
 {
@@ -1292,6 +1296,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
 
   if (transfer->status == USB_TRANSFER_STATUS_COMPLETED && transfer->actual_num_bytes > 0)
   {
+#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
     const char *transferKind = "input";
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE)
     {
@@ -1315,6 +1320,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
              endpoint->interfaceNumber,
              transfer->bEndpointAddress,
              transfer->actual_num_bytes);
+#endif
 
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE && hidInputCallback_)
     {
