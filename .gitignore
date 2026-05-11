@@ -25,6 +25,7 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 report.html
+.pytest-results/
 
 # IDE / OS
 .DS_Store
