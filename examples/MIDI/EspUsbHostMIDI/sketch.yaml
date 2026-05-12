@@ -5,7 +5,7 @@ profiles:
       - platform: esp32:esp32 (3.3.8)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../
+      - dir: ../../../
 
   esp32s3-v:
     fqbn: esp32:esp32:esp32s3:USBMode=default,DebugLevel=verbose
@@ -13,6 +13,6 @@ profiles:
       - platform: esp32:esp32 (3.3.8)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../
+      - dir: ../../../
 
 default_profile: esp32s3
