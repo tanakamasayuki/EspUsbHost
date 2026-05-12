@@ -15,4 +15,4 @@ profiles:
     libraries:
       - dir: ../../../
 
-default_profile: esp32s3-v
+default_profile: esp32s3
