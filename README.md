@@ -15,6 +15,27 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
+## Roadmap
+
+### USB class support
+
+| Class | Status |
+|-------|--------|
+| HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
+| CDC ACM — USB serial (`EspUsbHostCdcSerial`) | ✅ Done |
+| USB MIDI | ✅ Done |
+| HUB — hub detection, port power control | 🔲 Planned |
+| MSC — USB storage | 💭 Under consideration |
+| UAC — USB audio | 💭 Under consideration |
+| UVC — USB camera | 💭 Under consideration |
+
+### Other planned features
+
+| Feature | Status |
+|---------|--------|
+| `onHIDReportDescriptor()` — HID report descriptor access | 🔲 Planned |
+| Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
+
 ## Requirements
 
 - ESP32-S3, or any board supported by Arduino-ESP32 USB Host
