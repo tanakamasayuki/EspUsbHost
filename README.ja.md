@@ -302,3 +302,14 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 - [`tests/manual/`](tests/manual/) — 特殊ハードウェアや人による確認が必要な手動テスト
 
 セットアップ方法は[tests/README.md](tests/README.md)を参照してください。
+
+## リリースチェックリスト
+
+1. **作業ツリーのクリーン確認** — `git status` で未コミットの変更がないことを確認する
+2. **依存バージョンの確認・更新** — [vscode-arduino-cli-wrapper](https://github.com/tanakamasayuki/vscode-arduino-cli-wrapper) の _sketch.yaml Versions_ 機能で全 `sketch.yaml` のボード・ライブラリバージョンを確認し、更新があれば最新にしてから手順 3〜5 をやり直す
+3. **ビルドチェック** — vscode-arduino-cli-wrapper の _Build Check_ を使用。最低限 `examples/` の `esp32s3` プロファイル。ESP32-P4 関連の変更がある場合は全プロファイルも確認する
+4. **自動テスト** — `peer/` または `loopback/` のテストがすべて通っていること
+5. **手動テスト** — 改修内容に関連するテストを実行する（`tests/.pytest-results/state.json` で最終実行日時を確認）。必須ではないが強く推奨
+6. **CHANGELOG** — 今回のリリースのエントリが正確で漏れがないか確認・更新する
+7. **ドキュメント** — API リファレンス・サンプル・README が変更内容を反映していることを確認する
+8. **リリース** — GitHub Actions のリリースワークフローを実行する

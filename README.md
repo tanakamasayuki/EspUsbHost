@@ -302,3 +302,14 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 - [`tests/manual/`](tests/manual/) — manual tests for special hardware and human verification
 
 See [tests/README.md](tests/README.md) for setup instructions.
+
+## Release checklist
+
+1. **Clean working tree** — confirm `git status` shows no uncommitted changes
+2. **Update dependencies** — use the [vscode-arduino-cli-wrapper](https://github.com/tanakamasayuki/vscode-arduino-cli-wrapper) _sketch.yaml Versions_ feature to check all `sketch.yaml` files for outdated board/library versions; update to the latest and re-run steps 3–5 if anything changed
+3. **Build check** — use _Build Check_ in vscode-arduino-cli-wrapper; minimum: `examples/` with the `esp32s3` profile; add all profiles if the change touches ESP32-P4 support
+4. **Automated tests** — all `peer/` or `loopback/` tests pass
+5. **Manual tests** — run tests related to the change (check `tests/.pytest-results/state.json` for last-run timestamps); not mandatory but strongly recommended
+6. **CHANGELOG** — verify the entry for this release is accurate and complete
+7. **Documentation** — confirm that API reference, examples, and README reflect the change
+8. **Release** — trigger the GitHub Actions release workflow
