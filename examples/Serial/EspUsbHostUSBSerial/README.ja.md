@@ -2,12 +2,21 @@
 
 > English: [README.md](README.md)
 
-USB CDC ACMシリアルデバイスとESP32のUART間でデータを双方向に中継するサンプルです。
+USBシリアルデバイスとESP32のUART間でデータを双方向に中継するサンプルです。
+
+対応デバイスの種類はVIDから自動的に判別されます：
+
+| 種類 | 例 |
+|------|----|
+| CDC ACM | マイコン開発ボード（Arduino・ESP32など）、モデム |
+| FTDI（VCP） | FT232R・FT231Xなど FTDIチップ搭載デバイス |
+| CP210x（VCP） | Silicon Labs CP2102・CP2104など |
+| CH34x（VCP） | CH340・CH341など |
 
 ## ハードウェア
 
 - ESP32-S3（またはArduino-ESP32 USB Hostに対応したボード）
-- USB CDC ACMデバイス（USB-シリアル変換アダプタ、マイコン開発ボードなど）
+- USBシリアルデバイス（上記の対応種類のいずれか）
 
 ## 動作内容
 
@@ -19,8 +28,8 @@ USB CDC ACMシリアルデバイスとESP32のUART間でデータを双方向に
 
 ## 主要API
 
-- `EspUsbHostCdcSerial CdcSerial(usb)` — `EspUsbHost`インスタンスに紐づいたCDCシリアルストリームを生成
-- `CdcSerial.begin(baud)` — 指定ボーレートでCDCシリアルポートを初期化
+- `EspUsbHostCdcSerial CdcSerial(usb)` — `EspUsbHost`インスタンスに紐づいたシリアルストリームを生成
+- `CdcSerial.begin(baud)` — 指定ボーレートでシリアルポートを初期化
 - `CdcSerial.available()` / `CdcSerial.read()` — USBデバイスからデータを受信
 - `CdcSerial.write(data)` — USBデバイスへデータを送信
 - `usb.onDeviceConnected(callback)` — デバイス接続時に通知
