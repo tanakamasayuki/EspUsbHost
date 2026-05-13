@@ -40,7 +40,6 @@ static EspUsbHostKeyboardReport report(uint8_t modifier,
 
 static void testKeycodeToAscii()
 {
-  check(espUsbHostKeycodeToAscii(0x04, 0x00, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == 'a', "key_us_a");
   check(espUsbHostKeycodeToAscii(0x04, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == 'A', "key_us_shift_a");
   check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == '@', "key_us_shift_2");
   check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JP) == '"', "key_jp_shift_2");
@@ -63,62 +62,28 @@ static void testKeyboardDiff()
 {
   EspUsbHostKeyboardEvent events[ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS];
 
-  EspUsbHostKeyboardReport empty = report(0, 0);
   EspUsbHostKeyboardReport pressA = report(0, 0x04);
-  size_t count = espUsbHostBuildKeyboardEvents(1, empty, pressA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
-  check(count == 1 && events[0].pressed && !events[0].released && events[0].keycode == 0x04 && events[0].ascii == 'a', "keyboard_press_a");
-
   EspUsbHostKeyboardReport pressAB = report(0, 0x04, 0x05);
-  count = espUsbHostBuildKeyboardEvents(1, pressA, pressAB, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  size_t count = espUsbHostBuildKeyboardEvents(1, pressA, pressAB, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].pressed && events[0].keycode == 0x05 && events[0].ascii == 'b', "keyboard_press_b_while_a_held");
 
   count = espUsbHostBuildKeyboardEvents(1, pressAB, pressA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].released && events[0].keycode == 0x05, "keyboard_release_b");
 
+  EspUsbHostKeyboardReport empty = report(0, 0);
   EspUsbHostKeyboardReport shiftA = report(0x02, 0x04);
   count = espUsbHostBuildKeyboardEvents(1, empty, shiftA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].pressed && events[0].ascii == 'A' && events[0].modifiers == 0x02, "keyboard_shift_a");
 }
 
-static void testMouseReport()
+static void testMouseReportEdges()
 {
   EspUsbHostMouseEvent event;
 
   const uint8_t idle[3] = {0x00, 0x00, 0x00};
   check(!espUsbHostParseBootMouseReport(2, idle, sizeof(idle), 0x00, event), "mouse_idle_no_event");
 
-  const uint8_t move[4] = {0x00, 0x05, 0xfd, 0x01};
-  check(espUsbHostParseBootMouseReport(2, move, sizeof(move), 0x00, event) &&
-            event.interfaceNumber == 2 &&
-            event.moved &&
-            !event.buttonsChanged &&
-            event.x == 5 &&
-            event.y == -3 &&
-            event.wheel == 1,
-        "mouse_move_wheel");
-
   const uint8_t press[3] = {ESP_USB_HOST_MOUSE_LEFT, 0x00, 0x00};
-  check(espUsbHostParseBootMouseReport(2, press, sizeof(press), 0x00, event) &&
-            !event.moved &&
-            event.buttonsChanged &&
-            event.buttons == ESP_USB_HOST_MOUSE_LEFT &&
-            event.previousButtons == 0x00,
-        "mouse_button_press");
-
-  const uint8_t release[3] = {0x00, 0x00, 0x00};
-  check(espUsbHostParseBootMouseReport(2, release, sizeof(release), ESP_USB_HOST_MOUSE_LEFT, event) &&
-            event.buttonsChanged &&
-            event.buttons == 0x00 &&
-            event.previousButtons == ESP_USB_HOST_MOUSE_LEFT,
-        "mouse_button_release");
-
-  const uint8_t reportIdMouse[5] = {0x02, 0x00, 0x28, 0x00, 0x00};
-  check(espUsbHostParseBootMouseReport(2, reportIdMouse + 1, sizeof(reportIdMouse) - 1, 0x00, event) &&
-            event.moved &&
-            event.x == 40 &&
-            event.y == 0,
-        "mouse_report_id_payload");
-
   check(!espUsbHostParseBootMouseReport(2, press, 2, 0x00, event), "mouse_short_invalid");
 }
 
@@ -135,80 +100,34 @@ static void testKeyboardLedReport()
         "keyboard_led_all");
 }
 
-static void testConsumerControlReport()
+static void testConsumerControlReportEdges()
 {
   EspUsbHostConsumerControlEvent event;
 
   const uint8_t volumeUp[2] = {0xe9, 0x00};
-  check(espUsbHostParseConsumerControlReport(3, volumeUp, sizeof(volumeUp), 0x0000, event) &&
-            event.interfaceNumber == 3 &&
-            event.usage == 0x00e9 &&
-            event.pressed &&
-            !event.released,
-        "consumer_volume_up_press");
-
-  const uint8_t idle[2] = {0x00, 0x00};
-  check(espUsbHostParseConsumerControlReport(3, idle, sizeof(idle), 0x00e9, event) &&
-            event.usage == 0x00e9 &&
-            !event.pressed &&
-            event.released,
-        "consumer_volume_up_release");
-
   check(!espUsbHostParseConsumerControlReport(3, volumeUp, sizeof(volumeUp), 0x00e9, event), "consumer_same_ignored");
   check(!espUsbHostParseConsumerControlReport(3, volumeUp, 1, 0x0000, event), "consumer_short_invalid");
 }
 
-static void testGamepadReport()
+static void testGamepadReportEdges()
 {
   EspUsbHostGamepadEvent event;
+
+  const uint8_t idle[11] = {};
+  check(!espUsbHostParseGamepadReport(4, idle, sizeof(idle), 0x00000000, event), "gamepad_idle_ignored");
 
   const uint8_t active[11] = {
       10, static_cast<uint8_t>(-10), 20, static_cast<uint8_t>(-20),
       30, static_cast<uint8_t>(-30), 3,
       0x05, 0x00, 0x00, 0x00};
-  check(espUsbHostParseGamepadReport(4, active, sizeof(active), 0x00000000, event) &&
-            event.interfaceNumber == 4 &&
-            event.x == 10 &&
-            event.y == -10 &&
-            event.z == 20 &&
-            event.rz == -20 &&
-            event.rx == 30 &&
-            event.ry == -30 &&
-            event.hat == 3 &&
-            event.buttons == 0x00000005 &&
-            event.previousButtons == 0x00000000 &&
-            event.changed,
-        "gamepad_active");
-
-  const uint8_t idle[11] = {};
-  check(!espUsbHostParseGamepadReport(4, idle, sizeof(idle), 0x00000000, event), "gamepad_idle_ignored");
-  check(espUsbHostParseGamepadReport(4, idle, sizeof(idle), 0x00000005, event) &&
-            event.buttons == 0x00000000 &&
-            event.previousButtons == 0x00000005 &&
-            event.changed,
-        "gamepad_button_release");
   check(!espUsbHostParseGamepadReport(4, active, 10, 0x00000000, event), "gamepad_short_invalid");
 }
 
-static void testSystemControlReport()
+static void testSystemControlReportEdges()
 {
   EspUsbHostSystemControlEvent event;
 
   const uint8_t powerOff[1] = {ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF};
-  check(espUsbHostParseSystemControlReport(5, powerOff, sizeof(powerOff), 0x00, event) &&
-            event.interfaceNumber == 5 &&
-            event.usage == ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF &&
-            event.pressed &&
-            !event.released,
-        "system_power_press");
-
-  const uint8_t idle[1] = {0x00};
-  check(espUsbHostParseSystemControlReport(5, idle, sizeof(idle), ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF, event) &&
-            event.usage == ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF &&
-            !event.pressed &&
-            event.released,
-        "system_power_release");
-
   check(!espUsbHostParseSystemControlReport(5, powerOff, sizeof(powerOff), ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF, event), "system_same_ignored");
   check(!espUsbHostParseSystemControlReport(5, powerOff, 0, 0x00, event), "system_short_invalid");
 }
@@ -218,15 +137,15 @@ void setup()
   Serial.begin(115200);
   delay(5000);
 
-  Serial.println("TEST_BEGIN host_logic");
+  Serial.println("TEST_BEGIN hid_logic");
   testKeycodeToAscii();
   testKeyboardReportValidation();
   testKeyboardDiff();
-  testMouseReport();
+  testMouseReportEdges();
   testKeyboardLedReport();
-  testConsumerControlReport();
-  testGamepadReport();
-  testSystemControlReport();
+  testConsumerControlReportEdges();
+  testGamepadReportEdges();
+  testSystemControlReportEdges();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
 }
