@@ -1,0 +1,46 @@
+# EspUsbHostMIDI
+
+USB MIDIの入出力サンプルです。接続したUSB MIDIデバイスからMIDIメッセージを受信し、シリアルコマンドでMIDIメッセージを送信します。
+
+## ハードウェア
+
+- ESP32-S3（またはArduino-ESP32 USB Hostに対応したボード）
+- USB MIDIデバイス（キーボード・コントローラー・インターフェースなど）
+
+## 動作内容
+
+- 受信したすべてのMIDIメッセージをシリアルに表示
+- シリアルコマンドに応じてデバイスへ各種MIDIメッセージを送信
+
+## シリアルコマンド
+
+| コマンド | 送信されるMIDIメッセージ |
+|----------|--------------------------|
+| `n` | Note On — ch0、ノート60（C4）、ベロシティ100 |
+| `f` | Note Off — ch0、ノート60（C4）、ベロシティ0 |
+| `c` | Control Change — ch0、CC#74、値64 |
+| `p` | Program Change — ch0、プログラム10 |
+| `b` | Pitch Bend — ch0、値+1024 |
+| `s` | SysEx — `F0 7D 01 02 F7` |
+
+## 主要API
+
+- `usb.onMidiMessage(callback)` — MIDIパケット受信ごとに`EspUsbHostMidiMessage`付きで呼ばれる
+  - `message.cable` — USB MIDIケーブル番号
+  - `message.codeIndex` — USB MIDIコードインデックス（CIN）
+  - `message.status` — MIDIステータスバイト
+  - `message.data1`, `message.data2` — MIDIデータバイト
+- `usb.midiSendNoteOn(channel, note, velocity)`
+- `usb.midiSendNoteOff(channel, note, velocity)`
+- `usb.midiSendControlChange(channel, control, value)`
+- `usb.midiSendProgramChange(channel, program)`
+- `usb.midiSendPitchBendSigned(channel, value)` — 値の範囲：−8192〜+8191
+- `usb.midiSendSysEx(data, length)`
+
+## シリアル出力例
+
+```
+connected: vid=0499 pid=1066 product=USB MIDI Interface
+midi cable=0 cin=0x09 status=0x90 data1=60 data2=100
+midi cable=0 cin=0x08 status=0x80 data1=60 data2=0
+```
