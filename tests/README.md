@@ -2,7 +2,8 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-This directory contains automated tests for EspUsbHost. Tests run on real ESP32 hardware via [pytest-embedded](https://docs.espressif.com/projects/pytest-embedded/en/latest/) with the Arduino CLI backend.
+This directory contains automated and manual tests for EspUsbHost.
+For the overall test strategy and coverage matrix, see [TEST_PLAN.md](TEST_PLAN.md). Tests run on real ESP32 hardware via [pytest-embedded](https://docs.espressif.com/projects/pytest-embedded/en/latest/) with the Arduino CLI backend.
 
 ## Prerequisites
 
