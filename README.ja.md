@@ -270,6 +270,18 @@ int         lastError() const;
 const char *lastErrorName() const;
 ```
 
+## 設計方針
+
+**コールバック登録スタイル。** `onKeyboard()`・`onMouse()` などにラムダや関数を登録して使います。`EspUsbHost` を継承して仮想関数をオーバーライドする旧スタイルは主要APIではありません。
+
+**破壊的変更を許容。** 旧来の継承ベースのAPIとの後方互換性よりも、クリーンなArduino向けAPIを優先します。
+
+**非ゴール：**
+- すべてのHIDレポートディスクリプタを完全自動解釈すること
+- 初回リリースですべてのUSBクラスを実装すること
+- ESP-IDF HID Host Driver APIとの互換性
+- USBスペックの内部仕様をそのままArduino APIとして公開すること
+
 ## 複数デバイスの扱い
 
 送信APIと`EspUsbHostCdcSerial`はデフォルトで`ESP_USB_HOST_ANY_ADDRESS`を使用し、該当クラスの最初のデバイスを対象にします。特定のデバイスを指定する場合は、`EspUsbHostDeviceInfo::address`で取得したアドレスを渡します。

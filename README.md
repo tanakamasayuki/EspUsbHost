@@ -270,6 +270,18 @@ int         lastError() const;
 const char *lastErrorName() const;
 ```
 
+## Design
+
+**Callbacks over inheritance.** Register lambdas or functions with `onKeyboard()`, `onMouse()`, etc. The old pattern of subclassing `EspUsbHost` and overriding virtual methods is not the primary API.
+
+**Breaking changes are accepted.** The library prioritises a clean Arduino-oriented API over backwards compatibility with its earlier inheritance-based interface.
+
+**Non-goals:**
+- Fully automatic interpretation of all HID report descriptors
+- Implementing all USB classes in the first release
+- ESP-IDF HID Host Driver API compatibility
+- Exposing all USB spec internals directly as Arduino APIs
+
 ## Multiple devices
 
 All send APIs and `EspUsbHostCdcSerial` default to `ESP_USB_HOST_ANY_ADDRESS`, which targets the first available device of the appropriate class. Pass an explicit `address` (obtained from `EspUsbHostDeviceInfo::address`) to target a specific device.
