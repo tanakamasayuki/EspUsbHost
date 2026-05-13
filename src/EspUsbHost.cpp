@@ -34,6 +34,25 @@ static constexpr uint8_t MIDI_CIN_PROGRAM_CHANGE = 0x0c;
 static constexpr uint8_t MIDI_CIN_CHANNEL_PRESSURE = 0x0d;
 static constexpr uint8_t MIDI_CIN_PITCH_BEND_CHANGE = 0x0e;
 
+static unsigned hostPeripheralMap(EspUsbHostPort port)
+{
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  switch (port)
+  {
+  case ESP_USB_HOST_PORT_HIGH_SPEED:
+    return 1U << 0;
+  case ESP_USB_HOST_PORT_FULL_SPEED:
+    return 1U << 1;
+  case ESP_USB_HOST_PORT_DEFAULT:
+  default:
+    return 0;
+  }
+#else
+  (void)port;
+  return 0;
+#endif
+}
+
 static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
 {
   switch (vid)
@@ -650,6 +669,7 @@ void EspUsbHost::taskLoop()
   usb_host_config_t hostConfig = {};
   hostConfig.skip_phy_setup = false;
   hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
+  hostConfig.peripheral_map = hostPeripheralMap(config_.port);
 
   esp_err_t err = usb_host_install(&hostConfig);
   if (err != ESP_OK)
