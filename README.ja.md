@@ -10,7 +10,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 
 - **HID入力** — キーボード・マウス・コンシューマーコントロール（メディアキー）・システムコントロール（電源/スタンバイ）・ゲームパッド
 - **HID出力** — キーボードLED制御・ベンダー出力/フィーチャーレポート
-- **CDC ACM** — `EspUsbHostCdcSerial`によるUSBシリアル入出力（Arduino `Stream`/`Print` 互換）
+- **USBシリアル** — CDC ACMおよび主要VCPデバイス（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応（Arduino `Stream`/`Print` 互換）
 - **MIDI** — USB MIDI入出力
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
@@ -22,7 +22,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | クラス | 状況 |
 |--------|------|
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
-| CDC ACM — USBシリアル（`EspUsbHostCdcSerial`） | ✅ 実装済み |
+| USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | HUB — ハブ検出・ポート電源制御 | 🔲 実装予定 |
 | MSC — USBストレージ | 💭 検討中 |

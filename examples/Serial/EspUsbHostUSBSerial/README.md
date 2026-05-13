@@ -2,12 +2,21 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Bridges a USB CDC ACM serial device to the ESP32's UART, forwarding data bidirectionally between Serial and the USB serial port.
+Bridges a USB serial device to the ESP32's UART, forwarding data bidirectionally between Serial and the USB serial port.
+
+Supported device types are detected automatically by VID:
+
+| Type | Examples |
+|------|---------|
+| CDC ACM | Microcontroller dev boards (Arduino, ESP32, etc.), modems |
+| FTDI (VCP) | FT232R, FT231X, and other FTDI chips |
+| CP210x (VCP) | Silicon Labs CP2102, CP2104, etc. |
+| CH34x (VCP) | CH340, CH341, etc. |
 
 ## Hardware
 
 - ESP32-S3 (or another board supported by Arduino-ESP32 USB Host)
-- USB CDC ACM device (USB-to-serial adapter, microcontroller dev board, etc.)
+- USB serial device (any of the supported types above)
 
 ## What it does
 
@@ -19,8 +28,8 @@ Bridges a USB CDC ACM serial device to the ESP32's UART, forwarding data bidirec
 
 ## Key APIs
 
-- `EspUsbHostCdcSerial CdcSerial(usb)` — creates a CDC serial stream bound to the `EspUsbHost` instance
-- `CdcSerial.begin(baud)` — initializes the CDC serial port at the given baud rate
+- `EspUsbHostCdcSerial CdcSerial(usb)` — creates a serial stream bound to the `EspUsbHost` instance
+- `CdcSerial.begin(baud)` — initializes the serial port at the given baud rate
 - `CdcSerial.available()` / `CdcSerial.read()` — receive data from the USB device
 - `CdcSerial.write(data)` — send data to the USB device
 - `usb.onDeviceConnected(callback)` — notified when a device connects

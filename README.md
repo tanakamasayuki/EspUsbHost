@@ -10,7 +10,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 
 - **HID input** — keyboard, mouse, consumer control (media keys), system control (power/standby), gamepad
 - **HID output** — keyboard LED control, vendor output/feature reports
-- **CDC ACM** — USB serial input/output via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
+- **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
 - **MIDI** — USB MIDI input and output
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
@@ -22,7 +22,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Class | Status |
 |-------|--------|
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
-| CDC ACM — USB serial (`EspUsbHostCdcSerial`) | ✅ Done |
+| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` | ✅ Done |
 | USB MIDI | ✅ Done |
 | HUB — hub detection, port power control | 🔲 Planned |
 | MSC — USB storage | 💭 Under consideration |
