@@ -58,6 +58,8 @@ static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_VENDOR = 0x06;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF = 0x01;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_STANDBY = 0x02;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST = 0x03;
+static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
+static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
 
 struct EspUsbHostConfig
 {
@@ -79,6 +81,7 @@ struct EspUsbHostDeviceInfo
 
 struct EspUsbHostKeyboardEvent
 {
+  uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   bool pressed = false;
   bool released = false;
@@ -89,6 +92,7 @@ struct EspUsbHostKeyboardEvent
 
 struct EspUsbHostMouseEvent
 {
+  uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   int16_t x = 0;
   int16_t y = 0;
@@ -132,6 +136,7 @@ struct EspUsbHostMidiMessage
 
 struct EspUsbHostConsumerControlEvent
 {
+  uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   uint16_t usage = 0;
   bool pressed = false;
@@ -140,6 +145,7 @@ struct EspUsbHostConsumerControlEvent
 
 struct EspUsbHostGamepadEvent
 {
+  uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   int8_t x = 0;
   int8_t y = 0;
@@ -155,6 +161,7 @@ struct EspUsbHostGamepadEvent
 
 struct EspUsbHostVendorInput
 {
+  uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   const uint8_t *data = nullptr;
   size_t length = 0;
@@ -162,6 +169,7 @@ struct EspUsbHostVendorInput
 
 struct EspUsbHostSystemControlEvent
 {
+  uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   uint8_t usage = 0;
   bool pressed = false;
@@ -209,25 +217,29 @@ public:
                      uint8_t reportType,
                      uint8_t reportId,
                      const uint8_t *data,
-                     size_t length);
-  bool sendVendorOutput(const uint8_t *data, size_t length);
-  bool sendVendorFeature(const uint8_t *data, size_t length);
-  bool sendSerial(const uint8_t *data, size_t length);
-  bool sendSerial(const char *text);
-  bool serialReady() const;
-  bool setSerialBaudRate(uint32_t baud);
-  bool midiReady() const;
-  bool midiSend(const uint8_t *data, size_t length);
-  bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity);
-  bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity);
-  bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value);
-  bool midiSendProgramChange(uint8_t channel, uint8_t program);
-  bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure);
-  bool midiSendChannelPressure(uint8_t channel, uint8_t pressure);
-  bool midiSendPitchBend(uint8_t channel, uint16_t value);
-  bool midiSendPitchBendSigned(uint8_t channel, int16_t value);
-  bool midiSendSysEx(const uint8_t *data, size_t length);
-  bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock);
+                     size_t length,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool sendVendorOutput(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool sendVendorFeature(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool sendSerial(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendProgramChange(uint8_t channel, uint8_t program, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendChannelPressure(uint8_t channel, uint8_t pressure, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendPitchBend(uint8_t channel, uint16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendPitchBendSigned(uint8_t channel, int16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool midiSendSysEx(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  size_t deviceCount() const;
+  size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
+  bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
 
   int lastError() const;
   const char *lastErrorName() const;
@@ -236,6 +248,9 @@ private:
   struct EndpointState
   {
     bool inUse = false;
+    uint8_t deviceIndex = 0xff;
+    uint8_t deviceAddress = 0;
+    usb_device_handle_t deviceHandle = nullptr;
     uint8_t address = 0;
     uint8_t interfaceNumber = 0;
     uint8_t interfaceClass = 0;
@@ -248,6 +263,44 @@ private:
     uint16_t lastConsumerUsage = 0;
     uint32_t lastGamepadButtons = 0;
     uint8_t lastSystemUsage = 0;
+  };
+
+  struct DeviceState
+  {
+    bool inUse = false;
+    usb_device_handle_t handle = nullptr;
+    EspUsbHostDeviceInfo info;
+    String manufacturer;
+    String product;
+    String serial;
+    bool hasKeyboardInterface = false;
+    uint8_t keyboardInterfaceNumber = 0;
+    bool hasVendorInterface = false;
+    uint8_t vendorInterfaceNumber = 0;
+    bool hasVendorOutEndpoint = false;
+    uint8_t vendorOutEndpointAddress = 0;
+    uint16_t vendorOutPacketSize = 0;
+    bool hasCdcControlInterface = false;
+    bool hasCdcDataInterface = false;
+    bool cdcConfigured = false;
+    uint8_t cdcControlInterfaceNumber = 0;
+    uint8_t cdcDataInterfaceNumber = 0;
+    bool hasSerialOutEndpoint = false;
+    uint8_t serialOutEndpointAddress = 0;
+    uint16_t serialOutPacketSize = 0;
+    uint32_t serialBaudRate = 115200;
+    bool serialDtr = true;
+    bool serialRts = true;
+    bool hasVendorSerialInterface = false;
+    bool vendorSerialSupported = false;
+    uint8_t vendorSerialInterfaceNumber = 0;
+    bool hasMidiInterface = false;
+    uint8_t midiInterfaceNumber = 0;
+    bool hasMidiOutEndpoint = false;
+    uint8_t midiOutEndpointAddress = 0;
+    uint16_t midiOutPacketSize = 0;
+    uint8_t interfaces[16] = {};
+    uint8_t interfaceCount = 0;
   };
 
   static void taskEntry(void *arg);
@@ -263,7 +316,7 @@ private:
   void handleClientEvent(const usb_host_client_event_msg_t *eventMsg);
   void handleNewDevice(uint8_t address);
   void handleDeviceGone(usb_device_handle_t goneHandle);
-  void parseConfigDescriptor(const usb_config_desc_t *configDesc);
+  void parseConfigDescriptor(DeviceState &device, const usb_config_desc_t *configDesc);
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
   void handleTransfer(usb_transfer_t *transfer);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length);
@@ -275,18 +328,30 @@ private:
   void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length);
 
-  EndpointState *findEndpoint(uint8_t endpointAddress);
-  EndpointState *allocateEndpoint();
-  void releaseEndpoints(bool clearEndpoints);
-  void releaseInterfaces();
-  void configureCdcAcm();
-  void configureVendorSerial();
+  EndpointState *findEndpoint(usb_device_handle_t deviceHandle, uint8_t endpointAddress);
+  EndpointState *allocateEndpoint(DeviceState &device);
+  DeviceState *allocateDevice();
+  DeviceState *findDevice(uint8_t address);
+  const DeviceState *findDevice(uint8_t address) const;
+  DeviceState *findDeviceByHandle(usb_device_handle_t handle);
+  DeviceState *findSerialDevice(uint8_t address);
+  const DeviceState *findSerialDevice(uint8_t address) const;
+  DeviceState *findMidiDevice(uint8_t address);
+  const DeviceState *findMidiDevice(uint8_t address) const;
+  DeviceState *findKeyboardDevice(uint8_t address);
+  DeviceState *findVendorDevice(uint8_t address);
+  void releaseEndpoints(DeviceState &device, bool clearEndpoints);
+  void releaseAllEndpoints(bool clearEndpoints);
+  void releaseInterfaces(DeviceState &device);
+  void configureCdcAcm(DeviceState &device);
+  void configureVendorSerial(DeviceState &device);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
                                  uint16_t index,
                                  const uint8_t *data = nullptr,
-                                 size_t length = 0);
+                                 size_t length = 0,
+                                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   void attachCdcSerial(EspUsbHostCdcSerial *serial);
   void setLastError(esp_err_t err);
   static String usbString(const usb_str_desc_t *strDesc);
@@ -300,42 +365,12 @@ private:
   esp_err_t lastError_ = ESP_OK;
 
   usb_host_client_handle_t clientHandle_ = nullptr;
-  usb_device_handle_t deviceHandle_ = nullptr;
-  EspUsbHostDeviceInfo deviceInfo_;
-  String manufacturer_;
-  String product_;
-  String serial_;
-  bool hasKeyboardInterface_ = false;
-  uint8_t keyboardInterfaceNumber_ = 0;
-  bool hasVendorInterface_ = false;
-  uint8_t vendorInterfaceNumber_ = 0;
-  bool hasVendorOutEndpoint_ = false;
-  uint8_t vendorOutEndpointAddress_ = 0;
-  uint16_t vendorOutPacketSize_ = 0;
-  bool hasCdcControlInterface_ = false;
-  bool hasCdcDataInterface_ = false;
-  bool cdcConfigured_ = false;
-  uint8_t cdcControlInterfaceNumber_ = 0;
-  uint8_t cdcDataInterfaceNumber_ = 0;
-  bool hasSerialOutEndpoint_ = false;
-  uint8_t serialOutEndpointAddress_ = 0;
-  uint16_t serialOutPacketSize_ = 0;
-  uint32_t serialBaudRate_ = 115200;
-  bool serialDtr_ = true;
-  bool serialRts_ = true;
-  bool hasVendorSerialInterface_ = false;
-  bool vendorSerialSupported_ = false;
-  uint8_t vendorSerialInterfaceNumber_ = 0;
-  bool hasMidiInterface_ = false;
-  uint8_t midiInterfaceNumber_ = 0;
-  bool hasMidiOutEndpoint_ = false;
-  uint8_t midiOutEndpointAddress_ = 0;
-  uint16_t midiOutPacketSize_ = 0;
+  DeviceState devices_[ESP_USB_HOST_MAX_DEVICES];
+  DeviceState *currentDevice_ = nullptr;
   EspUsbHostCdcSerial *cdcSerial_ = nullptr;
+  uint32_t defaultSerialBaudRate_ = 115200;
 
   EndpointState endpoints_[16];
-  uint8_t interfaces_[16] = {};
-  uint8_t interfaceCount_ = 0;
   uint8_t currentInterfaceNumber_ = 0;
   uint8_t currentInterfaceClass_ = 0;
   uint8_t currentInterfaceSubClass_ = 0;
@@ -377,15 +412,20 @@ public:
   bool setBaudRate(uint32_t baud);
   bool setDtr(bool enable);
   bool setRts(bool enable);
+  void setAddress(uint8_t address);
+  uint8_t address() const;
+  void clearAddress();
 
 private:
   static constexpr size_t RX_BUFFER_SIZE = 512;
 
   void pushData(const uint8_t *data, size_t length);
+  bool accepts(uint8_t address) const;
   size_t nextIndex(size_t index) const;
   friend class EspUsbHost;
 
   EspUsbHost &host_;
+  uint8_t address_ = ESP_USB_HOST_ANY_ADDRESS;
   uint8_t rxBuffer_[RX_BUFFER_SIZE] = {};
   size_t rxHead_ = 0;
   size_t rxTail_ = 0;
