@@ -15,7 +15,7 @@ Common USB serial VCP devices are detected experimentally and use the same seria
 
 ## Examples
 
-- `EspUsbHostKeybord`: HID boot keyboard input
+- `EspUsbHostKeyboard`: HID boot keyboard input
 - `EspUsbHostMouse`: HID boot mouse input
 - `EspUsbHostKeyboardLeds`: HID boot keyboard LED output
 - `EspUsbHostConsumerControl`: HID consumer control input
@@ -26,7 +26,7 @@ Common USB serial VCP devices are detected experimentally and use the same seria
 - `EspUsbHostUSBSerial`: CDC ACM USB serial input/output
 - `EspUsbHostMIDI`: USB MIDI input/output
 - `EspUsbHostHIDRawDump`: raw HID input report dump
-- `EspUsbHostHubProbe`: USB Host/Hub enumeration probe
+- `EspUsbHostDeviceInfo`: connected device, interface, and endpoint information
 
 ## Keyboard example
 
