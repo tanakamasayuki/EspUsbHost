@@ -1,4 +1,4 @@
-def test_host_logic(dut, peers):
+def test_hid_keyboard(dut, peers):
     str = "hello, keyboard"
     device = peers["device"]
     device.write(str)

@@ -23,6 +23,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 
 Current coverage:
 
+- `hid_logic`: HID helper logic checks that do not require a peer device.
 - `custom_hid`: pairs with `USB/examples/CustomHIDDevice`.
 - `hid_keyboard`: pairs with the Arduino USB keyboard examples.
 - `hid_mouse`: pairs with `USB/examples/Mouse/ButtonMouseControl`.
