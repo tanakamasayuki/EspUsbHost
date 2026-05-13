@@ -70,23 +70,26 @@ void loop() {
 - `void onGamepad(GamepadCallback callback)`
 - `void onVendorInput(VendorInputCallback callback)`
 - `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
-- `bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId, const uint8_t *data, size_t length)`
-- `bool sendSerial(const uint8_t *data, size_t length)`
-- `bool sendSerial(const char *text)`
-- `bool serialReady() const`
-- `bool setSerialBaudRate(uint32_t baud)`
-- `bool midiReady() const`
-- `bool midiSend(const uint8_t *data, size_t length)`
-- `bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity)`
-- `bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity)`
-- `bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value)`
-- `bool midiSendProgramChange(uint8_t channel, uint8_t program)`
-- `bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure)`
-- `bool midiSendChannelPressure(uint8_t channel, uint8_t pressure)`
-- `bool midiSendPitchBend(uint8_t channel, uint16_t value)`
-- `bool midiSendPitchBendSigned(uint8_t channel, int16_t value)`
-- `bool midiSendSysEx(const uint8_t *data, size_t length)`
-- `bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock)`
+- `bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId, const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool sendSerial(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const`
+- `bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const`
+- `bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendProgramChange(uint8_t channel, uint8_t program, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendChannelPressure(uint8_t channel, uint8_t pressure, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendPitchBend(uint8_t channel, uint16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendPitchBendSigned(uint8_t channel, int16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool midiSendSysEx(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
+- `size_t deviceCount() const`
+- `size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const`
+- `bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const`
 - `int lastError() const`
 - `const char *lastErrorName() const`
 
@@ -104,8 +107,11 @@ void loop() {
 - `bool setBaudRate(uint32_t baud)`
 - `bool setDtr(bool enable)`
 - `bool setRts(bool enable)`
+- `void setAddress(uint8_t address)`
+- `uint8_t address() const`
+- `void clearAddress()`
 
 ## Tests
 
-- `tests/standalone/host_logic`: USB-independent HID logic tests
 - `tests/peer`: two-board USB tests using an ESP32-S3 device peer
+- `tests/loopback`: single-board loopback tests for supported boards
