@@ -312,4 +312,10 @@ See [tests/README.md](tests/README.md) for setup instructions.
 5. **Manual tests** — run tests related to the change (check `tests/.pytest-results/state.json` for last-run timestamps); not mandatory but strongly recommended
 6. **CHANGELOG** — verify the entry for this release is accurate and complete
 7. **Documentation** — confirm that API reference, examples, and README reflect the change
-8. **Release** — trigger the GitHub Actions release workflow
+8. **Release** — trigger the GitHub Actions release workflow (`workflow_dispatch`, default: patch bump). The workflow will:
+   - Bump the version in `library.properties` (major / minor / patch selectable)
+   - Commit and push the version bump to the default branch
+   - Create a `release` branch with `tests/` removed
+   - Build a `.zip` archive of the library
+   - Extract release notes from `CHANGELOG.md`
+   - Create a GitHub release with the archive and release notes
