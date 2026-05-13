@@ -109,7 +109,7 @@ void loop() {
 
 | スケッチ | 説明 |
 |----------|------|
-| [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | CDC ACMシリアルの双方向ブリッジ |
+| [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | CDC ACM・VCPシリアルの双方向ブリッジ |
 
 ## APIリファレンス
 
@@ -181,7 +181,7 @@ bool sendVendorFeature(const uint8_t *data, size_t length,
 
 キーボードレイアウト定数：`ESP_USB_HOST_KEYBOARD_LAYOUT_US`、`ESP_USB_HOST_KEYBOARD_LAYOUT_JP`。
 
-### CDC ACM（USBシリアル）
+### USBシリアル（CDC ACM・VCP）
 
 `EspUsbHost`の低レベル送信API：
 

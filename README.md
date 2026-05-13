@@ -109,7 +109,7 @@ void loop() {
 
 | Sketch | Description |
 |--------|-------------|
-| [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | Bidirectional CDC ACM serial bridge |
+| [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | Bidirectional serial bridge (CDC ACM and VCP) |
 
 ## API reference
 
@@ -181,7 +181,7 @@ bool sendVendorFeature(const uint8_t *data, size_t length,
 
 Keyboard layout constants: `ESP_USB_HOST_KEYBOARD_LAYOUT_US`, `ESP_USB_HOST_KEYBOARD_LAYOUT_JP`.
 
-### CDC ACM (USB serial)
+### USB serial (CDC ACM and VCP)
 
 Low-level send API on `EspUsbHost`:
 
