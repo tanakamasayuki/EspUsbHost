@@ -286,5 +286,6 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 - [`tests/peer/`](tests/peer/) — two-board USB tests using an ESP32-S3 as the device peer
 - [`tests/loopback/`](tests/loopback/) — single-board loopback tests
+- [`tests/manual/`](tests/manual/) — manual tests for special hardware and human verification
 
-See [tests/peer/README.md](tests/peer/README.md) for setup instructions.
+See [tests/README.md](tests/README.md) for setup instructions.

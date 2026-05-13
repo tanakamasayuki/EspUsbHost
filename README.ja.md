@@ -286,5 +286,6 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 - [`tests/peer/`](tests/peer/) — ESP32-S3をデバイス側として使う2台構成のUSBテスト
 - [`tests/loopback/`](tests/loopback/) — 1台でのループバックテスト
+- [`tests/manual/`](tests/manual/) — 特殊ハードウェアや人による確認が必要な手動テスト
 
-セットアップ方法は[tests/peer/README.md](tests/peer/README.md)を参照してください。
+セットアップ方法は[tests/README.md](tests/README.md)を参照してください。
