@@ -63,6 +63,9 @@ Note that this file is local to the machine and not committed to the repository.
 | Multiple simultaneous devices | Requires multiple physical USB devices connected at the same time |
 | Keyboard LED visual verification | Pass/fail depends on whether a physical LED lights up |
 | Device hot-plug stress | Requires a person to physically plug and unplug cables on a timing cue |
+| USB hub (info display, power management) | Requires a physical USB hub. While it is technically possible to route multiple devices through a hub in the automated test environment, doing so would mix hub behaviour into the test results and introduce noise. Automated tests therefore use direct 1-to-1 connections only |
+| Hub cascade (hub behind hub) | Requires two or more nested physical hubs; cannot be emulated in software |
+| Human-only observable output (audio, MIDI, etc.) | Involves physical output such as sound that cannot be observed directly from software. Automatable with audio loopback hardware, but typically requires human confirmation |
 
 ## Judgment approach
 
