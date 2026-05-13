@@ -14,8 +14,8 @@ Run explicitly after preparing the required hardware:
 
 ```sh
 cd tests
-uv run --env-file .env pytest manual/vcp_serial/vcp_serial.py -v -s
-uv run --env-file .env pytest manual/keyboard_leds/keyboard_leds.py -v -s
+uv run --env-file .env pytest manual/smoke/smoke.py -v -s
+uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 ```
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
@@ -27,6 +27,18 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 ```
 
 Available profiles are defined in each test's `sketch.yaml`.
+
+## Test catalog
+
+| Test | Description | Hardware required | Status |
+|------|-------------|-------------------|--------|
+| [`smoke/`](smoke/) | Procedure check — verifies that the manual test workflow itself works (build, flash, serial, operator prompt). Not a feature test. Run this first on a new machine. | ESP32-S3 or ESP32-P4 | ✅ |
+| [`vcp_ftdi/`](vcp_ftdi/) | TX/RX loopback via FTDI VCP (VID 0x0403) | FTDI device (FT232R etc.) with TX/RX shorted | ✅ |
+| [`vcp_cp210x/`](vcp_cp210x/) | TX/RX loopback via CP210x VCP (VID 0x10C4) | CP210x device (CP2102 etc.) with TX/RX shorted | ✅ |
+| [`vcp_ch34x/`](vcp_ch34x/) | TX/RX loopback via CH34x VCP (VID 0x1A86) | CH34x device (CH340 etc.) with TX/RX shorted | ✅ |
+| `keyboard_leds/` | NumLock/CapsLock LED visual confirmation | USB keyboard with indicator LEDs | 🔲 |
+| `multi_device/` | Two HID devices deliver events independently | Two or more USB HID devices | 🔲 |
+| `hotplug/` | Connect/disconnect events and no crash after repeated cycles | Any USB device | 🔲 |
 
 ## Test results
 

@@ -14,8 +14,8 @@
 
 ```sh
 cd tests
-uv run --env-file .env pytest manual/vcp_serial/vcp_serial.py -v -s
-uv run --env-file .env pytest manual/keyboard_leds/keyboard_leds.py -v -s
+uv run --env-file .env pytest manual/smoke/smoke.py -v -s
+uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 ```
 
 手動テストは常に `-s` を付けて実行します。シリアル出力とオペレーターへのプロンプトが端末に表示されます。
@@ -27,6 +27,18 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 ```
 
 使用できるプロファイルは各テストの `sketch.yaml` に定義されています。
+
+## テスト一覧
+
+| テスト | 説明 | 必要なハードウェア | 状態 |
+|--------|------|------------------|------|
+| [`smoke/`](smoke/) | 手順確認用 — ビルド・フラッシュ・シリアル・オペレータープロンプトが正しく動くことを確認する。機能テストではない。新しいマシンではまずこれを実行する。 | ESP32-S3 または ESP32-P4 | ✅ |
+| [`vcp_ftdi/`](vcp_ftdi/) | FTDI VCP（VID 0x0403）経由のTX/RXループバック | FTDIデバイス（FT232Rなど）TXとRXをショート | ✅ |
+| [`vcp_cp210x/`](vcp_cp210x/) | CP210x VCP（VID 0x10C4）経由のTX/RXループバック | CP210xデバイス（CP2102など）TXとRXをショート | ✅ |
+| [`vcp_ch34x/`](vcp_ch34x/) | CH34x VCP（VID 0x1A86）経由のTX/RXループバック | CH34xデバイス（CH340など）TXとRXをショート | ✅ |
+| `keyboard_leds/` | NumLock・CapsLock LEDの目視確認 | インジケーターLED付きUSBキーボード | 🔲 |
+| `multi_device/` | 2台のHIDデバイスが独立してイベントを届けること | USB HIDデバイス2台以上 | 🔲 |
+| `hotplug/` | 接続・切断イベントの正常発火と繰り返しサイクルでクラッシュしないこと | 任意のUSBデバイス | 🔲 |
 
 ## テスト結果
 
