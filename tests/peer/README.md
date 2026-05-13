@@ -11,6 +11,22 @@ Run from `tests`:
 uv run --env-file .env pytest peer/
 ```
 
+## Hardware wiring
+
+The host board and the peer board must be connected via USB.
+
+Connecting them with a standard USB cable also shares the VBUS (5 V) line between the two boards, which can be problematic when both boards are already powered from separate USB connections (e.g., both plugged into a PC). In that case, connecting only the data lines is safer.
+
+On ESP32-S3, the USB D− and D+ signals are on GPIO19 and GPIO20. Wire only these two pins between the two boards (and a shared GND) and leave the VBUS line unconnected:
+
+| Host board | Peer board |
+|------------|------------|
+| GPIO19 (D−) | GPIO19 (D−) |
+| GPIO20 (D+) | GPIO20 (D+) |
+| GND | GND |
+
+> **Note:** If you use a USB cable with the VBUS line cut, or a data-only cable, you can connect normally without worrying about power conflicts.
+
 Peer tests use these Arduino CLI profile names:
 
 - `s3_peer_host`: ESP32-S3 USB host board running EspUsbHost
