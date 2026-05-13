@@ -312,4 +312,10 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 5. **手動テスト** — 改修内容に関連するテストを実行する（`tests/.pytest-results/state.json` で最終実行日時を確認）。必須ではないが強く推奨
 6. **CHANGELOG** — 今回のリリースのエントリが正確で漏れがないか確認・更新する
 7. **ドキュメント** — API リファレンス・サンプル・README が変更内容を反映していることを確認する
-8. **リリース** — GitHub Actions のリリースワークフローを実行する
+8. **リリース** — GitHub Actions のリリースワークフローを実行する（`workflow_dispatch`、デフォルトは patch バンプ）。ワークフローで行われること：
+   - `library.properties` のバージョンを更新（major / minor / patch を選択可能）
+   - バージョン更新をデフォルトブランチにコミット・プッシュ
+   - `tests/` を除いた `release` ブランチを作成
+   - ライブラリの `.zip` アーカイブをビルド
+   - `CHANGELOG.md` からリリースノートを抽出
+   - アーカイブとリリースノートを添付した GitHub Release を作成
