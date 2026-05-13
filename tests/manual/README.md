@@ -51,6 +51,12 @@ Tests should use the simplest judgment method that works for the scenario, in or
 
 3. **Human visual confirmation** — reserved for things that cannot be observed in software (e.g., a physical LED, audio output). The test asks the operator to judge and enter `y` / `n`.
 
+## Test independence
+
+Flashing is done once per `.py` file. Multiple test functions within the same file share the device state — the board is not reset between them, so a later test may be affected by what an earlier test left behind.
+
+For full independence, separate the test into its own `.py` file with its own sketch. The recommended practice is **one test function per `.py` file**. Only group multiple tests in one file when they intentionally share setup state and you accept that dependency.
+
 ## Test file template
 
 ```python
