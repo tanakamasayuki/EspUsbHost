@@ -20,6 +20,14 @@ uv run --env-file .env pytest manual/keyboard_leds/keyboard_leds.py -v -s
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
 
+The default board profile is `esp32s3`. To use a different board, pass `--profile`:
+
+```sh
+uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
+```
+
+Available profiles are defined in each test's `sketch.yaml`.
+
 ## Test results
 
 Manual test results are saved automatically by `--save-state` to:

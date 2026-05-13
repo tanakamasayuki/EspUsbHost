@@ -20,6 +20,14 @@ uv run --env-file .env pytest manual/keyboard_leds/keyboard_leds.py -v -s
 
 手動テストは常に `-s` を付けて実行します。シリアル出力とオペレーターへのプロンプトが端末に表示されます。
 
+デフォルトのボードプロファイルは `esp32s3` です。別のボードを使う場合は `--profile` で指定します：
+
+```sh
+uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
+```
+
+使用できるプロファイルは各テストの `sketch.yaml` に定義されています。
+
 ## テスト結果
 
 手動テストの結果は `--save-state` によって自動的に保存されます：
