@@ -2,7 +2,8 @@
 
 > English: [README.md](README.md)
 
-EspUsbHostの自動テストが含まれるディレクトリです。[pytest-embedded](https://docs.espressif.com/projects/pytest-embedded/en/latest/) のArduino CLIバックエンドを使い、実際のESP32ハードウェア上でテストを実行します。
+EspUsbHostの自動テストと手動テストが含まれるディレクトリです。
+テスト全体の方針とカバレッジ一覧は [TEST_PLAN.ja.md](TEST_PLAN.ja.md) を参照してください。[pytest-embedded](https://docs.espressif.com/projects/pytest-embedded/en/latest/) のArduino CLIバックエンドを使い、実際のESP32ハードウェア上でテストを実行します。
 
 ## 必要なもの
 
