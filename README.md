@@ -90,6 +90,8 @@ void loop() {
 - `size_t deviceCount() const`
 - `size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const`
 - `bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const`
+- `size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const`
+- `size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const`
 - `int lastError() const`
 - `const char *lastErrorName() const`
 

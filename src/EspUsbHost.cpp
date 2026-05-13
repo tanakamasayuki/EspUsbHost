@@ -852,6 +852,16 @@ void EspUsbHost::handleNewDevice(uint8_t address)
     device->manufacturer = usbString(devInfo.str_desc_manufacturer);
     device->product = usbString(devInfo.str_desc_product);
     device->serial = usbString(devInfo.str_desc_serial_num);
+    device->info.address = devInfo.dev_addr;
+    device->info.parentPort = devInfo.parent.port_num;
+    device->info.speed = devInfo.speed;
+    device->info.maxPacketSize0 = devInfo.bMaxPacketSize0;
+    device->info.configurationValue = devInfo.bConfigurationValue;
+    if (devInfo.parent.dev_hdl)
+    {
+      DeviceState *parent = findDeviceByHandle(devInfo.parent.dev_hdl);
+      device->info.parentAddress = parent ? parent->info.address : 0;
+    }
   }
 
   const usb_device_desc_t *devDesc = nullptr;
@@ -864,6 +874,12 @@ void EspUsbHost::handleNewDevice(uint8_t address)
     device->info.manufacturer = device->manufacturer.c_str();
     device->info.product = device->product.c_str();
     device->info.serial = device->serial.c_str();
+    device->info.usbVersion = devDesc->bcdUSB;
+    device->info.deviceVersion = devDesc->bcdDevice;
+    device->info.deviceClass = devDesc->bDeviceClass;
+    device->info.deviceSubClass = devDesc->bDeviceSubClass;
+    device->info.deviceProtocol = devDesc->bDeviceProtocol;
+    device->info.maxPacketSize0 = devDesc->bMaxPacketSize0;
     ESP_LOGI(TAG, "VID=%04x PID=%04x manufacturer=\"%s\" product=\"%s\" serial=\"%s\"",
              device->info.vid, device->info.pid, device->info.manufacturer, device->info.product, device->info.serial);
     device->vendorSerialSupported = isKnownVendorSerial(device->info.vid, device->info.pid);
@@ -886,6 +902,11 @@ void EspUsbHost::handleNewDevice(uint8_t address)
     *device = DeviceState();
     return;
   }
+  device->info.configurationValue = configDesc->bConfigurationValue;
+  device->info.configurationAttributes = configDesc->bmAttributes;
+  device->info.configurationMaxPower = configDesc->bMaxPower;
+  device->info.configurationInterfaceCount = configDesc->bNumInterfaces;
+  device->info.configurationTotalLength = configDesc->wTotalLength;
 
   const bool isHub = devDesc && (devDesc->bDeviceClass == USB_CLASS_HUB_VALUE || configHasInterfaceClass(configDesc, USB_CLASS_HUB_VALUE));
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
@@ -899,12 +920,11 @@ void EspUsbHost::handleNewDevice(uint8_t address)
     return;
   }
 
+  parseConfigDescriptor(*device, configDesc);
   if (deviceConnectedCallback_)
   {
     deviceConnectedCallback_(device->info);
   }
-
-  parseConfigDescriptor(*device, configDesc);
 }
 
 void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
@@ -974,10 +994,21 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
   {
     const usb_intf_desc_t *intf = reinterpret_cast<const usb_intf_desc_t *>(data);
     currentInterfaceNumber_ = intf->bInterfaceNumber;
+    currentInterfaceAlternate_ = intf->bAlternateSetting;
     currentInterfaceClass_ = intf->bInterfaceClass;
     currentInterfaceSubClass_ = intf->bInterfaceSubClass;
     currentInterfaceProtocol_ = intf->bInterfaceProtocol;
     currentClaimResult_ = ESP_OK;
+    if (device->interfaceInfoCount < ESP_USB_HOST_MAX_INTERFACES)
+    {
+      EspUsbHostInterfaceInfo &info = device->interfaceInfos[device->interfaceInfoCount++];
+      info.number = intf->bInterfaceNumber;
+      info.alternate = intf->bAlternateSetting;
+      info.interfaceClass = intf->bInterfaceClass;
+      info.interfaceSubClass = intf->bInterfaceSubClass;
+      info.interfaceProtocol = intf->bInterfaceProtocol;
+      info.endpointCount = intf->bNumEndpoints;
+    }
 
     ESP_LOGI(TAG, "Interface %u class=0x%02x subclass=0x%02x protocol=0x%02x endpoints=%u",
              currentInterfaceNumber_, currentInterfaceClass_, currentInterfaceSubClass_,
@@ -1049,6 +1080,15 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
   case USB_ENDPOINT_DESC:
   {
     const usb_ep_desc_t *ep = reinterpret_cast<const usb_ep_desc_t *>(data);
+    if (device->endpointInfoCount < ESP_USB_HOST_MAX_ENDPOINTS)
+    {
+      EspUsbHostEndpointInfo &info = device->endpointInfos[device->endpointInfoCount++];
+      info.address = ep->bEndpointAddress;
+      info.interfaceNumber = currentInterfaceNumber_;
+      info.attributes = ep->bmAttributes;
+      info.maxPacketSize = ep->wMaxPacketSize;
+      info.interval = ep->bInterval;
+    }
     const bool isIn = (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0;
     const bool isInterrupt = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_INT;
     const bool isBulk = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK;
@@ -1872,6 +1912,48 @@ bool EspUsbHost::getDevice(uint8_t address, EspUsbHostDeviceInfo &deviceInfo) co
   }
   deviceInfo = device->info;
   return true;
+}
+
+size_t EspUsbHost::getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const
+{
+  if (!interfaces || maxInterfaces == 0)
+  {
+    return 0;
+  }
+
+  const DeviceState *device = findDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+
+  const size_t count = device->interfaceInfoCount < maxInterfaces ? device->interfaceInfoCount : maxInterfaces;
+  for (size_t i = 0; i < count; i++)
+  {
+    interfaces[i] = device->interfaceInfos[i];
+  }
+  return count;
+}
+
+size_t EspUsbHost::getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const
+{
+  if (!endpoints || maxEndpoints == 0)
+  {
+    return 0;
+  }
+
+  const DeviceState *device = findDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+
+  const size_t count = device->endpointInfoCount < maxEndpoints ? device->endpointInfoCount : maxEndpoints;
+  for (size_t i = 0; i < count; i++)
+  {
+    endpoints[i] = device->endpointInfos[i];
+  }
+  return count;
 }
 
 void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)

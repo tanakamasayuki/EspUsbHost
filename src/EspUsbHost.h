@@ -60,6 +60,8 @@ static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_STANDBY = 0x02;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST = 0x03;
 static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
 static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
+static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
+static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
 
 struct EspUsbHostConfig
 {
@@ -77,6 +79,39 @@ struct EspUsbHostDeviceInfo
   const char *manufacturer = "";
   const char *product = "";
   const char *serial = "";
+  uint8_t parentAddress = 0;
+  uint8_t parentPort = 0;
+  usb_speed_t speed = USB_SPEED_FULL;
+  uint16_t usbVersion = 0;
+  uint16_t deviceVersion = 0;
+  uint8_t deviceClass = 0;
+  uint8_t deviceSubClass = 0;
+  uint8_t deviceProtocol = 0;
+  uint8_t maxPacketSize0 = 0;
+  uint8_t configurationValue = 0;
+  uint8_t configurationAttributes = 0;
+  uint8_t configurationMaxPower = 0;
+  uint8_t configurationInterfaceCount = 0;
+  uint16_t configurationTotalLength = 0;
+};
+
+struct EspUsbHostInterfaceInfo
+{
+  uint8_t number = 0;
+  uint8_t alternate = 0;
+  uint8_t interfaceClass = 0;
+  uint8_t interfaceSubClass = 0;
+  uint8_t interfaceProtocol = 0;
+  uint8_t endpointCount = 0;
+};
+
+struct EspUsbHostEndpointInfo
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t attributes = 0;
+  uint16_t maxPacketSize = 0;
+  uint8_t interval = 0;
 };
 
 struct EspUsbHostKeyboardEvent
@@ -240,6 +275,8 @@ public:
   size_t deviceCount() const;
   size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
   bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
+  size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
+  size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
 
   int lastError() const;
   const char *lastErrorName() const;
@@ -299,7 +336,11 @@ private:
     bool hasMidiOutEndpoint = false;
     uint8_t midiOutEndpointAddress = 0;
     uint16_t midiOutPacketSize = 0;
-    uint8_t interfaces[16] = {};
+    EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
+    uint8_t interfaceInfoCount = 0;
+    EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
+    uint8_t endpointInfoCount = 0;
+    uint8_t interfaces[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceCount = 0;
   };
 
@@ -372,6 +413,7 @@ private:
 
   EndpointState endpoints_[16];
   uint8_t currentInterfaceNumber_ = 0;
+  uint8_t currentInterfaceAlternate_ = 0;
   uint8_t currentInterfaceClass_ = 0;
   uint8_t currentInterfaceSubClass_ = 0;
   uint8_t currentInterfaceProtocol_ = 0;
