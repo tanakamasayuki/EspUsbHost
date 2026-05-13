@@ -35,6 +35,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | 🔲 Planned |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
+| Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
 
 ## Requirements
 
