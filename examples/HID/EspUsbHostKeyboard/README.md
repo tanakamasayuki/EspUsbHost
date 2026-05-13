@@ -1,5 +1,7 @@
 # EspUsbHostKeyboard
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Reads keyboard input from a USB HID keyboard and prints typed characters to the Serial monitor.
 
 ## Hardware

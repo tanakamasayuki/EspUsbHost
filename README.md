@@ -1,5 +1,7 @@
 # EspUsbHost
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Arduino library for using USB Host on ESP32-S3.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.

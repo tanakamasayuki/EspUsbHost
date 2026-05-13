@@ -1,5 +1,7 @@
 # EspUsbHost
 
+> English: [README.md](README.md)
+
 ESP32-S3でUSB Hostを使うためのArduinoライブラリです。
 
 USB処理はバックグラウンドのFreeRTOSタスクで行われるため、`loop()`でUSBポーリング関数を呼ぶ必要はありません。`setup()`でコールバックを登録して`begin()`を呼ぶだけで動作します。

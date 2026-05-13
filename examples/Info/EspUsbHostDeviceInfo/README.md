@@ -1,5 +1,7 @@
 # EspUsbHostDeviceInfo
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Prints detailed USB device information (descriptor fields, interfaces, and endpoints) for every connected device.
 
 ## Hardware

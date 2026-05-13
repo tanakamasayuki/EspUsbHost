@@ -1,5 +1,7 @@
 # Peer Tests
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 `tests/peer` contains two-board tests. One ESP32-S3 runs an EspUsbHost sketch as
 the USB host, and the peer ESP32-S3 runs an Arduino USB device sketch.
 

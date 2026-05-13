@@ -1,5 +1,7 @@
 # EspUsbHostGamepad
 
+> English: [README.md](README.md)
+
 USB HIDゲームパッドのスティック・十字キー・ボタン入力を受け取り、シリアルモニターに表示するサンプルです。
 
 ## ハードウェア

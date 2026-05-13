@@ -1,5 +1,7 @@
 # EspUsbHostSystemControl
 
+> English: [README.md](README.md)
+
 USBキーボードからHIDシステムコントロールイベント（電源・スタンバイ・ウェイクアップ）を受け取り、シリアルモニターに表示するサンプルです。
 
 ## ハードウェア

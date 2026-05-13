@@ -1,5 +1,7 @@
 # EspUsbHostConsumerControl
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Receives HID consumer control events (media keys) from a USB keyboard or remote and prints them to the Serial monitor.
 
 ## Hardware

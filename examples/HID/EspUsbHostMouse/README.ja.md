@@ -1,5 +1,7 @@
 # EspUsbHostMouse
 
+> English: [README.md](README.md)
+
 USB HIDマウスの移動量・ボタン操作を受け取り、シリアルモニターに表示するサンプルです。
 
 ## ハードウェア

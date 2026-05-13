@@ -1,5 +1,7 @@
 # EspUsbHostDeviceInfo
 
+> English: [README.md](README.md)
+
 接続されたUSBデバイスのディスクリプタ情報（デバイス・インターフェース・エンドポイント）を詳細に表示するサンプルです。
 
 ## ハードウェア

@@ -1,5 +1,7 @@
 # EspUsbHostUSBSerial
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Bridges a USB CDC ACM serial device to the ESP32's UART, forwarding data bidirectionally between Serial and the USB serial port.
 
 ## Hardware

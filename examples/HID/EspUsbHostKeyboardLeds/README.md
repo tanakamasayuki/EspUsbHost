@@ -1,5 +1,7 @@
 # EspUsbHostKeyboardLeds
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Controls the NumLock, CapsLock, and ScrollLock LEDs on a connected USB keyboard via HID output reports.
 
 ## Hardware

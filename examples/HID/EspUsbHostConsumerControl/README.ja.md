@@ -1,5 +1,7 @@
 # EspUsbHostConsumerControl
 
+> English: [README.md](README.md)
+
 USBキーボードやリモコンからHIDコンシューマーコントロールイベント（メディアキー）を受け取り、シリアルモニターに表示するサンプルです。
 
 ## ハードウェア

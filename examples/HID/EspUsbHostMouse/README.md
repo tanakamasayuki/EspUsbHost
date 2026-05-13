@@ -1,5 +1,7 @@
 # EspUsbHostMouse
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Reads movement and button events from a USB HID mouse and prints them to the Serial monitor.
 
 ## Hardware

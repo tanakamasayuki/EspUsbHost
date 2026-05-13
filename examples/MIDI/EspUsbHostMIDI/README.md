@@ -1,5 +1,7 @@
 # EspUsbHostMIDI
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Demonstrates USB MIDI input and output: receives MIDI messages from a connected USB MIDI device and sends MIDI commands via Serial commands.
 
 ## Hardware

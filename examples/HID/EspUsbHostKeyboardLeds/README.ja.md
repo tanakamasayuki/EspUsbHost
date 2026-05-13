@@ -1,5 +1,7 @@
 # EspUsbHostKeyboardLeds
 
+> English: [README.md](README.md)
+
 接続されたUSBキーボードのNumLock・CapsLock・ScrollLock LEDを、HID出力レポートで制御するサンプルです。
 
 ## ハードウェア

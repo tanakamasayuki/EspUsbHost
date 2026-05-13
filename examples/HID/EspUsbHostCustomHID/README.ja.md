@@ -1,5 +1,7 @@
 # EspUsbHostCustomHID
 
+> English: [README.md](README.md)
+
 接続された任意のHIDデバイスから生のHID入力レポートをHex形式でダンプするサンプルです。
 未知のHIDデバイスのリバースエンジニアリングや、カスタムHIDパーサーの開発に役立ちます。
 
