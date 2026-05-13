@@ -306,7 +306,7 @@ See [tests/README.md](tests/README.md) for setup instructions.
 ## Release checklist
 
 1. **Clean working tree** — confirm `git status` shows no uncommitted changes
-2. **Update dependencies** — use the [vscode-arduino-cli-wrapper](https://github.com/tanakamasayuki/vscode-arduino-cli-wrapper) _sketch.yaml Versions_ feature to check all `sketch.yaml` files for outdated board/library versions; update to the latest and re-run steps 3–5 if anything changed
+2. **Update dependencies** — use the [vscode-arduino-cli-wrapper](https://marketplace.visualstudio.com/items?itemName=tanakamasayuki.vscode-arduino-cli-wrapper) _sketch.yaml Versions_ feature to check all `sketch.yaml` files for outdated board/library versions; update to the latest and re-run steps 3–5 if anything changed
 3. **Build check** — use _Build Check_ in vscode-arduino-cli-wrapper; minimum: `examples/` with the `esp32s3` profile; add all profiles if the change touches ESP32-P4 support
 4. **Automated tests** — all `peer/` or `loopback/` tests pass
 5. **Manual tests** — run tests related to the change (check `tests/.pytest-results/state.json` for last-run timestamps); not mandatory but strongly recommended
