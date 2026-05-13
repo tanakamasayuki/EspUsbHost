@@ -40,6 +40,8 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`multi_hid_keyboard_mouse/`](multi_hid_keyboard_mouse/) | キーボードとマウスを同時接続したとき独立してイベントが届くこと | USBキーボード＋USBマウス | ✅ |
 | [`multi_serial/`](multi_serial/) | `setAddress()` で2台のシリアルデバイスが独立して動作すること | TXとRXをショートしたUSBシリアルデバイス×2 | ✅ |
 | [`hotplug/`](hotplug/) | 接続・切断イベントの正常発火と繰り返しサイクルでクラッシュしないこと | 任意のUSBデバイス | ✅ |
+| `hub_info/` | USBハブ経由で接続されたデバイスのトポロジー情報（親ハブアドレス・ポート番号）を表示すること | USBハブ＋任意のUSBデバイス | 📋 予定 |
+| `hub_power/` | ポート単位の電源制御 — ハブのポートをオン/オフしてデバイスの接続・切断が正しく起きることを確認 | ポート単位の電源制御に対応したUSBハブ | 📋 予定 |
 
 ## テスト結果
 
