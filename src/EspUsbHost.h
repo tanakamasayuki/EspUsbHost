@@ -25,6 +25,13 @@ enum EspUsbHostKeyboardLayout
   ESP_USB_HOST_KEYBOARD_LAYOUT_JP,
 };
 
+enum EspUsbHostPort
+{
+  ESP_USB_HOST_PORT_DEFAULT = 0,
+  ESP_USB_HOST_PORT_HIGH_SPEED,
+  ESP_USB_HOST_PORT_FULL_SPEED,
+};
+
 static constexpr uint8_t ESP_USB_HOST_MOUSE_LEFT = 0x01;
 static constexpr uint8_t ESP_USB_HOST_MOUSE_RIGHT = 0x02;
 static constexpr uint8_t ESP_USB_HOST_MOUSE_MIDDLE = 0x04;
@@ -57,6 +64,7 @@ struct EspUsbHostConfig
   uint32_t taskStackSize = 4096;
   UBaseType_t taskPriority = 5;
   BaseType_t taskCore = tskNO_AFFINITY;
+  EspUsbHostPort port = ESP_USB_HOST_PORT_DEFAULT;
 };
 
 struct EspUsbHostDeviceInfo
