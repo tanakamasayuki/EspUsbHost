@@ -306,7 +306,7 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 ## リリースチェックリスト
 
 1. **作業ツリーのクリーン確認** — `git status` で未コミットの変更がないことを確認する
-2. **依存バージョンの確認・更新** — [vscode-arduino-cli-wrapper](https://github.com/tanakamasayuki/vscode-arduino-cli-wrapper) の _sketch.yaml Versions_ 機能で全 `sketch.yaml` のボード・ライブラリバージョンを確認し、更新があれば最新にしてから手順 3〜5 をやり直す
+2. **依存バージョンの確認・更新** — [vscode-arduino-cli-wrapper](https://marketplace.visualstudio.com/items?itemName=tanakamasayuki.vscode-arduino-cli-wrapper) の _sketch.yaml Versions_ 機能で全 `sketch.yaml` のボード・ライブラリバージョンを確認し、更新があれば最新にしてから手順 3〜5 をやり直す
 3. **ビルドチェック** — vscode-arduino-cli-wrapper の _Build Check_ を使用。最低限 `examples/` の `esp32s3` プロファイル。ESP32-P4 関連の変更がある場合は全プロファイルも確認する
 4. **自動テスト** — `peer/` または `loopback/` のテストがすべて通っていること
 5. **手動テスト** — 改修内容に関連するテストを実行する（`tests/.pytest-results/state.json` で最終実行日時を確認）。必須ではないが強く推奨
