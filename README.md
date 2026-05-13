@@ -1,34 +1,34 @@
 # EspUsbHost
 
-Arduino library for using ESP32 USB Host from sketches.
+Arduino library for using USB Host on ESP32-S3.
 
-## Target board
+USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
-- ESP32-S3
-- Boards supported by Arduino-ESP32 USB Host
+## Features
 
-## Current status
+- **HID input** — keyboard, mouse, consumer control (media keys), system control (power/standby), gamepad
+- **HID output** — keyboard LED control, vendor output/feature reports
+- **CDC ACM** — USB serial input/output via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
+- **MIDI** — USB MIDI input and output
+- **Device discovery** — enumerate connected devices, interfaces, and endpoints
+- **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
-This branch is being rewritten around the API described in `SPEC.ja.md`.
-The first implementation target is HID and CDC ACM input/output with background USB processing.
-Common USB serial VCP devices are detected experimentally and use the same serial stream path when bulk endpoints are available.
+## Requirements
 
-## Examples
+- ESP32-S3, or any board supported by Arduino-ESP32 USB Host
+- Arduino-ESP32 core
 
-- `EspUsbHostKeyboard`: HID boot keyboard input
-- `EspUsbHostMouse`: HID boot mouse input
-- `EspUsbHostKeyboardLeds`: HID boot keyboard LED output
-- `EspUsbHostConsumerControl`: HID consumer control input
-- `EspUsbHostSystemControl`: HID system control input
-- `EspUsbHostGamepad`: HID gamepad input
-- `EspUsbHostHIDVendor`: HID vendor input
-- `EspUsbHostCustomHID`: generic/custom HID input report dump
-- `EspUsbHostUSBSerial`: CDC ACM USB serial input/output
-- `EspUsbHostMIDI`: USB MIDI input/output
-- `EspUsbHostHIDRawDump`: raw HID input report dump
-- `EspUsbHostDeviceInfo`: connected device, interface, and endpoint information
+## Installation
 
-## Keyboard example
+Open the Arduino IDE Library Manager, search for **EspUsbHost**, and install.
+
+Or clone this repository into your Arduino `libraries/` folder:
+
+```sh
+git clone https://github.com/tanakamasayuki/EspUsbHost
+```
+
+## Quick start
 
 ```cpp
 #include "EspUsbHost.h"
@@ -53,67 +53,214 @@ void loop() {
 }
 ```
 
-## Implemented API
+## Examples
 
-- `bool begin()`
-- `bool begin(const EspUsbHostConfig &config)`
-- `void end()`
-- `bool ready() const`
-- `void onDeviceConnected(DeviceCallback callback)`
-- `void onDeviceDisconnected(DeviceCallback callback)`
-- `void onKeyboard(KeyboardCallback callback)`
-- `void onMouse(MouseCallback callback)`
-- `void onHIDInput(HIDInputCallback callback)`
-- `void onSerialData(SerialDataCallback callback)`
-- `void onConsumerControl(ConsumerControlCallback callback)`
-- `void onSystemControl(SystemControlCallback callback)`
-- `void onGamepad(GamepadCallback callback)`
-- `void onVendorInput(VendorInputCallback callback)`
-- `void setKeyboardLayout(EspUsbHostKeyboardLayout layout)`
-- `bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId, const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool sendSerial(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const`
-- `bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const`
-- `bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendProgramChange(uint8_t channel, uint8_t program, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendChannelPressure(uint8_t channel, uint8_t pressure, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendPitchBend(uint8_t channel, uint16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendPitchBendSigned(uint8_t channel, int16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool midiSendSysEx(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, uint8_t address = ESP_USB_HOST_ANY_ADDRESS)`
-- `size_t deviceCount() const`
-- `size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const`
-- `bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const`
-- `size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const`
-- `size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const`
-- `int lastError() const`
-- `const char *lastErrorName() const`
+### HID
 
-`EspUsbHostCdcSerial` implements the usual Arduino `Stream` / `Print` style API:
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | Read keyboard input and print typed characters to Serial |
+| [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | Read mouse movement and button events |
+| [EspUsbHostKeyboardLeds](examples/HID/EspUsbHostKeyboardLeds/) | Control NumLock / CapsLock / ScrollLock LEDs |
+| [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | Detect media keys (volume, play/pause, etc.) |
+| [EspUsbHostSystemControl](examples/HID/EspUsbHostSystemControl/) | Detect system keys (power, standby, wake) |
+| [EspUsbHostGamepad](examples/HID/EspUsbHostGamepad/) | Read gamepad axes, hat switch, and buttons |
+| [EspUsbHostHIDVendor](examples/HID/EspUsbHostHIDVendor/) | Vendor HID input and output/feature reports |
+| [EspUsbHostCustomHID](examples/HID/EspUsbHostCustomHID/) | Raw hex dump of any HID input report |
+| [EspUsbHostHIDRawDump](examples/HID/EspUsbHostHIDRawDump/) | Raw hex dump with device address (supports multiple devices) |
 
-- `bool begin(uint32_t baud = 115200)`
-- `void end()`
-- `bool connected() const`
-- `int available()`
-- `int read()`
-- `int peek()`
-- `void flush()`
-- `size_t write(uint8_t data)`
-- `size_t write(const uint8_t *buffer, size_t size)`
-- `bool setBaudRate(uint32_t baud)`
-- `bool setDtr(bool enable)`
-- `bool setRts(bool enable)`
-- `void setAddress(uint8_t address)`
-- `uint8_t address() const`
-- `void clearAddress()`
+### Info
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | Print device descriptors, interfaces, and endpoints for all connected devices |
+
+### MIDI
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostMIDI](examples/MIDI/EspUsbHostMIDI/) | USB MIDI input and output |
+
+### Serial
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | Bidirectional CDC ACM serial bridge |
+
+## API reference
+
+### Core
+
+```cpp
+bool begin();
+bool begin(const EspUsbHostConfig &config);
+void end();
+bool ready() const;
+```
+
+`EspUsbHostConfig` lets you adjust the background task stack size, priority, and core affinity:
+
+```cpp
+struct EspUsbHostConfig {
+  uint32_t    taskStackSize = 4096;
+  UBaseType_t taskPriority  = 5;
+  BaseType_t  taskCore      = tskNO_AFFINITY;
+};
+```
+
+### Device events
+
+```cpp
+void onDeviceConnected(DeviceCallback callback);
+void onDeviceDisconnected(DeviceCallback callback);
+```
+
+Callbacks receive `const EspUsbHostDeviceInfo &device`. Key fields: `address`, `vid`, `pid`, `product`, `manufacturer`, `serial`, `speed`, `parentAddress`, `parentPort`.
+
+### HID input
+
+```cpp
+void onKeyboard(KeyboardCallback callback);
+void onMouse(MouseCallback callback);
+void onConsumerControl(ConsumerControlCallback callback);
+void onSystemControl(SystemControlCallback callback);
+void onGamepad(GamepadCallback callback);
+void onHIDInput(HIDInputCallback callback);    // raw — fires for all HID interfaces
+void onVendorInput(VendorInputCallback callback);
+```
+
+Notable event fields:
+
+| Callback | Key fields |
+|----------|-----------|
+| `onKeyboard` | `pressed`, `keyCode`, `ascii`, `modifiers`, `address` |
+| `onMouse` | `x`, `y`, `wheel`, `buttons`, `previousButtons`, `moved`, `buttonsChanged`, `address` |
+| `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
+| `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
+| `onGamepad` | `x`, `y`, `z`, `rz`, `rx`, `ry`, `hat`, `buttons`, `previousButtons`, `address` |
+| `onHIDInput` / `onVendorInput` | `address`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
+
+### HID output
+
+```cpp
+void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
+bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId,
+                   const uint8_t *data, size_t length,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool sendVendorOutput(const uint8_t *data, size_t length,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool sendVendorFeature(const uint8_t *data, size_t length,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+```
+
+Keyboard layout constants: `ESP_USB_HOST_KEYBOARD_LAYOUT_US`, `ESP_USB_HOST_KEYBOARD_LAYOUT_JP`.
+
+### CDC ACM (USB serial)
+
+Low-level send API on `EspUsbHost`:
+
+```cpp
+bool sendSerial(const uint8_t *data, size_t length,
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool sendSerial(const char *text,
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool setSerialBaudRate(uint32_t baud,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+```
+
+`EspUsbHostCdcSerial` wraps the above as a standard Arduino `Stream` / `Print`:
+
+```cpp
+EspUsbHostCdcSerial CdcSerial(usb);
+
+bool    begin(uint32_t baud = 115200);
+void    end();
+bool    connected() const;
+int     available();
+int     read();
+int     peek();
+void    flush();
+size_t  write(uint8_t data);
+size_t  write(const uint8_t *buffer, size_t size);
+bool    setBaudRate(uint32_t baud);
+bool    setDtr(bool enable);
+bool    setRts(bool enable);
+void    setAddress(uint8_t address);
+uint8_t address() const;
+void    clearAddress();
+```
+
+Use `setAddress()` inside `onDeviceConnected` to bind a specific device when multiple USB serial devices are connected.
+
+### MIDI
+
+```cpp
+void onMidiMessage(MidiCallback callback);   // receive
+
+bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool midiSend(const uint8_t *data, size_t length,
+              uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendControlChange(uint8_t channel, uint8_t control, uint8_t value,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendProgramChange(uint8_t channel, uint8_t program,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendPolyPressure(uint8_t channel, uint8_t note, uint8_t pressure,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendChannelPressure(uint8_t channel, uint8_t pressure,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendPitchBend(uint8_t channel, uint16_t value,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendPitchBendSigned(uint8_t channel, int16_t value,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool midiSendSysEx(const uint8_t *data, size_t length,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+```
+
+`onMidiMessage` callback receives `const EspUsbHostMidiMessage &message` with fields `cable`, `codeIndex`, `status`, `data1`, `data2`.
+
+### Device discovery
+
+```cpp
+size_t deviceCount() const;
+size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
+bool   getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
+size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces,
+                     size_t maxInterfaces) const;
+size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
+                    size_t maxEndpoints) const;
+```
+
+Array size constants: `ESP_USB_HOST_MAX_DEVICES`, `ESP_USB_HOST_MAX_INTERFACES`, `ESP_USB_HOST_MAX_ENDPOINTS`.
+
+### Error handling
+
+```cpp
+int         lastError() const;
+const char *lastErrorName() const;
+```
+
+## Multiple devices
+
+All send APIs and `EspUsbHostCdcSerial` default to `ESP_USB_HOST_ANY_ADDRESS`, which targets the first available device of the appropriate class. Pass an explicit `address` (obtained from `EspUsbHostDeviceInfo::address`) to target a specific device.
+
+```cpp
+usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
+  if (device.vid == 0x0403) {
+    CdcSerial.setAddress(device.address);
+  }
+});
+```
 
 ## Tests
 
-- `tests/peer`: two-board USB tests using an ESP32-S3 device peer
-- `tests/loopback`: single-board loopback tests for supported boards
+- [`tests/peer/`](tests/peer/) — two-board USB tests using an ESP32-S3 as the device peer
+- [`tests/loopback/`](tests/loopback/) — single-board loopback tests
+
+See [tests/peer/README.md](tests/peer/README.md) for setup instructions.
