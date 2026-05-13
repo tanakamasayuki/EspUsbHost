@@ -20,6 +20,18 @@ uv run --env-file .env pytest manual/keyboard_leds/keyboard_leds.py -v -s
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
 
+## Test results
+
+Manual test results are saved automatically by `--save-state` to:
+
+```
+tests/.pytest-results/state.json
+```
+
+This file records the last outcome and timestamp for each test node ID. When a feature is changed, check this file to see when the related manual tests were last run and whether they need to be re-run. Tests that have never passed, or that passed before the relevant code was modified, should be flagged for re-execution.
+
+Note that this file is local to the machine and not committed to the repository. It may be missing (deleted or never run), and results from other machines are not reflected. Treat it as a helpful hint, not a definitive record.
+
 ## Why each category is manual
 
 | Category | Reason automation is not possible |
