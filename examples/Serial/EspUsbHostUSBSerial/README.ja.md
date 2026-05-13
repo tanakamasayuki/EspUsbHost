@@ -1,5 +1,7 @@
 # EspUsbHostUSBSerial
 
+> English: [README.md](README.md)
+
 USB CDC ACMシリアルデバイスとESP32のUART間でデータを双方向に中継するサンプルです。
 
 ## ハードウェア

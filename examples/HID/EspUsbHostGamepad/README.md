@@ -1,5 +1,7 @@
 # EspUsbHostGamepad
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Reads axis, hat switch, and button input from a USB HID gamepad and prints them to the Serial monitor.
 
 ## Hardware

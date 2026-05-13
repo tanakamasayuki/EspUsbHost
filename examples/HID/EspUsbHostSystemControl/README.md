@@ -1,5 +1,7 @@
 # EspUsbHostSystemControl
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Receives HID system control events (power, standby, wake) from a USB keyboard and prints them to the Serial monitor.
 
 ## Hardware

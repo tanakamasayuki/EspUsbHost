@@ -1,5 +1,7 @@
 # EspUsbHostHIDVendor
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Demonstrates vendor-class HID communication: receiving input reports and sending output/feature reports to a USB HID vendor device.
 
 ## Hardware

@@ -1,5 +1,7 @@
 # EspUsbHostMIDI
 
+> English: [README.md](README.md)
+
 USB MIDIの入出力サンプルです。接続したUSB MIDIデバイスからMIDIメッセージを受信し、シリアルコマンドでMIDIメッセージを送信します。
 
 ## ハードウェア

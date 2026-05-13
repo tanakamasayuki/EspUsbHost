@@ -1,5 +1,7 @@
 # EspUsbHostHIDVendor
 
+> English: [README.md](README.md)
+
 ベンダークラスHID通信のサンプルです。USB HIDベンダーデバイスからの入力レポートを受信し、出力レポートおよびフィーチャーレポートを送信します。
 
 ## ハードウェア

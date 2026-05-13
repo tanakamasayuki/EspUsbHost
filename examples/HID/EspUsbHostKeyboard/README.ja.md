@@ -1,5 +1,7 @@
 # EspUsbHostKeyboard
 
+> English: [README.md](README.md)
+
 USBキーボードからHID入力を受け取り、入力した文字をシリアルモニターに表示するサンプルです。
 
 ## ハードウェア

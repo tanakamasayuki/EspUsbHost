@@ -1,5 +1,7 @@
 # EspUsbHostCustomHID
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Dumps raw HID input reports as hex for any connected HID device.
 Useful for reverse-engineering unknown HID devices or developing custom HID parsers.
 

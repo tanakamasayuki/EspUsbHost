@@ -1,5 +1,7 @@
 # EspUsbHostHIDRawDump
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Dumps raw HID input reports from all connected devices with device address, interface, and protocol information.
 Supports multiple simultaneous USB devices.
 

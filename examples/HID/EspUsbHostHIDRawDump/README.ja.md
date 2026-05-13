@@ -1,5 +1,7 @@
 # EspUsbHostHIDRawDump
 
+> English: [README.md](README.md)
+
 接続されたすべてのデバイスから、デバイスアドレス・インターフェース・プロトコル情報付きで生のHID入力レポートをダンプするサンプルです。
 複数のUSBデバイスを同時に扱えます。
 
