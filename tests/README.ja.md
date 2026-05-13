@@ -72,6 +72,65 @@ ESP32-S3を2台使用します。1台はEspUsbHostをUSBホストとして実行
 
 ESP32-P4を1台使い、同一チップ上でUSBホストとUSBデバイスの両方を実行します。2台目のボードは不要です。現在このディレクトリは整備中です。
 
+## pytest-embedded-arduino-cli
+
+[pytest-embedded-arduino-cli](https://github.com/tanakamasayuki/pytest-embedded-arduino-cli) は、pytest-embeddedとArduino CLIを繋ぐプラグインです。テスト実行前にスケッチのビルドとフラッシュを自動的に行います。
+
+### シリアルポートの解決順序
+
+プラグインは各ボードのシリアルポートを以下の順序で解決します：
+
+1. `--port` CLIオプション
+2. `TEST_SERIAL_PORT_<PROFILE>` 環境変数（`<PROFILE>` は sketch.yaml のプロファイル名を**大文字にしてハイフンをアンダースコアに変換**したもの）
+3. `TEST_SERIAL_PORT` 環境変数（任意のプロファイルのフォールバック）
+
+たとえば、sketch.yaml の `s3_peer_host` というプロファイル名は `.env` の `TEST_SERIAL_PORT_S3_PEER_HOST` に対応します。
+
+### sketch.yaml とプロファイル
+
+各テストスケッチには、ボードプロファイルを定義する `sketch.yaml` があります：
+
+```yaml
+profiles:
+  s3_peer_host:
+    fqbn: esp32:esp32:esp32s3
+default_profile: s3_peer_host
+```
+
+ピアボードのスケッチはメインスケッチと同じディレクトリの `peer_<名前>/` サブディレクトリに置き、それぞれ独自の `sketch.yaml` を持ちます。
+
+### 実行モード
+
+```sh
+# ビルド・フラッシュ・テストをすべて実行（デフォルト）
+uv run --env-file .env pytest peer/hid_keyboard
+
+# ビルドのみ — ボード不要
+uv run --env-file .env pytest peer/hid_keyboard --run-mode=build
+
+# テストのみ — ビルドとフラッシュをスキップし、書き込み済みのファームウェアを使用
+uv run --env-file .env pytest peer/hid_keyboard --run-mode=test
+```
+
+### 詳細出力
+
+```sh
+# コンパイルとアップロードコマンドを表示
+uv run --env-file .env pytest -v
+
+# 実行コンテキスト全体を表示（スケッチディレクトリ・プロファイル・ポートなど）
+uv run --env-file .env pytest -vv
+```
+
+### Arduino CLI のセットアップ
+
+Arduino CLI が `PATH` に存在し、必要なボードコアがインストールされている必要があります。パッケージインデックスは定期的に更新してください：
+
+```sh
+arduino-cli core update-index
+arduino-cli lib update-index
+```
+
 ## 依存関係
 
 Pythonの依存関係は `pyproject.toml` で宣言され、`uv.lock` でロックされています。`uv run` は初回実行時にローカルの仮想環境へ自動的にインストールします。

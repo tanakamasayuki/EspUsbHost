@@ -72,6 +72,65 @@ See [peer/README.md](peer/README.md) for hardware wiring and coverage details.
 
 Uses an ESP32-P4 that runs both USB host and USB device on the same chip. No second board is needed. This directory is currently being organized.
 
+## pytest-embedded-arduino-cli
+
+[pytest-embedded-arduino-cli](https://github.com/tanakamasayuki/pytest-embedded-arduino-cli) is the plugin that connects pytest-embedded with Arduino CLI. It builds and flashes sketches automatically before each test run.
+
+### How serial ports are resolved
+
+The plugin resolves the serial port for each board in this order:
+
+1. `--port` CLI option
+2. `TEST_SERIAL_PORT_<PROFILE>` environment variable, where `<PROFILE>` is the sketch.yaml profile name **uppercased with hyphens replaced by underscores**
+3. `TEST_SERIAL_PORT` environment variable (fallback for any profile)
+
+For example, a profile named `s3_peer_host` in `sketch.yaml` maps to `TEST_SERIAL_PORT_S3_PEER_HOST` in `.env`.
+
+### sketch.yaml and profiles
+
+Each test sketch has a `sketch.yaml` that declares board profiles:
+
+```yaml
+profiles:
+  s3_peer_host:
+    fqbn: esp32:esp32:esp32s3
+default_profile: s3_peer_host
+```
+
+Peer board sketches live in a `peer_<name>/` subdirectory alongside the main sketch, each with their own `sketch.yaml`.
+
+### Run modes
+
+```sh
+# Build, flash, and test (default)
+uv run --env-file .env pytest peer/hid_keyboard
+
+# Build only — no board needed
+uv run --env-file .env pytest peer/hid_keyboard --run-mode=build
+
+# Test only — skip build and flash, use already-flashed firmware
+uv run --env-file .env pytest peer/hid_keyboard --run-mode=test
+```
+
+### Verbose output
+
+```sh
+# Show compile and upload commands
+uv run --env-file .env pytest -v
+
+# Show full execution context (sketch dir, profile, port, etc.)
+uv run --env-file .env pytest -vv
+```
+
+### Arduino CLI setup
+
+Arduino CLI must be in `PATH` with the required board cores installed. Refresh the package index periodically:
+
+```sh
+arduino-cli core update-index
+arduino-cli lib update-index
+```
+
 ## Dependencies
 
 Python dependencies are declared in `pyproject.toml` and locked in `uv.lock`. `uv run` installs them automatically into a local virtual environment on first use.
