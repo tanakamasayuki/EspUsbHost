@@ -11,8 +11,11 @@ static constexpr uint8_t USB_CLASS_AUDIO_VALUE = 0x01;
 static constexpr uint8_t USB_CLASS_CDC_CONTROL_VALUE = 0x02;
 static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
+static constexpr uint8_t USB_CS_INTERFACE_DESC = 0x24;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
+static constexpr uint8_t USB_AUDIO_CS_AS_FORMAT_TYPE = 0x02;
+static constexpr uint8_t USB_AUDIO_FORMAT_TYPE_I = 0x01;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_KEYBOARD_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_MOUSE_VALUE = 0x02;
@@ -1208,6 +1211,10 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     currentInterfaceClass_ = intf->bInterfaceClass;
     currentInterfaceSubClass_ = intf->bInterfaceSubClass;
     currentInterfaceProtocol_ = intf->bInterfaceProtocol;
+    currentAudioChannels_ = 0;
+    currentAudioBytesPerSample_ = 0;
+    currentAudioBitsPerSample_ = 0;
+    currentAudioSampleRate_ = 0;
     currentClaimResult_ = ESP_OK;
     if (device->interfaceInfoCount < ESP_USB_HOST_MAX_INTERFACES)
     {
@@ -1309,6 +1316,34 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         ESP_LOGW(TAG, "usb_host_interface_claim(%u) failed: %s", currentInterfaceNumber_, esp_err_to_name(currentClaimResult_));
         setLastError(currentClaimResult_);
       }
+    }
+    break;
+  }
+
+  case USB_CS_INTERFACE_DESC:
+  {
+    if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+        currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
+        data[0] >= 8 &&
+        data[2] == USB_AUDIO_CS_AS_FORMAT_TYPE &&
+        data[3] == USB_AUDIO_FORMAT_TYPE_I)
+    {
+      currentAudioChannels_ = data[4];
+      currentAudioBytesPerSample_ = data[5];
+      currentAudioBitsPerSample_ = data[6];
+      const uint8_t sampleFrequencyType = data[7];
+      if (sampleFrequencyType > 0 && data[0] >= 11)
+      {
+        currentAudioSampleRate_ = static_cast<uint32_t>(data[8]) |
+                                  (static_cast<uint32_t>(data[9]) << 8) |
+                                  (static_cast<uint32_t>(data[10]) << 16);
+      }
+      ESP_LOGI(TAG, "USB Audio Type I format: iface=%u channels=%u bytes=%u bits=%u rate=%lu",
+               currentInterfaceNumber_,
+               currentAudioChannels_,
+               currentAudioBytesPerSample_,
+               currentAudioBitsPerSample_,
+               static_cast<unsigned long>(currentAudioSampleRate_));
     }
     break;
   }
@@ -1451,6 +1486,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       static constexpr int AUDIO_ISOC_PACKETS = 8;
       if (!isIn)
       {
+        recordAudioStream(*device, ep, false);
         device->hasAudioInterface = true;
         device->audioInterfaceNumber = currentInterfaceNumber_;
         device->hasAudioOutEndpoint = true;
@@ -1470,6 +1506,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         return;
       }
 
+      recordAudioStream(*device, ep, true);
       EndpointState *endpoint = allocateEndpoint(*device);
       if (!endpoint)
       {
@@ -1590,6 +1627,28 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
   default:
     break;
   }
+}
+
+void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input)
+{
+  if (!ep || device.audioStreamInfoCount >= ESP_USB_HOST_MAX_AUDIO_STREAMS)
+  {
+    return;
+  }
+
+  EspUsbHostAudioStreamInfo &info = device.audioStreamInfos[device.audioStreamInfoCount++];
+  info.address = device.info.address;
+  info.interfaceNumber = currentInterfaceNumber_;
+  info.alternate = currentInterfaceAlternate_;
+  info.endpointAddress = ep->bEndpointAddress;
+  info.input = input;
+  info.output = !input;
+  info.channels = currentAudioChannels_;
+  info.bytesPerSample = currentAudioBytesPerSample_;
+  info.bitsPerSample = currentAudioBitsPerSample_;
+  info.sampleRate = currentAudioSampleRate_;
+  info.maxPacketSize = ep->wMaxPacketSize;
+  info.interval = ep->bInterval;
 }
 
 void EspUsbHost::transferCallback(usb_transfer_t *transfer)
@@ -2424,6 +2483,27 @@ size_t EspUsbHost::getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoin
   for (size_t i = 0; i < count; i++)
   {
     endpoints[i] = device->endpointInfos[i];
+  }
+  return count;
+}
+
+size_t EspUsbHost::getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const
+{
+  if (!streams || maxStreams == 0)
+  {
+    return 0;
+  }
+
+  const DeviceState *device = findDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+
+  const size_t count = device->audioStreamInfoCount < maxStreams ? device->audioStreamInfoCount : maxStreams;
+  for (size_t i = 0; i < count; i++)
+  {
+    streams[i] = device->audioStreamInfos[i];
   }
   return count;
 }

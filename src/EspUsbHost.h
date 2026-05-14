@@ -62,6 +62,7 @@ static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
 static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
 static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
 static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
+static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 
 struct EspUsbHostConfig
 {
@@ -175,6 +176,22 @@ struct EspUsbHostAudioData
   uint8_t interfaceNumber = 0;
   const uint8_t *data = nullptr;
   size_t length = 0;
+};
+
+struct EspUsbHostAudioStreamInfo
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t alternate = 0;
+  uint8_t endpointAddress = 0;
+  bool input = false;
+  bool output = false;
+  uint8_t channels = 0;
+  uint8_t bytesPerSample = 0;
+  uint8_t bitsPerSample = 0;
+  uint32_t sampleRate = 0;
+  uint16_t maxPacketSize = 0;
+  uint8_t interval = 0;
 };
 
 struct EspUsbHostConsumerControlEvent
@@ -298,6 +315,7 @@ public:
   bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
+  size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
 
   int lastError() const;
   const char *lastErrorName() const;
@@ -368,6 +386,8 @@ private:
     uint8_t audioOutEndpointAddress = 0;
     uint16_t audioOutPacketSize = 0;
     uint32_t audioSampleRate = 48000;
+    EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
+    uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
@@ -393,6 +413,7 @@ private:
   void handleDeviceGone(usb_device_handle_t goneHandle);
   void parseConfigDescriptor(DeviceState &device, const usb_config_desc_t *configDesc);
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
+  void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
   void handleTransfer(usb_transfer_t *transfer);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
@@ -463,6 +484,10 @@ private:
   uint8_t currentInterfaceClass_ = 0;
   uint8_t currentInterfaceSubClass_ = 0;
   uint8_t currentInterfaceProtocol_ = 0;
+  uint8_t currentAudioChannels_ = 0;
+  uint8_t currentAudioBytesPerSample_ = 0;
+  uint8_t currentAudioBitsPerSample_ = 0;
+  uint32_t currentAudioSampleRate_ = 0;
   esp_err_t currentClaimResult_ = ESP_OK;
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_US;
