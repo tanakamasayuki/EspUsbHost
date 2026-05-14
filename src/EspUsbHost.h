@@ -264,6 +264,7 @@ public:
   void onSystemControl(SystemControlCallback callback);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
+  bool sendSetProtocol(uint8_t interfaceNumber, uint8_t address);
   bool sendHIDReport(uint8_t interfaceNumber,
                      uint8_t reportType,
                      uint8_t reportId,
@@ -332,6 +333,9 @@ private:
     String serial;
     bool hasKeyboardInterface = false;
     uint8_t keyboardInterfaceNumber = 0;
+    bool keyboardReportProtocolSet = false;
+    bool keyboardLedPending = false;
+    uint8_t keyboardLedPendingMask = 0;
     bool hasVendorInterface = false;
     uint8_t vendorInterfaceNumber = 0;
     bool hasVendorOutEndpoint = false;
@@ -442,6 +446,7 @@ private:
   esp_err_t lastError_ = ESP_OK;
 
   usb_host_client_handle_t clientHandle_ = nullptr;
+  bool sendKeyboardLedReport(DeviceState &device, uint8_t leds);
   DeviceState devices_[ESP_USB_HOST_MAX_DEVICES];
   DeviceState *currentDevice_ = nullptr;
   EspUsbHostCdcSerial *cdcSerial_ = nullptr;
