@@ -274,11 +274,16 @@ size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams,
                        size_t maxStreams) const;
 bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream,
                                              uint32_t sampleRate);
+bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
+                                     uint8_t channels,
+                                     uint8_t bytesPerSample,
+                                     uint8_t bitsPerSample,
+                                     uint32_t sampleRate);
 ```
 
 `onAudioData`はUSB Audio StreamingのIsochronous INエンドポイントから受信した生ペイロードを通知します。コールバックは`const EspUsbHostAudioData &audio`を受け取り、フィールドは`address`、`interfaceNumber`、`data`、`length`です。
 
-`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostAudioStreamSupportsSampleRate`はその情報を使って指定サンプルレートに対応しているか判定します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを送信します。
+`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostAudioStreamSupportsSampleRate`はその情報を使って指定サンプルレートに対応しているか判定し、`espUsbHostAudioStreamMatchesPcm`はチャンネル数、サンプルサイズ、ビット深度、サンプルレートをまとめて判定します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを送信します。
 
 ### デバイス探索
 

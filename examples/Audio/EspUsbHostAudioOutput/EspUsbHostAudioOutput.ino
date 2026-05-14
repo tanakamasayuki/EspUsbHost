@@ -8,20 +8,30 @@ static constexpr uint32_t TONE_HZ = 440;
 static constexpr uint8_t CHANNELS = 1;
 static constexpr uint8_t BYTES_PER_SAMPLE = 2;
 static constexpr uint8_t BITS_PER_SAMPLE = 16;
+static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
+static constexpr size_t MAX_CHANNELS = 2;
 static uint8_t audioAddress = 0;
 static bool audioReady = false;
-static int16_t samples[48];
+static uint8_t audioChannels = CHANNELS;
+static size_t audioPacketBytes = FRAMES_PER_PACKET * CHANNELS * BYTES_PER_SAMPLE;
+static uint8_t samples[FRAMES_PER_PACKET * MAX_CHANNELS * BYTES_PER_SAMPLE];
 
 static void fillTone()
 {
   static uint32_t phase = 0;
-  for (size_t i = 0; i < sizeof(samples) / sizeof(samples[0]); i++)
+  for (size_t frame = 0; frame < FRAMES_PER_PACKET; frame++)
   {
-    samples[i] = (phase < SAMPLE_RATE / 2) ? 12000 : -12000;
+    const int16_t value = (phase < SAMPLE_RATE / 2) ? 12000 : -12000;
     phase += TONE_HZ;
     if (phase >= SAMPLE_RATE)
     {
       phase -= SAMPLE_RATE;
+    }
+    for (uint8_t channel = 0; channel < audioChannels; channel++)
+    {
+      const size_t offset = (frame * audioChannels + channel) * BYTES_PER_SAMPLE;
+      samples[offset] = value & 0xff;
+      samples[offset + 1] = (value >> 8) & 0xff;
     }
   }
 }
@@ -60,13 +70,18 @@ void setup()
                                             streams[i].maxPacketSize,
                                             streams[i].interval);
                               if (streams[i].output &&
-                                  streams[i].channels == CHANNELS &&
-                                  streams[i].bytesPerSample == BYTES_PER_SAMPLE &&
-                                  streams[i].bitsPerSample == BITS_PER_SAMPLE &&
-                                  espUsbHostAudioStreamSupportsSampleRate(streams[i], SAMPLE_RATE))
+                                  streams[i].channels >= CHANNELS &&
+                                  streams[i].channels <= MAX_CHANNELS &&
+                                  espUsbHostAudioStreamMatchesPcm(streams[i],
+                                                                  streams[i].channels,
+                                                                  BYTES_PER_SAMPLE,
+                                                                  BITS_PER_SAMPLE,
+                                                                  SAMPLE_RATE))
                               {
                                 audioAddress = info.address;
                                 audioReady = true;
+                                audioChannels = streams[i].channels;
+                                audioPacketBytes = FRAMES_PER_PACKET * audioChannels * BYTES_PER_SAMPLE;
                                 usb.setAudioSampleRate(SAMPLE_RATE, info.address);
                               }
                             }
@@ -95,7 +110,7 @@ void loop()
   if (audioReady)
   {
     fillTone();
-    usb.audioSend(reinterpret_cast<const uint8_t *>(samples), sizeof(samples), audioAddress);
+    usb.audioSend(samples, audioPacketBytes, audioAddress);
     delay(1);
   }
   else

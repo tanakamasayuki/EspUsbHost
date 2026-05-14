@@ -9,7 +9,7 @@ Sends raw USB Audio isochronous OUT payloads to a USB speaker or audio interface
 
 ## Notes
 
-- This example sends 48 kHz, 16-bit, mono PCM chunks.
+- This example sends 48 kHz, 16-bit PCM chunks to mono or stereo streams.
 - It prints detected USB Audio stream format information and only starts output when a compatible OUT stream is found.
 - Adjust `SAMPLE_RATE` and the sample format constants in the sketch to match your device.
 - Some devices may require additional feature-unit or clock control support.
