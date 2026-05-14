@@ -63,6 +63,7 @@ static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
 static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
 static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
+static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 
 struct EspUsbHostConfig
 {
@@ -190,6 +191,11 @@ struct EspUsbHostAudioStreamInfo
   uint8_t bytesPerSample = 0;
   uint8_t bitsPerSample = 0;
   uint32_t sampleRate = 0;
+  uint8_t sampleRateCount = 0;
+  uint32_t sampleRates[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES] = {};
+  uint32_t sampleRateMin = 0;
+  uint32_t sampleRateMax = 0;
+  uint32_t sampleRateResolution = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
 };
@@ -488,6 +494,11 @@ private:
   uint8_t currentAudioBytesPerSample_ = 0;
   uint8_t currentAudioBitsPerSample_ = 0;
   uint32_t currentAudioSampleRate_ = 0;
+  uint8_t currentAudioSampleRateCount_ = 0;
+  uint32_t currentAudioSampleRates_[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES] = {};
+  uint32_t currentAudioSampleRateMin_ = 0;
+  uint32_t currentAudioSampleRateMax_ = 0;
+  uint32_t currentAudioSampleRateResolution_ = 0;
   esp_err_t currentClaimResult_ = ESP_OK;
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_US;
