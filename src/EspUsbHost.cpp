@@ -132,6 +132,7 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
   running_ = true;
   ready_ = false;
   lastError_ = ESP_OK;
+  nextHubIndex_ = 1;
 
   BaseType_t created;
   if (config_.taskCore == tskNO_AFFINITY)
@@ -853,14 +854,21 @@ void EspUsbHost::handleNewDevice(uint8_t address)
     device->product = usbString(devInfo.str_desc_product);
     device->serial = usbString(devInfo.str_desc_serial_num);
     device->info.address = devInfo.dev_addr;
-    device->info.parentPort = devInfo.parent.port_num;
     device->info.speed = devInfo.speed;
     device->info.maxPacketSize0 = devInfo.bMaxPacketSize0;
     device->info.configurationValue = devInfo.bConfigurationValue;
+    const uint8_t upstreamPort = devInfo.parent.port_num;
     if (devInfo.parent.dev_hdl)
     {
       DeviceState *parent = findDeviceByHandle(devInfo.parent.dev_hdl);
       device->info.parentAddress = parent ? parent->info.address : 0;
+      device->info.portId = parent && parent->hubIndex && upstreamPort > 0 && upstreamPort <= 0x0f
+                                ? static_cast<uint8_t>((parent->hubIndex << 4) | upstreamPort)
+                                : upstreamPort;
+    }
+    else
+    {
+      device->info.portId = upstreamPort ? upstreamPort : 0x01;
     }
   }
 
@@ -909,12 +917,24 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   device->info.configurationTotalLength = configDesc->wTotalLength;
 
   const bool isHub = devDesc && (devDesc->bDeviceClass == USB_CLASS_HUB_VALUE || configHasInterfaceClass(configDesc, USB_CLASS_HUB_VALUE));
+  device->isHub = isHub;
+  if (isHub)
+  {
+    if (nextHubIndex_ <= 0x0f)
+    {
+      device->hubIndex = nextHubIndex_++;
+    }
+    else
+    {
+      ESP_LOGW(TAG, "Hub index exhausted for address=%u", address);
+    }
+  }
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
   const bool hasCdc = configHasInterfaceClass(configDesc, USB_CLASS_CDC_CONTROL_VALUE) || configHasInterfaceClass(configDesc, USB_CLASS_CDC_DATA_VALUE);
   const bool hasAudio = configHasInterfaceClass(configDesc, USB_CLASS_AUDIO_VALUE);
-  if (isHub || (!hasHid && !hasCdc && !hasAudio && !device->vendorSerialSupported))
+  if (!isHub && !hasHid && !hasCdc && !hasAudio && !device->vendorSerialSupported)
   {
-    ESP_LOGI(TAG, "Ignoring %s device at address=%u", isHub ? "hub" : "unsupported", address);
+    ESP_LOGI(TAG, "Ignoring unsupported device at address=%u", address);
     usb_host_device_close(clientHandle_, device->handle);
     *device = DeviceState();
     return;

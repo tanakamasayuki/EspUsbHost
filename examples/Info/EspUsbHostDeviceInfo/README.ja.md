@@ -24,7 +24,7 @@
 ## 表示される情報
 
 **デバイスレベル:**
-- USBアドレス・親アドレス/ポート（ハブ接続時）・バス速度
+- USBアドレス・ポートID・親アドレス（ハブ接続時）・バス速度
 - VID:PID・デバイスクラス/サブクラス/プロトコル
 - USBバージョン・デバイスバージョン・EP0最大パケットサイズ
 - メーカー名・製品名・シリアル番号文字列
@@ -52,7 +52,7 @@ Press 'r' to reprint connected devices.
 CONNECTED address=1
 
 =========== USB Device ===========
-Address 1 parent=root speed=full-speed
+Address 1 portId=0x01 parent=root speed=full-speed
 VID:PID 045e:07a5 class=0x00(per-interface) subclass=0x00 protocol=0x00
 USB 2.00 device 0.01 ep0=8
 Strings manufacturer="Microsoft" product="USB Keyboard" serial=""
