@@ -280,6 +280,7 @@ public:
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool setAudioSampleRate(uint32_t sampleRate, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -366,6 +367,7 @@ private:
     uint8_t audioOutInterfaceNumber = 0;
     uint8_t audioOutEndpointAddress = 0;
     uint16_t audioOutPacketSize = 0;
+    uint32_t audioSampleRate = 48000;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
@@ -452,6 +454,7 @@ private:
   DeviceState *currentDevice_ = nullptr;
   EspUsbHostCdcSerial *cdcSerial_ = nullptr;
   uint32_t defaultSerialBaudRate_ = 115200;
+  uint32_t defaultAudioSampleRate_ = 48000;
   uint8_t nextHubIndex_ = 1;
 
   EndpointState endpoints_[16];

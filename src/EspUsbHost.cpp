@@ -553,6 +553,47 @@ bool EspUsbHost::audioOutputReady(uint8_t address) const
   return findAudioOutputDevice(address) != nullptr;
 }
 
+bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
+{
+  if (sampleRate == 0 || sampleRate > 0x00ffffff)
+  {
+    ESP_LOGW(TAG, "setAudioSampleRate() called with invalid sampleRate=%lu",
+             static_cast<unsigned long>(sampleRate));
+    return false;
+  }
+
+  if (address == ESP_USB_HOST_ANY_ADDRESS)
+  {
+    defaultAudioSampleRate_ = sampleRate;
+  }
+
+  DeviceState *device = findDevice(address);
+  if (!device)
+  {
+    return true;
+  }
+
+  device->audioSampleRate = sampleRate;
+  bool submitted = true;
+  if (device->hasAudioOutEndpoint)
+  {
+    submitted = submitAudioSamplingFrequency(*device, device->audioOutEndpointAddress, device->audioSampleRate) && submitted;
+  }
+  for (EndpointState &endpoint : endpoints_)
+  {
+    if (!endpoint.inUse ||
+        endpoint.deviceHandle != device->handle ||
+        endpoint.interfaceClass != USB_CLASS_AUDIO_VALUE ||
+        endpoint.interfaceSubClass != USB_AUDIO_SUBCLASS_AUDIO_STREAMING ||
+        (endpoint.address & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) == 0)
+    {
+      continue;
+    }
+    submitted = submitAudioSamplingFrequency(*device, endpoint.address, device->audioSampleRate) && submitted;
+  }
+  return submitted;
+}
+
 bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
 {
   DeviceState *device = findAudioOutputDevice(address);
@@ -984,6 +1025,7 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   device->inUse = true;
   device->info.address = address;
   device->serialBaudRate = defaultSerialBaudRate_;
+  device->audioSampleRate = defaultAudioSampleRate_;
 
   esp_err_t err = usb_host_device_open(clientHandle_, address, &device->handle);
   if (err != ESP_OK)
@@ -1417,7 +1459,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         device->audioOutPacketSize = ep->wMaxPacketSize;
         if (currentInterfaceAlternate_ > 0)
         {
-          submitAudioSamplingFrequency(*device, ep->bEndpointAddress, 48000);
+          submitAudioSamplingFrequency(*device, ep->bEndpointAddress, device->audioSampleRate);
           submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
         }
         ESP_LOGI(TAG, "USB Audio isochronous OUT endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
@@ -1469,7 +1511,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       }
       else
       {
-        submitAudioSamplingFrequency(*device, ep->bEndpointAddress, 48000);
+        submitAudioSamplingFrequency(*device, ep->bEndpointAddress, device->audioSampleRate);
         submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
       }
       ESP_LOGI(TAG, "USB Audio isochronous IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",

@@ -266,13 +266,15 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 void onAudioData(AudioDataCallback callback);
 bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool setAudioSampleRate(uint32_t sampleRate,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
 `onAudioData` receives raw payload bytes from USB Audio streaming isochronous IN endpoints. The callback receives `const EspUsbHostAudioData &audio` with fields `address`, `interfaceNumber`, `data`, and `length`.
 
-`audioSend` writes raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint. The library does not parse format descriptors yet, so the caller must match the device's sample rate, channel count, and sample size.
+`setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` writes raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint. The library does not parse format descriptors yet, so the caller must match the device's sample rate, channel count, and sample size.
 
 ### Device discovery
 
