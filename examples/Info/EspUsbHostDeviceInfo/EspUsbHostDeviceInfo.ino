@@ -73,10 +73,10 @@ static void printDevice(uint8_t address)
 
   Serial.println();
   Serial.println("=========== USB Device ===========");
-  Serial.printf("Address %u", device.address);
+  Serial.printf("Address %u portId=0x%02x", device.address, device.portId);
   if (device.parentAddress)
   {
-    Serial.printf(" parent=%u port=%u", device.parentAddress, device.parentPort);
+    Serial.printf(" parent=%u", device.parentAddress);
   }
   else
   {

@@ -24,7 +24,7 @@ Prints detailed USB device information (descriptor fields, interfaces, and endpo
 ## Information displayed
 
 **Device level:**
-- USB address, parent address/port (for hub-attached devices), bus speed
+- USB address, port ID, parent address (for hub-attached devices), bus speed
 - VID:PID, device class/subclass/protocol
 - USB version, device version, EP0 max packet size
 - Manufacturer, product, and serial number strings
@@ -52,7 +52,7 @@ Press 'r' to reprint connected devices.
 CONNECTED address=1
 
 =========== USB Device ===========
-Address 1 parent=root speed=full-speed
+Address 1 portId=0x01 parent=root speed=full-speed
 VID:PID 045e:07a5 class=0x00(per-interface) subclass=0x00 protocol=0x00
 USB 2.00 device 0.01 ep0=8
 Strings manufacturer="Microsoft" product="USB Keyboard" serial=""

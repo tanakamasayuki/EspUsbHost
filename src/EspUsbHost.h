@@ -80,7 +80,7 @@ struct EspUsbHostDeviceInfo
   const char *product = "";
   const char *serial = "";
   uint8_t parentAddress = 0;
-  uint8_t parentPort = 0;
+  uint8_t portId = 0;
   usb_speed_t speed = USB_SPEED_FULL;
   uint16_t usbVersion = 0;
   uint16_t deviceVersion = 0;
@@ -342,6 +342,8 @@ private:
     uint8_t endpointInfoCount = 0;
     uint8_t interfaces[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceCount = 0;
+    bool isHub = false;
+    uint8_t hubIndex = 0;
   };
 
   static void taskEntry(void *arg);
@@ -410,6 +412,7 @@ private:
   DeviceState *currentDevice_ = nullptr;
   EspUsbHostCdcSerial *cdcSerial_ = nullptr;
   uint32_t defaultSerialBaudRate_ = 115200;
+  uint8_t nextHubIndex_ = 1;
 
   EndpointState endpoints_[16];
   uint8_t currentInterfaceNumber_ = 0;
