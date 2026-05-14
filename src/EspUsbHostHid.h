@@ -24,7 +24,7 @@ bool espUsbHostParseConsumerControlReport(uint8_t interfaceNumber,
 bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
                                   const uint8_t *data,
                                   size_t length,
-                                  uint32_t previousButtons,
+                                  const EspUsbHostGamepadPrevState &previous,
                                   EspUsbHostGamepadEvent &event);
 bool espUsbHostParseSystemControlReport(uint8_t interfaceNumber,
                                         const uint8_t *data,
