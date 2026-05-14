@@ -272,6 +272,8 @@ public:
   bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -350,6 +352,10 @@ private:
     uint16_t midiOutPacketSize = 0;
     bool hasAudioInterface = false;
     uint8_t audioInterfaceNumber = 0;
+    bool hasAudioOutEndpoint = false;
+    uint8_t audioOutInterfaceNumber = 0;
+    uint8_t audioOutEndpointAddress = 0;
+    uint16_t audioOutPacketSize = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
@@ -396,6 +402,8 @@ private:
   const DeviceState *findSerialDevice(uint8_t address) const;
   DeviceState *findMidiDevice(uint8_t address);
   const DeviceState *findMidiDevice(uint8_t address) const;
+  DeviceState *findAudioOutputDevice(uint8_t address);
+  const DeviceState *findAudioOutputDevice(uint8_t address) const;
   const DeviceState *findAudioDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);
   DeviceState *findVendorDevice(uint8_t address);

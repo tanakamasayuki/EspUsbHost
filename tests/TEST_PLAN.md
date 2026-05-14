@@ -38,7 +38,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | USB serial — CDC ACM | ✅ peer | | |
 | USB serial — VCP (FTDI/CP210x/CH34x) | | ✅ manual | |
 | USB MIDI | ✅ peer | | |
-| USB audio input | ✅ peer | | |
+| USB audio input/output | ✅ peer (output), partial input | | |
 | Multiple devices | | ✅ manual | |
 | Device hot-plug | | ✅ manual | |
 | HUB detection | | | ⬜ (not yet implemented) |

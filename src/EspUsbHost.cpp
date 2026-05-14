@@ -497,6 +497,80 @@ bool EspUsbHost::audioReady(uint8_t address) const
   return findAudioDevice(address) != nullptr;
 }
 
+bool EspUsbHost::audioOutputReady(uint8_t address) const
+{
+  return findAudioOutputDevice(address) != nullptr;
+}
+
+bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
+{
+  DeviceState *device = findAudioOutputDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "audioSend() called before a USB Audio OUT endpoint is ready");
+    return false;
+  }
+  if (length > 0 && !data)
+  {
+    ESP_LOGW(TAG, "audioSend() called with null data");
+    return false;
+  }
+  if (length == 0)
+  {
+    return true;
+  }
+
+  static constexpr int AUDIO_ISOC_MAX_PACKETS = 8;
+  const size_t packetSize = device->audioOutPacketSize;
+  if (packetSize == 0)
+  {
+    ESP_LOGW(TAG, "audioSend() called with invalid audio OUT packet size");
+    return false;
+  }
+  const int packetCount = static_cast<int>((length + packetSize - 1) / packetSize);
+  if (packetCount > AUDIO_ISOC_MAX_PACKETS)
+  {
+    ESP_LOGW(TAG, "audioSend() length too large: %u", static_cast<unsigned>(length));
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(packetCount * packetSize, packetCount, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(audio OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  memcpy(transfer->data_buffer, data, length);
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = device->audioOutEndpointAddress;
+  transfer->callback = outputTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = length;
+
+  size_t remaining = length;
+  for (int i = 0; i < packetCount; i++)
+  {
+    const size_t currentPacketSize = remaining > packetSize ? packetSize : remaining;
+    transfer->isoc_packet_desc[i].num_bytes = currentPacketSize;
+    transfer->isoc_packet_desc[i].actual_num_bytes = 0;
+    transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
+    remaining -= currentPacketSize;
+  }
+
+  err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(audio OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+  return true;
+}
+
 bool EspUsbHost::midiSend(const uint8_t *data, size_t length, uint8_t address)
 {
   DeviceState *device = findMidiDevice(address);
@@ -1051,10 +1125,19 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isMidiInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
                                  currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
                                  !device->hasMidiInterface;
+    bool interfaceAlreadyClaimed = false;
+    for (uint8_t i = 0; i < device->interfaceCount; i++)
+    {
+      if (device->interfaces[i] == currentInterfaceNumber_)
+      {
+        interfaceAlreadyClaimed = true;
+        break;
+      }
+    }
     const bool isAudioInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
                                   currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
                                   intf->bNumEndpoints > 0 &&
-                                  !device->hasAudioInterface;
+                                  !interfaceAlreadyClaimed;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
@@ -1258,10 +1341,30 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     if (currentClaimResult_ == ESP_OK &&
         currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
         currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
-        isIn &&
         isIsochronous)
     {
       static constexpr int AUDIO_ISOC_PACKETS = 8;
+      if (!isIn)
+      {
+        device->hasAudioInterface = true;
+        device->audioInterfaceNumber = currentInterfaceNumber_;
+        device->hasAudioOutEndpoint = true;
+        device->audioOutInterfaceNumber = currentInterfaceNumber_;
+        device->audioOutEndpointAddress = ep->bEndpointAddress;
+        device->audioOutPacketSize = ep->wMaxPacketSize;
+        if (currentInterfaceAlternate_ > 0)
+        {
+          submitAudioSamplingFrequency(*device, ep->bEndpointAddress, 48000);
+          submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
+        }
+        ESP_LOGI(TAG, "USB Audio isochronous OUT endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
+                 currentInterfaceNumber_,
+                 ep->bEndpointAddress,
+                 ep->wMaxPacketSize,
+                 ep->bInterval);
+        return;
+      }
+
       EndpointState *endpoint = allocateEndpoint(*device);
       if (!endpoint)
       {
@@ -2026,6 +2129,27 @@ const EspUsbHost::DeviceState *EspUsbHost::findMidiDevice(uint8_t address) const
   for (const DeviceState &device : devices_)
   {
     if (!device.inUse || !device.handle || !device.hasMidiOutEndpoint)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::DeviceState *EspUsbHost::findAudioOutputDevice(uint8_t address)
+{
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findAudioOutputDevice(address));
+}
+
+const EspUsbHost::DeviceState *EspUsbHost::findAudioOutputDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || !device.hasAudioOutEndpoint)
     {
       continue;
     }

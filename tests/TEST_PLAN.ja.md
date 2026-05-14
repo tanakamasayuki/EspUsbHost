@@ -39,7 +39,7 @@ tests/
 | USBシリアル — CDC ACM | ✅ peer | | |
 | USBシリアル — VCP（FTDI・CP210x・CH34x） | | ✅ manual | |
 | USB MIDI | ✅ peer | | |
-| USBオーディオ入力 | ✅ peer | | |
+| USBオーディオ入出力 | ✅ peer（出力）、入力は一部 | | |
 | 複数デバイス同時接続 | | ✅ manual | |
 | デバイス活線挿抜 | | ✅ manual | |
 | HUB検出 | | | ⬜（未実装） |

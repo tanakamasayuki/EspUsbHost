@@ -8,9 +8,10 @@ void loop() {}
 #include "USB.h"
 #include "USBAudioCard.h"
 
-USBAudioCard AudioCard(48000, UAC_BPS_16, UAC_SPK_NONE, UAC_MIC_MONO);
+USBAudioCard AudioCard(48000, UAC_BPS_16, UAC_SPK_MONO, UAC_MIC_NONE);
 
-static int16_t samples[48];
+static uint32_t receivedAudioBytes = 0;
+static bool receivedAudioReported = false;
 
 static void audioEventCallback(void *, esp_event_base_t eventBase, int32_t eventId, void *eventData)
 {
@@ -27,13 +28,13 @@ static void audioEventCallback(void *, esp_event_base_t eventBase, int32_t event
     }
 }
 
-static void fillSamples()
+static void audioDataCallback(void *, uint16_t length)
 {
-    static int16_t value = 0;
-    for (size_t i = 0; i < sizeof(samples) / sizeof(samples[0]); i++)
+    receivedAudioBytes += length;
+    if (!receivedAudioReported && receivedAudioBytes >= 96)
     {
-        samples[i] = value;
-        value += 257;
+        receivedAudioReported = true;
+        Serial.printf("DEVICE_RX_AUDIO %lu\n", static_cast<unsigned long>(receivedAudioBytes));
     }
 }
 
@@ -42,6 +43,7 @@ void setup()
     Serial.begin(115200);
     delay(5000);
     AudioCard.onEvent(audioEventCallback);
+    AudioCard.onData(audioDataCallback);
     AudioCard.begin();
     USB.begin();
     Serial.println("AUDIO_DEVICE_READY");
@@ -52,17 +54,11 @@ void loop()
     if (Serial.available() > 0)
     {
         char command = Serial.read();
-        if (command == 'a')
+        if (command == 'r')
         {
-            uint32_t accepted = 0;
-            const uint32_t start = millis();
-            while (millis() - start < 500)
-            {
-                fillSamples();
-                accepted += AudioCard.write(samples, sizeof(samples));
-                delay(1);
-            }
-            Serial.printf("DEVICE_TX_AUDIO %lu\n", static_cast<unsigned long>(accepted));
+            receivedAudioBytes = 0;
+            receivedAudioReported = false;
+            Serial.println("DEVICE_AUDIO_RESET");
         }
     }
     delay(1);

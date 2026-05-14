@@ -33,6 +33,9 @@ onKeyboard	KEYWORD2
 onMouse	KEYWORD2
 onHIDInput	KEYWORD2
 onAudioData	KEYWORD2
+audioReady	KEYWORD2
+audioOutputReady	KEYWORD2
+audioSend	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2
