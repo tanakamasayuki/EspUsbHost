@@ -1067,7 +1067,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       {
         device->interfaces[device->interfaceCount++] = currentInterfaceNumber_;
         ESP_LOGI(TAG, "Interface %u claimed", currentInterfaceNumber_);
-        if (currentInterfaceAlternate_ > 0)
+        if (currentInterfaceAlternate_ > 0 && !isAudioInterface)
         {
           submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
         }
@@ -1189,13 +1189,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->context = this;
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-      err = usb_host_transfer_submit(endpoint->transfer);
-      if (err != ESP_OK)
-      {
-        ESP_LOGW(TAG, "usb_host_transfer_submit(serial IN) failed: %s", esp_err_to_name(err));
-        setLastError(err);
-      }
-      else
+      if (submitInputTransfer(*endpoint))
       {
         ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
                  currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
@@ -1251,13 +1245,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->context = this;
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-      err = usb_host_transfer_submit(endpoint->transfer);
-      if (err != ESP_OK)
-      {
-        ESP_LOGW(TAG, "usb_host_transfer_submit(MIDI IN) failed: %s", esp_err_to_name(err));
-        setLastError(err);
-      }
-      else
+      if (submitInputTransfer(*endpoint))
       {
         ESP_LOGI(TAG, "USB MIDI bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
                  endpoint->interfaceNumber,
@@ -1273,7 +1261,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isIn &&
         isIsochronous)
     {
-      static constexpr int AUDIO_ISOC_PACKETS = 1;
+      static constexpr int AUDIO_ISOC_PACKETS = 8;
       EndpointState *endpoint = allocateEndpoint(*device);
       if (!endpoint)
       {
@@ -1305,22 +1293,24 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       for (int i = 0; i < endpoint->transfer->num_isoc_packets; i++)
       {
         endpoint->transfer->isoc_packet_desc[i].num_bytes = ep->wMaxPacketSize;
+        endpoint->transfer->isoc_packet_desc[i].actual_num_bytes = 0;
+        endpoint->transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
       }
 
-      err = usb_host_transfer_submit(endpoint->transfer);
-      if (err != ESP_OK)
+      if (currentInterfaceAlternate_ == 0)
       {
-        ESP_LOGW(TAG, "usb_host_transfer_submit(audio IN) failed: %s", esp_err_to_name(err));
-        setLastError(err);
+        submitInputTransfer(*endpoint);
       }
       else
       {
-        ESP_LOGI(TAG, "USB Audio isochronous IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
-                 endpoint->interfaceNumber,
-                 endpoint->address,
-                 ep->wMaxPacketSize,
-                 ep->bInterval);
+        submitAudioSamplingFrequency(*device, ep->bEndpointAddress, 48000);
+        submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
       }
+      ESP_LOGI(TAG, "USB Audio isochronous IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
+               endpoint->interfaceNumber,
+               endpoint->address,
+               ep->wMaxPacketSize,
+               ep->bInterval);
       return;
     }
 
@@ -1377,13 +1367,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     endpoint->transfer->context = this;
     endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-    err = usb_host_transfer_submit(endpoint->transfer);
-    if (err != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_transfer_submit() failed: %s", esp_err_to_name(err));
-      setLastError(err);
-    }
-    else
+    if (submitInputTransfer(*endpoint))
     {
       ESP_LOGI(TAG, "HID interrupt IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
                endpoint->interfaceNumber, endpoint->address, ep->wMaxPacketSize, ep->bInterval);
@@ -1405,10 +1389,76 @@ void EspUsbHost::transferCallback(usb_transfer_t *transfer)
   static_cast<EspUsbHost *>(transfer->context)->handleTransfer(transfer);
 }
 
+bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
+{
+  if (!endpoint.transfer || endpoint.transferSubmitted)
+  {
+    return endpoint.transferSubmitted;
+  }
+
+  if (endpoint.transfer->num_isoc_packets > 0)
+  {
+    endpoint.transfer->num_bytes = 0;
+    for (int i = 0; i < endpoint.transfer->num_isoc_packets; i++)
+    {
+      endpoint.transfer->num_bytes += endpoint.transfer->isoc_packet_desc[i].num_bytes;
+      endpoint.transfer->isoc_packet_desc[i].actual_num_bytes = 0;
+      endpoint.transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
+    }
+  }
+
+  esp_err_t err = usb_host_transfer_submit(endpoint.transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(ep=0x%02x) failed: %s",
+             endpoint.address,
+             esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  endpoint.transferSubmitted = true;
+  return true;
+}
+
+void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber)
+{
+  for (EndpointState &endpoint : endpoints_)
+  {
+    if (!endpoint.inUse ||
+        endpoint.deviceHandle != deviceHandle ||
+        endpoint.interfaceNumber != interfaceNumber ||
+        endpoint.transferSubmitted)
+    {
+      continue;
+    }
+
+    submitInputTransfer(endpoint);
+  }
+}
+
 void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
 {
   EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
-  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+  usb_device_handle_t deviceHandle = transfer->device_handle;
+  uint8_t setInterfaceNumber = 0;
+  bool isSetInterface = false;
+  if (transfer->data_buffer && transfer->num_bytes >= USB_SETUP_PACKET_SIZE)
+  {
+    const usb_setup_packet_t *setup = reinterpret_cast<const usb_setup_packet_t *>(transfer->data_buffer);
+    static constexpr uint8_t USB_REQUEST_SET_INTERFACE = 0x0b;
+    isSetInterface = setup->bRequest == USB_REQUEST_SET_INTERFACE;
+    setInterfaceNumber = setup->wIndex & 0xff;
+  }
+
+  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+  {
+    if (host && isSetInterface)
+    {
+      host->submitPendingTransfers(deviceHandle, setInterfaceNumber);
+    }
+  }
+  else
   {
     ESP_LOGD(TAG, "control transfer status=%d", transfer->status);
     if (host)
@@ -1575,6 +1625,8 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
       for (int i = 0; i < transfer->num_isoc_packets; i++)
       {
         transfer->num_bytes += transfer->isoc_packet_desc[i].num_bytes;
+        transfer->isoc_packet_desc[i].actual_num_bytes = 0;
+        transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
       }
     }
     esp_err_t err = usb_host_transfer_submit(transfer);
@@ -2356,6 +2408,62 @@ bool EspUsbHost::submitSetInterface(DeviceState &device, uint8_t interfaceNumber
   }
 
   ESP_LOGD(TAG, "Set_Interface submitted iface=%u alt=%u", interfaceNumber, alternateSetting);
+  return true;
+}
+
+bool EspUsbHost::submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate)
+{
+  if (!clientHandle_ || !device.handle)
+  {
+    return false;
+  }
+
+  static constexpr uint8_t AUDIO_SET_CUR_REQUEST_TYPE = 0x22;
+  static constexpr uint8_t AUDIO_SET_CUR_REQUEST = 0x01;
+  static constexpr uint16_t AUDIO_EP_SAMPLING_FREQ_CONTROL = 0x0100;
+  static constexpr size_t AUDIO_SAMPLE_RATE_LENGTH = 3;
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + AUDIO_SAMPLE_RATE_LENGTH, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(Audio SET_CUR sampling frequency) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = AUDIO_SET_CUR_REQUEST_TYPE;
+  setup->bRequest = AUDIO_SET_CUR_REQUEST;
+  setup->wValue = AUDIO_EP_SAMPLING_FREQ_CONTROL;
+  setup->wIndex = endpointAddress;
+  setup->wLength = AUDIO_SAMPLE_RATE_LENGTH;
+
+  uint8_t *frequency = transfer->data_buffer + USB_SETUP_PACKET_SIZE;
+  frequency[0] = sampleRate & 0xff;
+  frequency[1] = (sampleRate >> 8) & 0xff;
+  frequency[2] = (sampleRate >> 16) & 0xff;
+
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = controlTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + AUDIO_SAMPLE_RATE_LENGTH;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Audio SET_CUR sampling frequency ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Audio SET_CUR sampling frequency submitted ep=0x%02x rate=%lu",
+           endpointAddress,
+           static_cast<unsigned long>(sampleRate));
   return true;
 }
 

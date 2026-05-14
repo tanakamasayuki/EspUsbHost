@@ -305,6 +305,7 @@ private:
     uint8_t interfaceSubClass = 0;
     uint8_t interfaceProtocol = 0;
     usb_transfer_t *transfer = nullptr;
+    bool transferSubmitted = false;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
     uint8_t lastMouseButtons = 0;
@@ -403,7 +404,10 @@ private:
   void releaseInterfaces(DeviceState &device);
   void configureCdcAcm(DeviceState &device);
   void configureVendorSerial(DeviceState &device);
+  bool submitInputTransfer(EndpointState &endpoint);
+  void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
+  bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
