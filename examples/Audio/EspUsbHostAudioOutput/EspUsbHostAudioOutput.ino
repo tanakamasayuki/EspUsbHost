@@ -3,6 +3,8 @@
 
 EspUsbHost usb;
 
+static constexpr uint32_t SAMPLE_RATE = 48000;
+static constexpr uint32_t TONE_HZ = 440;
 static uint8_t audioAddress = 0;
 static bool audioReady = false;
 static int16_t samples[48];
@@ -12,11 +14,11 @@ static void fillTone()
   static uint32_t phase = 0;
   for (size_t i = 0; i < sizeof(samples) / sizeof(samples[0]); i++)
   {
-    samples[i] = (phase < 24000) ? 12000 : -12000;
-    phase += 440;
-    if (phase >= 48000)
+    samples[i] = (phase < SAMPLE_RATE / 2) ? 12000 : -12000;
+    phase += TONE_HZ;
+    if (phase >= SAMPLE_RATE)
     {
-      phase -= 48000;
+      phase -= SAMPLE_RATE;
     }
   }
 }
@@ -26,6 +28,7 @@ void setup()
   Serial.begin(115200);
   delay(500);
   Serial.println("EspUsbHost Audio Output example start");
+  usb.setAudioSampleRate(SAMPLE_RATE);
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {

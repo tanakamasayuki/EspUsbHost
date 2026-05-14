@@ -10,7 +10,7 @@ Sends raw USB Audio isochronous OUT payloads to a USB speaker or audio interface
 ## Notes
 
 - This example sends 48 kHz, 16-bit, mono PCM chunks.
-- The library does not decode format descriptors yet. Adjust the sample format in the sketch to match your device.
+- The library does not decode format descriptors yet. Adjust `SAMPLE_RATE` and the sample format in the sketch to match your device.
 - Some devices may require additional feature-unit or clock control support.
 
 ## Expected Serial output

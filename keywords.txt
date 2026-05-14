@@ -35,6 +35,7 @@ onHIDInput	KEYWORD2
 onAudioData	KEYWORD2
 audioReady	KEYWORD2
 audioOutputReady	KEYWORD2
+setAudioSampleRate	KEYWORD2
 audioSend	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2

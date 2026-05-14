@@ -266,13 +266,15 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 void onAudioData(AudioDataCallback callback);
 bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool setAudioSampleRate(uint32_t sampleRate,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
 `onAudioData`はUSB Audio StreamingのIsochronous INエンドポイントから受信した生ペイロードを通知します。コールバックは`const EspUsbHostAudioData &audio`を受け取り、フィールドは`address`、`interfaceNumber`、`data`、`length`です。
 
-`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを送信します。現時点ではフォーマットディスクリプタを解釈しないため、呼び出し側でデバイスのサンプルレート、チャンネル数、サンプルサイズに合わせてください。
+`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを送信します。現時点ではフォーマットディスクリプタを解釈しないため、呼び出し側でデバイスのサンプルレート、チャンネル数、サンプルサイズに合わせてください。
 
 ### デバイス探索
 
