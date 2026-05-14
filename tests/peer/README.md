@@ -52,6 +52,7 @@ Current coverage:
 - `hid_vendor`: pairs with `USB/examples/HIDVendor`.
 - `usb_serial`: pairs with `USB/examples/USBSerial`.
 - `usb_midi`: pairs with `USB/examples/MIDI`.
+- `usb_audio`: pairs with `USB/examples/AudioCard` via `USBAudioCard` microphone input.
 
 Planned coverage:
 

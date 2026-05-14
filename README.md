@@ -12,6 +12,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 - **HID output** — keyboard LED control, vendor output/feature reports
 - **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
 - **MIDI** — USB MIDI input and output
+- **USB audio input** — raw isochronous IN payloads from USB Audio streaming interfaces
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
@@ -24,9 +25,9 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` | ✅ Done |
 | USB MIDI | ✅ Done |
+| UAC — USB audio input | 🔲 Experimental |
 | HUB — hub detection, port power control | 🔲 Planned |
 | MSC — USB storage | 💭 Under consideration |
-| UAC — USB audio | 💭 Under consideration |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
@@ -105,6 +106,12 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostMIDI](examples/MIDI/EspUsbHostMIDI/) | USB MIDI input and output |
+
+### Audio
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | Receive USB Audio isochronous IN payloads |
 
 ### Serial
 
@@ -251,6 +258,14 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 ```
 
 `onMidiMessage` callback receives `const EspUsbHostMidiMessage &message` with fields `cable`, `codeIndex`, `status`, `data1`, `data2`.
+
+### USB audio input
+
+```cpp
+void onAudioData(AudioDataCallback callback);
+```
+
+`onAudioData` receives raw payload bytes from USB Audio streaming isochronous IN endpoints. The callback receives `const EspUsbHostAudioData &audio` with fields `address`, `interfaceNumber`, `data`, and `length`.
 
 ### Device discovery
 
