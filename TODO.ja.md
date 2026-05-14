@@ -20,3 +20,6 @@ extern const uint8_t KeyboardLayout_pt_BR[];
 Arduino側のデバイスは上記
 JAがないのでPRする必要あり
 
+# USB Serial
+DTR/RTS 関連のテスト
+自動テストだと切断状態になりテストしにくい
