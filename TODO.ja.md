@@ -1,6 +1,8 @@
 # キーボード
 
 LEDまわりをライブラリ側で管理する
+LEDまわりも自動テスト対象とする
+
 対応言語の追加
 
 extern const uint8_t KeyboardLayout_de_DE[];
@@ -17,3 +19,4 @@ extern const uint8_t KeyboardLayout_pt_BR[];
 
 Arduino側のデバイスは上記
 JAがないのでPRする必要あり
+
