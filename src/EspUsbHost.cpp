@@ -571,20 +571,32 @@ bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
     return true;
   }
 
-  static constexpr int AUDIO_ISOC_MAX_PACKETS = 8;
   const size_t packetSize = device->audioOutPacketSize;
   if (packetSize == 0)
   {
     ESP_LOGW(TAG, "audioSend() called with invalid audio OUT packet size");
     return false;
   }
-  const int packetCount = static_cast<int>((length + packetSize - 1) / packetSize);
-  if (packetCount > AUDIO_ISOC_MAX_PACKETS)
-  {
-    ESP_LOGW(TAG, "audioSend() length too large: %u", static_cast<unsigned>(length));
-    return false;
-  }
 
+  static constexpr int AUDIO_ISOC_MAX_PACKETS = 8;
+  const size_t maxTransferSize = packetSize * AUDIO_ISOC_MAX_PACKETS;
+  size_t offset = 0;
+  while (offset < length)
+  {
+    const size_t chunkLength = (length - offset) > maxTransferSize ? maxTransferSize : (length - offset);
+    if (!submitAudioOutputTransfer(*device, data + offset, chunkLength))
+    {
+      return false;
+    }
+    offset += chunkLength;
+  }
+  return true;
+}
+
+bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)
+{
+  const size_t packetSize = device.audioOutPacketSize;
+  const int packetCount = static_cast<int>((length + packetSize - 1) / packetSize);
   usb_transfer_t *transfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(packetCount * packetSize, packetCount, &transfer);
   if (err != ESP_OK)
@@ -595,8 +607,8 @@ bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
   }
 
   memcpy(transfer->data_buffer, data, length);
-  transfer->device_handle = device->handle;
-  transfer->bEndpointAddress = device->audioOutEndpointAddress;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = device.audioOutEndpointAddress;
   transfer->callback = outputTransferCallback;
   transfer->context = this;
   transfer->num_bytes = length;

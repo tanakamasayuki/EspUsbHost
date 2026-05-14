@@ -112,6 +112,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | USB AudioのIsochronous INペイロードを受信 |
+| [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | USB AudioのIsochronous OUTペイロードを送信 |
 
 ### Serial
 

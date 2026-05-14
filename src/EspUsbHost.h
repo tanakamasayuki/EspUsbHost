@@ -426,6 +426,7 @@ private:
   void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
+  bool submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,

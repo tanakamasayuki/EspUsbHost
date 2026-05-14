@@ -5,7 +5,7 @@ EspUsbHost usb;
 static uint32_t audioBytes = 0;
 static bool audioReported = false;
 static uint8_t audioAddress = 0;
-static int16_t outputSamples[48];
+static int16_t outputSamples[480];
 
 void setup()
 {
@@ -96,14 +96,10 @@ void loop()
         else if (command == 's')
         {
             uint32_t sent = 0;
-            for (int i = 0; i < 20; i++)
+            fillOutputSamples();
+            if (usb.audioSend(reinterpret_cast<const uint8_t *>(outputSamples), sizeof(outputSamples), audioAddress))
             {
-                fillOutputSamples();
-                if (usb.audioSend(reinterpret_cast<const uint8_t *>(outputSamples), sizeof(outputSamples), audioAddress))
-                {
-                    sent += sizeof(outputSamples);
-                }
-                delay(1);
+                sent = sizeof(outputSamples);
             }
             Serial.printf("AUDIO_TX %lu\n", static_cast<unsigned long>(sent));
         }
