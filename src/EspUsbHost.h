@@ -200,6 +200,41 @@ struct EspUsbHostAudioStreamInfo
   uint8_t interval = 0;
 };
 
+inline bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream, uint32_t sampleRate)
+{
+  if (sampleRate == 0)
+  {
+    return false;
+  }
+
+  if (stream.sampleRateCount > 0)
+  {
+    for (uint8_t i = 0; i < stream.sampleRateCount && i < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES; i++)
+    {
+      if (stream.sampleRates[i] == sampleRate)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (stream.sampleRateMin > 0 && stream.sampleRateMax >= stream.sampleRateMin)
+  {
+    if (sampleRate < stream.sampleRateMin || sampleRate > stream.sampleRateMax)
+    {
+      return false;
+    }
+    if (stream.sampleRateResolution == 0)
+    {
+      return true;
+    }
+    return ((sampleRate - stream.sampleRateMin) % stream.sampleRateResolution) == 0;
+  }
+
+  return stream.sampleRate == 0 || stream.sampleRate == sampleRate;
+}
+
 struct EspUsbHostConsumerControlEvent
 {
   uint8_t address = 0;
