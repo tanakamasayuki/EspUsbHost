@@ -47,6 +47,16 @@ void loop()
             MIDI.channelPressure(77, 0);
             Serial.println("DEVICE_TX_PRESSURE");
         }
+        else if (command == 'y')
+        {
+            MIDI.polyPressure(60, 80, 0);
+            Serial.println("DEVICE_TX_POLY_PRESSURE");
+        }
+        else if (command == 'c')
+        {
+            MIDI.controlChange(74, 64, 0);
+            Serial.println("DEVICE_TX_CC");
+        }
     }
 
     midiEventPacket_t packet = {0, 0, 0, 0};

@@ -29,6 +29,18 @@ void loop()
             ConsumerControl.press(CONSUMER_CONTROL_PLAY_PAUSE);
             ConsumerControl.release();
             break;
+        case 'n':
+            ConsumerControl.press(CONSUMER_CONTROL_SCAN_NEXT);
+            ConsumerControl.release();
+            break;
+        case 's':
+            ConsumerControl.press(CONSUMER_CONTROL_SCAN_PREVIOUS);
+            ConsumerControl.release();
+            break;
+        case 'm':
+            ConsumerControl.press(CONSUMER_CONTROL_MUTE);
+            ConsumerControl.release();
+            break;
         }
     }
     delay(1);
