@@ -25,22 +25,6 @@ void loop()
         {
             Serial.printf("SERIAL_TX %u\n", CdcSerial.write(reinterpret_cast<const uint8_t *>("host to serial\n"), 15) == 15 ? 1 : 0);
         }
-        else if (command == 'd')
-        {
-            Serial.printf("SERIAL_DTR %u\n", CdcSerial.setDtr(true) ? 1 : 0);
-        }
-        else if (command == 'D')
-        {
-            Serial.printf("SERIAL_DTR_OFF %u\n", CdcSerial.setDtr(false) ? 1 : 0);
-        }
-        else if (command == 'r')
-        {
-            Serial.printf("SERIAL_RTS %u\n", CdcSerial.setRts(true) ? 1 : 0);
-        }
-        else if (command == 'R')
-        {
-            Serial.printf("SERIAL_RTS_OFF %u\n", CdcSerial.setRts(false) ? 1 : 0);
-        }
     }
     if (CdcSerial.available() > 0)
     {

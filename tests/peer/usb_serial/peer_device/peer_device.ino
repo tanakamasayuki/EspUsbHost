@@ -7,10 +7,6 @@ USBCDC USBSerial;
 void setup()
 {
     Serial.begin(115200);
-    USBSerial.onEvent(ARDUINO_USB_CDC_LINE_STATE_EVENT, [](void *, esp_event_base_t, int32_t, void *event_data) {
-        arduino_usb_cdc_event_data_t *data = (arduino_usb_cdc_event_data_t *)event_data;
-        Serial.printf("LINE_STATE dtr=%u rts=%u\n", data->line_state.dtr ? 1 : 0, data->line_state.rts ? 1 : 0);
-    });
     USBSerial.begin();
     USB.begin();
 }
