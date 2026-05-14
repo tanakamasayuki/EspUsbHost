@@ -112,6 +112,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | Receive USB Audio isochronous IN payloads |
+| [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | Send USB Audio isochronous OUT payloads |
 
 ### Serial
 
