@@ -17,6 +17,7 @@ EspUsbHostDeviceInfo	KEYWORD1
 EspUsbHostKeyboardEvent	KEYWORD1
 EspUsbHostMouseEvent	KEYWORD1
 EspUsbHostHIDInput	KEYWORD1
+EspUsbHostAudioData	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
 
 #######################################
@@ -31,6 +32,7 @@ onDeviceDisconnected	KEYWORD2
 onKeyboard	KEYWORD2
 onMouse	KEYWORD2
 onHIDInput	KEYWORD2
+onAudioData	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2

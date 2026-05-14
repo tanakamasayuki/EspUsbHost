@@ -11,6 +11,7 @@ static constexpr uint8_t USB_CLASS_AUDIO_VALUE = 0x01;
 static constexpr uint8_t USB_CLASS_CDC_CONTROL_VALUE = 0x02;
 static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
+static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
 static constexpr uint8_t HID_PROTOCOL_KEYBOARD_VALUE = 0x01;
@@ -233,6 +234,11 @@ void EspUsbHost::onSerialData(SerialDataCallback callback)
 void EspUsbHost::onMidiMessage(MidiMessageCallback callback)
 {
   midiMessageCallback_ = callback;
+}
+
+void EspUsbHost::onAudioData(AudioDataCallback callback)
+{
+  audioDataCallback_ = callback;
 }
 
 void EspUsbHost::onConsumerControl(ConsumerControlCallback callback)
@@ -1040,9 +1046,14 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isMidiInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
                                  currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
                                  !device->hasMidiInterface;
+    const bool isAudioInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+                                  currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
+                                  intf->bNumEndpoints > 0 &&
+                                  !device->hasAudioInterface;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
+        isAudioInterface ||
         isMidiInterface ||
         isVendorSerialInterface)
     {
@@ -1087,6 +1098,14 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
           device->midiInterfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "USB MIDI interface ready: iface=%u", device->midiInterfaceNumber);
         }
+        else if (isAudioInterface)
+        {
+          device->hasAudioInterface = true;
+          device->audioInterfaceNumber = currentInterfaceNumber_;
+          ESP_LOGI(TAG, "USB Audio streaming interface ready: iface=%u alt=%u",
+                   device->audioInterfaceNumber,
+                   intf->bAlternateSetting);
+        }
       }
       else
       {
@@ -1112,6 +1131,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isIn = (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0;
     const bool isInterrupt = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_INT;
     const bool isBulk = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK;
+    const bool isIsochronous = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_ISOC;
 
     const bool isSerialBulkEndpoint = currentClaimResult_ == ESP_OK &&
                                        (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
@@ -1234,6 +1254,63 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                  endpoint->interfaceNumber,
                  endpoint->address,
                  ep->wMaxPacketSize);
+      }
+      return;
+    }
+
+    if (currentClaimResult_ == ESP_OK &&
+        currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+        currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
+        isIn &&
+        isIsochronous)
+    {
+      static constexpr int AUDIO_ISOC_PACKETS = 4;
+      EndpointState *endpoint = allocateEndpoint(*device);
+      if (!endpoint)
+      {
+        ESP_LOGW(TAG, "No endpoint slots available");
+        setLastError(ESP_ERR_NO_MEM);
+        return;
+      }
+
+      const size_t transferSize = static_cast<size_t>(ep->wMaxPacketSize) * AUDIO_ISOC_PACKETS;
+      esp_err_t err = usb_host_transfer_alloc(transferSize, AUDIO_ISOC_PACKETS, &endpoint->transfer);
+      if (err != ESP_OK)
+      {
+        endpoint->inUse = false;
+        ESP_LOGW(TAG, "usb_host_transfer_alloc(audio IN) failed: %s", esp_err_to_name(err));
+        setLastError(err);
+        return;
+      }
+
+      endpoint->address = ep->bEndpointAddress;
+      endpoint->interfaceNumber = currentInterfaceNumber_;
+      endpoint->interfaceClass = currentInterfaceClass_;
+      endpoint->interfaceSubClass = currentInterfaceSubClass_;
+      endpoint->interfaceProtocol = currentInterfaceProtocol_;
+      endpoint->transfer->device_handle = device->handle;
+      endpoint->transfer->bEndpointAddress = ep->bEndpointAddress;
+      endpoint->transfer->callback = transferCallback;
+      endpoint->transfer->context = this;
+      endpoint->transfer->num_bytes = transferSize;
+      for (int i = 0; i < endpoint->transfer->num_isoc_packets; i++)
+      {
+        endpoint->transfer->isoc_packet_desc[i].num_bytes = ep->wMaxPacketSize;
+      }
+
+      err = usb_host_transfer_submit(endpoint->transfer);
+      if (err != ESP_OK)
+      {
+        ESP_LOGW(TAG, "usb_host_transfer_submit(audio IN) failed: %s", esp_err_to_name(err));
+        setLastError(err);
+      }
+      else
+      {
+        ESP_LOGI(TAG, "USB Audio isochronous IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
+                 endpoint->interfaceNumber,
+                 endpoint->address,
+                 ep->wMaxPacketSize,
+                 ep->bInterval);
       }
       return;
     }
@@ -1387,6 +1464,11 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     {
       transferKind = "USB MIDI input";
     }
+    else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
+             endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_AUDIO_STREAMING)
+    {
+      transferKind = "USB Audio input";
+    }
     else if (device && device->vendorSerialSupported && endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE)
     {
       transferKind = "VCP serial input";
@@ -1457,6 +1539,11 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     {
       handleMidi(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
     }
+    else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
+             endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_AUDIO_STREAMING)
+    {
+      handleAudio(*endpoint, transfer);
+    }
   }
   else if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
   {
@@ -1471,6 +1558,14 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
 
   if (running_ && endpoint->deviceHandle)
   {
+    if (transfer->num_isoc_packets > 0)
+    {
+      transfer->num_bytes = 0;
+      for (int i = 0; i < transfer->num_isoc_packets; i++)
+      {
+        transfer->num_bytes += transfer->isoc_packet_desc[i].num_bytes;
+      }
+    }
     esp_err_t err = usb_host_transfer_submit(transfer);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE && err != ESP_ERR_NOT_FINISHED)
     {
@@ -1621,6 +1716,30 @@ void EspUsbHost::handleMidi(EndpointState &endpoint, const uint8_t *data, size_t
              message.data1,
              message.data2);
     midiMessageCallback_(message);
+  }
+}
+
+void EspUsbHost::handleAudio(EndpointState &endpoint, usb_transfer_t *transfer)
+{
+  if (!audioDataCallback_ || !transfer || !transfer->data_buffer || transfer->num_isoc_packets <= 0)
+  {
+    return;
+  }
+
+  size_t offset = 0;
+  for (int i = 0; i < transfer->num_isoc_packets; i++)
+  {
+    const usb_isoc_packet_desc_t &packet = transfer->isoc_packet_desc[i];
+    if (packet.status == USB_TRANSFER_STATUS_COMPLETED && packet.actual_num_bytes > 0)
+    {
+      EspUsbHostAudioData audio;
+      audio.address = endpoint.deviceAddress;
+      audio.interfaceNumber = endpoint.interfaceNumber;
+      audio.data = transfer->data_buffer + offset;
+      audio.length = packet.actual_num_bytes;
+      audioDataCallback_(audio);
+    }
+    offset += packet.num_bytes;
   }
 }
 

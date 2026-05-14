@@ -169,6 +169,14 @@ struct EspUsbHostMidiMessage
   size_t length = 0;
 };
 
+struct EspUsbHostAudioData
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
 struct EspUsbHostConsumerControlEvent
 {
   uint8_t address = 0;
@@ -222,6 +230,7 @@ public:
   using HIDInputCallback = std::function<void(const EspUsbHostHIDInput &)>;
   using SerialDataCallback = std::function<void(const EspUsbHostSerialData &)>;
   using MidiMessageCallback = std::function<void(const EspUsbHostMidiMessage &)>;
+  using AudioDataCallback = std::function<void(const EspUsbHostAudioData &)>;
   using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
   using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
   using VendorInputCallback = std::function<void(const EspUsbHostVendorInput &)>;
@@ -242,6 +251,7 @@ public:
   void onHIDInput(HIDInputCallback callback);
   void onSerialData(SerialDataCallback callback);
   void onMidiMessage(MidiMessageCallback callback);
+  void onAudioData(AudioDataCallback callback);
   void onConsumerControl(ConsumerControlCallback callback);
   void onGamepad(GamepadCallback callback);
   void onVendorInput(VendorInputCallback callback);
@@ -261,6 +271,7 @@ public:
   bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -336,6 +347,8 @@ private:
     bool hasMidiOutEndpoint = false;
     uint8_t midiOutEndpointAddress = 0;
     uint16_t midiOutPacketSize = 0;
+    bool hasAudioInterface = false;
+    uint8_t audioInterfaceNumber = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
@@ -366,6 +379,7 @@ private:
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleAudio(EndpointState &endpoint, usb_transfer_t *transfer);
   void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length);
@@ -381,6 +395,7 @@ private:
   const DeviceState *findSerialDevice(uint8_t address) const;
   DeviceState *findMidiDevice(uint8_t address);
   const DeviceState *findMidiDevice(uint8_t address) const;
+  const DeviceState *findAudioDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);
   DeviceState *findVendorDevice(uint8_t address);
   void releaseEndpoints(DeviceState &device, bool clearEndpoints);
@@ -431,6 +446,7 @@ private:
   HIDInputCallback hidInputCallback_;
   SerialDataCallback serialDataCallback_;
   MidiMessageCallback midiMessageCallback_;
+  AudioDataCallback audioDataCallback_;
   ConsumerControlCallback consumerControlCallback_;
   GamepadCallback gamepadCallback_;
   VendorInputCallback vendorInputCallback_;
