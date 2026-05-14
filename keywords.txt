@@ -39,6 +39,7 @@ audioOutputReady	KEYWORD2
 setAudioSampleRate	KEYWORD2
 audioSend	KEYWORD2
 getAudioStreams	KEYWORD2
+espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2

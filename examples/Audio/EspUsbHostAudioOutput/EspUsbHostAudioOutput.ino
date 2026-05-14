@@ -63,8 +63,7 @@ void setup()
                                   streams[i].channels == CHANNELS &&
                                   streams[i].bytesPerSample == BYTES_PER_SAMPLE &&
                                   streams[i].bitsPerSample == BITS_PER_SAMPLE &&
-                                  ((streams[i].sampleRateCount == 0 && streams[i].sampleRate == 0) ||
-                                   streams[i].sampleRate == SAMPLE_RATE))
+                                  espUsbHostAudioStreamSupportsSampleRate(streams[i], SAMPLE_RATE))
                               {
                                 audioAddress = info.address;
                                 audioReady = true;
@@ -72,8 +71,7 @@ void setup()
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);
-                          }
-                        });
+                          } });
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
                              Serial.printf("disconnected: addr=%u vid=%04x pid=%04x\n",
@@ -84,8 +82,7 @@ void setup()
                              {
                                audioReady = false;
                                audioAddress = 0;
-                             }
-                           });
+                             } });
 
   if (!usb.begin())
   {
