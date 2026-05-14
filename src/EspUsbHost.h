@@ -235,6 +235,18 @@ inline bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamI
   return stream.sampleRate == 0 || stream.sampleRate == sampleRate;
 }
 
+inline bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
+                                            uint8_t channels,
+                                            uint8_t bytesPerSample,
+                                            uint8_t bitsPerSample,
+                                            uint32_t sampleRate)
+{
+  return stream.channels == channels &&
+         stream.bytesPerSample == bytesPerSample &&
+         stream.bitsPerSample == bitsPerSample &&
+         espUsbHostAudioStreamSupportsSampleRate(stream, sampleRate);
+}
+
 struct EspUsbHostConsumerControlEvent
 {
   uint8_t address = 0;
