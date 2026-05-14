@@ -50,6 +50,10 @@ void loop()
         {
             Serial.printf("MIDI_TX_PRESSURE %u\n", usb.midiSendChannelPressure(0, 77) ? 1 : 0);
         }
+        else if (command == 'y')
+        {
+            Serial.printf("MIDI_TX_POLY_PRESSURE %u\n", usb.midiSendPolyPressure(0, 60, 80) ? 1 : 0);
+        }
         else if (command == 's')
         {
             const uint8_t sysex[] = {0xf0, 0x7d, 0x01, 0x02, 0xf7};

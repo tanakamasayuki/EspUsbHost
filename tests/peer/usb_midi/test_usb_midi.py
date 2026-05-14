@@ -29,6 +29,14 @@ def test_usb_midi_channel_messages_device_to_host(dut, peers):
     device.expect_exact("DEVICE_TX_PRESSURE")
     dut.expect_exact("MIDI_RX cable=0 cin=0d status=d0 data1=77 data2=0")
 
+    device.write("y")
+    device.expect_exact("DEVICE_TX_POLY_PRESSURE")
+    dut.expect_exact("MIDI_RX cable=0 cin=0a status=a0 data1=60 data2=80")
+
+    device.write("c")
+    device.expect_exact("DEVICE_TX_CC")
+    dut.expect_exact("MIDI_RX cable=0 cin=0b status=b0 data1=74 data2=64")
+
 
 def test_usb_midi_channel_messages_host_to_device(dut, peers):
     device = peers["device"]
@@ -44,6 +52,14 @@ def test_usb_midi_channel_messages_host_to_device(dut, peers):
     dut.write("a")
     dut.expect_exact("MIDI_TX_PRESSURE 1")
     device.expect_exact("DEVICE_RX cin=0d status=d0 data1=77 data2=0")
+
+    dut.write("y")
+    dut.expect_exact("MIDI_TX_POLY_PRESSURE 1")
+    device.expect_exact("DEVICE_RX cin=0a status=a0 data1=60 data2=80")
+
+    dut.write("c")
+    dut.expect_exact("MIDI_TX_CC 1")
+    device.expect_exact("DEVICE_RX cin=0b status=b0 data1=74 data2=64")
 
 
 def test_usb_midi_sysex_host_to_device(dut, peers):
