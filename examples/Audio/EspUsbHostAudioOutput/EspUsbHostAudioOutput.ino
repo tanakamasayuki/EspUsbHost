@@ -47,7 +47,7 @@ void setup()
                             const size_t count = usb.getAudioStreams(info.address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
                             for (size_t i = 0; i < count; i++)
                             {
-                              Serial.printf("audio stream: iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu max=%u interval=%u\n",
+                              Serial.printf("audio stream: iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max=%u interval=%u\n",
                                             streams[i].interfaceNumber,
                                             streams[i].alternate,
                                             streams[i].endpointAddress,
@@ -56,13 +56,15 @@ void setup()
                                             streams[i].bytesPerSample,
                                             streams[i].bitsPerSample,
                                             static_cast<unsigned long>(streams[i].sampleRate),
+                                            streams[i].sampleRateCount,
                                             streams[i].maxPacketSize,
                                             streams[i].interval);
                               if (streams[i].output &&
                                   streams[i].channels == CHANNELS &&
                                   streams[i].bytesPerSample == BYTES_PER_SAMPLE &&
                                   streams[i].bitsPerSample == BITS_PER_SAMPLE &&
-                                  (streams[i].sampleRate == 0 || streams[i].sampleRate == SAMPLE_RATE))
+                                  ((streams[i].sampleRateCount == 0 && streams[i].sampleRate == 0) ||
+                                   streams[i].sampleRate == SAMPLE_RATE))
                               {
                                 audioAddress = info.address;
                                 audioReady = true;
