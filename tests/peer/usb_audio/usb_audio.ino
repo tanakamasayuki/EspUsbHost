@@ -16,6 +16,10 @@ void setup()
                                             device.address,
                                             device.portId,
                                             device.deviceClass);
+                              if (usb.audioReady(device.address))
+                              {
+                                  Serial.printf("AUDIO_READY addr=%u\n", device.address);
+                              }
                               EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
                               const size_t interfaceCount = usb.getInterfaces(device.address, interfaces, ESP_USB_HOST_MAX_INTERFACES);
                               for (size_t i = 0; i < interfaceCount; i++)
