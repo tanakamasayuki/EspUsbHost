@@ -492,6 +492,11 @@ bool EspUsbHost::midiReady(uint8_t address) const
   return findMidiDevice(address) != nullptr;
 }
 
+bool EspUsbHost::audioReady(uint8_t address) const
+{
+  return findAudioDevice(address) != nullptr;
+}
+
 bool EspUsbHost::midiSend(const uint8_t *data, size_t length, uint8_t address)
 {
   DeviceState *device = findMidiDevice(address);
@@ -1062,6 +1067,10 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       {
         device->interfaces[device->interfaceCount++] = currentInterfaceNumber_;
         ESP_LOGI(TAG, "Interface %u claimed", currentInterfaceNumber_);
+        if (currentInterfaceAlternate_ > 0)
+        {
+          submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
+        }
         if (currentInterfaceSubClass_ == HID_SUBCLASS_BOOT_VALUE &&
             currentInterfaceProtocol_ == HID_PROTOCOL_KEYBOARD_VALUE &&
             !device->hasKeyboardInterface)
@@ -1264,7 +1273,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isIn &&
         isIsochronous)
     {
-      static constexpr int AUDIO_ISOC_PACKETS = 4;
+      static constexpr int AUDIO_ISOC_PACKETS = 1;
       EndpointState *endpoint = allocateEndpoint(*device);
       if (!endpoint)
       {
@@ -1447,7 +1456,10 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
   }
   DeviceState *device = findDeviceByHandle(endpoint->deviceHandle);
 
-  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED && transfer->actual_num_bytes > 0)
+  const bool isAudioStreaming = endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
+                                endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_AUDIO_STREAMING;
+  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED &&
+      (transfer->actual_num_bytes > 0 || isAudioStreaming))
   {
 #if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
     const char *transferKind = "input";
@@ -1539,8 +1551,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     {
       handleMidi(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
     }
-    else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
-             endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_AUDIO_STREAMING)
+    else if (isAudioStreaming)
     {
       handleAudio(*endpoint, transfer);
     }
@@ -1974,6 +1985,22 @@ const EspUsbHost::DeviceState *EspUsbHost::findMidiDevice(uint8_t address) const
   return nullptr;
 }
 
+const EspUsbHost::DeviceState *EspUsbHost::findAudioDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.hasAudioInterface)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
 EspUsbHost::DeviceState *EspUsbHost::findKeyboardDevice(uint8_t address)
 {
   for (DeviceState &device : devices_)
@@ -2290,6 +2317,46 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
                               (device.serialDtr ? 0x0020 : 0) | (device.serialRts ? 0x0040 : 0),
                               device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
   }
+}
+
+bool EspUsbHost::submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting)
+{
+  if (!clientHandle_ || !device.handle)
+  {
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(Set_Interface) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  USB_SETUP_PACKET_INIT_SET_INTERFACE(setup, interfaceNumber, alternateSetting);
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = controlTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Set_Interface iface=%u alt=%u) failed: %s",
+             interfaceNumber,
+             alternateSetting,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Set_Interface submitted iface=%u alt=%u", interfaceNumber, alternateSetting);
+  return true;
 }
 
 bool EspUsbHost::submitVendorSerialControl(uint8_t requestType,

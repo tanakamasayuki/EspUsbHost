@@ -403,6 +403,7 @@ private:
   void releaseInterfaces(DeviceState &device);
   void configureCdcAcm(DeviceState &device);
   void configureVendorSerial(DeviceState &device);
+  bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
