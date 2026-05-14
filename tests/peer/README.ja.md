@@ -51,7 +51,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `hid_vendor`: `USB/examples/HIDVendor` とペアで動作
 - `usb_serial`: `USB/examples/USBSerial` とペアで動作
 - `usb_midi`: `USB/examples/MIDI` とペアで動作
-- `usb_audio`: `USBAudioCard` のマイク入力を使い、`USB/examples/AudioCard` 相当のUSB Audioデバイスとペアで動作
+- `usb_audio`: `USBAudioCard` のスピーカー出力を使い、`USB/examples/AudioCard` 相当のUSB Audioデバイスとペアで動作
 
 追加予定のカバレッジ：
 

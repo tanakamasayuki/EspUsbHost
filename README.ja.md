@@ -12,7 +12,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 - **HID出力** — キーボードLED制御・ベンダー出力/フィーチャーレポート
 - **USBシリアル** — CDC ACMおよび主要VCPデバイス（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応（Arduino `Stream`/`Print` 互換）
 - **MIDI** — USB MIDI入出力
-- **USBオーディオ入力** — USB Audio StreamingインターフェースのIsochronous INペイロード受信
+- **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
 
@@ -25,7 +25,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
-| UAC — USBオーディオ入力 | 🔲 実験的 |
+| UAC — USBオーディオ入出力 | 🔲 実験的 |
 | HUB — ハブ検出・ポート電源制御 | 🔲 実装予定 |
 | MSC — USBストレージ | 💭 検討中 |
 | UVC — USBカメラ | 💭 検討中 |
@@ -259,13 +259,19 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 
 `onMidiMessage`コールバックは`const EspUsbHostMidiMessage &message`を受け取ります。フィールド：`cable`、`codeIndex`、`status`、`data1`、`data2`。
 
-### USBオーディオ入力
+### USBオーディオ
 
 ```cpp
 void onAudioData(AudioDataCallback callback);
+bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioSend(const uint8_t *data, size_t length,
+               uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
 `onAudioData`はUSB Audio StreamingのIsochronous INエンドポイントから受信した生ペイロードを通知します。コールバックは`const EspUsbHostAudioData &audio`を受け取り、フィールドは`address`、`interfaceNumber`、`data`、`length`です。
+
+`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを送信します。現時点ではフォーマットディスクリプタを解釈しないため、呼び出し側でデバイスのサンプルレート、チャンネル数、サンプルサイズに合わせてください。
 
 ### デバイス探索
 

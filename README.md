@@ -12,7 +12,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 - **HID output** — keyboard LED control, vendor output/feature reports
 - **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
 - **MIDI** — USB MIDI input and output
-- **USB audio input** — raw isochronous IN payloads from USB Audio streaming interfaces
+- **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
@@ -25,7 +25,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` | ✅ Done |
 | USB MIDI | ✅ Done |
-| UAC — USB audio input | 🔲 Experimental |
+| UAC — USB audio input/output | 🔲 Experimental |
 | HUB — hub detection, port power control | 🔲 Planned |
 | MSC — USB storage | 💭 Under consideration |
 | UVC — USB camera | 💭 Under consideration |
@@ -259,13 +259,19 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 
 `onMidiMessage` callback receives `const EspUsbHostMidiMessage &message` with fields `cable`, `codeIndex`, `status`, `data1`, `data2`.
 
-### USB audio input
+### USB audio
 
 ```cpp
 void onAudioData(AudioDataCallback callback);
+bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioSend(const uint8_t *data, size_t length,
+               uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
 `onAudioData` receives raw payload bytes from USB Audio streaming isochronous IN endpoints. The callback receives `const EspUsbHostAudioData &audio` with fields `address`, `interfaceNumber`, `data`, and `length`.
+
+`audioSend` writes raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint. The library does not parse format descriptors yet, so the caller must match the device's sample rate, channel count, and sample size.
 
 ### Device discovery
 
