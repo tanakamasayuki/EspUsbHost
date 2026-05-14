@@ -41,8 +41,13 @@ Demonstrates USB MIDI input and output: receives MIDI messages from a connected 
 
 ## Expected Serial output
 
+Incoming MIDI messages are decoded by type. Note numbers are shown as note names (e.g. `C4`, `D#3`).
+Pitch bend values are shown as signed integers in the range −8192 to +8191.
+
 ```
 connected: vid=0499 pid=1066 product=USB MIDI Interface
-midi cable=0 cin=0x09 status=0x90 data1=60 data2=100
-midi cable=0 cin=0x08 status=0x80 data1=60 data2=0
+Note On    ch=1 note=C4 vel=100
+Note Off   ch=1 note=C4 vel=0
+CC         ch=1 ctrl=74 val=64
+PitchBend  ch=1 val=1024
 ```

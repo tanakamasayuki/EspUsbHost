@@ -41,8 +41,13 @@ USB MIDIの入出力サンプルです。接続したUSB MIDIデバイスからM
 
 ## シリアル出力例
 
+受信したMIDIメッセージはタイプごとにデコードして表示されます。ノート番号はノート名（例：`C4`・`D#3`）で表示されます。
+ピッチベンドは −8192〜+8191 の符号付き整数で表示されます。
+
 ```
 connected: vid=0499 pid=1066 product=USB MIDI Interface
-midi cable=0 cin=0x09 status=0x90 data1=60 data2=100
-midi cable=0 cin=0x08 status=0x80 data1=60 data2=0
+Note On    ch=1 note=C4 vel=100
+Note Off   ch=1 note=C4 vel=0
+CC         ch=1 ctrl=74 val=64
+PitchBend  ch=1 val=1024
 ```
