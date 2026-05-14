@@ -270,11 +270,13 @@ bool setAudioSampleRate(uint32_t sampleRate,
                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams,
+                       size_t maxStreams) const;
 ```
 
 `onAudioData` receives raw payload bytes from USB Audio streaming isochronous IN endpoints. The callback receives `const EspUsbHostAudioData &audio` with fields `address`, `interfaceNumber`, `data`, and `length`.
 
-`setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` writes raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint. The library does not parse format descriptors yet, so the caller must match the device's sample rate, channel count, and sample size.
+`getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and UAC1 Type I format fields when available. `setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` writes raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
 
 ### Device discovery
 

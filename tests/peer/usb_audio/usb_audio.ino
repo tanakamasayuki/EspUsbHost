@@ -50,7 +50,22 @@ void setup()
                                                 endpoints[i].maxPacketSize,
                                                 endpoints[i].interval);
                               }
-                          });
+                              EspUsbHostAudioStreamInfo audioStreams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
+                              const size_t audioStreamCount = usb.getAudioStreams(device.address, audioStreams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+                              for (size_t i = 0; i < audioStreamCount; i++)
+                              {
+                                  Serial.printf("AUDIO_STREAM iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu max=%u interval=%u\n",
+                                                audioStreams[i].interfaceNumber,
+                                                audioStreams[i].alternate,
+                                                audioStreams[i].endpointAddress,
+                                                audioStreams[i].input ? "IN" : "OUT",
+                                                audioStreams[i].channels,
+                                                audioStreams[i].bytesPerSample,
+                                                audioStreams[i].bitsPerSample,
+                                                static_cast<unsigned long>(audioStreams[i].sampleRate),
+                                                audioStreams[i].maxPacketSize,
+                                                audioStreams[i].interval);
+                              } });
 
     usb.onAudioData([](const EspUsbHostAudioData &audio)
                     {
@@ -63,8 +78,7 @@ void setup()
                                           audio.interfaceNumber,
                                           static_cast<unsigned long>(audioBytes),
                                           static_cast<unsigned>(audio.length));
-                        }
-                    });
+                        } });
 
     if (!usb.begin())
     {

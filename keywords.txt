@@ -18,6 +18,7 @@ EspUsbHostKeyboardEvent	KEYWORD1
 EspUsbHostMouseEvent	KEYWORD1
 EspUsbHostHIDInput	KEYWORD1
 EspUsbHostAudioData	KEYWORD1
+EspUsbHostAudioStreamInfo	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
 
 #######################################
@@ -37,6 +38,7 @@ audioReady	KEYWORD2
 audioOutputReady	KEYWORD2
 setAudioSampleRate	KEYWORD2
 audioSend	KEYWORD2
+getAudioStreams	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2
