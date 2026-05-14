@@ -1947,7 +1947,7 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
   if (!espUsbHostParseGamepadReport(endpoint.interfaceNumber,
                                     data,
                                     length,
-                                    endpoint.lastGamepadButtons,
+                                    endpoint.lastGamepadState,
                                     event))
   {
     return;
@@ -1966,7 +1966,7 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
            static_cast<unsigned long>(event.buttons),
            static_cast<unsigned long>(event.previousButtons));
   gamepadCallback_(event);
-  endpoint.lastGamepadButtons = event.buttons;
+  endpoint.lastGamepadState = {event.x, event.y, event.z, event.rz, event.rx, event.ry, event.hat, event.buttons};
 }
 
 void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length)

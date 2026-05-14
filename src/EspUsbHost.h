@@ -202,6 +202,12 @@ struct EspUsbHostGamepadEvent
   bool changed = false;
 };
 
+struct EspUsbHostGamepadPrevState {
+  int8_t x = 0, y = 0, z = 0, rz = 0, rx = 0, ry = 0;
+  uint8_t hat = 0;
+  uint32_t buttons = 0;
+};
+
 struct EspUsbHostVendorInput
 {
   uint8_t address = 0;
@@ -312,7 +318,7 @@ private:
     bool keyboardReportReady = false;
     uint8_t lastMouseButtons = 0;
     uint16_t lastConsumerUsage = 0;
-    uint32_t lastGamepadButtons = 0;
+    EspUsbHostGamepadPrevState lastGamepadState;
     uint8_t lastSystemUsage = 0;
   };
 

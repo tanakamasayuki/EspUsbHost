@@ -114,13 +114,13 @@ static void testGamepadReportEdges()
   EspUsbHostGamepadEvent event;
 
   const uint8_t idle[11] = {};
-  check(!espUsbHostParseGamepadReport(4, idle, sizeof(idle), 0x00000000, event), "gamepad_idle_ignored");
+  check(!espUsbHostParseGamepadReport(4, idle, sizeof(idle), EspUsbHostGamepadPrevState{}, event), "gamepad_idle_ignored");
 
   const uint8_t active[11] = {
       10, static_cast<uint8_t>(-10), 20, static_cast<uint8_t>(-20),
       30, static_cast<uint8_t>(-30), 3,
       0x05, 0x00, 0x00, 0x00};
-  check(!espUsbHostParseGamepadReport(4, active, 10, 0x00000000, event), "gamepad_short_invalid");
+  check(!espUsbHostParseGamepadReport(4, active, 10, EspUsbHostGamepadPrevState{}, event), "gamepad_short_invalid");
 }
 
 static void testSystemControlReportEdges()

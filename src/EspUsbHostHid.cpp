@@ -127,7 +127,7 @@ bool espUsbHostParseConsumerControlReport(uint8_t interfaceNumber,
 bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
                                   const uint8_t *data,
                                   size_t length,
-                                  uint32_t previousButtons,
+                                  const EspUsbHostGamepadPrevState &previous,
                                   EspUsbHostGamepadEvent &event) {
   if (!data || length < 11) {
     return false;
@@ -146,10 +146,12 @@ bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
                   (static_cast<uint32_t>(data[8]) << 8) |
                   (static_cast<uint32_t>(data[9]) << 16) |
                   (static_cast<uint32_t>(data[10]) << 24);
-  event.previousButtons = previousButtons;
-  event.changed = event.x != 0 || event.y != 0 || event.z != 0 || event.rz != 0 ||
-                  event.rx != 0 || event.ry != 0 || event.hat != 0 ||
-                  event.buttons != event.previousButtons;
+  event.previousButtons = previous.buttons;
+  event.changed = event.x != previous.x || event.y != previous.y ||
+                  event.z != previous.z || event.rz != previous.rz ||
+                  event.rx != previous.rx || event.ry != previous.ry ||
+                  event.hat != previous.hat ||
+                  event.buttons != previous.buttons;
   return event.changed;
 }
 
