@@ -38,5 +38,4 @@ disconnected: address=1 vid=045e pid=07a5
 
 ## 関連サンプル
 
-- [EspUsbHostCustomHID](../EspUsbHostCustomHID/) — アドレス情報なしの類似ダンプ
 - [EspUsbHostDeviceInfo](../../Info/EspUsbHostDeviceInfo/) — デバイス・インターフェース・エンドポイントの詳細表示
