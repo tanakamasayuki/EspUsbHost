@@ -38,5 +38,4 @@ disconnected: address=1 vid=045e pid=07a5
 
 ## See also
 
-- [EspUsbHostCustomHID](../EspUsbHostCustomHID/) — similar dump without address info
 - [EspUsbHostDeviceInfo](../../Info/EspUsbHostDeviceInfo/) — full device/interface/endpoint enumeration
