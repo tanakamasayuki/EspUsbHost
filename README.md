@@ -140,7 +140,9 @@ void onDeviceConnected(DeviceCallback callback);
 void onDeviceDisconnected(DeviceCallback callback);
 ```
 
-Callbacks receive `const EspUsbHostDeviceInfo &device`. Key fields: `address`, `vid`, `pid`, `product`, `manufacturer`, `serial`, `speed`, `parentAddress`, `parentPort`.
+Callbacks receive `const EspUsbHostDeviceInfo &device`. Key fields: `address`, `vid`, `pid`, `product`, `manufacturer`, `serial`, `speed`, `parentAddress`, `portId`.
+
+`portId` identifies where the device is attached. `0x01` means the root port. For hub-attached devices, the upper nibble is the hub index assigned in detection order and the lower nibble is the hub port number, for example `0x12` means hub #1 port 2.
 
 ### HID input
 
