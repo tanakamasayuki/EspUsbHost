@@ -190,7 +190,31 @@ bool sendVendorFeature(const uint8_t *data, size_t length,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
-キーボードレイアウト定数：`ESP_USB_HOST_KEYBOARD_LAYOUT_US`、`ESP_USB_HOST_KEYBOARD_LAYOUT_JP`。
+デフォルトは`ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US`です。以下のいずれかの定数を`setKeyboardLayout()`に渡します：
+
+| 定数 | ロケール | 備考 |
+|------|----------|------|
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_TW` | zh_TW | 繁体字中国語 — 記号はUS QWERTYと同一 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_DA_DK` | da_DK | デンマーク語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE` | de_DE | ドイツ語 QWERTZ |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US` | en_US | 英語 US（**デフォルト**） |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_FI_FI` | fi_FI | フィンランド語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_FR_FR` | fr_FR | フランス語 AZERTY |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_HU_HU` | hu_HU | ハンガリー語 QWERTZ |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_IT_IT` | it_IT | イタリア語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP` | ja_JP | 日本語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_KO_KR` | ko_KR | 韓国語 — 記号はUS QWERTYと同一 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_NL_NL` | nl_NL | オランダ語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_NB_NO` | nb_NO | ノルウェー語（ブークモール） |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR` | pt_BR | ブラジルポルトガル語 ABNT2 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_SV_SE` | sv_SE | スウェーデン語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_CN` | zh_CN | 簡体字中国語 — 記号はUS QWERTYと同一 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_GB` | en_GB | 英語 UK |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_PT_PT` | pt_PT | ポルトガル語（ポルトガル） |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_ES_ES` | es_ES | スペイン語 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_FR_CH` | fr_CH | スイスフランス語 QWERTZ |
+
+`event.ascii`はLatin-1エンコードの`uint8_t`（0x00〜0xFF）です。デッドキー（´、\`、^、~、¨）およびLatin-1の範囲外の文字は`ascii = 0`になります。`ZH_TW`・`KO_KR`・`ZH_CN`の記号配列は`EN_US`と同一で、実際のCJK文字入力はホスト側のIMEが必要です。
 
 ### USBシリアル（CDC ACM・VCP）
 
