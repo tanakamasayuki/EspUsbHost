@@ -492,6 +492,11 @@ bool EspUsbHost::setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable)
     ESP_LOGW(TAG, "setHubPortPower() called before USB Host is ready");
     return false;
   }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "setHubPortPower() cannot run from USB client task");
+    return false;
+  }
   if (hubAddress == 0 || port == 0)
   {
     ESP_LOGW(TAG, "setHubPortPower() invalid hubAddress=%u port=%u", hubAddress, port);
@@ -570,6 +575,11 @@ bool EspUsbHost::setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable)
   {
     ESP_LOGW(TAG, "HUB port power request timed out hub=%u port=%u enable=%u", hubAddress, port, enable ? 1 : 0);
     setLastError(ESP_ERR_TIMEOUT);
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    return false;
   }
   else if (!ok)
   {
@@ -597,6 +607,11 @@ bool EspUsbHost::getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &st
   if (!running_ || !clientHandle_)
   {
     ESP_LOGW(TAG, "getHubPortStatus() called before USB Host is ready");
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "getHubPortStatus() cannot run from USB client task");
     return false;
   }
   if (hubAddress == 0 || port == 0)
@@ -684,6 +699,11 @@ bool EspUsbHost::getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &st
   {
     ESP_LOGW(TAG, "HUB port status request timed out hub=%u port=%u", hubAddress, port);
     setLastError(ESP_ERR_TIMEOUT);
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    return false;
   }
   else
   {
@@ -1383,6 +1403,11 @@ void EspUsbHost::clientTaskLoop()
         }
       }
     }
+    if (millis() - lastHostDeviceScanMs_ >= 500)
+    {
+      lastHostDeviceScanMs_ = millis();
+      scanHostDevices();
+    }
   }
   clientTaskHandle_ = nullptr;
   vTaskDelete(nullptr);
@@ -1452,10 +1477,19 @@ void EspUsbHost::handleNewDevice(uint8_t address)
       device->info.portId = parent && parent->hubIndex && upstreamPort > 0 && upstreamPort <= 0x0f
                                 ? static_cast<uint8_t>((parent->hubIndex << 4) | upstreamPort)
                                 : upstreamPort;
+      ESP_LOGI(TAG, "Topology address=%u parent_handle=yes parent_address=%u upstream_port=%u portId=0x%02x",
+               device->info.address,
+               device->info.parentAddress,
+               upstreamPort,
+               device->info.portId);
     }
     else
     {
       device->info.portId = upstreamPort ? upstreamPort : 0x01;
+      ESP_LOGI(TAG, "Topology address=%u parent_handle=no root_port=%u portId=0x%02x",
+               device->info.address,
+               upstreamPort,
+               device->info.portId);
     }
   }
 
@@ -1569,6 +1603,150 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
     deviceDisconnectedCallback_(info);
   }
   *device = DeviceState();
+}
+
+void EspUsbHost::refreshDeviceTopology(DeviceState &device)
+{
+  if (!device.inUse || !device.handle)
+  {
+    return;
+  }
+
+  usb_device_info_t devInfo = {};
+  if (usb_host_device_info(device.handle, &devInfo) != ESP_OK)
+  {
+    return;
+  }
+
+  const uint8_t upstreamPort = devInfo.parent.port_num;
+  device.info.address = devInfo.dev_addr;
+  device.info.speed = devInfo.speed;
+  device.info.maxPacketSize0 = devInfo.bMaxPacketSize0;
+  device.info.configurationValue = devInfo.bConfigurationValue;
+  if (devInfo.parent.dev_hdl)
+  {
+    DeviceState *parent = findDeviceByHandle(devInfo.parent.dev_hdl);
+    device.info.parentAddress = parent ? parent->info.address : 0;
+    device.info.portId = parent && parent->hubIndex && upstreamPort > 0 && upstreamPort <= 0x0f
+                            ? static_cast<uint8_t>((parent->hubIndex << 4) | upstreamPort)
+                            : upstreamPort;
+  }
+  else
+  {
+    device.info.parentAddress = 0;
+    device.info.portId = upstreamPort ? upstreamPort : 0x01;
+  }
+}
+
+void EspUsbHost::scanHostDevices()
+{
+  if (!running_ || !clientHandle_)
+  {
+    return;
+  }
+
+  uint8_t addresses[ESP_USB_HOST_MAX_DEVICES * 2] = {};
+  int addressCount = 0;
+  if (usb_host_device_addr_list_fill(static_cast<int>(sizeof(addresses)), addresses, &addressCount) != ESP_OK)
+  {
+    return;
+  }
+
+  for (int i = 0; i < addressCount; i++)
+  {
+    const uint8_t address = addresses[i];
+    if (address == 0 || findDevice(address))
+    {
+      continue;
+    }
+
+    usb_device_handle_t handle = nullptr;
+    if (usb_host_device_open(clientHandle_, address, &handle) != ESP_OK)
+    {
+      continue;
+    }
+
+    const usb_device_desc_t *devDesc = nullptr;
+    const usb_config_desc_t *configDesc = nullptr;
+    const bool hasDeviceDesc = usb_host_get_device_descriptor(handle, &devDesc) == ESP_OK && devDesc;
+    const bool hasConfigDesc = usb_host_get_active_config_descriptor(handle, &configDesc) == ESP_OK && configDesc;
+    const bool isHub = hasDeviceDesc && hasConfigDesc &&
+                       (devDesc->bDeviceClass == USB_CLASS_HUB_VALUE ||
+                        configHasInterfaceClass(configDesc, USB_CLASS_HUB_VALUE));
+    if (!isHub)
+    {
+      usb_host_device_close(clientHandle_, handle);
+      continue;
+    }
+
+    DeviceState *device = allocateDevice();
+    if (!device)
+    {
+      usb_host_device_close(clientHandle_, handle);
+      return;
+    }
+
+    device->inUse = true;
+    device->handle = handle;
+    device->info.address = address;
+    device->serialBaudRate = defaultSerialBaudRate_;
+    device->audioSampleRate = defaultAudioSampleRate_;
+
+    usb_device_info_t devInfo = {};
+    if (usb_host_device_info(device->handle, &devInfo) == ESP_OK)
+    {
+      device->manufacturer = usbString(devInfo.str_desc_manufacturer);
+      device->product = usbString(devInfo.str_desc_product);
+      device->serial = usbString(devInfo.str_desc_serial_num);
+      device->info.manufacturer = device->manufacturer.c_str();
+      device->info.product = device->product.c_str();
+      device->info.serial = device->serial.c_str();
+    }
+
+    device->info.vid = devDesc->idVendor;
+    device->info.pid = devDesc->idProduct;
+    device->info.usbVersion = devDesc->bcdUSB;
+    device->info.deviceVersion = devDesc->bcdDevice;
+    device->info.deviceClass = devDesc->bDeviceClass;
+    device->info.deviceSubClass = devDesc->bDeviceSubClass;
+    device->info.deviceProtocol = devDesc->bDeviceProtocol;
+    device->info.maxPacketSize0 = devDesc->bMaxPacketSize0;
+    device->info.configurationValue = configDesc->bConfigurationValue;
+    device->info.configurationAttributes = configDesc->bmAttributes;
+    device->info.configurationMaxPower = configDesc->bMaxPower;
+    device->info.configurationInterfaceCount = configDesc->bNumInterfaces;
+    device->info.configurationTotalLength = configDesc->wTotalLength;
+    device->isHub = true;
+    device->info.isHub = true;
+    device->info.supported = true;
+    if (nextHubIndex_ <= 0x0f)
+    {
+      device->hubIndex = nextHubIndex_++;
+    }
+    else
+    {
+      ESP_LOGW(TAG, "Hub index exhausted for address=%u", address);
+    }
+
+    parseConfigDescriptor(*device, configDesc);
+    refreshDeviceTopology(*device);
+    ESP_LOGI(TAG, "Tracked hub discovered by address scan: address=%u vid=%04x pid=%04x parent=%u portId=0x%02x",
+             device->info.address,
+             device->info.vid,
+             device->info.pid,
+             device->info.parentAddress,
+             device->info.portId);
+
+    if (deviceConnectedCallback_)
+    {
+      deviceConnectedCallback_(device->info);
+    }
+  }
+
+  for (DeviceState &device : devices_)
+  {
+    refreshDeviceTopology(device);
+  }
 }
 
 void EspUsbHost::parseConfigDescriptor(DeviceState &device, const usb_config_desc_t *configDesc)
@@ -2971,12 +3149,100 @@ bool EspUsbHost::getDevice(uint8_t address, EspUsbHostDeviceInfo &deviceInfo) co
   return true;
 }
 
+size_t EspUsbHost::getHostDeviceAddresses(uint8_t *addresses, size_t maxAddresses) const
+{
+  if (!addresses || maxAddresses == 0)
+  {
+    return 0;
+  }
+  int count = 0;
+  esp_err_t err = usb_host_device_addr_list_fill(static_cast<int>(maxAddresses), addresses, &count);
+  if (err != ESP_OK)
+  {
+    return 0;
+  }
+  return count > 0 ? static_cast<size_t>(count) : 0;
+}
+
+bool EspUsbHost::probeHostDevice(uint8_t address, EspUsbHostDeviceProbeInfo &probe)
+{
+  probe = EspUsbHostDeviceProbeInfo();
+  probe.address = address;
+  if (!running_ || !clientHandle_ || address == 0)
+  {
+    return false;
+  }
+
+  usb_device_handle_t handle = nullptr;
+  DeviceState *knownDevice = findDevice(address);
+  const bool openedTemporarily = !(knownDevice && knownDevice->handle);
+  if (openedTemporarily)
+  {
+    esp_err_t err = usb_host_device_open(clientHandle_, address, &handle);
+    if (err != ESP_OK)
+    {
+      return false;
+    }
+  }
+  else
+  {
+    handle = knownDevice->handle;
+  }
+  probe.openOk = true;
+
+  usb_device_info_t devInfo = {};
+  if (usb_host_device_info(handle, &devInfo) == ESP_OK)
+  {
+    probe.deviceInfoOk = true;
+    probe.address = devInfo.dev_addr;
+    probe.parentPort = devInfo.parent.port_num;
+    probe.speed = static_cast<uint8_t>(devInfo.speed);
+    if (devInfo.parent.dev_hdl)
+    {
+      DeviceState *parent = findDeviceByHandle(devInfo.parent.dev_hdl);
+      probe.parentAddress = parent ? parent->info.address : 0;
+    }
+  }
+
+  const usb_device_desc_t *devDesc = nullptr;
+  if (usb_host_get_device_descriptor(handle, &devDesc) == ESP_OK && devDesc)
+  {
+    probe.deviceDescriptorOk = true;
+    probe.vid = devDesc->idVendor;
+    probe.pid = devDesc->idProduct;
+    probe.deviceClass = devDesc->bDeviceClass;
+    probe.deviceSubClass = devDesc->bDeviceSubClass;
+    probe.deviceProtocol = devDesc->bDeviceProtocol;
+  }
+
+  const usb_config_desc_t *configDesc = nullptr;
+  if (usb_host_get_active_config_descriptor(handle, &configDesc) == ESP_OK && configDesc)
+  {
+    probe.configDescriptorOk = true;
+    probe.interfaceCount = configDesc->bNumInterfaces;
+    probe.configHasHubInterface = configHasInterfaceClass(configDesc, USB_CLASS_HUB_VALUE);
+  }
+
+  if (openedTemporarily)
+  {
+    usb_host_device_close(clientHandle_, handle);
+  }
+
+  probe.hubDescriptorOk = getHubInfo(address, probe.hub);
+  return probe.openOk;
+}
+
 bool EspUsbHost::getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub)
 {
   hub = EspUsbHostHubInfo();
   if (!running_ || !clientHandle_)
   {
     ESP_LOGW(TAG, "getHubInfo() called before USB Host is ready");
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "getHubInfo() cannot run from USB client task");
     return false;
   }
   if (hubAddress == 0)
@@ -3080,6 +3346,11 @@ bool EspUsbHost::getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub)
   {
     ESP_LOGW(TAG, "HUB descriptor request timed out hub=%u", hubAddress);
     setLastError(ESP_ERR_TIMEOUT);
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    return false;
   }
   else
   {

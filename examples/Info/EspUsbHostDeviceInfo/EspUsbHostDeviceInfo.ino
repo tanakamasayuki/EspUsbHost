@@ -117,6 +117,18 @@ static void printHubPortStatus(uint8_t hubAddress, uint8_t port)
                 yesNo(status & 0x1000));
 }
 
+static bool getHubPortConnected(uint8_t hubAddress, uint8_t port, bool &connected)
+{
+  uint16_t status = 0;
+  uint16_t change = 0;
+  if (!usb.getHubPortStatus(hubAddress, port, status, change))
+  {
+    return false;
+  }
+  connected = (status & 0x0001) != 0;
+  return true;
+}
+
 static void printHubInfo(uint8_t hubAddress, bool printPorts)
 {
   EspUsbHostHubInfo hub;
@@ -158,7 +170,100 @@ static void printHubInfo(uint8_t hubAddress, bool printPorts)
   Serial.println("--------- USB Hub End ---------");
 }
 
-static void printDevice(uint8_t address)
+static void printFlattenedHubNotes(const EspUsbHostHubInfo &hub,
+                                   const EspUsbHostDeviceInfo *devices,
+                                   size_t deviceCount)
+{
+  if (hub.portCount == 0)
+  {
+    return;
+  }
+
+  bool rootPortHasDevice[16] = {};
+  for (size_t i = 0; i < deviceCount; i++)
+  {
+    const uint8_t upstreamPort = devices[i].parentAddress ? (devices[i].portId & 0x0f) : devices[i].portId;
+    if ((devices[i].parentAddress == hub.address || (hub.address == 1 && devices[i].parentAddress == 0)) &&
+        upstreamPort > 0 &&
+        upstreamPort < sizeof(rootPortHasDevice))
+    {
+      rootPortHasDevice[upstreamPort] = true;
+    }
+  }
+
+  bool printedHeader = false;
+  for (uint8_t port = 1; port <= hub.portCount && port < sizeof(rootPortHasDevice); port++)
+  {
+    bool connected = false;
+    if (!getHubPortConnected(hub.address, port, connected))
+    {
+      continue;
+    }
+    if (connected && !rootPortHasDevice[port])
+    {
+      if (!printedHeader)
+      {
+        Serial.println("Topology notes:");
+        printedHeader = true;
+      }
+      Serial.printf("  Hub port %u is connected, but no tracked device has parent/root port %u. A downstream hub may be flattened by the host stack.\n",
+                    port,
+                    port);
+    }
+    else if (!connected && rootPortHasDevice[port])
+    {
+      if (!printedHeader)
+      {
+        Serial.println("Topology notes:");
+        printedHeader = true;
+      }
+      Serial.printf("  Tracked device uses root port %u, but hub port %u status is disconnected. This may be a downstream hub port encoded as a root port.\n",
+                    port,
+                    port);
+    }
+  }
+}
+
+static void printHostAddressProbe()
+{
+  uint8_t addresses[16] = {};
+  const size_t count = usb.getHostDeviceAddresses(addresses, sizeof(addresses));
+  Serial.println("----------- Host Address Probe -----------");
+  Serial.printf("Host address count=%u\n", (unsigned)count);
+  for (size_t i = 0; i < count; i++)
+  {
+    EspUsbHostDeviceProbeInfo probe;
+    const bool ok = usb.probeHostDevice(addresses[i], probe);
+    Serial.printf("Probe address=%u ok=%s open=%s devInfo=%s devDesc=%s cfgDesc=%s parent=%u parentPort=%u vid=%04x pid=%04x class=0x%02x sub=0x%02x proto=0x%02x interfaces=%u hubInterface=%s hubDesc=%s",
+                  addresses[i],
+                  yesNo(ok),
+                  yesNo(probe.openOk),
+                  yesNo(probe.deviceInfoOk),
+                  yesNo(probe.deviceDescriptorOk),
+                  yesNo(probe.configDescriptorOk),
+                  probe.parentAddress,
+                  probe.parentPort,
+                  probe.vid,
+                  probe.pid,
+                  probe.deviceClass,
+                  probe.deviceSubClass,
+                  probe.deviceProtocol,
+                  probe.interfaceCount,
+                  yesNo(probe.configHasHubInterface),
+                  yesNo(probe.hubDescriptorOk));
+    if (probe.hubDescriptorOk)
+    {
+      Serial.printf(" hubPorts=%u hubChars=0x%04x ppps=%s",
+                    probe.hub.portCount,
+                    probe.hub.characteristics,
+                    yesNo(probe.hub.perPortPowerSwitching));
+    }
+    Serial.println();
+  }
+  Serial.println("--------- Host Address Probe End ---------");
+}
+
+static void printDevice(uint8_t address, bool includeHubInfo = false)
 {
   EspUsbHostDeviceInfo device;
   if (!usb.getDevice(address, device))
@@ -169,14 +274,20 @@ static void printDevice(uint8_t address)
 
   Serial.println();
   Serial.println("=========== USB Device ===========");
+  const uint8_t hubIndex = device.portId >> 4;
+  const uint8_t upstreamPort = device.portId & 0x0f;
   Serial.printf("Address %u portId=0x%02x", device.address, device.portId);
   if (device.parentAddress)
   {
-    Serial.printf(" parent=%u upstream_port=%u", device.parentAddress, device.portId & 0x0f);
+    Serial.printf(" parent=%u hub_index=%u upstream_port=%u", device.parentAddress, hubIndex, upstreamPort);
   }
   else
   {
-    Serial.print(" parent=root");
+    Serial.printf(" parent=root root_port=%u", device.portId);
+    if (device.portId > 1)
+    {
+      Serial.print(" note=hub_stack_may_be_flattened");
+    }
   }
   Serial.printf(" speed=%s\n", speedName(device.speed));
   Serial.printf("VID:PID %04x:%04x class=0x%02x(%s) subclass=0x%02x protocol=0x%02x\n",
@@ -212,11 +323,6 @@ static void printDevice(uint8_t address)
                 yesNo(device.configurationAttributes & 0x20),
                 device.configurationMaxPower * 2);
 
-  if (device.isHub)
-  {
-    printHubInfo(device.address, true);
-  }
-
   EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
   const size_t interfaceCount = usb.getInterfaces(address, interfaces, ESP_USB_HOST_MAX_INTERFACES);
   for (size_t i = 0; i < interfaceCount; i++)
@@ -246,6 +352,10 @@ static void printDevice(uint8_t address)
                   ep.interval,
                   ep.attributes);
   }
+  if (includeHubInfo && device.isHub)
+  {
+    printHubInfo(device.address, true);
+  }
   Serial.println("========= USB Device End =========");
   Serial.println();
 }
@@ -254,11 +364,25 @@ static void printAllDevices()
 {
   Serial.println();
   Serial.println("=========== USB Topology ===========");
-  printHubInfo(1, true);
+  EspUsbHostHubInfo rootHub;
+  const bool hasRootHub = usb.getHubInfo(1, rootHub);
+  if (hasRootHub)
+  {
+    printHubInfo(1, true);
+  }
+  else
+  {
+    Serial.println("Hub address=1 descriptor unavailable");
+  }
 
   EspUsbHostDeviceInfo devices[ESP_USB_HOST_MAX_DEVICES];
   const size_t count = usb.getDevices(devices, ESP_USB_HOST_MAX_DEVICES);
   Serial.printf("Tracked devices=%u\n", (unsigned)count);
+  if (hasRootHub)
+  {
+    printFlattenedHubNotes(rootHub, devices, count);
+  }
+  printHostAddressProbe();
   if (count == 0)
   {
     Serial.println("No USB devices");
@@ -267,7 +391,7 @@ static void printAllDevices()
   }
   for (size_t i = 0; i < count; i++)
   {
-    printDevice(devices[i].address);
+    printDevice(devices[i].address, true);
   }
   Serial.println("========= USB Topology End =========");
 }
