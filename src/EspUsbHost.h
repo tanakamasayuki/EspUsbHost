@@ -81,6 +81,7 @@ static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
 static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
+static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 
 struct EspUsbHostConfig
 {
@@ -541,6 +542,7 @@ private:
                                  size_t length = 0,
                                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   void attachCdcSerial(EspUsbHostCdcSerial *serial);
+  void detachCdcSerial(EspUsbHostCdcSerial *serial);
   void setLastError(esp_err_t err);
   static String usbString(const usb_str_desc_t *strDesc);
   friend class EspUsbHostCdcSerial;
@@ -556,7 +558,7 @@ private:
   bool sendKeyboardLedReport(DeviceState &device, uint8_t leds);
   DeviceState devices_[ESP_USB_HOST_MAX_DEVICES];
   DeviceState *currentDevice_ = nullptr;
-  EspUsbHostCdcSerial *cdcSerial_ = nullptr;
+  EspUsbHostCdcSerial *cdcSerials_[ESP_USB_HOST_MAX_CDC_SERIALS] = {};
   uint32_t defaultSerialBaudRate_ = 115200;
   uint32_t defaultAudioSampleRate_ = 48000;
   uint8_t nextHubIndex_ = 1;

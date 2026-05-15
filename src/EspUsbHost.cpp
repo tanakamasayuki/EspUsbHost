@@ -2217,9 +2217,12 @@ void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size
     length -= 2;
   }
 
-  if (cdcSerial_ && cdcSerial_->accepts(endpoint.deviceAddress))
+  for (EspUsbHostCdcSerial *serialPort : cdcSerials_)
   {
-    cdcSerial_->pushData(data, length);
+    if (serialPort && serialPort->accepts(endpoint.deviceAddress))
+    {
+      serialPort->pushData(data, length);
+    }
   }
 
   if (!serialDataCallback_)
@@ -2825,7 +2828,37 @@ void EspUsbHost::configureCdcAcm(DeviceState &device)
 
 void EspUsbHost::attachCdcSerial(EspUsbHostCdcSerial *serial)
 {
-  cdcSerial_ = serial;
+  if (!serial)
+  {
+    return;
+  }
+  for (EspUsbHostCdcSerial *existing : cdcSerials_)
+  {
+    if (existing == serial)
+    {
+      return;
+    }
+  }
+  for (EspUsbHostCdcSerial *&slot : cdcSerials_)
+  {
+    if (!slot)
+    {
+      slot = serial;
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "No CDC serial slots available");
+}
+
+void EspUsbHost::detachCdcSerial(EspUsbHostCdcSerial *serial)
+{
+  for (EspUsbHostCdcSerial *&slot : cdcSerials_)
+  {
+    if (slot == serial)
+    {
+      slot = nullptr;
+    }
+  }
 }
 
 void EspUsbHost::configureVendorSerial(DeviceState &device)
@@ -3091,10 +3124,7 @@ bool EspUsbHostCdcSerial::begin(uint32_t baud)
 
 void EspUsbHostCdcSerial::end()
 {
-  if (host_.cdcSerial_ == this)
-  {
-    host_.attachCdcSerial(nullptr);
-  }
+  host_.detachCdcSerial(this);
 }
 
 bool EspUsbHostCdcSerial::connected() const
