@@ -71,7 +71,7 @@ static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
   case 0x10c4:
     return pid == 0xea60 || pid == 0xea70 || pid == 0xea71;
   case 0x1a86:
-    return pid == 0x5523 || pid == 0x7522 || pid == 0x7523;
+    return pid == 0x5523 || pid == 0x55d3 || pid == 0x7522 || pid == 0x7523;
   case 0x067b:
     return pid == 0x2303 || pid == 0x23a3;
   default:
@@ -126,6 +126,79 @@ static uint32_t readAudioSampleRate24(const uint8_t *data)
   return static_cast<uint32_t>(data[0]) |
          (static_cast<uint32_t>(data[1]) << 8) |
          (static_cast<uint32_t>(data[2]) << 16);
+}
+
+static uint32_t ch34xClockDiv(int prescaler, int factor)
+{
+  return 1UL << (12 - 3 * prescaler - factor);
+}
+
+static uint16_t ch34xBaudValue(uint32_t baud)
+{
+  static constexpr uint32_t CH34X_CLOCK_RATE = 48000000;
+  uint32_t minRates[4];
+  for (int i = 0; i < 4; i++)
+  {
+    minRates[i] = CH34X_CLOCK_RATE / (ch34xClockDiv(i, 1) * 512);
+  }
+
+  const uint32_t minBaud = (CH34X_CLOCK_RATE + ch34xClockDiv(0, 0) * 256 - 1) / (ch34xClockDiv(0, 0) * 256);
+  const uint32_t maxBaud = CH34X_CLOCK_RATE / (ch34xClockDiv(3, 0) * 2);
+  if (baud < minBaud)
+  {
+    baud = minBaud;
+  }
+  else if (baud > maxBaud)
+  {
+    baud = maxBaud;
+  }
+
+  int prescaler = -1;
+  for (int i = 3; i >= 0; i--)
+  {
+    if (baud > minRates[i])
+    {
+      prescaler = i;
+      break;
+    }
+  }
+  if (prescaler < 0)
+  {
+    prescaler = 0;
+  }
+
+  int factor = 1;
+  uint32_t clockDiv = ch34xClockDiv(prescaler, factor);
+  uint32_t divisor = CH34X_CLOCK_RATE / (clockDiv * baud);
+  if (divisor < 9 || divisor > 255)
+  {
+    divisor /= 2;
+    clockDiv *= 2;
+    factor = 0;
+  }
+
+  if (divisor < 2)
+  {
+    divisor = 2;
+  }
+  else if (divisor > 255)
+  {
+    divisor = 255;
+  }
+
+  const uint32_t lowerError = 16 * CH34X_CLOCK_RATE / (clockDiv * divisor) - 16 * baud;
+  const uint32_t higherError = 16 * baud - 16 * CH34X_CLOCK_RATE / (clockDiv * (divisor + 1));
+  if (lowerError >= higherError && divisor < 255)
+  {
+    divisor++;
+  }
+  if (factor == 1 && divisor % 2 == 0)
+  {
+    divisor /= 2;
+    factor = 0;
+  }
+
+  return static_cast<uint16_t>(((0x100 - divisor) << 8) | (factor << 2) | prescaler);
 }
 
 EspUsbHost::EspUsbHost() = default;
@@ -2920,25 +2993,14 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
   }
   else if (device.info.vid == 0x1a86)
   {
-    uint16_t baudReg = 0xd980;
-    if (device.serialBaudRate == 9600)
-    {
-      baudReg = 0xb282;
-    }
-    else if (device.serialBaudRate == 57600)
-    {
-      baudReg = 0x9881;
-    }
-    else if (device.serialBaudRate == 230400)
-    {
-      baudReg = 0xcc83;
-    }
+    const uint16_t baudReg = ch34xBaudValue(device.serialBaudRate);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa1, 0x0000, 0x0000, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x1312, baudReg, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x2518, 0x00c3, nullptr, 0, device.info.address);
+    const uint8_t modemControl = (device.serialDtr ? 0x20 : 0) | (device.serialRts ? 0x40 : 0);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa4,
-                              (device.serialDtr ? 0x0020 : 0) | (device.serialRts ? 0x0040 : 0),
+                              static_cast<uint16_t>(~modemControl),
                               device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
   }
   else if (device.info.vid == 0x067b)

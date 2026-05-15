@@ -38,6 +38,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`vcp_ch34x/`](vcp_ch34x/) | CH34x VCP（VID 0x1A86）経由のTX/RXループバック | CH34xデバイス（CH340など）TXとRXをショート | ✅ |
 | [`vcp_pl2303/`](vcp_pl2303/) | PL2303 VCP（VID 0x067B PID 0x2303）経由のTX/RXループバック | PL2303デバイス TXとRXをショート | ✅ |
 | [`vcp_pl2303gs/`](vcp_pl2303gs/) | PL2303GS VCP（VID 0x067B PID 0x23A3）経由のTX/RXループバック | PL2303GSデバイス TXとRXをショート | ✅ |
+| [`esp32_autoreset/`](esp32_autoreset/) | DTR/RTSによるESP32ターゲットのリセットとROMダウンロードモード確認 | ESP32自動リセット回路へ接続したUSBシリアル変換 | ✅ |
 | [`keyboard_leds/`](keyboard_leds/) | NumLock・CapsLock LEDの目視確認 | インジケーターLED付きUSBキーボード | ✅ |
 | [`multi_hid_keyboard_mouse/`](multi_hid_keyboard_mouse/) | キーボードとマウスを同時接続したとき独立してイベントが届くこと | USBキーボード＋USBマウス | ✅ |
 | [`multi_serial/`](multi_serial/) | `setAddress()` で2台のシリアルデバイスが独立して動作すること | TXとRXをショートしたUSBシリアルデバイス×2 | ✅ |
