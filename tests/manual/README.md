@@ -45,6 +45,19 @@ Available profiles are defined in each test's `sketch.yaml`.
 | `hub_info/` | Displays hub topology info (parent address, port) for a device connected through a USB hub | USB hub + any USB device | 📋 planned |
 | `hub_power/` | Per-port power control — turn hub ports on/off and verify devices connect/disconnect accordingly | USB hub with per-port power switching | 📋 planned |
 
+## ESP32-S3 HCD Channel Limits
+
+ESP32-S3 has 8 USB host channels (`OTG_NUM_HOST_CHAN`). When several devices are connected through a USB hub, ESP-IDF may fail to allocate enough host channels for all claimed interfaces. Because the exact channel use depends on the hub and device descriptors, this document records only combinations that have been observed with this test suite.
+
+Observed `multi_serial` results on ESP32-S3 through a USB hub:
+
+| Combination | Result | Notes |
+|-------------|--------|-------|
+| FTDI + CP210x | PASS | Both loopback ports passed |
+| FTDI + CH34x | FAIL | Endpoint allocation failed with HCD channel exhaustion |
+
+If the log contains `No more HCD channels available`, `EP Alloc error: ESP_ERR_NOT_SUPPORTED`, or `Claiming interface error: ESP_ERR_NOT_SUPPORTED`, the selected device mix exceeded the available ESP32-S3 host-channel resources in that setup. Test one serial device at a time or use a different hardware setup.
+
 ## Test results
 
 Manual test results are saved automatically by `--save-state` to:
