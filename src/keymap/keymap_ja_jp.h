@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-static const uint8_t KEYCODE_TO_ASCII_JA_JP[128][2] = {
+static const uint8_t KEYCODE_TO_ASCII_JA_JP[0x90][2] = {
     {0, 0},           // 0x00 (no event)
     {0, 0},           // 0x01 (error rollover)
     {0, 0},           // 0x02 (POST fail)
@@ -107,4 +107,44 @@ static const uint8_t KEYCODE_TO_ASCII_JA_JP[128][2] = {
     {0, 0},           // 0x65 Application (Menu)
     {0, 0},           // 0x66 Power
     {'=', '='},       // 0x67 KP =
+    {0, 0},           // 0x68
+    {0, 0},           // 0x69
+    {0, 0},           // 0x6a
+    {0, 0},           // 0x6b
+    {0, 0},           // 0x6c
+    {0, 0},           // 0x6d
+    {0, 0},           // 0x6e
+    {0, 0},           // 0x6f
+    {0, 0},           // 0x70
+    {0, 0},           // 0x71
+    {0, 0},           // 0x72
+    {0, 0},           // 0x73
+    {0, 0},           // 0x74
+    {0, 0},           // 0x75
+    {0, 0},           // 0x76
+    {0, 0},           // 0x77
+    {0, 0},           // 0x78
+    {0, 0},           // 0x79
+    {0, 0},           // 0x7a
+    {0, 0},           // 0x7b
+    {0, 0},           // 0x7c
+    {0, 0},           // 0x7d
+    {0, 0},           // 0x7e
+    {0, 0},           // 0x7f
+    {0, 0},           // 0x80
+    {0, 0},           // 0x81
+    {0, 0},           // 0x82
+    {0, 0},           // 0x83
+    {0, 0},           // 0x84
+    {0, 0},           // 0x85 International 1
+    {0, 0},           // 0x86 International 2 (かたかな/ひらがな)
+    {'\\', '_'},      // 0x87 International 3 (ろ / \ key)
+    {0, 0},           // 0x88 International 4 (変換/Henkan)
+    {'\\', '|'},      // 0x89 International 5 (¥ / | key, treated as \ in ASCII)
+    {0, 0},           // 0x8a International 6 (無変換/Muhenkan)
+    {0, 0},           // 0x8b
+    {0, 0},           // 0x8c
+    {0, 0},           // 0x8d
+    {0, 0},           // 0x8e
+    {0, 0},           // 0x8f
 };
