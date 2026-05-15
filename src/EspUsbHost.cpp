@@ -26,6 +26,12 @@ static constexpr uint8_t HID_SET_REPORT_REQUEST_TYPE = 0x21;
 static constexpr uint8_t CDC_CLASS_REQUEST_SET_LINE_CODING = 0x20;
 static constexpr uint8_t CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE = 0x22;
 static constexpr uint8_t CDC_SET_REQUEST_TYPE = 0x21;
+static constexpr uint8_t USB_REQUEST_CLEAR_FEATURE = 0x01;
+static constexpr uint8_t USB_REQUEST_GET_STATUS = 0x00;
+static constexpr uint8_t USB_REQUEST_SET_FEATURE = 0x03;
+static constexpr uint8_t USB_HUB_PORT_REQUEST_TYPE = 0x23;
+static constexpr uint8_t USB_HUB_PORT_IN_REQUEST_TYPE = 0xa3;
+static constexpr uint16_t USB_HUB_FEATURE_PORT_POWER = 0x0008;
 static constexpr uint8_t VENDOR_OUT_REQUEST_TYPE = 0x40;
 static constexpr uint8_t VENDOR_INTERFACE_OUT_REQUEST_TYPE = 0x41;
 static constexpr uint8_t VENDOR_IN_REQUEST_TYPE = 0xc0;
@@ -199,6 +205,22 @@ static uint16_t ch34xBaudValue(uint32_t baud)
   }
 
   return static_cast<uint16_t>(((0x100 - divisor) << 8) | (factor << 2) | prescaler);
+}
+
+struct HubControlTransferContext
+{
+  volatile bool done = false;
+  usb_transfer_status_t status = USB_TRANSFER_STATUS_ERROR;
+};
+
+static void hubControlTransferCallback(usb_transfer_t *transfer)
+{
+  HubControlTransferContext *context = static_cast<HubControlTransferContext *>(transfer->context);
+  if (context)
+  {
+    context->status = transfer->status;
+    context->done = true;
+  }
 }
 
 EspUsbHost::EspUsbHost() = default;
@@ -458,6 +480,226 @@ bool EspUsbHost::getKeyboardScrollLock(uint8_t address) const
 {
   const DeviceState *device = findKeyboardDevice(address);
   return device ? device->keyboardScrollLock : false;
+}
+
+bool EspUsbHost::setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable)
+{
+  if (!running_ || !clientHandle_)
+  {
+    ESP_LOGW(TAG, "setHubPortPower() called before USB Host is ready");
+    return false;
+  }
+  if (hubAddress == 0 || port == 0)
+  {
+    ESP_LOGW(TAG, "setHubPortPower() invalid hubAddress=%u port=%u", hubAddress, port);
+    return false;
+  }
+
+  usb_device_handle_t hubHandle = nullptr;
+  DeviceState *knownHub = findDevice(hubAddress);
+  const bool openedTemporarily = !(knownHub && knownHub->handle);
+  if (openedTemporarily)
+  {
+    esp_err_t err = usb_host_device_open(clientHandle_, hubAddress, &hubHandle);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_device_open(hub=%u) failed: %s", hubAddress, esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
+  }
+  else
+  {
+    hubHandle = knownHub->handle;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(hub control) failed: %s", esp_err_to_name(err));
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    setLastError(err);
+    return false;
+  }
+
+  HubControlTransferContext *context = new HubControlTransferContext();
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_HUB_PORT_REQUEST_TYPE;
+  setup->bRequest = enable ? USB_REQUEST_SET_FEATURE : USB_REQUEST_CLEAR_FEATURE;
+  setup->wValue = USB_HUB_FEATURE_PORT_POWER;
+  setup->wIndex = port;
+  setup->wLength = 0;
+
+  transfer->device_handle = hubHandle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = hubControlTransferCallback;
+  transfer->context = context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(HUB port power) failed: %s", esp_err_to_name(err));
+    usb_host_transfer_free(transfer);
+    delete context;
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    setLastError(err);
+    return false;
+  }
+
+  const uint32_t deadline = millis() + 1000;
+  while (!context->done && millis() < deadline)
+  {
+    delay(1);
+  }
+
+  const bool done = context->done;
+  const usb_transfer_status_t transferStatus = context->status;
+  const bool ok = done && transferStatus == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "HUB port power request timed out hub=%u port=%u enable=%u", hubAddress, port, enable ? 1 : 0);
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+  else if (!ok)
+  {
+    ESP_LOGW(TAG, "HUB port power request failed status=%d hub=%u port=%u enable=%u",
+             transferStatus,
+             hubAddress,
+             port,
+             enable ? 1 : 0);
+    setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  delete context;
+  if (openedTemporarily)
+  {
+    usb_host_device_close(clientHandle_, hubHandle);
+  }
+  return ok;
+}
+
+bool EspUsbHost::getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &status, uint16_t &change)
+{
+  status = 0;
+  change = 0;
+  if (!running_ || !clientHandle_)
+  {
+    ESP_LOGW(TAG, "getHubPortStatus() called before USB Host is ready");
+    return false;
+  }
+  if (hubAddress == 0 || port == 0)
+  {
+    ESP_LOGW(TAG, "getHubPortStatus() invalid hubAddress=%u port=%u", hubAddress, port);
+    return false;
+  }
+
+  usb_device_handle_t hubHandle = nullptr;
+  DeviceState *knownHub = findDevice(hubAddress);
+  const bool openedTemporarily = !(knownHub && knownHub->handle);
+  if (openedTemporarily)
+  {
+    esp_err_t err = usb_host_device_open(clientHandle_, hubAddress, &hubHandle);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_device_open(hub=%u) failed: %s", hubAddress, esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
+  }
+  else
+  {
+    hubHandle = knownHub->handle;
+  }
+
+  static constexpr size_t STATUS_LENGTH = 4;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + STATUS_LENGTH, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(hub status) failed: %s", esp_err_to_name(err));
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    setLastError(err);
+    return false;
+  }
+
+  HubControlTransferContext *context = new HubControlTransferContext();
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_HUB_PORT_IN_REQUEST_TYPE;
+  setup->bRequest = USB_REQUEST_GET_STATUS;
+  setup->wValue = 0;
+  setup->wIndex = port;
+  setup->wLength = STATUS_LENGTH;
+
+  transfer->device_handle = hubHandle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = hubControlTransferCallback;
+  transfer->context = context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + STATUS_LENGTH;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(HUB port status) failed: %s", esp_err_to_name(err));
+    usb_host_transfer_free(transfer);
+    delete context;
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    setLastError(err);
+    return false;
+  }
+
+  const uint32_t deadline = millis() + 1000;
+  while (!context->done && millis() < deadline)
+  {
+    delay(1);
+  }
+
+  const bool done = context->done;
+  const usb_transfer_status_t transferStatus = context->status;
+  const bool ok = done && transferStatus == USB_TRANSFER_STATUS_COMPLETED;
+  if (ok)
+  {
+    const uint8_t *data = transfer->data_buffer + USB_SETUP_PACKET_SIZE;
+    status = static_cast<uint16_t>(data[0]) | (static_cast<uint16_t>(data[1]) << 8);
+    change = static_cast<uint16_t>(data[2]) | (static_cast<uint16_t>(data[3]) << 8);
+  }
+  else if (!done)
+  {
+    ESP_LOGW(TAG, "HUB port status request timed out hub=%u port=%u", hubAddress, port);
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+  else
+  {
+    ESP_LOGW(TAG, "HUB port status request failed status=%d hub=%u port=%u",
+             transferStatus,
+             hubAddress,
+             port);
+    setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  delete context;
+  if (openedTemporarily)
+  {
+    usb_host_device_close(clientHandle_, hubHandle);
+  }
+  return ok;
 }
 
 bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
