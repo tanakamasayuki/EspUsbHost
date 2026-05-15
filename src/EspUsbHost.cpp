@@ -28,6 +28,9 @@ static constexpr uint8_t CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE = 0x22;
 static constexpr uint8_t CDC_SET_REQUEST_TYPE = 0x21;
 static constexpr uint8_t VENDOR_OUT_REQUEST_TYPE = 0x40;
 static constexpr uint8_t VENDOR_INTERFACE_OUT_REQUEST_TYPE = 0x41;
+static constexpr uint8_t VENDOR_IN_REQUEST_TYPE = 0xc0;
+static constexpr uint8_t VENDOR_READ_REQUEST = 0x01;
+static constexpr uint8_t VENDOR_WRITE_REQUEST = 0x01;
 static constexpr uint8_t MIDI_CIN_SYSEX_START = 0x04;
 static constexpr uint8_t MIDI_CIN_SYSEX_END_1BYTE = 0x05;
 static constexpr uint8_t MIDI_CIN_SYSEX_END_2BYTE = 0x06;
@@ -69,6 +72,8 @@ static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
     return pid == 0xea60 || pid == 0xea70 || pid == 0xea71;
   case 0x1a86:
     return pid == 0x5523 || pid == 0x7522 || pid == 0x7523;
+  case 0x067b:
+    return pid == 0x2303;
   default:
     return false;
   }
@@ -85,6 +90,8 @@ static const char *vendorSerialName(uint16_t vid)
     return "CP210x";
   case 0x1a86:
     return "CH34x";
+  case 0x067b:
+    return "PL2303";
   default:
     return "vendor";
   }
@@ -2933,6 +2940,37 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa4,
                               (device.serialDtr ? 0x0020 : 0) | (device.serialRts ? 0x0040 : 0),
                               device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+  }
+  else if (device.info.vid == 0x067b)
+  {
+    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0x0000, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0x0000, nullptr, 1, device.info.address);
+    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0x0001, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0x0000, nullptr, 1, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0000, 0x0001, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0001, 0x0000, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0002, 0x0044, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0008, 0x0000, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0009, 0x0000, nullptr, 0, device.info.address);
+
+    uint8_t lineCoding[7] = {
+        static_cast<uint8_t>(device.serialBaudRate & 0xff),
+        static_cast<uint8_t>((device.serialBaudRate >> 8) & 0xff),
+        static_cast<uint8_t>((device.serialBaudRate >> 16) & 0xff),
+        static_cast<uint8_t>((device.serialBaudRate >> 24) & 0xff),
+        0x00,
+        0x00,
+        0x08};
+    submitVendorSerialControl(CDC_SET_REQUEST_TYPE, CDC_CLASS_REQUEST_SET_LINE_CODING,
+                              0x0000, 0x0000,
+                              lineCoding, sizeof(lineCoding), device.info.address);
+    submitVendorSerialControl(CDC_SET_REQUEST_TYPE, CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE,
+                              (device.serialDtr ? 0x0001 : 0) | (device.serialRts ? 0x0002 : 0),
+                              0x0000, nullptr, 0, device.info.address);
   }
 }
 
