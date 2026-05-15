@@ -432,6 +432,9 @@ private:
     bool keyboardNumLock = true;
     bool keyboardCapsLock = false;
     bool keyboardScrollLock = false;
+    bool keyboardLedPending = false;
+    bool keyboardLedDirty = false;
+    uint8_t keyboardLedLastSent = 0;
     bool hasVendorInterface = false;
     uint8_t vendorInterfaceNumber = 0;
     bool hasVendorOutEndpoint = false;
