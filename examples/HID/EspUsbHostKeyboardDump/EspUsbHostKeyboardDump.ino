@@ -40,7 +40,7 @@ void setup()
 
   usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
                  {
-    char displayChar = (event.ascii >= 0x20 && event.ascii <= 0x7e) ? (char)event.ascii : '.';
+    char displayChar = (event.ascii >= 0x20 && event.ascii != 0x7F) ? (char)event.ascii : '.';
     Serial.printf("[%s] keycode=0x%02x ascii=0x%02x(%c) modifiers=",
                   event.pressed ? "press  " : "release",
                   event.keycode,
