@@ -135,6 +135,27 @@ struct EspUsbHostHubInfo
   uint8_t rawDescriptor[32] = {};
 };
 
+struct EspUsbHostDeviceProbeInfo
+{
+  uint8_t address = 0;
+  bool openOk = false;
+  bool deviceInfoOk = false;
+  bool deviceDescriptorOk = false;
+  bool configDescriptorOk = false;
+  bool hubDescriptorOk = false;
+  uint8_t parentAddress = 0;
+  uint8_t parentPort = 0;
+  uint8_t speed = 0;
+  uint16_t vid = 0;
+  uint16_t pid = 0;
+  uint8_t deviceClass = 0;
+  uint8_t deviceSubClass = 0;
+  uint8_t deviceProtocol = 0;
+  uint8_t interfaceCount = 0;
+  bool configHasHubInterface = false;
+  EspUsbHostHubInfo hub;
+};
+
 struct EspUsbHostInterfaceInfo
 {
   uint8_t number = 0;
@@ -413,6 +434,8 @@ public:
   size_t deviceCount() const;
   size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
   bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
+  size_t getHostDeviceAddresses(uint8_t *addresses, size_t maxAddresses) const;
+  bool probeHostDevice(uint8_t address, EspUsbHostDeviceProbeInfo &probe);
   bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
@@ -517,6 +540,8 @@ private:
   void handleClientEvent(const usb_host_client_event_msg_t *eventMsg);
   void handleNewDevice(uint8_t address);
   void handleDeviceGone(usb_device_handle_t goneHandle);
+  void scanHostDevices();
+  void refreshDeviceTopology(DeviceState &device);
   void parseConfigDescriptor(DeviceState &device, const usb_config_desc_t *configDesc);
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
@@ -585,6 +610,7 @@ private:
   uint32_t defaultSerialBaudRate_ = 115200;
   uint32_t defaultAudioSampleRate_ = 48000;
   uint8_t nextHubIndex_ = 1;
+  uint32_t lastHostDeviceScanMs_ = 0;
 
   EndpointState endpoints_[16];
   uint8_t currentInterfaceNumber_ = 0;
