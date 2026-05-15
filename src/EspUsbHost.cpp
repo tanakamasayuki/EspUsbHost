@@ -423,12 +423,22 @@ bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
 
 bool EspUsbHost::sendKeyboardLedReport(DeviceState &device, uint8_t leds)
 {
-  return sendHIDReport(device.keyboardInterfaceNumber,
-                       ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
-                       0,
-                       &leds,
-                       sizeof(leds),
-                       device.info.address);
+  if (device.keyboardLedPending)
+  {
+    return false;
+  }
+  if (sendHIDReport(device.keyboardInterfaceNumber,
+                    ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
+                    0,
+                    &leds,
+                    sizeof(leds),
+                    device.info.address))
+  {
+    device.keyboardLedPending = true;
+    device.keyboardLedLastSent = leds;
+    return true;
+  }
+  return false;
 }
 
 bool EspUsbHost::sendVendorOutput(const uint8_t *data, size_t length, uint8_t address)
@@ -1007,11 +1017,23 @@ void EspUsbHost::clientTaskLoop()
 {
   while (running_)
   {
-    esp_err_t err = usb_host_client_handle_events(clientHandle_, portMAX_DELAY);
+    esp_err_t err = usb_host_client_handle_events(clientHandle_, pdMS_TO_TICKS(5));
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT)
     {
       ESP_LOGW(TAG, "usb_host_client_handle_events() failed: %s", esp_err_to_name(err));
       setLastError(err);
+    }
+    for (DeviceState &device : devices_)
+    {
+      if (!device.inUse || !device.hasKeyboardInterface || !device.keyboardLedDirty || device.keyboardLedPending)
+      {
+        continue;
+      }
+      uint8_t leds = espUsbHostBuildKeyboardLedReport(device.keyboardNumLock,
+                                                      device.keyboardCapsLock,
+                                                      device.keyboardScrollLock);
+      device.keyboardLedDirty = false;
+      sendKeyboardLedReport(device, leds);
     }
   }
   clientTaskHandle_ = nullptr;
@@ -1777,6 +1799,15 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
     setInterfaceNumber = setup->wIndex & 0xff;
   }
 
+  bool isLedSetReport = false;
+  if (transfer->data_buffer && transfer->num_bytes >= USB_SETUP_PACKET_SIZE)
+  {
+    const usb_setup_packet_t *setup = reinterpret_cast<const usb_setup_packet_t *>(transfer->data_buffer);
+    isLedSetReport = (setup->bmRequestType == HID_SET_REPORT_REQUEST_TYPE &&
+                      setup->bRequest == HID_CLASS_REQUEST_SET_REPORT &&
+                      (setup->wValue >> 8) == ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT);
+  }
+
   if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
   {
     if (host && isSetInterface)
@@ -1792,6 +1823,26 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
       host->setLastError(ESP_FAIL);
     }
   }
+
+  if (host && isLedSetReport)
+  {
+    DeviceState *device = host->findDeviceByHandle(deviceHandle);
+    if (device && device->hasKeyboardInterface)
+    {
+      device->keyboardLedPending = false;
+      if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+      {
+        uint8_t currentLeds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
+                                                                device->keyboardCapsLock,
+                                                                device->keyboardScrollLock);
+        if (currentLeds != device->keyboardLedLastSent)
+        {
+          device->keyboardLedDirty = true;
+        }
+      }
+    }
+  }
+
   usb_host_transfer_free(transfer);
 }
 
@@ -2028,10 +2079,7 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
     }
     if (ledChanged)
     {
-      uint8_t leds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
-                                                      device->keyboardCapsLock,
-                                                      device->keyboardScrollLock);
-      sendKeyboardLedReport(*device, leds);
+      device->keyboardLedDirty = true;
     }
   }
 
