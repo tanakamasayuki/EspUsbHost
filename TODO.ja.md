@@ -1,3 +1,18 @@
+# test失敗
+
+uv run --env-file .env pytest -v -s manual/multi_serial/multi_serial.py
+
+Device 1 connected: address=2 vid=10c4
+E (12156) HCD DWC: No more HCD channels available
+E (12156) USBH: EP Alloc error: ESP_ERR_NOT_SUPPORTED
+E (12156) USB HOST: EP allocation error ESP_ERR_NOT_SUPPORTED
+E (12160) USB HOST: Claiming interface error: ESP_ERR_NOT_SUPPORTED
+Device 2 connected: address=3 vid=1a86
+Both devices assigned
+Serial1: FAIL
+Serial2: FAIL
+[FAIL]
+
 # キーボード
 
 LEDまわりをライブラリ側で管理する

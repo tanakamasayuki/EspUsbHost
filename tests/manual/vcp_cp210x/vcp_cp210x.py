@@ -26,4 +26,4 @@ def test_loopback(dut):
     Expected result (pass):  Sketch prints "[PASS]" after loopback data matches.
     Expected result (fail):  "[FAIL]" with received byte count, or timeout.
     """
-    dut.expect(r"\[PASS\]", timeout=30)
+    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=30) == b"[PASS]"
