@@ -40,11 +40,11 @@ static EspUsbHostKeyboardReport report(uint8_t modifier,
 
 static void testKeycodeToAscii()
 {
-  check(espUsbHostKeycodeToAscii(0x04, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == 'A', "key_us_shift_a");
-  check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == '@', "key_us_shift_2");
-  check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JP) == '"', "key_jp_shift_2");
-  check(espUsbHostKeycodeToAscii(0x59, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JP) == '1', "keypad_1_shift_ignored");
-  check(espUsbHostKeycodeToAscii(0x63, 0x00, ESP_USB_HOST_KEYBOARD_LAYOUT_US) == '.', "keypad_dot");
+  check(espUsbHostKeycodeToAscii(0x04, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US) == 'A', "key_us_shift_a");
+  check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US) == '@', "key_us_shift_2");
+  check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP) == '"', "key_jp_shift_2");
+  check(espUsbHostKeycodeToAscii(0x59, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP) == '1', "keypad_1_shift_ignored");
+  check(espUsbHostKeycodeToAscii(0x63, 0x00, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US) == '.', "keypad_dot");
 }
 
 static void testKeyboardReportValidation()
@@ -64,15 +64,15 @@ static void testKeyboardDiff()
 
   EspUsbHostKeyboardReport pressA = report(0, 0x04);
   EspUsbHostKeyboardReport pressAB = report(0, 0x04, 0x05);
-  size_t count = espUsbHostBuildKeyboardEvents(1, pressA, pressAB, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  size_t count = espUsbHostBuildKeyboardEvents(1, pressA, pressAB, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].pressed && events[0].keycode == 0x05 && events[0].ascii == 'b', "keyboard_press_b_while_a_held");
 
-  count = espUsbHostBuildKeyboardEvents(1, pressAB, pressA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  count = espUsbHostBuildKeyboardEvents(1, pressAB, pressA, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].released && events[0].keycode == 0x05, "keyboard_release_b");
 
   EspUsbHostKeyboardReport empty = report(0, 0);
   EspUsbHostKeyboardReport shiftA = report(0x02, 0x04);
-  count = espUsbHostBuildKeyboardEvents(1, empty, shiftA, ESP_USB_HOST_KEYBOARD_LAYOUT_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  count = espUsbHostBuildKeyboardEvents(1, empty, shiftA, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].pressed && events[0].ascii == 'A' && events[0].modifiers == 0x02, "keyboard_shift_a");
 }
 

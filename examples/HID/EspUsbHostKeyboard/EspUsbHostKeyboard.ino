@@ -16,7 +16,7 @@ void setup()
   Serial.begin(115200);
   delay(500);
 
-  usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JP);
+  usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP);
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
