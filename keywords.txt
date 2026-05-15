@@ -44,6 +44,9 @@ espUsbHostAudioStreamMatchesPcm	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2
+getKeyboardNumLock	KEYWORD2
+getKeyboardCapsLock	KEYWORD2
+getKeyboardScrollLock	KEYWORD2
 lastError	KEYWORD2
 lastErrorName	KEYWORD2
 
