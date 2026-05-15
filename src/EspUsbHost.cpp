@@ -1029,11 +1029,36 @@ void EspUsbHost::clientTaskLoop()
       {
         continue;
       }
+      if (millis() - device.keyboardLedDirtyTimeMs < 20)
+      {
+        continue;
+      }
       uint8_t leds = espUsbHostBuildKeyboardLedReport(device.keyboardNumLock,
                                                       device.keyboardCapsLock,
                                                       device.keyboardScrollLock);
       device.keyboardLedDirty = false;
       sendKeyboardLedReport(device, leds);
+    }
+    for (EndpointState &ep : endpoints_)
+    {
+      if (!ep.inUse || !ep.resubmitAfterLed)
+      {
+        continue;
+      }
+      DeviceState *dev = findDeviceByHandle(ep.deviceHandle);
+      if (dev && (dev->keyboardLedDirty || dev->keyboardLedPending))
+      {
+        continue;
+      }
+      ep.resubmitAfterLed = false;
+      if (ep.transfer && running_ && ep.deviceHandle)
+      {
+        esp_err_t resubErr = usb_host_transfer_submit(ep.transfer);
+        if (resubErr != ESP_OK && resubErr != ESP_ERR_INVALID_STATE && resubErr != ESP_ERR_NOT_FINISHED)
+        {
+          ESP_LOGD(TAG, "usb_host_transfer_submit(after LED) failed: %s", esp_err_to_name(resubErr));
+        }
+      }
     }
   }
   clientTaskHandle_ = nullptr;
@@ -2006,11 +2031,21 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
         transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
       }
     }
-    esp_err_t err = usb_host_transfer_submit(transfer);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE && err != ESP_ERR_NOT_FINISHED)
+    const bool isKeyboardEndpoint = device &&
+                                    device->hasKeyboardInterface &&
+                                    endpoint->interfaceNumber == device->keyboardInterfaceNumber;
+    if (isKeyboardEndpoint && device->keyboardLedDirty)
     {
-      ESP_LOGD(TAG, "usb_host_transfer_submit() failed: %s", esp_err_to_name(err));
-      setLastError(err);
+      endpoint->resubmitAfterLed = true;
+    }
+    else
+    {
+      esp_err_t err = usb_host_transfer_submit(transfer);
+      if (err != ESP_OK && err != ESP_ERR_INVALID_STATE && err != ESP_ERR_NOT_FINISHED)
+      {
+        ESP_LOGD(TAG, "usb_host_transfer_submit() failed: %s", esp_err_to_name(err));
+        setLastError(err);
+      }
     }
   }
 }
@@ -2080,6 +2115,7 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
     if (ledChanged)
     {
       device->keyboardLedDirty = true;
+      device->keyboardLedDirtyTimeMs = millis();
     }
   }
 

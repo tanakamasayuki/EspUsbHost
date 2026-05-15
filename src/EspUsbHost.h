@@ -411,6 +411,7 @@ private:
     uint8_t interfaceProtocol = 0;
     usb_transfer_t *transfer = nullptr;
     bool transferSubmitted = false;
+    bool resubmitAfterLed = false;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
     uint8_t lastMouseButtons = 0;
@@ -434,6 +435,7 @@ private:
     bool keyboardScrollLock = false;
     bool keyboardLedPending = false;
     bool keyboardLedDirty = false;
+    uint32_t keyboardLedDirtyTimeMs = 0;
     uint8_t keyboardLedLastSent = 0;
     bool hasVendorInterface = false;
     uint8_t vendorInterfaceNumber = 0;
