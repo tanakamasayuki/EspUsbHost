@@ -14,7 +14,7 @@ static void updateLeds()
 void setup()
 {
   Serial.begin(115200);
-  delay(500);
+  delay(5000);
 
   usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP);
 
