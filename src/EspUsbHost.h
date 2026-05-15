@@ -142,6 +142,9 @@ struct EspUsbHostKeyboardEvent
   uint8_t keycode = 0;
   uint8_t ascii = 0;
   uint8_t modifiers = 0;
+  bool numLock = false;
+  bool capsLock = false;
+  bool scrollLock = false;
 };
 
 struct EspUsbHostMouseEvent
@@ -381,6 +384,9 @@ public:
   bool midiSendPitchBendSigned(uint8_t channel, int16_t value, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendSysEx(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t deviceCount() const;
   size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
   bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
@@ -423,6 +429,9 @@ private:
     String serial;
     bool hasKeyboardInterface = false;
     uint8_t keyboardInterfaceNumber = 0;
+    bool keyboardNumLock = false;
+    bool keyboardCapsLock = false;
+    bool keyboardScrollLock = false;
     bool hasVendorInterface = false;
     uint8_t vendorInterfaceNumber = 0;
     bool hasVendorOutEndpoint = false;
@@ -507,6 +516,7 @@ private:
   const DeviceState *findAudioOutputDevice(uint8_t address) const;
   const DeviceState *findAudioDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);
+  const DeviceState *findKeyboardDevice(uint8_t address) const;
   DeviceState *findVendorDevice(uint8_t address);
   void releaseEndpoints(DeviceState &device, bool clearEndpoints);
   void releaseAllEndpoints(bool clearEndpoints);

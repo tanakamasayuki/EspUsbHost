@@ -20,7 +20,7 @@
 static constexpr uint8_t MOD_LEFT_SHIFT = 0x02;
 static constexpr uint8_t MOD_RIGHT_SHIFT = 0x20;
 
-uint8_t espUsbHostKeypadKeycodeToAscii(uint8_t keycode)
+uint8_t espUsbHostKeypadKeycodeToAscii(uint8_t keycode, bool numLock)
 {
   switch (keycode)
   {
@@ -34,6 +34,17 @@ uint8_t espUsbHostKeypadKeycodeToAscii(uint8_t keycode)
     return '+';
   case 0x58:
     return '\r';
+  case 0x67:
+    return '=';
+  default:
+    break;
+  }
+  if (!numLock)
+  {
+    return 0;
+  }
+  switch (keycode)
+  {
   case 0x59:
     return '1';
   case 0x5a:
@@ -56,8 +67,6 @@ uint8_t espUsbHostKeypadKeycodeToAscii(uint8_t keycode)
     return '0';
   case 0x63:
     return '.';
-  case 0x67:
-    return '=';
   default:
     return 0;
   }
@@ -83,19 +92,19 @@ bool espUsbHostIsBootKeyboardReportValid(const uint8_t *data, size_t length)
   return true;
 }
 
-uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout)
+uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout, bool capsLock, bool numLock)
 {
   if (keycode >= 128)
   {
     return 0;
   }
-  const uint8_t keypadAscii = espUsbHostKeypadKeycodeToAscii(keycode);
-  if (keypadAscii)
+  if ((keycode >= 0x54 && keycode <= 0x63) || keycode == 0x67)
   {
-    return keypadAscii;
+    return espUsbHostKeypadKeycodeToAscii(keycode, numLock);
   }
 
   const uint8_t shift = (modifiers & (MOD_LEFT_SHIFT | MOD_RIGHT_SHIFT)) ? 1 : 0;
+  const uint8_t effectiveShift = (keycode >= 0x04 && keycode <= 0x1D) ? (shift ^ (capsLock ? 1 : 0)) : shift;
   const uint8_t (*table)[2];
   switch (layout)
   {
@@ -157,7 +166,7 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
     table = KEYCODE_TO_ASCII_EN_US;
     break;
   }
-  return table[keycode][shift];
+  return table[keycode][effectiveShift];
 }
 
 bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
@@ -288,6 +297,8 @@ size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
                                      const EspUsbHostKeyboardReport &previousReport,
                                      const EspUsbHostKeyboardReport &currentReport,
                                      EspUsbHostKeyboardLayout layout,
+                                     bool capsLock,
+                                     bool numLock,
                                      EspUsbHostKeyboardEvent *events,
                                      size_t maxEvents)
 {
@@ -326,7 +337,7 @@ size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
       event.pressed = true;
       event.released = false;
       event.keycode = key;
-      event.ascii = espUsbHostKeycodeToAscii(key, modifiers, layout);
+      event.ascii = espUsbHostKeycodeToAscii(key, modifiers, layout, capsLock, numLock);
       event.modifiers = modifiers;
     }
   }
@@ -356,7 +367,7 @@ size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
       event.pressed = false;
       event.released = true;
       event.keycode = key;
-      event.ascii = espUsbHostKeycodeToAscii(key, previousReport.data[0], layout);
+      event.ascii = espUsbHostKeycodeToAscii(key, previousReport.data[0], layout, capsLock, numLock);
       event.modifiers = modifiers;
     }
   }

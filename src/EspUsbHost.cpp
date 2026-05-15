@@ -355,8 +355,29 @@ bool EspUsbHost::setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, u
     return false;
   }
 
+  device->keyboardNumLock = numLock;
+  device->keyboardCapsLock = capsLock;
+  device->keyboardScrollLock = scrollLock;
   uint8_t leds = espUsbHostBuildKeyboardLedReport(numLock, capsLock, scrollLock);
   return sendKeyboardLedReport(*device, leds);
+}
+
+bool EspUsbHost::getKeyboardNumLock(uint8_t address) const
+{
+  const DeviceState *device = findKeyboardDevice(address);
+  return device ? device->keyboardNumLock : false;
+}
+
+bool EspUsbHost::getKeyboardCapsLock(uint8_t address) const
+{
+  const DeviceState *device = findKeyboardDevice(address);
+  return device ? device->keyboardCapsLock : false;
+}
+
+bool EspUsbHost::getKeyboardScrollLock(uint8_t address) const
+{
+  const DeviceState *device = findKeyboardDevice(address);
+  return device ? device->keyboardScrollLock : false;
 }
 
 bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
@@ -1950,16 +1971,74 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
     return;
   }
 
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+
   EspUsbHostKeyboardReport previousReport;
   EspUsbHostKeyboardReport currentReport;
   memcpy(previousReport.data, endpoint.lastKeyboardReport, ESP_USB_HOST_BOOT_KEYBOARD_REPORT_SIZE);
   memcpy(currentReport.data, data, ESP_USB_HOST_BOOT_KEYBOARD_REPORT_SIZE);
+
+  // Detect lock key presses (newly pressed = in current but not in previous report)
+  if (device)
+  {
+    const uint8_t *keys = currentReport.data + 2;
+    const uint8_t *lastKeys = previousReport.data + 2;
+    bool ledChanged = false;
+    for (int i = 0; i < 6; i++)
+    {
+      const uint8_t key = keys[i];
+      if (key == 0)
+      {
+        continue;
+      }
+      bool existed = false;
+      for (int j = 0; j < 6; j++)
+      {
+        if (lastKeys[j] == key)
+        {
+          existed = true;
+          break;
+        }
+      }
+      if (!existed)
+      {
+        if (key == HID_KEY_NUM_LOCK)
+        {
+          device->keyboardNumLock = !device->keyboardNumLock;
+          ledChanged = true;
+        }
+        else if (key == HID_KEY_CAPS_LOCK)
+        {
+          device->keyboardCapsLock = !device->keyboardCapsLock;
+          ledChanged = true;
+        }
+        else if (key == HID_KEY_SCROLL_LOCK)
+        {
+          device->keyboardScrollLock = !device->keyboardScrollLock;
+          ledChanged = true;
+        }
+      }
+    }
+    if (ledChanged)
+    {
+      uint8_t leds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
+                                                      device->keyboardCapsLock,
+                                                      device->keyboardScrollLock);
+      sendKeyboardLedReport(*device, leds);
+    }
+  }
+
+  const bool capsLock = device ? device->keyboardCapsLock : false;
+  const bool numLock = device ? device->keyboardNumLock : false;
+  const bool scrollLock = device ? device->keyboardScrollLock : false;
 
   EspUsbHostKeyboardEvent events[ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS];
   const size_t eventCount = espUsbHostBuildKeyboardEvents(endpoint.interfaceNumber,
                                                           previousReport,
                                                           currentReport,
                                                           keyboardLayout_,
+                                                          capsLock,
+                                                          numLock,
                                                           events,
                                                           ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
 
@@ -1971,12 +2050,18 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
   for (size_t i = 0; i < eventCount; i++)
   {
     events[i].address = endpoint.deviceAddress;
-    ESP_LOGD(TAG, "Keyboard %s iface=%u keycode=0x%02x ascii=0x%02x modifiers=0x%02x",
+    events[i].numLock = numLock;
+    events[i].capsLock = capsLock;
+    events[i].scrollLock = scrollLock;
+    ESP_LOGD(TAG, "Keyboard %s iface=%u keycode=0x%02x ascii=0x%02x modifiers=0x%02x caps=%d num=%d scroll=%d",
              events[i].pressed ? "press" : "release",
              events[i].interfaceNumber,
              events[i].keycode,
              events[i].ascii,
-             events[i].modifiers);
+             events[i].modifiers,
+             capsLock,
+             numLock,
+             scrollLock);
     if (keyboardCallback_)
     {
       keyboardCallback_(events[i]);
@@ -2385,7 +2470,12 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioDevice(uint8_t address) cons
 
 EspUsbHost::DeviceState *EspUsbHost::findKeyboardDevice(uint8_t address)
 {
-  for (DeviceState &device : devices_)
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findKeyboardDevice(address));
+}
+
+const EspUsbHost::DeviceState *EspUsbHost::findKeyboardDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
   {
     if (!device.inUse || !device.handle || !device.hasKeyboardInterface)
     {
