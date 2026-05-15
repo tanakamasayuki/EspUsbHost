@@ -3,6 +3,14 @@
 
 EspUsbHost usb;
 
+static bool printedInitialTopology = false;
+static uint32_t lastDeviceEventMs = 0;
+
+static const char *yesNo(bool value)
+{
+  return value ? "yes" : "no";
+}
+
 static const char *speedName(usb_speed_t speed)
 {
   switch (speed)
@@ -45,6 +53,27 @@ static const char *className(uint8_t cls)
   }
 }
 
+static const char *configAttributeName(uint8_t attributes)
+{
+  if (attributes & 0x40)
+  {
+    return "self-powered";
+  }
+  return "bus-powered";
+}
+
+static void printHexBytes(const uint8_t *data, size_t length)
+{
+  for (size_t i = 0; i < length; i++)
+  {
+    Serial.printf("%02x", data[i]);
+    if (i + 1 < length)
+    {
+      Serial.print(" ");
+    }
+  }
+}
+
 static const char *transferTypeName(uint8_t attributes)
 {
   switch (attributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK)
@@ -62,6 +91,73 @@ static const char *transferTypeName(uint8_t attributes)
   }
 }
 
+static void printHubPortStatus(uint8_t hubAddress, uint8_t port)
+{
+  uint16_t status = 0;
+  uint16_t change = 0;
+  if (!usb.getHubPortStatus(hubAddress, port, status, change))
+  {
+    Serial.printf("  Port %u status unavailable\n", port);
+    return;
+  }
+
+  Serial.printf("  Port %u status=0x%04x change=0x%04x connected=%s enabled=%s suspended=%s over_current=%s reset=%s powered=%s low_speed=%s high_speed=%s test=%s indicator=%s\n",
+                port,
+                status,
+                change,
+                yesNo(status & 0x0001),
+                yesNo(status & 0x0002),
+                yesNo(status & 0x0004),
+                yesNo(status & 0x0008),
+                yesNo(status & 0x0010),
+                yesNo(status & 0x0100),
+                yesNo(status & 0x0200),
+                yesNo(status & 0x0400),
+                yesNo(status & 0x0800),
+                yesNo(status & 0x1000));
+}
+
+static void printHubInfo(uint8_t hubAddress, bool printPorts)
+{
+  EspUsbHostHubInfo hub;
+  if (!usb.getHubInfo(hubAddress, hub))
+  {
+    Serial.printf("Hub address=%u descriptor unavailable\n", hubAddress);
+    return;
+  }
+
+  Serial.println("----------- USB Hub -----------");
+  Serial.printf("Hub address=%u ports=%u descriptor_len=%u characteristics=0x%04x\n",
+                hub.address,
+                hub.portCount,
+                hub.descriptorLength,
+                hub.characteristics);
+  Serial.printf("Power switching: per-port=%s ganged=%s none=%s\n",
+                yesNo(hub.perPortPowerSwitching),
+                yesNo(hub.gangedPowerSwitching),
+                yesNo(hub.noPowerSwitching));
+  Serial.printf("Over-current: per-port=%s ganged=%s none=%s\n",
+                yesNo(hub.perPortOverCurrent),
+                yesNo(hub.gangedOverCurrent),
+                yesNo(hub.noOverCurrent));
+  Serial.printf("Compound=%s power_on_to_good=%ums controller_current=%umA\n",
+                yesNo(hub.compound),
+                hub.powerOnToPowerGoodMs,
+                hub.controllerCurrentMa);
+  Serial.print("Raw hub descriptor: ");
+  printHexBytes(hub.rawDescriptor, hub.descriptorLength);
+  Serial.println();
+
+  if (printPorts)
+  {
+    for (uint8_t port = 1; port <= hub.portCount; port++)
+    {
+      printHubPortStatus(hub.address, port);
+    }
+  }
+  Serial.println("--------- USB Hub End ---------");
+}
+
 static void printDevice(uint8_t address)
 {
   EspUsbHostDeviceInfo device;
@@ -76,7 +172,7 @@ static void printDevice(uint8_t address)
   Serial.printf("Address %u portId=0x%02x", device.address, device.portId);
   if (device.parentAddress)
   {
-    Serial.printf(" parent=%u", device.parentAddress);
+    Serial.printf(" parent=%u upstream_port=%u", device.parentAddress, device.portId & 0x0f);
   }
   else
   {
@@ -91,8 +187,12 @@ static void printDevice(uint8_t address)
                 device.deviceSubClass,
                 device.deviceProtocol);
   Serial.printf("Supported=%s hub=%s\n",
-                device.supported ? "yes" : "no",
-                device.isHub ? "yes" : "no");
+                yesNo(device.supported),
+                yesNo(device.isHub));
+  if (!device.supported)
+  {
+    Serial.println("Note: unsupported by this library, but descriptors are available for inspection.");
+  }
   Serial.printf("USB %x.%02x device %x.%02x ep0=%u\n",
                 device.usbVersion >> 8,
                 device.usbVersion & 0xff,
@@ -103,31 +203,18 @@ static void printDevice(uint8_t address)
                 device.manufacturer,
                 device.product,
                 device.serial);
-  Serial.printf("Configuration value=%u interfaces=%u total_len=%u attributes=0x%02x max_power=%umA\n",
+  Serial.printf("Configuration value=%u interfaces=%u total_len=%u attributes=0x%02x(%s remote_wakeup=%s) max_power=%umA\n",
                 device.configurationValue,
                 device.configurationInterfaceCount,
                 device.configurationTotalLength,
                 device.configurationAttributes,
+                configAttributeName(device.configurationAttributes),
+                yesNo(device.configurationAttributes & 0x20),
                 device.configurationMaxPower * 2);
 
-  if (device.isHub || device.address == 1)
+  if (device.isHub)
   {
-    EspUsbHostHubInfo hub;
-    if (usb.getHubInfo(device.address, hub))
-    {
-      Serial.printf("Hub ports=%u characteristics=0x%04x ppps=%s ganged_power=%s no_power_switch=%s compound=%s per_port_oc=%s ganged_oc=%s no_oc=%s pgood=%ums current=%umA\n",
-                    hub.portCount,
-                    hub.characteristics,
-                    hub.perPortPowerSwitching ? "yes" : "no",
-                    hub.gangedPowerSwitching ? "yes" : "no",
-                    hub.noPowerSwitching ? "yes" : "no",
-                    hub.compound ? "yes" : "no",
-                    hub.perPortOverCurrent ? "yes" : "no",
-                    hub.gangedOverCurrent ? "yes" : "no",
-                    hub.noOverCurrent ? "yes" : "no",
-                    hub.powerOnToPowerGoodMs,
-                    hub.controllerCurrentMa);
-    }
+    printHubInfo(device.address, true);
   }
 
   EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
@@ -165,17 +252,24 @@ static void printDevice(uint8_t address)
 
 static void printAllDevices()
 {
+  Serial.println();
+  Serial.println("=========== USB Topology ===========");
+  printHubInfo(1, true);
+
   EspUsbHostDeviceInfo devices[ESP_USB_HOST_MAX_DEVICES];
   const size_t count = usb.getDevices(devices, ESP_USB_HOST_MAX_DEVICES);
+  Serial.printf("Tracked devices=%u\n", (unsigned)count);
   if (count == 0)
   {
     Serial.println("No USB devices");
+    Serial.println("========= USB Topology End =========");
     return;
   }
   for (size_t i = 0; i < count; i++)
   {
     printDevice(devices[i].address);
   }
+  Serial.println("========= USB Topology End =========");
 }
 
 void setup()
@@ -183,15 +277,17 @@ void setup()
   Serial.begin(115200);
   delay(500);
   Serial.println("EspUsbHostDeviceInfo start");
-  Serial.println("Press 'r' to reprint connected devices.");
+  Serial.println("Press 'r' to reprint connected devices and hub status.");
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
+                          lastDeviceEventMs = millis();
                           Serial.printf("CONNECTED address=%u\n", device.address);
                           printDevice(device.address);
                         });
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
+                             lastDeviceEventMs = millis();
                              Serial.printf("DISCONNECTED address=%u vid=%04x pid=%04x\n",
                                            device.address,
                                            device.vid,
@@ -202,12 +298,18 @@ void setup()
   {
     Serial.printf("usb.begin failed: %s\n", usb.lastErrorName());
   }
+  lastDeviceEventMs = millis();
 }
 
 void loop()
 {
   if (Serial.available() > 0 && Serial.read() == 'r')
   {
+    printAllDevices();
+  }
+  if (!printedInitialTopology && millis() - lastDeviceEventMs > 2000)
+  {
+    printedInitialTopology = true;
     printAllDevices();
   }
   delay(10);
