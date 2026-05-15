@@ -190,7 +190,31 @@ bool sendVendorFeature(const uint8_t *data, size_t length,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
-Keyboard layout constants: `ESP_USB_HOST_KEYBOARD_LAYOUT_US`, `ESP_USB_HOST_KEYBOARD_LAYOUT_JP`.
+The default layout is `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US`. Pass any of the following constants to `setKeyboardLayout()`:
+
+| Constant | Locale | Notes |
+|----------|--------|-------|
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_TW` | zh_TW | Traditional Chinese — US QWERTY symbols |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_DA_DK` | da_DK | Danish |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE` | de_DE | German QWERTZ |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US` | en_US | English US (**default**) |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_FI_FI` | fi_FI | Finnish |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_FR_FR` | fr_FR | French AZERTY |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_HU_HU` | hu_HU | Hungarian QWERTZ |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_IT_IT` | it_IT | Italian |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP` | ja_JP | Japanese |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_KO_KR` | ko_KR | Korean — US QWERTY symbols |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_NL_NL` | nl_NL | Dutch |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_NB_NO` | nb_NO | Norwegian Bokmål |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR` | pt_BR | Brazilian Portuguese ABNT2 |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_SV_SE` | sv_SE | Swedish |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_CN` | zh_CN | Simplified Chinese — US QWERTY symbols |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_GB` | en_GB | English UK |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_PT_PT` | pt_PT | Portuguese (Portugal) |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_ES_ES` | es_ES | Spanish |
+| `ESP_USB_HOST_KEYBOARD_LAYOUT_FR_CH` | fr_CH | Swiss French QWERTZ |
+
+`event.ascii` is a Latin-1 encoded `uint8_t` (0x00–0xFF). Dead keys (´, \`, ^, ~, ¨) and characters outside Latin-1 produce `ascii = 0`. For `ZH_TW`, `KO_KR`, and `ZH_CN`, the symbol layout is identical to `EN_US`; actual CJK character input requires an IME on the host side.
 
 ### USB serial (CDC ACM and VCP)
 

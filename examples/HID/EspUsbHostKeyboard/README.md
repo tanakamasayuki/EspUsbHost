@@ -11,7 +11,7 @@ Reads keyboard input from a USB HID keyboard, prints typed characters to the Ser
 
 ## What it does
 
-- Registers a Japanese keyboard layout (`ESP_USB_HOST_KEYBOARD_LAYOUT_JP`)
+- Registers a Japanese keyboard layout (`ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP`)
 - Prints device VID, PID, and product string on connect/disconnect
 - Prints printable ASCII characters typed on the keyboard; pressing Enter outputs a newline
 - Tracks CapsLock / NumLock / ScrollLock state and updates the keyboard LEDs on each toggle
@@ -19,7 +19,7 @@ Reads keyboard input from a USB HID keyboard, prints typed characters to the Ser
 
 ## Key APIs
 
-- `usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JP)`
+- `usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP)`
 - `usb.onKeyboard(callback)` — fired on each key press/release with `EspUsbHostKeyboardEvent`
 - `usb.setKeyboardLeds(numLock, capsLock, scrollLock)` — sends LED state to the keyboard
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
