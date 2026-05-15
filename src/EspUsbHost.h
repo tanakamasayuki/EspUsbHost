@@ -19,10 +19,20 @@
 #define USB_HID_REPORT_DESC 0x22
 #endif
 
-enum EspUsbHostKeyboardLayout
+enum EspUsbHostKeyboardLayout : uint16_t
 {
-  ESP_USB_HOST_KEYBOARD_LAYOUT_US = 0,
-  ESP_USB_HOST_KEYBOARD_LAYOUT_JP,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_DA_DK = 0x0406,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE = 0x0407,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US = 0x0409,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_FR_FR = 0x040C,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_HU_HU = 0x040E,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_IT_IT = 0x0410,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP = 0x0411,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR = 0x0416,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_SV_SE = 0x041D,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_PT_PT = 0x0816,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_ES_ES = 0x0C0A,
+  ESP_USB_HOST_KEYBOARD_LAYOUT_FR_CH = 0x100C,
 };
 
 enum EspUsbHostPort
@@ -272,7 +282,8 @@ struct EspUsbHostGamepadEvent
   bool changed = false;
 };
 
-struct EspUsbHostGamepadPrevState {
+struct EspUsbHostGamepadPrevState
+{
   int8_t x = 0, y = 0, z = 0, rz = 0, rx = 0, ry = 0;
   uint8_t hat = 0;
   uint32_t buttons = 0;
@@ -548,7 +559,7 @@ private:
   uint32_t currentAudioSampleRateResolution_ = 0;
   esp_err_t currentClaimResult_ = ESP_OK;
 
-  EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_US;
+  EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;
 
   DeviceCallback deviceConnectedCallback_;
   DeviceCallback deviceDisconnectedCallback_;
