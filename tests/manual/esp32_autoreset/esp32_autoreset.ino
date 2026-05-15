@@ -6,7 +6,6 @@ EspUsbHostCdcSerial TargetSerial(usb);
 static constexpr uint32_t TARGET_BAUD = 115200;
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
 static constexpr uint32_t BOOT_LOG_TIMEOUT_MS = 3000;
-static constexpr uint32_t UART_SNIFF_TIMEOUT_MS = 15000;
 
 static void drainTargetSerial()
 {
@@ -51,60 +50,6 @@ static bool readUntilAny(const char *needle1, const char *needle2, uint32_t time
         }
         delay(1);
     }
-    return false;
-}
-
-static bool sniffTargetBootLog(uint32_t timeoutMs)
-{
-    Serial.println("UART_SNIFF");
-    Serial.println("Press the target ESP32 reset button now.");
-    char window[96] = {};
-    size_t windowLen = 0;
-    uint8_t firstBytes[32] = {};
-    size_t firstByteCount = 0;
-    size_t receivedCount = 0;
-    const uint32_t deadline = millis() + timeoutMs;
-    while (millis() < deadline)
-    {
-        while (TargetSerial.available())
-        {
-            const int value = TargetSerial.read();
-            if (value >= 0)
-            {
-                const uint8_t byteValue = static_cast<uint8_t>(value);
-                receivedCount++;
-                if (firstByteCount < sizeof(firstBytes))
-                {
-                    firstBytes[firstByteCount++] = byteValue;
-                }
-
-                const char c = static_cast<char>(byteValue);
-                Serial.write(c);
-
-                if (windowLen + 1 >= sizeof(window))
-                {
-                    memmove(window, window + 1, sizeof(window) - 2);
-                    windowLen = sizeof(window) - 2;
-                }
-                window[windowLen++] = c;
-                window[windowLen] = '\0';
-                if (strstr(window, "rst:") || strstr(window, "boot:"))
-                {
-                    Serial.println();
-                    Serial.printf("uart sniff bytes=%u boot log found\n", (unsigned)receivedCount);
-                    return true;
-                }
-            }
-        }
-        delay(1);
-    }
-    Serial.println();
-    Serial.printf("uart sniff bytes=%u first=", (unsigned)receivedCount);
-    for (size_t i = 0; i < firstByteCount; i++)
-    {
-        Serial.printf("%02x", firstBytes[i]);
-    }
-    Serial.println();
     return false;
 }
 
@@ -181,14 +126,6 @@ void loop()
 
     Serial.println("USB serial adapter ready");
     delay(500);
-
-    drainTargetSerial();
-    const bool sniffOk = sniffTargetBootLog(UART_SNIFF_TIMEOUT_MS);
-    Serial.printf("manual reset log: %s\n", sniffOk ? "OK" : "FAIL");
-    if (!sniffOk)
-    {
-        Serial.println("No target ESP32 boot log detected during manual sniff; continuing with DTR/RTS reset tests.");
-    }
 
     const bool normalOk = normalReset();
     Serial.printf("normal reset: %s\n", normalOk ? "OK" : "FAIL");
