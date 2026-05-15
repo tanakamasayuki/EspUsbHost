@@ -6,7 +6,7 @@ EspUsbHostCdcSerial CdcSerial(usb);
 static const char TEST_DATA[] = "EspUsbHostVCPLoopback";
 static const size_t TEST_LEN = sizeof(TEST_DATA) - 1;
 static constexpr uint16_t EXPECTED_VID = 0x067b;
-static constexpr uint16_t EXPECTED_PID = 0x2303;
+static constexpr uint16_t EXPECTED_PID = 0x23a3;
 
 static volatile bool expectedDeviceConnected = false;
 static volatile bool unexpectedDeviceConnected = false;

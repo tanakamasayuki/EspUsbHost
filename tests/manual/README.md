@@ -36,7 +36,8 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`vcp_ftdi/`](vcp_ftdi/) | TX/RX loopback via FTDI VCP (VID 0x0403) | FTDI device (FT232R etc.) with TX/RX shorted | ✅ |
 | [`vcp_cp210x/`](vcp_cp210x/) | TX/RX loopback via CP210x VCP (VID 0x10C4) | CP210x device (CP2102 etc.) with TX/RX shorted | ✅ |
 | [`vcp_ch34x/`](vcp_ch34x/) | TX/RX loopback via CH34x VCP (VID 0x1A86) | CH34x device (CH340 etc.) with TX/RX shorted | ✅ |
-| [`vcp_pl2303/`](vcp_pl2303/) | TX/RX loopback via PL2303 VCP (VID 0x067B) | PL2303 device with TX/RX shorted | ✅ |
+| [`vcp_pl2303/`](vcp_pl2303/) | TX/RX loopback via PL2303 VCP (VID 0x067B PID 0x2303) | PL2303 device with TX/RX shorted | ✅ |
+| [`vcp_pl2303gs/`](vcp_pl2303gs/) | TX/RX loopback via PL2303GS VCP (VID 0x067B PID 0x23A3) | PL2303GS device with TX/RX shorted | ✅ |
 | [`keyboard_leds/`](keyboard_leds/) | NumLock/CapsLock LED visual confirmation | USB keyboard with indicator LEDs | ✅ |
 | [`multi_hid_keyboard_mouse/`](multi_hid_keyboard_mouse/) | Keyboard and mouse deliver events independently when connected simultaneously | USB keyboard + USB mouse | ✅ |
 | [`multi_serial/`](multi_serial/) | Two serial devices work independently via `setAddress()` | Two USB serial devices with TX/RX shorted | ✅ |

@@ -73,7 +73,7 @@ static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
   case 0x1a86:
     return pid == 0x5523 || pid == 0x7522 || pid == 0x7523;
   case 0x067b:
-    return pid == 0x2303;
+    return pid == 0x2303 || pid == 0x23a3;
   default:
     return false;
   }
@@ -2943,19 +2943,22 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
   }
   else if (device.info.vid == 0x067b)
   {
-    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0x0000, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
-    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0x0000, nullptr, 1, device.info.address);
-    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0x0001, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
-    submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0x0000, nullptr, 1, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0000, 0x0001, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0001, 0x0000, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0002, 0x0044, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0008, 0x0000, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0009, 0x0000, nullptr, 0, device.info.address);
+    if (device.info.pid == 0x2303)
+    {
+      submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0x0000, nullptr, 0, device.info.address);
+      submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+      submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0x0000, nullptr, 1, device.info.address);
+      submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0404, 0x0001, nullptr, 0, device.info.address);
+      submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8484, 0x0000, nullptr, 1, device.info.address);
+      submitVendorSerialControl(VENDOR_IN_REQUEST_TYPE, VENDOR_READ_REQUEST, 0x8383, 0x0000, nullptr, 1, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0000, 0x0001, nullptr, 0, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0001, 0x0000, nullptr, 0, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0002, 0x0044, nullptr, 0, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0008, 0x0000, nullptr, 0, device.info.address);
+      submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0009, 0x0000, nullptr, 0, device.info.address);
+    }
 
     uint8_t lineCoding[7] = {
         static_cast<uint8_t>(device.serialBaudRate & 0xff),
