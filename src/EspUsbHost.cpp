@@ -2045,6 +2045,13 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
   if (!endpoint.keyboardReportReady)
   {
     endpoint.keyboardReportReady = true;
+    if (device)
+    {
+      uint8_t leds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
+                                                      device->keyboardCapsLock,
+                                                      device->keyboardScrollLock);
+      sendKeyboardLedReport(*device, leds);
+    }
   }
 
   for (size_t i = 0; i < eventCount; i++)

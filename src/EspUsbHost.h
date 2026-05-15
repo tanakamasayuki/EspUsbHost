@@ -429,7 +429,7 @@ private:
     String serial;
     bool hasKeyboardInterface = false;
     uint8_t keyboardInterfaceNumber = 0;
-    bool keyboardNumLock = false;
+    bool keyboardNumLock = true;
     bool keyboardCapsLock = false;
     bool keyboardScrollLock = false;
     bool hasVendorInterface = false;
