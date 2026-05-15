@@ -30,4 +30,5 @@ def test_two_serial_devices(dut):
                              device, or timeout.
     """
     dut.expect("Both devices assigned", timeout=30)
-    dut.expect(r"\[PASS\]", timeout=30)
+    result = dut.expect_exact(["[PASS]", "[FAIL]"], timeout=30)
+    assert result == b"[PASS]"
