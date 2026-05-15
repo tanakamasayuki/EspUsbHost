@@ -43,7 +43,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`multi_hid_keyboard_mouse/`](multi_hid_keyboard_mouse/) | Keyboard and mouse deliver events independently when connected simultaneously | USB keyboard + USB mouse | ✅ |
 | [`multi_serial/`](multi_serial/) | Two serial devices work independently via `setAddress()` | Two USB serial devices with TX/RX shorted | ✅ |
 | [`hotplug/`](hotplug/) | Connect/disconnect events and no crash after repeated cycles | Any USB device | ✅ |
-| `hub_info/` | Displays hub topology info (parent address, port) for a device connected through a USB hub | USB hub + any USB device | 📋 planned |
+| [`hub_info/`](hub_info/) | Displays hub topology info for devices connected through a USB hub | USB hub + two USB devices | ✅ |
 | `hub_power/` | Per-port power control — turn hub ports on/off and verify devices connect/disconnect accordingly | USB hub with per-port power switching | 📋 planned |
 
 ## ESP32-S3 HCD Channel Limits
