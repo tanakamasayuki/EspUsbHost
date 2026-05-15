@@ -2,13 +2,17 @@
 
 #include "keymap/keymap_da_dk.h"
 #include "keymap/keymap_de_de.h"
+#include "keymap/keymap_en_gb.h"
 #include "keymap/keymap_en_us.h"
 #include "keymap/keymap_es_es.h"
+#include "keymap/keymap_fi_fi.h"
 #include "keymap/keymap_fr_ch.h"
 #include "keymap/keymap_fr_fr.h"
 #include "keymap/keymap_hu_hu.h"
 #include "keymap/keymap_it_it.h"
 #include "keymap/keymap_ja_jp.h"
+#include "keymap/keymap_nb_no.h"
+#include "keymap/keymap_nl_nl.h"
 #include "keymap/keymap_pt_br.h"
 #include "keymap/keymap_pt_pt.h"
 #include "keymap/keymap_sv_se.h"
@@ -101,8 +105,14 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
   case ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE:
     table = KEYCODE_TO_ASCII_DE_DE;
     break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_EN_GB:
+    table = KEYCODE_TO_ASCII_EN_GB;
+    break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_ES_ES:
     table = KEYCODE_TO_ASCII_ES_ES;
+    break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_FI_FI:
+    table = KEYCODE_TO_ASCII_FI_FI;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_FR_CH:
     table = KEYCODE_TO_ASCII_FR_CH;
@@ -118,6 +128,12 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP:
     table = KEYCODE_TO_ASCII_JA_JP;
+    break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_NB_NO:
+    table = KEYCODE_TO_ASCII_NB_NO;
+    break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_NL_NL:
+    table = KEYCODE_TO_ASCII_NL_NL;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR:
     table = KEYCODE_TO_ASCII_PT_BR;
