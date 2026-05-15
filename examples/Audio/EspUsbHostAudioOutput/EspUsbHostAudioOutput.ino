@@ -10,6 +10,7 @@ static constexpr uint8_t BYTES_PER_SAMPLE = 2;
 static constexpr uint8_t BITS_PER_SAMPLE = 16;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
 static constexpr size_t MAX_CHANNELS = 2;
+static constexpr int16_t VOLUME = 100; // 0-32767
 static uint8_t audioAddress = 0;
 static bool audioReady = false;
 static uint8_t audioChannels = CHANNELS;
@@ -21,7 +22,7 @@ static void fillTone()
   static uint32_t phase = 0;
   for (size_t frame = 0; frame < FRAMES_PER_PACKET; frame++)
   {
-    const int16_t value = (phase < SAMPLE_RATE / 2) ? 12000 : -12000;
+    const int16_t value = (phase < SAMPLE_RATE / 2) ? VOLUME : -VOLUME;
     phase += TONE_HZ;
     if (phase >= SAMPLE_RATE)
     {
