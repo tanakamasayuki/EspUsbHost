@@ -416,9 +416,6 @@ private:
     String serial;
     bool hasKeyboardInterface = false;
     uint8_t keyboardInterfaceNumber = 0;
-    bool keyboardReportProtocolSet = false;
-    bool keyboardLedPending = false;
-    uint8_t keyboardLedPendingMask = 0;
     bool hasVendorInterface = false;
     uint8_t vendorInterfaceNumber = 0;
     bool hasVendorOutEndpoint = false;

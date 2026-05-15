@@ -356,14 +356,6 @@ bool EspUsbHost::setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, u
   }
 
   uint8_t leds = espUsbHostBuildKeyboardLedReport(numLock, capsLock, scrollLock);
-
-  if (!device->keyboardReportProtocolSet)
-  {
-    device->keyboardLedPending = true;
-    device->keyboardLedPendingMask = leds;
-    return sendSetProtocol(device->keyboardInterfaceNumber, device->info.address);
-  }
-
   return sendKeyboardLedReport(*device, leds);
 }
 
@@ -398,6 +390,10 @@ bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
   err = usb_host_transfer_submit_control(clientHandle_, transfer);
   if (err != ESP_OK)
   {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Set_Protocol iface=%u) failed: %s",
+             interfaceNumber,
+             esp_err_to_name(err));
+    setLastError(err);
     usb_host_transfer_free(transfer);
     return false;
   }
@@ -408,7 +404,7 @@ bool EspUsbHost::sendKeyboardLedReport(DeviceState &device, uint8_t leds)
 {
   return sendHIDReport(device.keyboardInterfaceNumber,
                        ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
-                       ESP_USB_HOST_HID_REPORT_ID_KEYBOARD,
+                       0,
                        &leds,
                        sizeof(leds),
                        device.info.address);
@@ -1758,29 +1754,6 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
     if (host && isSetInterface)
     {
       host->submitPendingTransfers(deviceHandle, setInterfaceNumber);
-    }
-    if (host && transfer->data_buffer && transfer->num_bytes >= USB_SETUP_PACKET_SIZE)
-    {
-      const usb_setup_packet_t *setup = reinterpret_cast<const usb_setup_packet_t *>(transfer->data_buffer);
-      if (setup->bRequest == HID_CLASS_REQUEST_SET_PROTOCOL &&
-          setup->bmRequestType == HID_SET_REPORT_REQUEST_TYPE)
-      {
-        for (DeviceState &device : host->devices_)
-        {
-          if (device.inUse && device.handle == deviceHandle &&
-              device.hasKeyboardInterface &&
-              device.keyboardInterfaceNumber == (setup->wIndex & 0xff))
-          {
-            device.keyboardReportProtocolSet = true;
-            if (device.keyboardLedPending)
-            {
-              device.keyboardLedPending = false;
-              host->sendKeyboardLedReport(device, device.keyboardLedPendingMask);
-            }
-            break;
-          }
-        }
-      }
     }
   }
   else
