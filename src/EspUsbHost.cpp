@@ -1162,6 +1162,13 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   {
     deviceConnectedCallback_(device->info);
   }
+  if (device->hasKeyboardInterface)
+  {
+    uint8_t leds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
+                                                    device->keyboardCapsLock,
+                                                    device->keyboardScrollLock);
+    sendKeyboardLedReport(*device, leds);
+  }
 }
 
 void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
@@ -2045,13 +2052,6 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
   if (!endpoint.keyboardReportReady)
   {
     endpoint.keyboardReportReady = true;
-    if (device)
-    {
-      uint8_t leds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
-                                                      device->keyboardCapsLock,
-                                                      device->keyboardScrollLock);
-      sendKeyboardLedReport(*device, leds);
-    }
   }
 
   for (size_t i = 0; i < eventCount; i++)
