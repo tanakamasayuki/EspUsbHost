@@ -51,7 +51,7 @@ void setup()
     {
       Serial.println();
     }
-    else if (' ' <= event.ascii && event.ascii <= '~')
+    else if (event.ascii >= 0x20 && event.ascii != 0x7F)
     {
       Serial.print((char)event.ascii);
     } });
