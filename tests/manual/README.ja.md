@@ -45,6 +45,19 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | `hub_info/` | USBハブ経由で接続されたデバイスのトポロジー情報（親ハブアドレス・ポート番号）を表示すること | USBハブ＋任意のUSBデバイス | 📋 予定 |
 | `hub_power/` | ポート単位の電源制御 — ハブのポートをオン/オフしてデバイスの接続・切断が正しく起きることを確認 | ポート単位の電源制御に対応したUSBハブ | 📋 予定 |
 
+## ESP32-S3 の HCD チャネル制限
+
+ESP32-S3 のUSBホストチャネル数は8個です（`OTG_NUM_HOST_CHAN`）。USBハブ経由で複数デバイスを接続すると、ESP-IDFがclaimするインターフェース分のホストチャネルを確保できずに失敗することがあります。実際の消費量はハブやデバイスのdescriptorに依存するため、このドキュメントにはこのテスト環境で実測した組み合わせだけを記録します。
+
+ESP32-S3 + USBハブ経由の `multi_serial` 実測結果：
+
+| 組み合わせ | 結果 | 備考 |
+|------------|------|------|
+| FTDI + CP210x | PASS | 両方のループバックが成功 |
+| FTDI + CH34x | FAIL | HCDチャネル不足でendpoint allocationに失敗 |
+
+ログに `No more HCD channels available`、`EP Alloc error: ESP_ERR_NOT_SUPPORTED`、`Claiming interface error: ESP_ERR_NOT_SUPPORTED` が出る場合、その構成ではESP32-S3のホストチャネル資源を超えています。1台ずつテストするか、別のハードウェア構成で実行してください。
+
 ## テスト結果
 
 手動テストの結果は `--save-state` によって自動的に保存されます：
