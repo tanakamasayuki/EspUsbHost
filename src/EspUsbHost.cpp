@@ -2030,6 +2030,17 @@ void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size
     return;
   }
 
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  if (device && device->vendorSerialSupported && device->info.vid == 0x0403)
+  {
+    if (length <= 2)
+    {
+      return;
+    }
+    data += 2;
+    length -= 2;
+  }
+
   if (cdcSerial_ && cdcSerial_->accepts(endpoint.deviceAddress))
   {
     cdcSerial_->pushData(data, length);
