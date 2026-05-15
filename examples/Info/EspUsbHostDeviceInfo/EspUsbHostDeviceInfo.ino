@@ -90,6 +90,9 @@ static void printDevice(uint8_t address)
                 className(device.deviceClass),
                 device.deviceSubClass,
                 device.deviceProtocol);
+  Serial.printf("Supported=%s hub=%s\n",
+                device.supported ? "yes" : "no",
+                device.isHub ? "yes" : "no");
   Serial.printf("USB %x.%02x device %x.%02x ep0=%u\n",
                 device.usbVersion >> 8,
                 device.usbVersion & 0xff,
@@ -106,6 +109,26 @@ static void printDevice(uint8_t address)
                 device.configurationTotalLength,
                 device.configurationAttributes,
                 device.configurationMaxPower * 2);
+
+  if (device.isHub || device.address == 1)
+  {
+    EspUsbHostHubInfo hub;
+    if (usb.getHubInfo(device.address, hub))
+    {
+      Serial.printf("Hub ports=%u characteristics=0x%04x ppps=%s ganged_power=%s no_power_switch=%s compound=%s per_port_oc=%s ganged_oc=%s no_oc=%s pgood=%ums current=%umA\n",
+                    hub.portCount,
+                    hub.characteristics,
+                    hub.perPortPowerSwitching ? "yes" : "no",
+                    hub.gangedPowerSwitching ? "yes" : "no",
+                    hub.noPowerSwitching ? "yes" : "no",
+                    hub.compound ? "yes" : "no",
+                    hub.perPortOverCurrent ? "yes" : "no",
+                    hub.gangedOverCurrent ? "yes" : "no",
+                    hub.noOverCurrent ? "yes" : "no",
+                    hub.powerOnToPowerGoodMs,
+                    hub.controllerCurrentMa);
+    }
+  }
 
   EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
   const size_t interfaceCount = usb.getInterfaces(address, interfaces, ESP_USB_HOST_MAX_INTERFACES);

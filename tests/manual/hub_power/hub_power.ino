@@ -16,20 +16,22 @@ static uint16_t targetPid = 0;
 static uint8_t targetHubAddress = 0;
 static uint8_t targetPort = 0;
 
-static bool readAndPrintPortStatus(const char *label, bool &powered)
+static bool readAndPrintPortStatus(const char *label, bool &powered, bool &connected, bool &enabled)
 {
     uint16_t status = 0;
     uint16_t change = 0;
     const bool ok = usb.getHubPortStatus(targetHubAddress, targetPort, status, change);
     powered = (status & 0x0100) != 0;
+    connected = (status & 0x0001) != 0;
+    enabled = (status & 0x0002) != 0;
     Serial.printf("%s status request: %s status=0x%04x change=0x%04x powered=%u connected=%u enabled=%u\n",
                   label,
                   ok ? "OK" : "FAIL",
                   status,
                   change,
                   powered ? 1 : 0,
-                  (status & 0x0001) ? 1 : 0,
-                  (status & 0x0002) ? 1 : 0);
+                  connected ? 1 : 0,
+                  enabled ? 1 : 0);
     return ok;
 }
 
@@ -96,6 +98,25 @@ static bool waitForFlag(volatile bool &flag, uint32_t timeoutMs)
     return flag;
 }
 
+static bool waitForPortState(const char *label, bool expectedPowered, bool expectedConnected, uint32_t timeoutMs)
+{
+    const uint32_t deadline = millis() + timeoutMs;
+    while (millis() < deadline)
+    {
+        bool powered = false;
+        bool connected = false;
+        bool enabled = false;
+        if (readAndPrintPortStatus(label, powered, connected, enabled) &&
+            powered == expectedPowered &&
+            connected == expectedConnected)
+        {
+            return true;
+        }
+        delay(250);
+    }
+    return false;
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -154,29 +175,56 @@ void loop()
     reconnected = false;
 
     bool poweredBefore = false;
-    readAndPrintPortStatus("before", poweredBefore);
+    bool connectedBefore = false;
+    bool enabledBefore = false;
+    readAndPrintPortStatus("before", poweredBefore, connectedBefore, enabledBefore);
 
     Serial.println("PORT_POWER_OFF");
     const bool offSubmitted = usb.setHubPortPower(targetHubAddress, targetPort, false);
     Serial.printf("power off request: %s\n", offSubmitted ? "OK" : "FAIL");
     delay(500);
     bool poweredAfterOff = true;
-    const bool statusAfterOffOk = readAndPrintPortStatus("after off", poweredAfterOff);
-    const bool disconnectedOk = offSubmitted && waitForFlag(disconnected, DISCONNECT_WAIT_MS);
-    Serial.printf("disconnect after power off: %s\n", disconnectedOk ? "OK" : "FAIL");
+    bool connectedAfterOff = true;
+    bool enabledAfterOff = true;
+    bool statusAfterOffOk = readAndPrintPortStatus("after off", poweredAfterOff, connectedAfterOff, enabledAfterOff);
+    if (statusAfterOffOk && (poweredAfterOff || connectedAfterOff))
+    {
+        statusAfterOffOk = waitForPortState("after off retry", false, false, 3000);
+        poweredAfterOff = false;
+        connectedAfterOff = false;
+    }
+    if (connectedAfterOff)
+    {
+        const bool disconnectedOk = offSubmitted && waitForFlag(disconnected, DISCONNECT_WAIT_MS);
+        Serial.printf("disconnect callback after power off: %s\n", disconnectedOk ? "OK" : "not observed");
+    }
+    else
+    {
+        Serial.println("disconnect callback after power off: skipped; port status already disconnected");
+    }
 
     delay(1000);
 
     Serial.println("PORT_POWER_ON");
     const bool onSubmitted = usb.setHubPortPower(targetHubAddress, targetPort, true);
     Serial.printf("power on request: %s\n", onSubmitted ? "OK" : "FAIL");
-    delay(500);
-    bool poweredAfterOn = false;
-    const bool statusAfterOnOk = readAndPrintPortStatus("after on", poweredAfterOn);
     const bool reconnectedOk = onSubmitted && waitForFlag(reconnected, RECONNECT_WAIT_MS);
+    bool poweredAfterOn = false;
+    bool connectedAfterOn = false;
+    bool enabledAfterOn = false;
+    bool statusAfterOnOk = readAndPrintPortStatus("after on", poweredAfterOn, connectedAfterOn, enabledAfterOn);
+    if (!statusAfterOnOk || !poweredAfterOn || !connectedAfterOn)
+    {
+        statusAfterOnOk = waitForPortState("after on retry", true, true, 5000);
+        poweredAfterOn = statusAfterOnOk;
+        connectedAfterOn = statusAfterOnOk;
+    }
     Serial.printf("reconnect after power on: %s\n", reconnectedOk ? "OK" : "FAIL");
 
-    const bool powerStatusOk = statusAfterOffOk && statusAfterOnOk && !poweredAfterOff && poweredAfterOn;
+    const bool powerStatusOk = statusAfterOffOk && statusAfterOnOk &&
+                               poweredBefore && connectedBefore &&
+                               !poweredAfterOff && !connectedAfterOff &&
+                               poweredAfterOn && connectedAfterOn;
     Serial.printf("power status toggle: %s\n", powerStatusOk ? "OK" : "FAIL");
 
     Serial.println(powerStatusOk && reconnectedOk ? "[PASS]" : "[FAIL]");

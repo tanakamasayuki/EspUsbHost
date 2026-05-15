@@ -29,6 +29,9 @@ static constexpr uint8_t CDC_SET_REQUEST_TYPE = 0x21;
 static constexpr uint8_t USB_REQUEST_CLEAR_FEATURE = 0x01;
 static constexpr uint8_t USB_REQUEST_GET_STATUS = 0x00;
 static constexpr uint8_t USB_REQUEST_SET_FEATURE = 0x03;
+static constexpr uint8_t USB_REQUEST_GET_DESCRIPTOR = 0x06;
+static constexpr uint8_t USB_DESCRIPTOR_TYPE_HUB = 0x29;
+static constexpr uint8_t USB_HUB_DESCRIPTOR_REQUEST_TYPE = 0xa0;
 static constexpr uint8_t USB_HUB_PORT_REQUEST_TYPE = 0x23;
 static constexpr uint8_t USB_HUB_PORT_IN_REQUEST_TYPE = 0xa3;
 static constexpr uint16_t USB_HUB_FEATURE_PORT_POWER = 0x0008;
@@ -567,7 +570,6 @@ bool EspUsbHost::setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable)
   {
     ESP_LOGW(TAG, "HUB port power request timed out hub=%u port=%u enable=%u", hubAddress, port, enable ? 1 : 0);
     setLastError(ESP_ERR_TIMEOUT);
-    return false;
   }
   else if (!ok)
   {
@@ -682,7 +684,6 @@ bool EspUsbHost::getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &st
   {
     ESP_LOGW(TAG, "HUB port status request timed out hub=%u port=%u", hubAddress, port);
     setLastError(ESP_ERR_TIMEOUT);
-    return false;
   }
   else
   {
@@ -1515,21 +1516,23 @@ void EspUsbHost::handleNewDevice(uint8_t address)
       ESP_LOGW(TAG, "Hub index exhausted for address=%u", address);
     }
   }
-  const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
-  const bool hasCdc = configHasInterfaceClass(configDesc, USB_CLASS_CDC_CONTROL_VALUE) || configHasInterfaceClass(configDesc, USB_CLASS_CDC_DATA_VALUE);
-  const bool hasAudio = configHasInterfaceClass(configDesc, USB_CLASS_AUDIO_VALUE);
-  if (!isHub && !hasHid && !hasCdc && !hasAudio && !device->vendorSerialSupported)
-  {
-    ESP_LOGI(TAG, "Ignoring unsupported device at address=%u", address);
-    usb_host_device_close(clientHandle_, device->handle);
-    *device = DeviceState();
-    return;
-  }
-
   parseConfigDescriptor(*device, configDesc);
+  const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
+  const bool hasCdc = device->hasCdcControlInterface || device->hasCdcDataInterface;
+  const bool hasAudio = device->hasAudioInterface || device->hasAudioOutEndpoint;
+  device->info.supported = isHub || hasHid || hasCdc || hasAudio || device->vendorSerialSupported;
+  device->info.isHub = isHub;
   if (deviceConnectedCallback_)
   {
     deviceConnectedCallback_(device->info);
+  }
+  if (!device->info.supported)
+  {
+    ESP_LOGI(TAG, "Unsupported device kept for info: address=%u VID=%04x PID=%04x",
+             address,
+             device->info.vid,
+             device->info.pid);
+    return;
   }
   if (device->hasKeyboardInterface)
   {
@@ -2966,6 +2969,131 @@ bool EspUsbHost::getDevice(uint8_t address, EspUsbHostDeviceInfo &deviceInfo) co
   }
   deviceInfo = device->info;
   return true;
+}
+
+bool EspUsbHost::getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub)
+{
+  hub = EspUsbHostHubInfo();
+  if (!running_ || !clientHandle_)
+  {
+    ESP_LOGW(TAG, "getHubInfo() called before USB Host is ready");
+    return false;
+  }
+  if (hubAddress == 0)
+  {
+    ESP_LOGW(TAG, "getHubInfo() invalid hubAddress=0");
+    return false;
+  }
+
+  usb_device_handle_t hubHandle = nullptr;
+  DeviceState *knownHub = findDevice(hubAddress);
+  const bool openedTemporarily = !(knownHub && knownHub->handle);
+  if (openedTemporarily)
+  {
+    esp_err_t err = usb_host_device_open(clientHandle_, hubAddress, &hubHandle);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_device_open(hub=%u) failed: %s", hubAddress, esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
+  }
+  else
+  {
+    hubHandle = knownHub->handle;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + sizeof(hub.rawDescriptor), 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(hub descriptor) failed: %s", esp_err_to_name(err));
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    setLastError(err);
+    return false;
+  }
+
+  HubControlTransferContext *context = new HubControlTransferContext();
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_HUB_DESCRIPTOR_REQUEST_TYPE;
+  setup->bRequest = USB_REQUEST_GET_DESCRIPTOR;
+  setup->wValue = static_cast<uint16_t>(USB_DESCRIPTOR_TYPE_HUB) << 8;
+  setup->wIndex = 0;
+  setup->wLength = sizeof(hub.rawDescriptor);
+
+  transfer->device_handle = hubHandle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = hubControlTransferCallback;
+  transfer->context = context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + sizeof(hub.rawDescriptor);
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(HUB descriptor) failed: %s", esp_err_to_name(err));
+    usb_host_transfer_free(transfer);
+    delete context;
+    if (openedTemporarily)
+    {
+      usb_host_device_close(clientHandle_, hubHandle);
+    }
+    setLastError(err);
+    return false;
+  }
+
+  const uint32_t deadline = millis() + 1000;
+  while (!context->done && millis() < deadline)
+  {
+    delay(1);
+  }
+
+  const bool done = context->done;
+  const usb_transfer_status_t transferStatus = context->status;
+  const bool ok = done && transferStatus == USB_TRANSFER_STATUS_COMPLETED;
+  if (ok)
+  {
+    const uint8_t *data = transfer->data_buffer + USB_SETUP_PACKET_SIZE;
+    hub.address = hubAddress;
+    hub.descriptorLength = data[0] <= sizeof(hub.rawDescriptor) ? data[0] : sizeof(hub.rawDescriptor);
+    memcpy(hub.rawDescriptor, data, hub.descriptorLength);
+    if (hub.descriptorLength >= 7)
+    {
+      hub.portCount = data[2];
+      hub.characteristics = static_cast<uint16_t>(data[3]) | (static_cast<uint16_t>(data[4]) << 8);
+      const uint8_t powerMode = hub.characteristics & 0x0003;
+      hub.gangedPowerSwitching = powerMode == 0;
+      hub.perPortPowerSwitching = powerMode == 1;
+      hub.noPowerSwitching = powerMode == 2 || powerMode == 3;
+      hub.compound = (hub.characteristics & 0x0004) != 0;
+      const uint8_t overCurrentMode = (hub.characteristics >> 3) & 0x0003;
+      hub.gangedOverCurrent = overCurrentMode == 0;
+      hub.perPortOverCurrent = overCurrentMode == 1;
+      hub.noOverCurrent = overCurrentMode == 2 || overCurrentMode == 3;
+      hub.powerOnToPowerGoodMs = static_cast<uint16_t>(data[5]) * 2;
+      hub.controllerCurrentMa = data[6];
+    }
+  }
+  else if (!done)
+  {
+    ESP_LOGW(TAG, "HUB descriptor request timed out hub=%u", hubAddress);
+    setLastError(ESP_ERR_TIMEOUT);
+  }
+  else
+  {
+    ESP_LOGW(TAG, "HUB descriptor request failed status=%d hub=%u", transferStatus, hubAddress);
+    setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  delete context;
+  if (openedTemporarily)
+  {
+    usb_host_device_close(clientHandle_, hubHandle);
+  }
+  return ok && hub.descriptorLength >= 7;
 }
 
 size_t EspUsbHost::getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const

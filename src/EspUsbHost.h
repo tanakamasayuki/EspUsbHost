@@ -113,6 +113,26 @@ struct EspUsbHostDeviceInfo
   uint8_t configurationMaxPower = 0;
   uint8_t configurationInterfaceCount = 0;
   uint16_t configurationTotalLength = 0;
+  bool supported = false;
+  bool isHub = false;
+};
+
+struct EspUsbHostHubInfo
+{
+  uint8_t address = 0;
+  uint8_t portCount = 0;
+  uint16_t characteristics = 0;
+  bool gangedPowerSwitching = false;
+  bool perPortPowerSwitching = false;
+  bool noPowerSwitching = false;
+  bool compound = false;
+  bool gangedOverCurrent = false;
+  bool perPortOverCurrent = false;
+  bool noOverCurrent = false;
+  uint16_t powerOnToPowerGoodMs = 0;
+  uint8_t controllerCurrentMa = 0;
+  uint8_t descriptorLength = 0;
+  uint8_t rawDescriptor[32] = {};
 };
 
 struct EspUsbHostInterfaceInfo
@@ -393,6 +413,7 @@ public:
   size_t deviceCount() const;
   size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
   bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
+  bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
