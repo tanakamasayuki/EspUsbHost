@@ -129,6 +129,9 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
   case ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP:
     table = KEYCODE_TO_ASCII_JA_JP;
     break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_KO_KR:
+    table = KEYCODE_TO_ASCII_EN_US;
+    break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_NB_NO:
     table = KEYCODE_TO_ASCII_NB_NO;
     break;
@@ -143,6 +146,12 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_SV_SE:
     table = KEYCODE_TO_ASCII_SV_SE;
+    break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_CN:
+    table = KEYCODE_TO_ASCII_EN_US;
+    break;
+  case ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_TW:
+    table = KEYCODE_TO_ASCII_EN_US;
     break;
   default:
     table = KEYCODE_TO_ASCII_EN_US;
