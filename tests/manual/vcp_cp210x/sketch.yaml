@@ -6,6 +6,7 @@ profiles:
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
+      - dir: ../vcp_common
 
   esp32p4:
     fqbn: esp32:esp32:esp32p4
@@ -14,5 +15,6 @@ profiles:
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
+      - dir: ../vcp_common
 
 default_profile: esp32s3
