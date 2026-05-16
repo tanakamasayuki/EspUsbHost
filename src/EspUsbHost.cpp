@@ -137,6 +137,28 @@ static uint32_t readAudioSampleRate24(const uint8_t *data)
          (static_cast<uint32_t>(data[2]) << 16);
 }
 
+static uint16_t ftdiBaudDivisor(uint32_t baud)
+{
+  static constexpr uint32_t FTDI_BASE_CLOCK = 48000000;
+  static const uint8_t divfrac[8] = {0, 3, 2, 4, 1, 5, 6, 7};
+  if (baud == 0)
+  {
+    return 0;
+  }
+  uint32_t divisor3 = (FTDI_BASE_CLOCK + baud) / (2 * baud);
+  uint32_t divisor = divisor3 >> 3;
+  divisor |= static_cast<uint32_t>(divfrac[divisor3 & 0x7]) << 14;
+  if (divisor == 1)
+  {
+    divisor = 0;
+  }
+  else if (divisor == 0x4001)
+  {
+    divisor = 1;
+  }
+  return static_cast<uint16_t>(divisor & 0xffff);
+}
+
 static uint32_t ch34xClockDiv(int prescaler, int factor)
 {
   return 1UL << (12 - 3 * prescaler - factor);
@@ -895,7 +917,7 @@ bool EspUsbHost::setSerialBaudRate(uint32_t baud, uint8_t address)
     return false;
   }
 
-  DeviceState *device = findDevice(address);
+  DeviceState *device = findSerialDevice(address);
   if (address == ESP_USB_HOST_ANY_ADDRESS)
   {
     defaultSerialBaudRate_ = baud;
@@ -3598,19 +3620,7 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
 
   if (device.info.vid == 0x0403)
   {
-    uint16_t divisor = 0x001a;
-    if (device.serialBaudRate == 9600)
-    {
-      divisor = 0x4138;
-    }
-    else if (device.serialBaudRate == 57600)
-    {
-      divisor = 0x0034;
-    }
-    else if (device.serialBaudRate == 230400)
-    {
-      divisor = 0x000d;
-    }
+    const uint16_t divisor = ftdiBaudDivisor(device.serialBaudRate);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x00, 0x0000, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x03, divisor, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
