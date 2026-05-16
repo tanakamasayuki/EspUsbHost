@@ -107,6 +107,7 @@ bool VcpLoopbackTest::runOneBaud(uint32_t baud)
     }
     delay(200);
     Serial1.end();
+    Serial1.setRxBufferSize(2048);
     Serial1.begin(baud, SERIAL_8N1, UART_SNIFF_RX_PIN, -1);
     delay(100);
 
@@ -126,6 +127,7 @@ void VcpLoopbackTest::setup()
     Serial.begin(115200);
     delay(5000);
     initPatterns();
+    Serial1.setRxBufferSize(2048);
     Serial1.begin(115200, SERIAL_8N1, UART_SNIFF_RX_PIN, -1);
     cdc_.begin(115200);
     usb_.onDeviceConnected([this](const EspUsbHostDeviceInfo &device)
