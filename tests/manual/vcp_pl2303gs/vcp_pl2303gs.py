@@ -1,29 +1,36 @@
 """
 Purpose:
     Verify that EspUsbHost correctly communicates with a PL2303GS VCP device
-    using TX/RX loopback.
+    at multiple baud rates with multiple data patterns, confirmed both via
+    USB loopback and via a direct UART sniff on an ESP32-S3 GPIO.
 
 Why manual:
-    Requires a real PL2303GS device (VID 0x067B, PID 0x23A3). ESP32 cannot emulate this
-    vendor-specific VCP protocol.
+    Requires a real PL2303GS device (VID 0x067B, PID 0x23A3) and physical
+    wiring of the VCP TX/RX line to an ESP32-S3 GPIO.
 
 Required hardware:
     - ESP32-S3 host board
-    - PL2303GS device (067B:23A3) with TX and RX pins shorted
+    - PL2303GS device (067B:23A3)
+    - Wiring:
+        VCP TX --+-- VCP RX             (loopback)
+                 +-- ESP32-S3 GPIO4     (UART1 RX sniff)
+        GND  --- ESP32-S3 GND
 
 Setup:
-    1. Short TX and RX on the PL2303GS device.
+    1. Wire VCP TX, VCP RX, and ESP32-S3 GPIO4 together; share GND.
     2. Connect the PL2303GS device to the host board's USB port.
-    3. Set TEST_SERIAL_PORT_ESP32S3 in .env to the host board's serial port.
+    3. Set TEST_SERIAL_PORT_ESP32S3 in .env.
     4. Run: uv run --env-file .env pytest manual/vcp_pl2303gs/vcp_pl2303gs.py -v -s
 """
 
 import pytest
 
+BAUDS = [9600, 38400, 115200, 460800]
+PATTERNS = ["ascii", "allbytes", "long"]
 
-def test_loopback(dut):
-    """
-    Expected result (pass):  Sketch prints "[PASS]" after loopback data matches.
-    Expected result (fail):  "[FAIL]" with received byte count, or timeout.
-    """
-    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=30) == b"[PASS]"
+
+def test_loopback_with_sniff(dut):
+    for baud in BAUDS:
+        for pattern in PATTERNS:
+            dut.expect_exact(f"BAUD={baud} PATTERN={pattern} OK", timeout=30)
+    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=10) == b"[PASS]"
