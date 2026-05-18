@@ -2,7 +2,7 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Uses [PCMFlow](https://github.com/tanakamasayuki/PCMFlow) to generate formatted PCM and sends it to a USB Audio output device.
+Uses [PCMFlow](https://github.com/tanakamasayuki/PCMFlow) to decode embedded MP3 assets and send formatted PCM to a USB Audio output device.
 
 ## Hardware
 
@@ -11,14 +11,15 @@ Uses [PCMFlow](https://github.com/tanakamasayuki/PCMFlow) to generate formatted 
 
 ## What it does
 
-- Provides a generated WAV stream to PCMFlow through `ByteStream`
+- Uses the embedded MP3 assets in this sketch
+- Opens each MP3 with `audio.open(data, size, PCMFlow::CodecKind::Mp3)`
 - Converts it to 48 kHz, stereo, 16-bit PCM with PCMFlow
 - Reads the requested frame count with `audio.readFrames()` from `onAudioOutputRequest()`
 - Lets EspUsbHost drive the USB Audio OUT transfer timing
 
 ## Notes
 
-- This is a temporary PCMFlow integration example. PCMFlow decodes/converts the audio, and EspUsbHost manages USB Audio OUT timing.
+- PCMFlow decodes/converts the audio, and EspUsbHost manages USB Audio OUT timing.
 - The important integration point is `PCMFlow::readFrames(void *out, size_t frameCount)`.
 
 ## Dependencies
