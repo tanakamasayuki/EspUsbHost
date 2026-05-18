@@ -44,6 +44,35 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 - ESP32-S3、またはArduino-ESP32 USB Hostに対応したボード
 - Arduino-ESP32コア
 
+### ESP32-P4 の注意事項
+
+ESP32-P4搭載ボードでは、ボード設計によって最大4系統のUSB関連ポート/経路が見えることがあります：
+
+- 書き込み・ログ用の外付けUSB-UARTシリアル変換（CH34xなど）
+- USB FSのCDC
+- USB FSのOTG
+- USB HSのOTG
+
+ボードによっては、外付けUSB-UARTシリアル変換の先に通常のUARTポートがあります。これはESP32-P4内蔵のUSB Serial/JTAGやUSB OTG peripheralとは別の経路です。
+
+SoCレベルの信号ピンは以下です。実際のボードでどのコネクタに配線されているかはボード設計によって異なるため、配線やポート選択の前に回路図を確認してください。
+
+| ESP32-P4での典型的な役割 | D- | D+ | 備考 |
+|--------------------------|----|----|------|
+| USB CDC FS / USB Serial/JTAG FS | GPIO24 | GPIO25 | 内蔵USB Serial/JTAG、またはFSデバイス側CDCのコネクタとして使われることが多いペアです。ボードによってはUSB Host用コネクタと混同しやすいです。 |
+| USB OTG FS | GPIO26 | GPIO27 | Full-speed OTGコネクタとして使われることが多いペアです。USB Hostでは`ESP_USB_HOST_PORT_FULL_SPEED`で選択します。 |
+| USB OTG HS | package pin 49 | package pin 50 | High-speed OTGポート。汎用GPIOではなくUSB専用ピンです。`ESP_USB_HOST_PORT_HIGH_SPEED`で選択します。 |
+
+ESP32-P4にはFull-speed USB PHYのピンペアが2つあり、FS OTGとUSB Serial/JTAGはGPIO24/GPIO25またはGPIO26/GPIO27から選択できます。上の表は典型的/デフォルトの割り当てであり、すべてのボードで同じとは限りません。
+
+FS USBのピンペア選択はeFuseで変更できますが、一度スワップすると不可逆で元に戻せません。また、通常のライブラリ利用では変更は推奨されません。基本的にはボードのデフォルト配線を使い、USB Hostで使うperipheralは`EspUsbHostConfig::port`で選択してください。
+
+USB Hostとして使えるのはOTGポートです。ボードによっては、どのコネクタがFS OTGで、どれがCDC/デバイス用なのか分かりにくい場合があります。ボードの回路図とサンプル設定を確認してください。
+
+ESP-IDFのUSB Hostスタックは、同時に1つのHost peripheralしか利用できません。ESP32-P4では、`EspUsbHostConfig::port`でFS OTGまたはHS OTGのどちらかを選択します。FS OTGとHS OTGを同時にUSB Hostとして使うことはできません。Arduinoライブラリとして使う場合、USBデバイス機能はHS側を使用し、FS側をデバイス機能として選択することはできません。
+
+現時点ではHS OTGの実用上の制限もあります。現在の環境では、HS OTGでUSBハブは実質的に利用できません。このライブラリではESP32-P4のUSB HostでUSBキーボードが動作することは確認済みですが、ESP32-P4向けの詳細な検証はまだ十分ではありません。
+
 ## インストール
 
 Arduino IDEのライブラリマネージャーで **EspUsbHost** を検索してインストール。
@@ -140,8 +169,11 @@ struct EspUsbHostConfig {
   uint32_t    taskStackSize = 4096;
   UBaseType_t taskPriority  = 5;
   BaseType_t  taskCore      = tskNO_AFFINITY;
+  EspUsbHostPort port       = ESP_USB_HOST_PORT_DEFAULT;
 };
 ```
+
+ESP32-P4で特定のOTG peripheralを選びたい場合は、`port`に`ESP_USB_HOST_PORT_FULL_SPEED`または`ESP_USB_HOST_PORT_HIGH_SPEED`を指定します。他のチップではこの設定は無視されます。
 
 ### デバイスイベント
 
