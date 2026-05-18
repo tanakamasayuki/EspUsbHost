@@ -35,7 +35,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | 機能 | 状況 |
 |------|------|
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | 🔲 実装予定 |
-| マルチCDCサンプル — `setAddress()` で複数の `EspUsbHostCdcSerial` を使う例 | 🔲 実装予定 |
+| マルチシリアルサンプル — VIDで振り分けた複数の`EspUsbHostCdcSerial`を使う例 | ✅ 実装済み |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 整備中 |
 | 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | 🔲 整備中 |
 
@@ -120,6 +120,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | CDC ACM・VCPシリアルの双方向ブリッジ |
+| [EspUsbHostMultiUSBSerial](examples/Serial/EspUsbHostMultiUSBSerial/) | FTDIとCP210xのUSBシリアルデバイスを同時利用 |
 
 ## APIリファレンス
 
@@ -353,7 +354,17 @@ const char *lastErrorName() const;
 
 ## 複数デバイスの扱い
 
-送信APIと`EspUsbHostCdcSerial`はデフォルトで`ESP_USB_HOST_ANY_ADDRESS`を使用し、該当クラスの最初のデバイスを対象にします。特定のデバイスを指定する場合は、`EspUsbHostDeviceInfo::address`で取得したアドレスを渡します。
+送信APIと`EspUsbHostCdcSerial`はデフォルトで`ESP_USB_HOST_ANY_ADDRESS`を使用し、該当クラスの最初のデバイスを対象にします。特定の接続中デバイスを指定する場合は、明示的に`address`を渡します。
+
+デバイス識別に使えるフィールドは、それぞれ安定性が違います：
+
+| フィールド | 用途 |
+|------------|------|
+| `address` | 現在のUSBアドレス。`setAddress()`、`sendSerial()`、`midiSend()`、`setKeyboardLeds()`などのAPI呼び出しに使います。抜き差し後に変わることがあります。 |
+| `portId` | 物理/トポロジ上の接続位置。同じポートに再接続されたデバイスを追跡する用途に向きます。 |
+| `vid` / `pid` | デバイスの種類・モデル識別。対応チップや製品の判定に使います。 |
+| `manufacturer` / `product` | USB文字列ディスクリプタの表示名。ログやUI向きですが、一意とは限りません。 |
+| `serial` | デバイスが提供するUSBシリアル番号文字列。取得できる場合は個体識別に使えますが、空文字の場合があります。 |
 
 ```cpp
 usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
