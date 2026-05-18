@@ -45,7 +45,7 @@ Incoming MIDI messages are decoded by type. Note numbers are shown as note names
 Pitch bend values are shown as signed integers in the range −8192 to +8191.
 
 ```
-connected: vid=0499 pid=1066 product=USB MIDI Interface
+connected: address=1 vid=0499 pid=1066 product=USB MIDI Interface
 Note On    ch=1 note=C4 vel=100
 Note Off   ch=1 note=C4 vel=0
 CC         ch=1 ctrl=74 val=64

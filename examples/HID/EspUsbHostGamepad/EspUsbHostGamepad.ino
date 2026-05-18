@@ -43,11 +43,8 @@ void setup()
 
   Serial.println("EspUsbHost gamepad example start");
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
-                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n", info.vid, info.pid, info.product); });
-
-  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &)
-                           { Serial.println("disconnected"); });
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
 
   usb.onGamepad([](const EspUsbHostGamepadEvent &event)
                 {

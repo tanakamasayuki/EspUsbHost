@@ -10,8 +10,8 @@ void setup()
 
   Serial.println("EspUsbHost USB serial example start");
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
-                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n", info.vid, info.pid, info.product); });
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
 
   CdcSerial.begin(115200);
 

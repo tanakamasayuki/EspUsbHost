@@ -86,13 +86,12 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | キーボード入力を受け取り、入力文字をシリアルに出力 |
+| [EspUsbHostKeyboardDump](examples/HID/EspUsbHostKeyboardDump/) | パース済みキーボードイベントを表示し、`onKeyboard` の自前処理を示す |
 | [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | マウスの移動量とボタン操作を取得 |
-| [EspUsbHostKeyboardLeds](examples/HID/EspUsbHostKeyboardLeds/) | NumLock・CapsLock・ScrollLock LEDを制御 |
 | [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | メディアキー（音量・再生/一時停止など）を検出 |
 | [EspUsbHostSystemControl](examples/HID/EspUsbHostSystemControl/) | システムキー（電源・スタンバイ・ウェイクアップ）を検出 |
 | [EspUsbHostGamepad](examples/HID/EspUsbHostGamepad/) | ゲームパッドのスティック・十字キー・ボタンを取得 |
 | [EspUsbHostHIDVendor](examples/HID/EspUsbHostHIDVendor/) | ベンダーHID入力と出力/フィーチャーレポートの送信 |
-| [EspUsbHostCustomHID](examples/HID/EspUsbHostCustomHID/) | 任意のHID入力レポートをHexダンプ |
 | [EspUsbHostHIDRawDump](examples/HID/EspUsbHostHIDRawDump/) | デバイスアドレス付きでHexダンプ（複数デバイス対応） |
 
 ### Info
@@ -100,6 +99,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | 接続中の全デバイスのディスクリプタ・インターフェース・エンドポイントを表示 |
+| [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | 接続・切断コールバックを自分で定義し、接続デバイスを調べる |
 
 ### MIDI
 
@@ -112,6 +112,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | USB AudioのIsochronous INペイロードを受信 |
+| [EspUsbHostAudioMp3](examples/Audio/EspUsbHostAudioMp3/) | 埋め込みMP3素材をデコードしてUSB Audio出力へ再生 |
 | [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | USB AudioのIsochronous OUTペイロードを送信 |
 
 ### Serial
@@ -146,9 +147,12 @@ struct EspUsbHostConfig {
 ```cpp
 void onDeviceConnected(DeviceCallback callback);
 void onDeviceDisconnected(DeviceCallback callback);
+void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device);
+void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device);
 ```
 
 コールバックは`const EspUsbHostDeviceInfo &device`を受け取ります。主要フィールド：`address`、`vid`、`pid`、`product`、`manufacturer`、`serial`、`speed`、`parentAddress`、`portId`。
+標準的なシリアル表示だけでよいサンプルでは、`espUsbHostPrintDeviceConnected`と`espUsbHostPrintDeviceDisconnected`をそのまま登録できます。
 
 `portId`はデバイスの接続位置を表します。`0x01`はルートポート直結です。ハブ配下のデバイスでは上位ニブルが検出順に割り当てられたハブ番号、下位ニブルがそのハブのポート番号です。例えば`0x12`は「ハブ#1のポート2」を表します。
 
@@ -162,13 +166,15 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // 生データ — 全HIDインターフェースで発火
 void onVendorInput(VendorInputCallback callback);
+void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input);
+void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event);
 ```
 
 主なイベントフィールド：
 
 | コールバック | 主要フィールド |
 |-------------|--------------|
-| `onKeyboard` | `pressed`、`keyCode`、`ascii`、`modifiers`、`address` |
+| `onKeyboard` | `pressed`、`keycode`、`ascii`、`modifiers`、`address` |
 | `onMouse` | `x`、`y`、`wheel`、`buttons`、`previousButtons`、`moved`、`buttonsChanged`、`address` |
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |
@@ -319,6 +325,9 @@ size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces,
                      size_t maxInterfaces) const;
 size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
+void   printDeviceInfo(uint8_t address, bool includeHubInfo = false,
+                       Print &out = Serial);
+void   printAllDeviceInfo(Print &out = Serial);
 ```
 
 配列サイズ定数：`ESP_USB_HOST_MAX_DEVICES`、`ESP_USB_HOST_MAX_INTERFACES`、`ESP_USB_HOST_MAX_ENDPOINTS`。

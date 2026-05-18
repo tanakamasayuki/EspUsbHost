@@ -86,13 +86,12 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | Read keyboard input and print typed characters to Serial |
+| [EspUsbHostKeyboardDump](examples/HID/EspUsbHostKeyboardDump/) | Dump parsed keyboard events and show how to handle `onKeyboard` yourself |
 | [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | Read mouse movement and button events |
-| [EspUsbHostKeyboardLeds](examples/HID/EspUsbHostKeyboardLeds/) | Control NumLock / CapsLock / ScrollLock LEDs |
 | [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | Detect media keys (volume, play/pause, etc.) |
 | [EspUsbHostSystemControl](examples/HID/EspUsbHostSystemControl/) | Detect system keys (power, standby, wake) |
 | [EspUsbHostGamepad](examples/HID/EspUsbHostGamepad/) | Read gamepad axes, hat switch, and buttons |
 | [EspUsbHostHIDVendor](examples/HID/EspUsbHostHIDVendor/) | Vendor HID input and output/feature reports |
-| [EspUsbHostCustomHID](examples/HID/EspUsbHostCustomHID/) | Raw hex dump of any HID input report |
 | [EspUsbHostHIDRawDump](examples/HID/EspUsbHostHIDRawDump/) | Raw hex dump with device address (supports multiple devices) |
 
 ### Info
@@ -100,6 +99,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | Print device descriptors, interfaces, and endpoints for all connected devices |
+| [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | Define custom connect/disconnect callbacks and inspect connected devices |
 
 ### MIDI
 
@@ -112,6 +112,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | Receive USB Audio isochronous IN payloads |
+| [EspUsbHostAudioMp3](examples/Audio/EspUsbHostAudioMp3/) | Decode embedded MP3 assets and play them to USB Audio output |
 | [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | Send USB Audio isochronous OUT payloads |
 
 ### Serial
@@ -146,9 +147,12 @@ struct EspUsbHostConfig {
 ```cpp
 void onDeviceConnected(DeviceCallback callback);
 void onDeviceDisconnected(DeviceCallback callback);
+void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device);
+void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device);
 ```
 
 Callbacks receive `const EspUsbHostDeviceInfo &device`. Key fields: `address`, `vid`, `pid`, `product`, `manufacturer`, `serial`, `speed`, `parentAddress`, `portId`.
+The `espUsbHostPrintDeviceConnected` and `espUsbHostPrintDeviceDisconnected` helpers can be registered directly when a sample only needs standard Serial logging.
 
 `portId` identifies where the device is attached. `0x01` means the root port. For hub-attached devices, the upper nibble is the hub index assigned in detection order and the lower nibble is the hub port number, for example `0x12` means hub #1 port 2.
 
@@ -162,13 +166,15 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // raw — fires for all HID interfaces
 void onVendorInput(VendorInputCallback callback);
+void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input);
+void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event);
 ```
 
 Notable event fields:
 
 | Callback | Key fields |
 |----------|-----------|
-| `onKeyboard` | `pressed`, `keyCode`, `ascii`, `modifiers`, `address` |
+| `onKeyboard` | `pressed`, `keycode`, `ascii`, `modifiers`, `address` |
 | `onMouse` | `x`, `y`, `wheel`, `buttons`, `previousButtons`, `moved`, `buttonsChanged`, `address` |
 | `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
@@ -319,6 +325,9 @@ size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces,
                      size_t maxInterfaces) const;
 size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
+void   printDeviceInfo(uint8_t address, bool includeHubInfo = false,
+                       Print &out = Serial);
+void   printAllDeviceInfo(Print &out = Serial);
 ```
 
 Array size constants: `ESP_USB_HOST_MAX_DEVICES`, `ESP_USB_HOST_MAX_INTERFACES`, `ESP_USB_HOST_MAX_ENDPOINTS`.

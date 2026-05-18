@@ -20,11 +20,12 @@ Useful for debugging custom keyboards, verifying keycode mapping, or understandi
 ## Key APIs
 
 - `usb.onKeyboard(callback)` — fired on each key press/release with `EspUsbHostKeyboardEvent`
+- `event.keycode` / `event.ascii` / `event.modifiers` — parsed keyboard fields used by the custom callback in this example
 
 ## Expected Serial output
 
 ```
-connected: vid=045e pid=07a5 product=USB Keyboard
+connected: address=1 vid=045e pid=07a5 product=USB Keyboard
 [press  ] keycode=0x04 ascii=0x61(a) modifiers=none
 [release] keycode=0x04 ascii=0x61(a) modifiers=none
 [press  ] keycode=0x04 ascii=0x41(A) modifiers=LSHIFT

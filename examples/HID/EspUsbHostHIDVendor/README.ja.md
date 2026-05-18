@@ -33,7 +33,7 @@
 ## シリアル出力例
 
 ```
-connected: vid=303a pid=4004 product=ESP32S3 HID Vendor
+connected: address=1 vid=303a pid=4004 product=ESP32S3 HID Vendor
 vendor iface=0 len=63 data=device input
 send output: ok
 send feature: ok

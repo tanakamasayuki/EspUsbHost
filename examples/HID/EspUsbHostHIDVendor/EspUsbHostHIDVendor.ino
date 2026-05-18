@@ -14,8 +14,8 @@ void setup()
 
   Serial.println("EspUsbHost HID vendor example start");
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
-                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n", info.vid, info.pid, info.product); });
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
 
   usb.onVendorInput([](const EspUsbHostVendorInput &input)
                     {

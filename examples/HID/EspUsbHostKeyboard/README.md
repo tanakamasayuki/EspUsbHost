@@ -29,9 +29,9 @@ Reads keyboard input from a USB HID keyboard, prints typed characters to the Ser
 ## Expected Serial output
 
 ```
-connected: vid=045e pid=07a5 product=USB Keyboard
+connected: address=1 vid=045e pid=07a5 product=USB Keyboard
 hello world
-disconnected
+disconnected: address=1 vid=045e pid=07a5
 ```
 
 ## See also
