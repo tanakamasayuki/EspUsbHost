@@ -44,6 +44,35 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 - ESP32-S3, or any board supported by Arduino-ESP32 USB Host
 - Arduino-ESP32 core
 
+### ESP32-P4 notes
+
+ESP32-P4 boards can expose up to four USB-related connectors or paths, depending on the board design:
+
+- External USB-to-UART serial converter, such as CH34x, for flashing/logging
+- USB FS used as CDC
+- USB FS OTG
+- USB HS OTG
+
+Some boards also have a normal UART port behind the external USB-to-UART converter. This is separate from the ESP32-P4 built-in USB Serial/JTAG and USB OTG peripherals.
+
+The chip-level signal pins are as follows. Board connectors may be wired differently, so always check the board schematic before wiring or choosing a port.
+
+| Typical ESP32-P4 role | D- | D+ | Notes |
+|------------------------|----|----|-------|
+| USB CDC FS / USB Serial/JTAG FS | GPIO24 | GPIO25 | Commonly used for built-in USB Serial/JTAG or a FS device-side CDC connector. This connector is easy to confuse with USB Host on some boards. |
+| USB OTG FS | GPIO26 | GPIO27 | Commonly used as the full-speed OTG connector; selectable as USB Host with `ESP_USB_HOST_PORT_FULL_SPEED`. |
+| USB OTG HS | package pin 49 | package pin 50 | High-speed OTG port; these are dedicated USB pins, not general GPIOs. Select with `ESP_USB_HOST_PORT_HIGH_SPEED`. |
+
+ESP32-P4 has two full-speed USB PHY pin pairs, and the FS OTG and USB Serial/JTAG functions can choose between GPIO24/GPIO25 and GPIO26/GPIO27. The table above shows the typical/default assignment, not a guarantee for every board.
+
+The FS USB pin-pair selection can be changed with eFuse, but this is irreversible once swapped and is not recommended for normal library use. Prefer using the board's default wiring and select the host peripheral in software with `EspUsbHostConfig::port`.
+
+Only the OTG ports are usable as USB Host ports. Some boards make it hard to tell which connector is FS OTG versus a CDC/device connector, so check the board schematic and examples carefully.
+
+The ESP-IDF USB Host stack can use only one host peripheral at a time. On ESP32-P4, choose either FS OTG or HS OTG with `EspUsbHostConfig::port`; you cannot run both as USB Host simultaneously. In Arduino-library use, the USB device function uses HS, and FS cannot be selected for that device role.
+
+High-speed OTG support is still limited in practice. USB hubs are effectively not usable on HS OTG in the current environment. This library has confirmed a USB keyboard working as USB Host on ESP32-P4, but detailed ESP32-P4 validation is still incomplete.
+
 ## Installation
 
 Open the Arduino IDE Library Manager, search for **EspUsbHost**, and install.
@@ -140,8 +169,11 @@ struct EspUsbHostConfig {
   uint32_t    taskStackSize = 4096;
   UBaseType_t taskPriority  = 5;
   BaseType_t  taskCore      = tskNO_AFFINITY;
+  EspUsbHostPort port       = ESP_USB_HOST_PORT_DEFAULT;
 };
 ```
+
+On ESP32-P4, set `port` to `ESP_USB_HOST_PORT_FULL_SPEED` or `ESP_USB_HOST_PORT_HIGH_SPEED` when you need to choose a specific OTG peripheral. Other chips ignore this setting.
 
 ### Device events
 
