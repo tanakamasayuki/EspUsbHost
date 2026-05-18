@@ -16,6 +16,7 @@ Plays embedded MP3 files sequentially through a USB speaker or audio interface.
 - MP3 files are embedded as C arrays via `assets_embed.h` and played back in order. Non-MP3 files are skipped.
 - The decoder reports the MP3 sample rate via `SetRate()`. A linear interpolation resampler converts it to the USB output rate (48 kHz).
 - USB output is 48 kHz, 16-bit stereo PCM. The connected device must support this format.
+- The sketch reads the requested frame count from its ring buffer in `onAudioOutputRequest()` and lets the library drive transfer timing.
 - Playback loops through all files once, then stops.
 
 ## Expected Serial output
