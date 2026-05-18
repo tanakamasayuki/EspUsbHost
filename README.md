@@ -386,6 +386,10 @@ const char *lastErrorName() const;
 
 ## Multiple devices
 
+For multi-device use, a self-powered USB 2.0 hub is recommended. Cheap bus-powered hubs may fail to enumerate devices or become unstable when devices draw current. Many USB 3.x hubs also expose more complex internal topology or behavior that is not a good starting point for this library.
+
+Prefer hubs with up to 4 downstream ports. Hubs with many ports are often implemented internally as cascaded hubs, which increases topology depth and resource use. ESP32-S3 has only 8 USB host channels, and some USB devices consume multiple channels for their interfaces/endpoints, so multi-device setups can hit the channel limit quickly.
+
 All send APIs and `EspUsbHostCdcSerial` default to `ESP_USB_HOST_ANY_ADDRESS`, which targets the first available device of the appropriate class. Pass an explicit `address` to target the currently connected device.
 
 Device identification fields have different stability:
