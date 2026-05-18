@@ -26,7 +26,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。データビットは8ビットのみで、シリアル形式設定は未実装 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | UAC — USBオーディオ入出力 | 🔲 実験的 |
-| HUB — ハブ検出・ポート電源制御 | 🔲 実装予定 |
+| HUB — ハブ検出・トポロジー情報・ポート電源制御 | 🔲 部分実装。手動テストの`hub_info`と`hub_power`はPASS |
 | MSC — USBストレージ | 💭 検討中 |
 | UVC — USBカメラ | 💭 検討中 |
 
