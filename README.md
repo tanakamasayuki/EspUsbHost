@@ -35,7 +35,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Feature | Status |
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | 🔲 Planned |
-| Multi-CDC example — multiple `EspUsbHostCdcSerial` instances with `setAddress()` | 🔲 Planned |
+| Multi-serial example — multiple `EspUsbHostCdcSerial` instances selected by VID | ✅ Done |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
 
@@ -120,6 +120,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | Bidirectional serial bridge (CDC ACM and VCP) |
+| [EspUsbHostMultiUSBSerial](examples/Serial/EspUsbHostMultiUSBSerial/) | Use FTDI and CP210x USB serial devices at the same time |
 
 ## API reference
 
@@ -353,7 +354,17 @@ const char *lastErrorName() const;
 
 ## Multiple devices
 
-All send APIs and `EspUsbHostCdcSerial` default to `ESP_USB_HOST_ANY_ADDRESS`, which targets the first available device of the appropriate class. Pass an explicit `address` (obtained from `EspUsbHostDeviceInfo::address`) to target a specific device.
+All send APIs and `EspUsbHostCdcSerial` default to `ESP_USB_HOST_ANY_ADDRESS`, which targets the first available device of the appropriate class. Pass an explicit `address` to target the currently connected device.
+
+Device identification fields have different stability:
+
+| Field | Use |
+|-------|-----|
+| `address` | Current USB address. Use it for API calls such as `setAddress()`, `sendSerial()`, `midiSend()`, or `setKeyboardLeds()`. It can change after unplug/replug. |
+| `portId` | Physical/topology location. Use it to remember "the device on this port" across reconnects. |
+| `vid` / `pid` | Device type/model identification. Use it to select supported chip families or products. |
+| `manufacturer` / `product` | Human-readable USB string descriptors. Useful for logs and UI, but not guaranteed unique. |
+| `serial` | USB serial-number string descriptor when the device provides one. It may be empty. Use it for per-unit identity when available. |
 
 ```cpp
 usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
