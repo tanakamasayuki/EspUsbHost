@@ -143,6 +143,7 @@ void loop() {
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | USB AudioのIsochronous INペイロードを受信 |
 | [EspUsbHostAudioMp3](examples/Audio/EspUsbHostAudioMp3/) | 埋め込みMP3素材をデコードしてUSB Audio出力へ再生 |
 | [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | USB AudioのIsochronous OUTペイロードを送信 |
+| [EspUsbHostAudioPCMFlow](examples/Audio/EspUsbHostAudioPCMFlow/) | USB Audio出力向けの暫定PCMFlow連携例 |
 
 ### Serial
 
@@ -327,10 +328,15 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 
 ```cpp
 void onAudioData(AudioDataCallback callback);
+void onAudioOutputRequest(AudioOutputCallback callback);
 bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool setAudioSampleRate(uint32_t sampleRate,
                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool audioOutputStart(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void audioOutputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams,
@@ -346,7 +352,9 @@ bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
 
 `onAudioData`はUSB Audio StreamingのIsochronous INエンドポイントから受信した生ペイロードを通知します。コールバックは`const EspUsbHostAudioData &audio`を受け取り、フィールドは`address`、`interfaceNumber`、`data`、`length`です。
 
-`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostAudioStreamSupportsSampleRate`はその情報を使って指定サンプルレートに対応しているか判定し、`espUsbHostAudioStreamMatchesPcm`はチャンネル数、サンプルサイズ、ビット深度、サンプルレートをまとめて判定します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを送信します。
+`onAudioOutputRequest`はUSB Audio OUTの推奨APIです。`audioOutputStart()`後、ライブラリがIsochronous OUT転送を駆動し、次のPCMフレームが必要なタイミングでコールバックを呼びます。`request.data`へ最大`request.frameCount`フレームのinterleaved PCMを書き込み、`request.writtenFrames`へ書き込んだフレーム数を設定します。不足分はライブラリが無音として送信し、underrunとしてカウントします。このコールバックはUSB client task上で呼ばれるため、短時間で戻り、ブロックしない処理にしてください。重いデコードはコールバック内で行わず、既存のPCMバッファからコピーする用途に向きます。
+
+`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostAudioStreamSupportsSampleRate`はその情報を使って指定サンプルレートに対応しているか判定し、`espUsbHostAudioStreamMatchesPcm`はチャンネル数、サンプルサイズ、ビット深度、サンプルレートをまとめて判定します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
 
 ### デバイス探索
 

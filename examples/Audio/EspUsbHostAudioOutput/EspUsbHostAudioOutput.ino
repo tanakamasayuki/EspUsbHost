@@ -8,19 +8,13 @@ static constexpr uint32_t TONE_HZ = 440;
 static constexpr uint8_t CHANNELS = 1;
 static constexpr uint8_t BYTES_PER_SAMPLE = 2;
 static constexpr uint8_t BITS_PER_SAMPLE = 16;
-static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
-static constexpr size_t MAX_CHANNELS = 2;
 static constexpr int16_t VOLUME = 100; // 0-32767
 static uint8_t audioAddress = 0;
-static bool audioReady = false;
-static uint8_t audioChannels = CHANNELS;
-static size_t audioPacketBytes = FRAMES_PER_PACKET * CHANNELS * BYTES_PER_SAMPLE;
-static uint8_t samples[FRAMES_PER_PACKET * MAX_CHANNELS * BYTES_PER_SAMPLE];
 
-static void fillTone()
+static void fillTone(EspUsbHostAudioOutputRequest &request)
 {
   static uint32_t phase = 0;
-  for (size_t frame = 0; frame < FRAMES_PER_PACKET; frame++)
+  for (size_t frame = 0; frame < request.frameCount; frame++)
   {
     const int16_t value = (phase < SAMPLE_RATE / 2) ? VOLUME : -VOLUME;
     phase += TONE_HZ;
@@ -28,13 +22,14 @@ static void fillTone()
     {
       phase -= SAMPLE_RATE;
     }
-    for (uint8_t channel = 0; channel < audioChannels; channel++)
+    for (uint8_t channel = 0; channel < request.channels; channel++)
     {
-      const size_t offset = (frame * audioChannels + channel) * BYTES_PER_SAMPLE;
-      samples[offset] = value & 0xff;
-      samples[offset + 1] = (value >> 8) & 0xff;
+      const size_t offset = (frame * request.channels + channel) * BYTES_PER_SAMPLE;
+      request.data[offset] = value & 0xff;
+      request.data[offset + 1] = (value >> 8) & 0xff;
     }
   }
+  request.writtenFrames = request.frameCount;
 }
 
 void setup()
@@ -71,22 +66,18 @@ void setup()
                                             streams[i].maxPacketSize,
                                             streams[i].interval);
                               if (streams[i].output &&
-                                  streams[i].channels >= CHANNELS &&
-                                  streams[i].channels <= MAX_CHANNELS &&
                                   espUsbHostAudioStreamMatchesPcm(streams[i],
-                                                                  streams[i].channels,
+                                                                  CHANNELS,
                                                                   BYTES_PER_SAMPLE,
                                                                   BITS_PER_SAMPLE,
                                                                   SAMPLE_RATE))
                               {
                                 audioAddress = info.address;
-                                audioReady = true;
-                                audioChannels = streams[i].channels;
-                                audioPacketBytes = FRAMES_PER_PACKET * audioChannels * BYTES_PER_SAMPLE;
                                 usb.setAudioSampleRate(SAMPLE_RATE, info.address);
+                                usb.audioOutputStart(info.address);
                               }
                             }
-                            Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);
+                            Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);
                           } });
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
@@ -96,9 +87,13 @@ void setup()
                                            info.pid);
                              if (info.address == audioAddress)
                              {
-                               audioReady = false;
                                audioAddress = 0;
                              } });
+
+  usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
+                           {
+                             fillTone(request);
+                           });
 
   if (!usb.begin())
   {
@@ -108,14 +103,5 @@ void setup()
 
 void loop()
 {
-  if (audioReady)
-  {
-    fillTone();
-    usb.audioSend(samples, audioPacketBytes, audioAddress);
-    delay(1);
-  }
-  else
-  {
-    delay(10);
-  }
+  delay(10);
 }

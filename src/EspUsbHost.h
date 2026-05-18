@@ -82,6 +82,7 @@ static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
+static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
 
 struct EspUsbHostConfig
 {
@@ -241,6 +242,21 @@ struct EspUsbHostAudioData
   size_t length = 0;
 };
 
+struct EspUsbHostAudioOutputRequest
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t endpointAddress = 0;
+  uint32_t sampleRate = 0;
+  uint8_t channels = 0;
+  uint8_t bytesPerSample = 0;
+  uint8_t bitsPerSample = 0;
+  uint8_t *data = nullptr;
+  size_t frameCount = 0;
+  size_t byteCount = 0;
+  size_t writtenFrames = 0;
+};
+
 struct EspUsbHostAudioStreamInfo
 {
   uint8_t address = 0;
@@ -376,6 +392,7 @@ public:
   using SerialDataCallback = std::function<void(const EspUsbHostSerialData &)>;
   using MidiMessageCallback = std::function<void(const EspUsbHostMidiMessage &)>;
   using AudioDataCallback = std::function<void(const EspUsbHostAudioData &)>;
+  using AudioOutputCallback = std::function<void(EspUsbHostAudioOutputRequest &)>;
   using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
   using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
   using VendorInputCallback = std::function<void(const EspUsbHostVendorInput &)>;
@@ -397,6 +414,7 @@ public:
   void onSerialData(SerialDataCallback callback);
   void onMidiMessage(MidiMessageCallback callback);
   void onAudioData(AudioDataCallback callback);
+  void onAudioOutputRequest(AudioOutputCallback callback);
   void onConsumerControl(ConsumerControlCallback callback);
   void onGamepad(GamepadCallback callback);
   void onVendorInput(VendorInputCallback callback);
@@ -420,6 +438,10 @@ public:
   bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool setAudioSampleRate(uint32_t sampleRate, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool audioOutputStart(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  void audioOutputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -522,6 +544,14 @@ private:
     uint8_t audioOutInterfaceNumber = 0;
     uint8_t audioOutEndpointAddress = 0;
     uint16_t audioOutPacketSize = 0;
+    uint8_t audioOutChannels = 0;
+    uint8_t audioOutBytesPerSample = 0;
+    uint8_t audioOutBitsPerSample = 0;
+    uint8_t audioOutInterval = 0;
+    bool audioOutRunning = false;
+    uint32_t audioOutFrameAccumulator = 0;
+    uint32_t audioOutUnderruns = 0;
+    usb_transfer_t *audioOutTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
     uint32_t audioSampleRate = 48000;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
@@ -590,6 +620,10 @@ private:
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
   bool submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length);
+  bool submitAudioOutputRequestTransfer(DeviceState &device, usb_transfer_t *transfer);
+  bool fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer);
+  bool isManagedAudioOutputTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
+  void releaseAudioOutputTransfers(DeviceState &device);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
@@ -647,6 +681,7 @@ private:
   SerialDataCallback serialDataCallback_;
   MidiMessageCallback midiMessageCallback_;
   AudioDataCallback audioDataCallback_;
+  AudioOutputCallback audioOutputCallback_;
   ConsumerControlCallback consumerControlCallback_;
   GamepadCallback gamepadCallback_;
   VendorInputCallback vendorInputCallback_;

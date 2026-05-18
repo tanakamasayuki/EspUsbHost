@@ -597,6 +597,11 @@ void EspUsbHost::onAudioData(AudioDataCallback callback)
   audioDataCallback_ = callback;
 }
 
+void EspUsbHost::onAudioOutputRequest(AudioOutputCallback callback)
+{
+  audioOutputCallback_ = callback;
+}
+
 void EspUsbHost::onConsumerControl(ConsumerControlCallback callback)
 {
   consumerControlCallback_ = callback;
@@ -1213,6 +1218,89 @@ bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
   return submitted;
 }
 
+bool EspUsbHost::audioOutputStart(uint8_t address)
+{
+  DeviceState *device = findAudioOutputDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "audioOutputStart() called before a USB Audio OUT endpoint is ready");
+    return false;
+  }
+  if (device->audioOutRunning)
+  {
+    return true;
+  }
+  for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
+  {
+    if (device->audioOutTransfers[i])
+    {
+      ESP_LOGW(TAG, "audioOutputStart() called while previous audio OUT transfers are stopping");
+      return false;
+    }
+  }
+  if (device->audioOutPacketSize == 0 ||
+      device->audioOutChannels == 0 ||
+      device->audioOutBytesPerSample == 0 ||
+      device->audioSampleRate == 0)
+  {
+    ESP_LOGW(TAG, "audioOutputStart() called with incomplete audio OUT format");
+    return false;
+  }
+
+  device->audioOutRunning = true;
+  device->audioOutFrameAccumulator = 0;
+  device->audioOutUnderruns = 0;
+
+  for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
+  {
+    usb_transfer_t *transfer = nullptr;
+    esp_err_t err = usb_host_transfer_alloc(device->audioOutPacketSize, 1, &transfer);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(audio OUT request) failed: %s", esp_err_to_name(err));
+      setLastError(err);
+      releaseAudioOutputTransfers(*device);
+      return false;
+    }
+
+    transfer->device_handle = device->handle;
+    transfer->bEndpointAddress = device->audioOutEndpointAddress;
+    transfer->callback = outputTransferCallback;
+    transfer->context = this;
+    device->audioOutTransfers[i] = transfer;
+
+    if (!submitAudioOutputRequestTransfer(*device, transfer))
+    {
+      releaseAudioOutputTransfers(*device);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void EspUsbHost::audioOutputStop(uint8_t address)
+{
+  DeviceState *device = findAudioOutputDevice(address);
+  if (!device)
+  {
+    return;
+  }
+  device->audioOutRunning = false;
+}
+
+bool EspUsbHost::audioOutputRunning(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device && device->audioOutRunning;
+}
+
+uint32_t EspUsbHost::audioOutputUnderruns(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device ? device->audioOutUnderruns : 0;
+}
+
 bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
 {
   DeviceState *device = findAudioOutputDevice(address);
@@ -1289,6 +1377,115 @@ bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *d
     ESP_LOGW(TAG, "usb_host_transfer_submit(audio OUT) failed: %s", esp_err_to_name(err));
     setLastError(err);
     usb_host_transfer_free(transfer);
+    return false;
+  }
+  return true;
+}
+
+bool EspUsbHost::isManagedAudioOutputTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
+{
+  for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
+  {
+    if (device.audioOutTransfers[i] == transfer)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool EspUsbHost::fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer)
+{
+  if (!transfer || !transfer->data_buffer)
+  {
+    return false;
+  }
+
+  const size_t bytesPerFrame = static_cast<size_t>(device.audioOutChannels) * device.audioOutBytesPerSample;
+  if (bytesPerFrame == 0)
+  {
+    return false;
+  }
+
+  device.audioOutFrameAccumulator += device.audioSampleRate;
+  size_t frames = device.audioOutFrameAccumulator / 1000;
+  device.audioOutFrameAccumulator %= 1000;
+  if (frames == 0)
+  {
+    frames = 1;
+  }
+
+  const size_t maxFrames = device.audioOutPacketSize / bytesPerFrame;
+  if (frames > maxFrames)
+  {
+    frames = maxFrames;
+  }
+  const size_t byteCount = frames * bytesPerFrame;
+
+  if (device.audioOutBitsPerSample == 8)
+  {
+    memset(transfer->data_buffer, 0x80, byteCount);
+  }
+  else
+  {
+    memset(transfer->data_buffer, 0, byteCount);
+  }
+
+  size_t writtenFrames = 0;
+  if (audioOutputCallback_)
+  {
+    EspUsbHostAudioOutputRequest request;
+    request.address = device.info.address;
+    request.interfaceNumber = device.audioOutInterfaceNumber;
+    request.endpointAddress = device.audioOutEndpointAddress;
+    request.sampleRate = device.audioSampleRate;
+    request.channels = device.audioOutChannels;
+    request.bytesPerSample = device.audioOutBytesPerSample;
+    request.bitsPerSample = device.audioOutBitsPerSample;
+    request.data = transfer->data_buffer;
+    request.frameCount = frames;
+    request.byteCount = byteCount;
+    request.writtenFrames = 0;
+    audioOutputCallback_(request);
+    writtenFrames = request.writtenFrames > frames ? frames : request.writtenFrames;
+  }
+
+  if (writtenFrames < frames)
+  {
+    device.audioOutUnderruns++;
+    const size_t filledBytes = writtenFrames * bytesPerFrame;
+    if (filledBytes < byteCount)
+    {
+      if (device.audioOutBitsPerSample == 8)
+      {
+        memset(transfer->data_buffer + filledBytes, 0x80, byteCount - filledBytes);
+      }
+      else
+      {
+        memset(transfer->data_buffer + filledBytes, 0, byteCount - filledBytes);
+      }
+    }
+  }
+
+  transfer->num_bytes = byteCount;
+  transfer->isoc_packet_desc[0].num_bytes = byteCount;
+  transfer->isoc_packet_desc[0].actual_num_bytes = 0;
+  transfer->isoc_packet_desc[0].status = USB_TRANSFER_STATUS_COMPLETED;
+  return byteCount > 0;
+}
+
+bool EspUsbHost::submitAudioOutputRequestTransfer(DeviceState &device, usb_transfer_t *transfer)
+{
+  if (!device.audioOutRunning || !fillAudioOutputTransfer(device, transfer))
+  {
+    return false;
+  }
+
+  esp_err_t err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(audio OUT request) failed: %s", esp_err_to_name(err));
+    setLastError(err);
     return false;
   }
   return true;
@@ -2449,6 +2646,10 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         device->audioOutInterfaceNumber = currentInterfaceNumber_;
         device->audioOutEndpointAddress = ep->bEndpointAddress;
         device->audioOutPacketSize = ep->wMaxPacketSize;
+        device->audioOutChannels = currentAudioChannels_;
+        device->audioOutBytesPerSample = currentAudioBytesPerSample_;
+        device->audioOutBitsPerSample = currentAudioBitsPerSample_;
+        device->audioOutInterval = ep->bInterval;
         if (currentInterfaceAlternate_ > 0)
         {
           submitAudioSamplingFrequency(*device, ep->bEndpointAddress, device->audioSampleRate);
@@ -2734,6 +2935,9 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
 void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
 {
   EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
+  DeviceState *device = host ? host->findDeviceByHandle(transfer->device_handle) : nullptr;
+  const bool managedAudioOut = host && device && host->isManagedAudioOutputTransfer(*device, transfer);
+
   if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
   {
     ESP_LOGD(TAG, "output transfer status=%d ep=0x%02x", transfer->status, transfer->bEndpointAddress);
@@ -2742,6 +2946,31 @@ void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
       host->setLastError(ESP_FAIL);
     }
   }
+
+  if (managedAudioOut)
+  {
+    if (device->audioOutRunning &&
+        transfer->status == USB_TRANSFER_STATUS_COMPLETED &&
+        host->running_)
+    {
+      if (host->submitAudioOutputRequestTransfer(*device, transfer))
+      {
+        return;
+      }
+    }
+
+    for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
+    {
+      if (device->audioOutTransfers[i] == transfer)
+      {
+        device->audioOutTransfers[i] = nullptr;
+        break;
+      }
+    }
+    usb_host_transfer_free(transfer);
+    return;
+  }
+
   usb_host_transfer_free(transfer);
 }
 
@@ -3787,8 +4016,23 @@ size_t EspUsbHost::getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *s
   return count;
 }
 
+void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
+{
+  device.audioOutRunning = false;
+  for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
+  {
+    usb_transfer_t *transfer = device.audioOutTransfers[i];
+    device.audioOutTransfers[i] = nullptr;
+    if (transfer)
+    {
+      usb_host_transfer_free(transfer);
+    }
+  }
+}
+
 void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)
 {
+  releaseAudioOutputTransfers(device);
   for (EndpointState &endpoint : endpoints_)
   {
     if (!endpoint.inUse || endpoint.deviceHandle != device.handle)

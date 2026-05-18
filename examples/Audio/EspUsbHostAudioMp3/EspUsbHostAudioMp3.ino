@@ -23,9 +23,6 @@ static size_t pcmTail = 0;
 
 static uint8_t audioAddress = 0;
 static bool audioReady = false;
-static uint8_t audioChannels = CHANNELS;
-static size_t audioPacketBytes = FRAMES_PER_PACKET * CHANNELS * BYTES_PER_SAMPLE;
-static uint8_t packet[FRAMES_PER_PACKET * MAX_CHANNELS * BYTES_PER_SAMPLE];
 
 static int fileIndex = 0;
 static AudioGeneratorMP3 *mp3gen = nullptr;
@@ -118,25 +115,24 @@ static bool startNextFile()
   return false;
 }
 
-static bool fillPacket()
+static void fillAudioOutput(EspUsbHostAudioOutputRequest &request)
 {
-  if (pcmAvail() < FRAMES_PER_PACKET)
-    return false;
-  for (size_t f = 0; f < FRAMES_PER_PACKET; f++)
+  const size_t frames = min(pcmAvail(), request.frameCount);
+  for (size_t f = 0; f < frames; f++)
   {
     const int16_t l = pcmBuf[pcmHead * CHANNELS + 0];
     const int16_t r = pcmBuf[pcmHead * CHANNELS + 1];
     pcmHead = (pcmHead + 1) % PCM_BUF_FRAMES;
-    const size_t offset = f * audioChannels * BYTES_PER_SAMPLE;
-    packet[offset + 0] = l & 0xff;
-    packet[offset + 1] = (l >> 8) & 0xff;
-    if (audioChannels > 1)
+    const size_t offset = f * request.channels * BYTES_PER_SAMPLE;
+    request.data[offset + 0] = l & 0xff;
+    request.data[offset + 1] = (l >> 8) & 0xff;
+    if (request.channels > 1)
     {
-      packet[offset + 2] = r & 0xff;
-      packet[offset + 3] = (r >> 8) & 0xff;
+      request.data[offset + 2] = r & 0xff;
+      request.data[offset + 3] = (r >> 8) & 0xff;
     }
   }
-  return true;
+  request.writtenFrames = frames;
 }
 
 void setup()
@@ -185,9 +181,8 @@ void setup()
                               {
                                 audioAddress = info.address;
                                 audioReady = true;
-                                audioChannels = streams[i].channels;
-                                audioPacketBytes = FRAMES_PER_PACKET * audioChannels * BYTES_PER_SAMPLE;
                                 usb.setAudioSampleRate(SAMPLE_RATE, info.address);
+                                usb.audioOutputStart(info.address);
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);
@@ -205,6 +200,11 @@ void setup()
                                audioAddress = 0;
                              } });
 
+  usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
+                           {
+                             fillAudioOutput(request);
+                           });
+
   if (!usb.begin())
     Serial.printf("usb.begin failed: %s\n", usb.lastErrorName());
 }
@@ -215,19 +215,8 @@ void loop()
   if (mp3gen && mp3gen->isRunning())
     mp3gen->loop();
 
-  if (!audioReady)
+  if (srcDone() && pcmAvail() < FRAMES_PER_PACKET)
   {
-    delay(10);
-    return;
-  }
-
-  if (fillPacket())
-  {
-    usb.audioSend(packet, audioPacketBytes, audioAddress);
-  }
-  else if (srcDone() && pcmAvail() < FRAMES_PER_PACKET)
-  {
-    // Source fully read and ring buffer too small for another packet
     if (!startNextFile())
     {
       Serial.println("all files played");
@@ -236,11 +225,5 @@ void loop()
       return;
     }
   }
-  else
-  {
-    // Ring buffer underrun — send silence to keep isochronous stream alive
-    memset(packet, 0, audioPacketBytes);
-    usb.audioSend(packet, audioPacketBytes, audioAddress);
-  }
-  delay(1);
+  delay(audioReady ? 1 : 10);
 }
