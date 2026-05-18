@@ -30,11 +30,8 @@ void setup()
 
   Serial.println("EspUsbHost consumer control example start");
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
-                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n", info.vid, info.pid, info.product); });
-
-  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &)
-                           { Serial.println("disconnected"); });
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
 
   usb.onConsumerControl([](const EspUsbHostConsumerControlEvent &event)
                         { Serial.printf("consumer %s usage=0x%04x %s\n",

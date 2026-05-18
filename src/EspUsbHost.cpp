@@ -137,6 +137,155 @@ static uint32_t readAudioSampleRate24(const uint8_t *data)
          (static_cast<uint32_t>(data[2]) << 16);
 }
 
+static const char *yesNo(bool value)
+{
+  return value ? "yes" : "no";
+}
+
+static const char *speedName(usb_speed_t speed)
+{
+  switch (speed)
+  {
+  case USB_SPEED_LOW:
+    return "low-speed";
+  case USB_SPEED_FULL:
+    return "full-speed";
+  case USB_SPEED_HIGH:
+    return "high-speed";
+  default:
+    return "unknown";
+  }
+}
+
+static const char *className(uint8_t cls)
+{
+  switch (cls)
+  {
+  case 0x00:
+    return "per-interface";
+  case 0x01:
+    return "Audio";
+  case 0x02:
+    return "CDC Control";
+  case 0x03:
+    return "HID";
+  case 0x08:
+    return "Mass Storage";
+  case 0x09:
+    return "Hub";
+  case 0x0a:
+    return "CDC Data";
+  case 0x0e:
+    return "Video";
+  case 0xff:
+    return "Vendor";
+  default:
+    return "Unknown";
+  }
+}
+
+static const char *configAttributeName(uint8_t attributes)
+{
+  return (attributes & 0x40) ? "self-powered" : "bus-powered";
+}
+
+static const char *transferTypeName(uint8_t attributes)
+{
+  switch (attributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK)
+  {
+  case USB_BM_ATTRIBUTES_XFER_CONTROL:
+    return "control";
+  case USB_BM_ATTRIBUTES_XFER_ISOC:
+    return "isochronous";
+  case USB_BM_ATTRIBUTES_XFER_BULK:
+    return "bulk";
+  case USB_BM_ATTRIBUTES_XFER_INT:
+    return "interrupt";
+  default:
+    return "unknown";
+  }
+}
+
+void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out)
+{
+  for (size_t i = 0; i < length; i++)
+  {
+    if (data[i] < 0x10)
+    {
+      out.print('0');
+    }
+    out.print(data[i], HEX);
+    if (i + 1 < length)
+    {
+      out.print(' ');
+    }
+  }
+}
+
+void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device)
+{
+  Serial.printf("connected: address=%u vid=%04x pid=%04x product=%s\n",
+                device.address,
+                device.vid,
+                device.pid,
+                device.product);
+}
+
+void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device)
+{
+  Serial.printf("disconnected: address=%u vid=%04x pid=%04x\n",
+                device.address,
+                device.vid,
+                device.pid);
+}
+
+void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event)
+{
+  static const char *modifierNames[] = {
+      "LCTRL", "LSHIFT", "LALT", "LGUI",
+      "RCTRL", "RSHIFT", "RALT", "RGUI"};
+  const char displayChar = (event.ascii >= 0x20 && event.ascii != 0x7F) ? static_cast<char>(event.ascii) : '.';
+
+  Serial.printf("[%s] keycode=0x%02x ascii=0x%02x(%c) modifiers=",
+                event.pressed ? "press  " : "release",
+                event.keycode,
+                event.ascii,
+                displayChar);
+  if (event.modifiers == 0)
+  {
+    Serial.print("none");
+  }
+  else
+  {
+    bool first = true;
+    for (int i = 0; i < 8; i++)
+    {
+      if (event.modifiers & (1 << i))
+      {
+        if (!first)
+        {
+          Serial.print('+');
+        }
+        Serial.print(modifierNames[i]);
+        first = false;
+      }
+    }
+  }
+  Serial.println();
+}
+
+void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input)
+{
+  Serial.printf("hid: address=%u iface=%u subclass=0x%02x protocol=0x%02x len=%u data=",
+                input.address,
+                input.interfaceNumber,
+                input.subclass,
+                input.protocol,
+                static_cast<unsigned>(input.length));
+  espUsbHostPrintHex(input.data, input.length);
+  Serial.println();
+}
+
 static uint16_t ftdiBaudDivisor(uint32_t baud)
 {
   static constexpr uint32_t FTDI_BASE_CLOCK = 48000000;
@@ -1264,6 +1413,152 @@ int EspUsbHost::lastError() const
 const char *EspUsbHost::lastErrorName() const
 {
   return esp_err_to_name(lastError_);
+}
+
+void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &out)
+{
+  EspUsbHostDeviceInfo device;
+  if (!getDevice(address, device))
+  {
+    out.printf("Device address=%u not found\n", address);
+    return;
+  }
+
+  out.println();
+  out.println("=========== USB Device ===========");
+  const uint8_t hubIndex = device.portId >> 4;
+  const uint8_t upstreamPort = device.portId & 0x0f;
+  out.printf("Address %u portId=0x%02x", device.address, device.portId);
+  if (device.parentAddress)
+  {
+    out.printf(" parent=%u hub_index=%u upstream_port=%u", device.parentAddress, hubIndex, upstreamPort);
+  }
+  else
+  {
+    out.printf(" parent=root root_port=%u", device.portId);
+    if (device.portId > 1)
+    {
+      out.print(" note=hub_stack_may_be_flattened");
+    }
+  }
+  out.printf(" speed=%s\n", speedName(device.speed));
+  out.printf("VID:PID %04x:%04x class=0x%02x(%s) subclass=0x%02x protocol=0x%02x\n",
+             device.vid,
+             device.pid,
+             device.deviceClass,
+             className(device.deviceClass),
+             device.deviceSubClass,
+             device.deviceProtocol);
+  out.printf("Supported=%s hub=%s\n",
+             yesNo(device.supported),
+             yesNo(device.isHub));
+  if (!device.supported)
+  {
+    out.println("Note: unsupported by this library, but descriptors are available for inspection.");
+  }
+  out.printf("USB %x.%02x device %x.%02x ep0=%u\n",
+             device.usbVersion >> 8,
+             device.usbVersion & 0xff,
+             device.deviceVersion >> 8,
+             device.deviceVersion & 0xff,
+             device.maxPacketSize0);
+  out.printf("Strings manufacturer=\"%s\" product=\"%s\" serial=\"%s\"\n",
+             device.manufacturer,
+             device.product,
+             device.serial);
+  out.printf("Configuration value=%u interfaces=%u total_len=%u attributes=0x%02x(%s remote_wakeup=%s) max_power=%umA\n",
+             device.configurationValue,
+             device.configurationInterfaceCount,
+             device.configurationTotalLength,
+             device.configurationAttributes,
+             configAttributeName(device.configurationAttributes),
+             yesNo(device.configurationAttributes & 0x20),
+             device.configurationMaxPower * 2);
+
+  EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
+  const size_t interfaceCount = getInterfaces(address, interfaces, ESP_USB_HOST_MAX_INTERFACES);
+  for (size_t i = 0; i < interfaceCount; i++)
+  {
+    const EspUsbHostInterfaceInfo &intf = interfaces[i];
+    out.printf("  Interface %u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u\n",
+               intf.number,
+               intf.alternate,
+               intf.interfaceClass,
+               className(intf.interfaceClass),
+               intf.interfaceSubClass,
+               intf.interfaceProtocol,
+               intf.endpointCount);
+  }
+
+  EspUsbHostEndpointInfo endpoints[ESP_USB_HOST_MAX_ENDPOINTS];
+  const size_t endpointCount = getEndpoints(address, endpoints, ESP_USB_HOST_MAX_ENDPOINTS);
+  for (size_t i = 0; i < endpointCount; i++)
+  {
+    const EspUsbHostEndpointInfo &ep = endpoints[i];
+    out.printf("    Endpoint iface=%u ep=0x%02x dir=%s type=%s max_packet=%u interval=%u attrs=0x%02x\n",
+               ep.interfaceNumber,
+               ep.address,
+               (ep.address & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) ? "IN" : "OUT",
+               transferTypeName(ep.attributes),
+               ep.maxPacketSize,
+               ep.interval,
+               ep.attributes);
+  }
+  if (includeHubInfo && device.isHub)
+  {
+    EspUsbHostHubInfo hub;
+    if (getHubInfo(device.address, hub))
+    {
+      out.println("----------- USB Hub -----------");
+      out.printf("Hub address=%u ports=%u descriptor_len=%u characteristics=0x%04x\n",
+                 hub.address,
+                 hub.portCount,
+                 hub.descriptorLength,
+                 hub.characteristics);
+      out.printf("Power switching: per-port=%s ganged=%s none=%s\n",
+                 yesNo(hub.perPortPowerSwitching),
+                 yesNo(hub.gangedPowerSwitching),
+                 yesNo(hub.noPowerSwitching));
+      out.printf("Over-current: per-port=%s ganged=%s none=%s\n",
+                 yesNo(hub.perPortOverCurrent),
+                 yesNo(hub.gangedOverCurrent),
+                 yesNo(hub.noOverCurrent));
+      out.printf("Compound=%s power_on_to_good=%ums controller_current=%umA\n",
+                 yesNo(hub.compound),
+                 hub.powerOnToPowerGoodMs,
+                 hub.controllerCurrentMa);
+      out.print("Raw hub descriptor: ");
+      espUsbHostPrintHex(hub.rawDescriptor, hub.descriptorLength, out);
+      out.println();
+      out.println("--------- USB Hub End ---------");
+    }
+    else
+    {
+      out.printf("Hub address=%u descriptor unavailable\n", device.address);
+    }
+  }
+  out.println("========= USB Device End =========");
+  out.println();
+}
+
+void EspUsbHost::printAllDeviceInfo(Print &out)
+{
+  out.println();
+  out.println("=========== USB Topology ===========");
+  EspUsbHostDeviceInfo devices[ESP_USB_HOST_MAX_DEVICES];
+  const size_t count = getDevices(devices, ESP_USB_HOST_MAX_DEVICES);
+  out.printf("Tracked devices=%u\n", static_cast<unsigned>(count));
+  if (count == 0)
+  {
+    out.println("No USB devices");
+    out.println("========= USB Topology End =========");
+    return;
+  }
+  for (size_t i = 0; i < count; i++)
+  {
+    printDeviceInfo(devices[i].address, true, out);
+  }
+  out.println("========= USB Topology End =========");
 }
 
 void EspUsbHost::taskEntry(void *arg)

@@ -60,11 +60,8 @@ void setup()
 
   Serial.println("n:NoteOn C4  f:NoteOff C4  c:CC#74  p:Program 10  b:PitchBend  s:SysEx");
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
-                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n", info.vid, info.pid, info.product); });
-
-  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &)
-                           { Serial.println("disconnected"); });
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
 
   usb.onMidiMessage([](const EspUsbHostMidiMessage &message)
                     { printMidiMessage(message); });

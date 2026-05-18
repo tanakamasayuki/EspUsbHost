@@ -41,15 +41,12 @@ void setup()
                                             streams[i].interval);
                             }
                             usb.setAudioSampleRate(SAMPLE_RATE, info.address);
-                          }
-                        });
+                          } });
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
-                           {
-                             Serial.printf("disconnected: addr=%u vid=%04x pid=%04x\n",
+                           { Serial.printf("disconnected: addr=%u vid=%04x pid=%04x\n",
                                            info.address,
                                            info.vid,
-                                           info.pid);
-                           });
+                                           info.pid); });
 
   usb.onAudioData([](const EspUsbHostAudioData &audio)
                   {
@@ -64,8 +61,7 @@ void setup()
                                     static_cast<unsigned>(audio.length));
                       audioBytes = 0;
                       lastPrintMs = now;
-                    }
-                  });
+                    } });
 
   if (!usb.begin())
   {

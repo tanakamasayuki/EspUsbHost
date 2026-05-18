@@ -56,6 +56,8 @@ Prints detailed USB device information for every connected device, including uns
 
 ## Key APIs
 
+- `usb.printDeviceInfo(address)` — print a detailed descriptor dump for one device
+- `usb.printAllDeviceInfo()` — print detailed descriptor dumps for all connected devices
 - `usb.getDevices(devices, maxDevices)` — enumerate all connected devices
 - `usb.getDevice(address, device)` — fetch descriptor for a single device
 - `usb.getHubInfo(hubAddress, hub)` — fetch hub descriptor and decoded hub capabilities

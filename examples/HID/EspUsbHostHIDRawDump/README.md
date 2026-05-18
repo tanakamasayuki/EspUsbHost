@@ -26,6 +26,7 @@ Supports multiple simultaneous USB devices.
   - `input.data` — raw report bytes
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
   - `device.address` — USB device address
+- `espUsbHostPrintHIDInput` / `espUsbHostPrintDeviceConnected` / `espUsbHostPrintDeviceDisconnected` — ready-made Serial dump callbacks used by this example
 
 ## Expected Serial output
 

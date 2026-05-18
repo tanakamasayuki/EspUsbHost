@@ -10,12 +10,8 @@ void setup()
   Serial.begin(115200);
   delay(500);
 
-  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
-                        { Serial.printf("connected: vid=%04x pid=%04x product=%s\n",
-                                        device.vid, device.pid, device.product); });
-
-  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &)
-                           { Serial.println("disconnected"); });
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
 
   usb.onMouse([](const EspUsbHostMouseEvent &event)
               {

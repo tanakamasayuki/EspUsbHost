@@ -41,12 +41,19 @@ audioSend	KEYWORD2
 getAudioStreams	KEYWORD2
 espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 espUsbHostAudioStreamMatchesPcm	KEYWORD2
+espUsbHostPrintHex	KEYWORD2
+espUsbHostPrintDeviceConnected	KEYWORD2
+espUsbHostPrintDeviceDisconnected	KEYWORD2
+espUsbHostPrintKeyboardEvent	KEYWORD2
+espUsbHostPrintHIDInput	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2
 getKeyboardNumLock	KEYWORD2
 getKeyboardCapsLock	KEYWORD2
 getKeyboardScrollLock	KEYWORD2
+printDeviceInfo	KEYWORD2
+printAllDeviceInfo	KEYWORD2
 lastError	KEYWORD2
 lastErrorName	KEYWORD2
 

@@ -20,11 +20,12 @@
 ## 主要API
 
 - `usb.onKeyboard(callback)` — キー押下・解放時に`EspUsbHostKeyboardEvent`付きで呼ばれる
+- `event.keycode` / `event.ascii` / `event.modifiers` — このサンプルの自前コールバックで使っているパース済みキーボード情報
 
 ## シリアル出力例
 
 ```
-connected: vid=045e pid=07a5 product=USB Keyboard
+connected: address=1 vid=045e pid=07a5 product=USB Keyboard
 [press  ] keycode=0x04 ascii=0x61(a) modifiers=none
 [release] keycode=0x04 ascii=0x61(a) modifiers=none
 [press  ] keycode=0x04 ascii=0x41(A) modifiers=LSHIFT

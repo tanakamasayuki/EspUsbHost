@@ -309,6 +309,12 @@ inline bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &str
          espUsbHostAudioStreamSupportsSampleRate(stream, sampleRate);
 }
 
+void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out = Serial);
+void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device);
+void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device);
+void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event);
+void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input);
+
 struct EspUsbHostConsumerControlEvent
 {
   uint8_t address = 0;
@@ -443,6 +449,8 @@ public:
 
   int lastError() const;
   const char *lastErrorName() const;
+  void printDeviceInfo(uint8_t address, bool includeHubInfo = false, Print &out = Serial);
+  void printAllDeviceInfo(Print &out = Serial);
 
 private:
   struct EndpointState

@@ -34,7 +34,7 @@ Common consumer control usage codes handled:
 ## Expected Serial output
 
 ```
-connected: vid=045e pid=07a5 product=USB Keyboard
+connected: address=1 vid=045e pid=07a5 product=USB Keyboard
 consumer press usage=0x00e9 Volume Up
 consumer release usage=0x00e9 Volume Up
 consumer press usage=0x00cd Play/Pause

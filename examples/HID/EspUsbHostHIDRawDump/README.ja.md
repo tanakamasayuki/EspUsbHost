@@ -26,6 +26,7 @@
   - `input.data` — 生のレポートバイト列
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
   - `device.address` — USBデバイスアドレス
+- `espUsbHostPrintHIDInput` / `espUsbHostPrintDeviceConnected` / `espUsbHostPrintDeviceDisconnected` — このサンプルで使っている標準のシリアルダンプ用コールバック
 
 ## シリアル出力例
 

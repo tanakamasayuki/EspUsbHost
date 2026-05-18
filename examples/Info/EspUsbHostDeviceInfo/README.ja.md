@@ -56,6 +56,8 @@
 
 ## 主要API
 
+- `usb.printDeviceInfo(address)` — 指定デバイスの詳細ディスクリプタ情報を表示
+- `usb.printAllDeviceInfo()` — 接続中の全デバイスの詳細ディスクリプタ情報を表示
 - `usb.getDevices(devices, maxDevices)` — 接続中の全デバイスを列挙
 - `usb.getDevice(address, device)` — 指定デバイスのディスクリプタを取得
 - `usb.getHubInfo(hubAddress, hub)` — Hub descriptorとデコード済みハブ機能を取得

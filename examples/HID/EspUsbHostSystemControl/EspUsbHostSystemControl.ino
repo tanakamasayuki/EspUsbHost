@@ -24,6 +24,9 @@ void setup()
 
   Serial.println("EspUsbHost system control example start");
 
+  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
+  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
+
   usb.onSystemControl([](const EspUsbHostSystemControlEvent &event)
                       { Serial.printf("system %s usage=0x%02x %s\n",
                                       event.pressed ? "press" : "release",

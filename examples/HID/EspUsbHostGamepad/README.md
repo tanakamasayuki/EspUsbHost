@@ -29,7 +29,7 @@ Reads axis, hat switch, and button input from a USB HID gamepad and prints them 
 ## Expected Serial output
 
 ```
-connected: vid=054c pid=09cc product=Wireless Controller
+connected: address=1 vid=054c pid=09cc product=Wireless Controller
 x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=- buttons=0x00000000
 x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=- buttons=0x00000001 +0x1
 x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=N buttons=0x00000001
