@@ -26,7 +26,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; 8 data bits only, serial format settings are not implemented yet | ✅ Done |
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental |
-| HUB — hub detection, port power control | 🔲 Planned |
+| HUB — hub detection, topology info, and port power control | 🔲 Partial; `hub_info` and `hub_power` manual tests pass |
 | MSC — USB storage | 💭 Under consideration |
 | UVC — USB camera | 💭 Under consideration |
 
