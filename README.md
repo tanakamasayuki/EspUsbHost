@@ -23,7 +23,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Class | Status |
 |-------|--------|
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
-| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` | ✅ Done |
+| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; 8 data bits only, serial format settings are not implemented yet | ✅ Done |
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental |
 | HUB — hub detection, port power control | 🔲 Planned |
@@ -35,7 +35,6 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Feature | Status |
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | 🔲 Planned |
-| Multi-serial example — multiple `EspUsbHostCdcSerial` instances selected by VID | ✅ Done |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
 
