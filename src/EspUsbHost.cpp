@@ -286,6 +286,74 @@ void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input)
   Serial.println();
 }
 
+static void printHubPortStatus(EspUsbHost &usb, uint8_t hubAddress, uint8_t port, Print &out)
+{
+  uint16_t status = 0;
+  uint16_t change = 0;
+  if (!usb.getHubPortStatus(hubAddress, port, status, change))
+  {
+    out.printf("  Port %u status unavailable\n", port);
+    return;
+  }
+
+  out.printf("  Port %u status=0x%04x change=0x%04x connected=%s enabled=%s suspended=%s over_current=%s reset=%s powered=%s low_speed=%s high_speed=%s test=%s indicator=%s\n",
+             port,
+             status,
+             change,
+             yesNo(status & 0x0001),
+             yesNo(status & 0x0002),
+             yesNo(status & 0x0004),
+             yesNo(status & 0x0008),
+             yesNo(status & 0x0010),
+             yesNo(status & 0x0100),
+             yesNo(status & 0x0200),
+             yesNo(status & 0x0400),
+             yesNo(status & 0x0800),
+             yesNo(status & 0x1000));
+}
+
+static bool printHubInfo(EspUsbHost &usb, uint8_t hubAddress, bool printPorts, Print &out)
+{
+  EspUsbHostHubInfo hub;
+  if (!usb.getHubInfo(hubAddress, hub))
+  {
+    out.printf("Hub address=%u descriptor unavailable\n", hubAddress);
+    return false;
+  }
+
+  out.println("----------- USB Hub -----------");
+  out.printf("Hub address=%u ports=%u descriptor_len=%u characteristics=0x%04x\n",
+             hub.address,
+             hub.portCount,
+             hub.descriptorLength,
+             hub.characteristics);
+  out.printf("Power switching: per-port=%s ganged=%s none=%s\n",
+             yesNo(hub.perPortPowerSwitching),
+             yesNo(hub.gangedPowerSwitching),
+             yesNo(hub.noPowerSwitching));
+  out.printf("Over-current: per-port=%s ganged=%s none=%s\n",
+             yesNo(hub.perPortOverCurrent),
+             yesNo(hub.gangedOverCurrent),
+             yesNo(hub.noOverCurrent));
+  out.printf("Compound=%s power_on_to_good=%ums controller_current=%umA\n",
+             yesNo(hub.compound),
+             hub.powerOnToPowerGoodMs,
+             hub.controllerCurrentMa);
+  out.print("Raw hub descriptor: ");
+  espUsbHostPrintHex(hub.rawDescriptor, hub.descriptorLength, out);
+  out.println();
+
+  if (printPorts)
+  {
+    for (uint8_t port = 1; port <= hub.portCount; port++)
+    {
+      printHubPortStatus(usb, hub.address, port, out);
+    }
+  }
+  out.println("--------- USB Hub End ---------");
+  return true;
+}
+
 static uint16_t ftdiBaudDivisor(uint32_t baud)
 {
   static constexpr uint32_t FTDI_BASE_CLOCK = 48000000;
@@ -1506,36 +1574,7 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
   }
   if (includeHubInfo && device.isHub)
   {
-    EspUsbHostHubInfo hub;
-    if (getHubInfo(device.address, hub))
-    {
-      out.println("----------- USB Hub -----------");
-      out.printf("Hub address=%u ports=%u descriptor_len=%u characteristics=0x%04x\n",
-                 hub.address,
-                 hub.portCount,
-                 hub.descriptorLength,
-                 hub.characteristics);
-      out.printf("Power switching: per-port=%s ganged=%s none=%s\n",
-                 yesNo(hub.perPortPowerSwitching),
-                 yesNo(hub.gangedPowerSwitching),
-                 yesNo(hub.noPowerSwitching));
-      out.printf("Over-current: per-port=%s ganged=%s none=%s\n",
-                 yesNo(hub.perPortOverCurrent),
-                 yesNo(hub.gangedOverCurrent),
-                 yesNo(hub.noOverCurrent));
-      out.printf("Compound=%s power_on_to_good=%ums controller_current=%umA\n",
-                 yesNo(hub.compound),
-                 hub.powerOnToPowerGoodMs,
-                 hub.controllerCurrentMa);
-      out.print("Raw hub descriptor: ");
-      espUsbHostPrintHex(hub.rawDescriptor, hub.descriptorLength, out);
-      out.println();
-      out.println("--------- USB Hub End ---------");
-    }
-    else
-    {
-      out.printf("Hub address=%u descriptor unavailable\n", device.address);
-    }
+    printHubInfo(*this, device.address, true, out);
   }
   out.println("========= USB Device End =========");
   out.println();
@@ -1545,6 +1584,7 @@ void EspUsbHost::printAllDeviceInfo(Print &out)
 {
   out.println();
   out.println("=========== USB Topology ===========");
+  printHubInfo(*this, 1, true, out);
   EspUsbHostDeviceInfo devices[ESP_USB_HOST_MAX_DEVICES];
   const size_t count = getDevices(devices, ESP_USB_HOST_MAX_DEVICES);
   out.printf("Tracked devices=%u\n", static_cast<unsigned>(count));
