@@ -128,6 +128,7 @@ void loop() {
 |----------|------|
 | [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | 接続中の全デバイスのディスクリプタ・インターフェース・エンドポイントを表示 |
 | [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | 接続・切断コールバックを自分で定義し、接続デバイスを調べる |
+| [EspUsbHostHubPPPS](examples/Info/EspUsbHostHubPPPS/) | PPPS対応USBハブのポート電源を制御 |
 
 ### MIDI
 
