@@ -6,14 +6,12 @@
 EspUsbHost usb;
 PCMFlow audio;
 
-static constexpr uint32_t OUTPUT_SAMPLE_RATE = 48000;
-static constexpr uint8_t OUTPUT_CHANNELS = 2;
-static constexpr uint8_t OUTPUT_BITS_PER_SAMPLE = 16;
-static constexpr uint8_t OUTPUT_BYTES_PER_SAMPLE = OUTPUT_BITS_PER_SAMPLE / 8;
+static constexpr uint32_t DEFAULT_SAMPLE_RATE = 48000;
 static constexpr size_t BUFFER_FRAMES = 2048;
 
 static uint8_t audioAddress = 0;
 static size_t fileIndex = 0;
+static PCMFormat outputFormat = {DEFAULT_SAMPLE_RATE, 2, 16};
 
 static bool openNextFile()
 {
@@ -29,7 +27,7 @@ static bool openNextFile()
       continue;
     }
 
-    audio.setOutputFormat({OUTPUT_SAMPLE_RATE, OUTPUT_CHANNELS, OUTPUT_BITS_PER_SAMPLE});
+    audio.setOutputFormat(outputFormat);
     audio.setBufferFrames(BUFFER_FRAMES);
     audio.setGain(0.8f);
     if (audio.open(assets_file_data[index], assets_file_sizes[index], PCMFlow::CodecKind::Mp3))
@@ -44,6 +42,80 @@ static bool openNextFile()
   }
 
   Serial.println("all files played");
+  return false;
+}
+
+static void restartCurrentFile()
+{
+  if (fileIndex > 0)
+  {
+    fileIndex--;
+  }
+  openNextFile();
+}
+
+static uint32_t chooseSampleRate(const EspUsbHostAudioStreamInfo &stream)
+{
+  if (espUsbHostAudioStreamSupportsSampleRate(stream, DEFAULT_SAMPLE_RATE))
+  {
+    return DEFAULT_SAMPLE_RATE;
+  }
+  if (stream.sampleRate > 0 && espUsbHostAudioStreamSupportsSampleRate(stream, stream.sampleRate))
+  {
+    return stream.sampleRate;
+  }
+  if (stream.sampleRateCount > 0)
+  {
+    return stream.sampleRates[0];
+  }
+  if (stream.sampleRateMin > 0)
+  {
+    return stream.sampleRateMin;
+  }
+  return 0;
+}
+
+static bool chooseAudioOutputStream(uint8_t address)
+{
+  EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
+  const size_t count = usb.getAudioStreams(address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+  for (size_t i = 0; i < count; i++)
+  {
+    Serial.printf("audio stream: iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max=%u interval=%u\n",
+                  streams[i].interfaceNumber,
+                  streams[i].alternate,
+                  streams[i].endpointAddress,
+                  streams[i].input ? "IN" : "OUT",
+                  streams[i].channels,
+                  streams[i].bytesPerSample,
+                  streams[i].bitsPerSample,
+                  static_cast<unsigned long>(streams[i].sampleRate),
+                  streams[i].sampleRateCount,
+                  streams[i].maxPacketSize,
+                  streams[i].interval);
+
+    if (!streams[i].output ||
+        (streams[i].channels != 1 && streams[i].channels != 2) ||
+        (streams[i].bitsPerSample != 8 && streams[i].bitsPerSample != 16))
+    {
+      continue;
+    }
+
+    const uint32_t sampleRate = chooseSampleRate(streams[i]);
+    if (sampleRate == 0 || !espUsbHostAudioStreamSupportsSampleRate(streams[i], sampleRate))
+    {
+      continue;
+    }
+
+    outputFormat = {sampleRate, streams[i].channels, streams[i].bitsPerSample};
+    Serial.printf("selected PCMFlow output: %lu Hz, %u ch, %u-bit\n",
+                  static_cast<unsigned long>(outputFormat.sampleRate),
+                  outputFormat.channels,
+                  outputFormat.bitsPerSample);
+    restartCurrentFile();
+    usb.setAudioSampleRate(outputFormat.sampleRate, address);
+    return usb.audioOutputStart(address);
+  }
   return false;
 }
 
@@ -63,7 +135,7 @@ void setup()
     Serial.println("no MP3 files found in assets");
   }
 
-  usb.setAudioSampleRate(OUTPUT_SAMPLE_RATE);
+  usb.setAudioSampleRate(DEFAULT_SAMPLE_RATE);
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
@@ -78,33 +150,9 @@ void setup()
                             return;
                           }
 
-                          EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
-                          const size_t count = usb.getAudioStreams(info.address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
-                          for (size_t i = 0; i < count; i++)
+                          if (chooseAudioOutputStream(info.address))
                           {
-                            Serial.printf("audio stream: iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max=%u interval=%u\n",
-                                          streams[i].interfaceNumber,
-                                          streams[i].alternate,
-                                          streams[i].endpointAddress,
-                                          streams[i].input ? "IN" : "OUT",
-                                          streams[i].channels,
-                                          streams[i].bytesPerSample,
-                                          streams[i].bitsPerSample,
-                                          static_cast<unsigned long>(streams[i].sampleRate),
-                                          streams[i].sampleRateCount,
-                                          streams[i].maxPacketSize,
-                                          streams[i].interval);
-                            if (streams[i].output &&
-                                espUsbHostAudioStreamMatchesPcm(streams[i],
-                                                                OUTPUT_CHANNELS,
-                                                                OUTPUT_BYTES_PER_SAMPLE,
-                                                                OUTPUT_BITS_PER_SAMPLE,
-                                                                OUTPUT_SAMPLE_RATE))
-                            {
-                              audioAddress = info.address;
-                              usb.setAudioSampleRate(OUTPUT_SAMPLE_RATE, info.address);
-                              usb.audioOutputStart(info.address);
-                            }
+                            audioAddress = info.address;
                           }
                           Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);
                         });
