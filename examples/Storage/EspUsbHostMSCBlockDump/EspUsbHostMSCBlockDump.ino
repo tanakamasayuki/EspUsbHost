@@ -95,6 +95,7 @@ void loop()
                       sense.additionalSenseCode,
                       sense.additionalSenseQualifier);
     }
+    Serial.printf("MSC test unit ready: %u\n", usb.mscTestUnitReady() ? 1 : 0);
 
     uint32_t blockCount = 0;
     uint32_t blockSize = 0;
