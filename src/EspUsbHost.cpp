@@ -1446,7 +1446,8 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     return false;
   }
 
-  auto submitAndWait = [&](uint8_t endpointAddress, const uint8_t *out, uint8_t *in, size_t length, size_t &actual) -> bool {
+  auto submitAndWait = [&](uint8_t endpointAddress, const uint8_t *out, uint8_t *in, size_t length, size_t &actual) -> bool
+  {
     size_t transferLength = length;
     if ((endpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0 && device.mscInPacketSize > 0)
     {
@@ -1608,6 +1609,15 @@ bool EspUsbHost::mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount,
   {
     return false;
   }
+  if (device->mscBlockCount > 0 &&
+      (lba >= device->mscBlockCount || blockCount > device->mscBlockCount - lba))
+  {
+    ESP_LOGW(TAG, "mscReadBlocks() out of range: lba=%lu count=%lu capacity=%lu",
+             static_cast<unsigned long>(lba),
+             static_cast<unsigned long>(blockCount),
+             static_cast<unsigned long>(device->mscBlockCount));
+    return false;
+  }
 
   uint8_t command[10] = {};
   command[0] = SCSI_CMD_READ_10;
@@ -1635,6 +1645,15 @@ bool EspUsbHost::mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t bloc
   }
   if (blockCount > 0xffff)
   {
+    return false;
+  }
+  if (device->mscBlockCount > 0 &&
+      (lba >= device->mscBlockCount || blockCount > device->mscBlockCount - lba))
+  {
+    ESP_LOGW(TAG, "mscWriteBlocks() out of range: lba=%lu count=%lu capacity=%lu",
+             static_cast<unsigned long>(lba),
+             static_cast<unsigned long>(blockCount),
+             static_cast<unsigned long>(device->mscBlockCount));
     return false;
   }
 
@@ -2494,8 +2513,8 @@ void EspUsbHost::refreshDeviceTopology(DeviceState &device)
     DeviceState *parent = findDeviceByHandle(devInfo.parent.dev_hdl);
     device.info.parentAddress = parent ? parent->info.address : 0;
     device.info.portId = parent && parent->hubIndex && upstreamPort > 0 && upstreamPort <= 0x0f
-                            ? static_cast<uint8_t>((parent->hubIndex << 4) | upstreamPort)
-                            : upstreamPort;
+                             ? static_cast<uint8_t>((parent->hubIndex << 4) | upstreamPort)
+                             : upstreamPort;
   }
   else
   {
@@ -2871,7 +2890,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     }
 
     const bool isSerialBulkEndpoint = currentClaimResult_ == ESP_OK &&
-                                       (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
+                                      (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
                                        (device->vendorSerialSupported && currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE)) &&
                                       isBulk;
     if (isSerialBulkEndpoint)
@@ -3271,8 +3290,8 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
       if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
       {
         uint8_t currentLeds = espUsbHostBuildKeyboardLedReport(device->keyboardNumLock,
-                                                                device->keyboardCapsLock,
-                                                                device->keyboardScrollLock);
+                                                               device->keyboardCapsLock,
+                                                               device->keyboardScrollLock);
         if (currentLeds != device->keyboardLedLastSent)
         {
           device->keyboardLedDirty = true;
