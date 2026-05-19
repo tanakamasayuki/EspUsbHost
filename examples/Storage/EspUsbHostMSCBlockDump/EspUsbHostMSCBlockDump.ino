@@ -7,7 +7,7 @@ static bool printed = false;
 void setup()
 {
     Serial.begin(115200);
-    delay(500);
+    delay(5000);
 
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                           { Serial.printf("connected: address=%u vid=%04x pid=%04x class=0x%02x supported=%u product=%s\n",
@@ -24,8 +24,7 @@ void setup()
                                                device.address,
                                                device.vid,
                                                device.pid);
-                                 printed = false;
-                             });
+                                 printed = false; });
 
     if (!usb.begin())
     {
