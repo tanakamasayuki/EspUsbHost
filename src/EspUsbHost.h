@@ -83,6 +83,7 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
+static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
 
 struct EspUsbHostConfig
 {
@@ -443,6 +444,21 @@ public:
   bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool mscReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool mscCapacity(uint32_t &blockCount,
+                   uint32_t &blockSize,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscReadBlocks(uint32_t lba,
+                     uint8_t *data,
+                     uint32_t blockCount,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscWriteBlocks(uint32_t lba,
+                      const uint8_t *data,
+                      uint32_t blockCount,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -553,6 +569,17 @@ private:
     uint32_t audioOutUnderruns = 0;
     usb_transfer_t *audioOutTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
     uint32_t audioSampleRate = 48000;
+    bool hasMscInterface = false;
+    uint8_t mscInterfaceNumber = 0;
+    bool hasMscInEndpoint = false;
+    uint8_t mscInEndpointAddress = 0;
+    uint16_t mscInPacketSize = 0;
+    bool hasMscOutEndpoint = false;
+    uint8_t mscOutEndpointAddress = 0;
+    uint16_t mscOutPacketSize = 0;
+    uint32_t mscTag = 1;
+    uint32_t mscBlockCount = 0;
+    uint32_t mscBlockSize = 0;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
@@ -607,6 +634,8 @@ private:
   DeviceState *findAudioOutputDevice(uint8_t address);
   const DeviceState *findAudioOutputDevice(uint8_t address) const;
   const DeviceState *findAudioDevice(uint8_t address) const;
+  DeviceState *findMscDevice(uint8_t address);
+  const DeviceState *findMscDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);
   const DeviceState *findKeyboardDevice(uint8_t address) const;
   DeviceState *findVendorDevice(uint8_t address);
@@ -624,6 +653,13 @@ private:
   bool fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer);
   bool isManagedAudioOutputTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   void releaseAudioOutputTransfers(DeviceState &device);
+  bool mscCommand(DeviceState &device,
+                  const uint8_t *command,
+                  uint8_t commandLength,
+                  uint8_t *data,
+                  size_t dataLength,
+                  bool dataIn,
+                  uint32_t timeoutMs);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
