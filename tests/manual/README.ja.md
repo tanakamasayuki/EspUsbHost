@@ -16,6 +16,7 @@
 cd tests
 uv run --env-file .env pytest manual/smoke/smoke.py -v -s
 uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
+uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
 ```
 
 手動テストは常に `-s` を付けて実行します。シリアル出力とオペレーターへのプロンプトが端末に表示されます。
@@ -45,6 +46,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`hotplug/`](hotplug/) | 接続・切断イベントの正常発火と繰り返しサイクルでクラッシュしないこと | 任意のUSBデバイス | ✅ |
 | [`hub_info/`](hub_info/) | USBハブ経由で接続されたデバイスのトポロジー情報を表示すること | USBハブ＋USBデバイス2台 | ✅ |
 | [`hub_power/`](hub_power/) | ポート単位の電源制御 — ハブのポートをOFF/ONしてデバイスの切断・再接続を確認 | ポート単位の電源制御対応USBハブ＋任意のUSBデバイス | ✅ |
+| [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得とLBA 0読み取り。デバイスへは書き込まない | USBメモリ | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 
@@ -80,6 +82,7 @@ tests/.pytest-results/state.json
 | キーボードLEDの目視確認 | 合否判定は物理LEDの点灯状態に依存する |
 | デバイスの活線挿抜ストレス | タイミングを合わせてケーブルを人が物理的に抜き差しする必要がある |
 | USBハブ（情報表示・電源管理） | 実機のUSBハブが必須。自動テスト環境でもハブを経由して複数デバイスを接続することは技術的には可能だが、ハブの動作自体が試験対象に含まれるためノイズになる。そのため自動テストではハブを使わず1対1接続に限定している |
+| USB Mass Storage | 実USBメモリごとのdescriptor、タイミング、SCSIコマンド応答差を確認する必要がある。peerテストだけでは実デバイス互換性を確認できない |
 | ハブのカスケード（ハブ下にハブ） | 2段以上ネストしたUSBハブが必須。物理的に用意できないためソフトウェアでエミュレートできない |
 | 人間しか観測できない出力（オーディオ・MIDIなど） | 音声出力など、ソフトウェアから直接観測できない物理的な出力を伴う。オーディオループバック機器があれば自動化できるが、通常は人間による確認が必要 |
 
