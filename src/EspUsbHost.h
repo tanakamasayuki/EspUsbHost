@@ -258,6 +258,15 @@ struct EspUsbHostAudioOutputRequest
   size_t writtenFrames = 0;
 };
 
+struct EspUsbHostMscInquiry
+{
+  uint8_t peripheralDeviceType = 0;
+  bool removable = false;
+  char vendor[9] = {};
+  char product[17] = {};
+  char revision[5] = {};
+};
+
 struct EspUsbHostAudioStreamInfo
 {
   uint8_t address = 0;
@@ -445,6 +454,9 @@ public:
   uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool mscReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool mscInquiry(EspUsbHostMscInquiry &inquiry,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity(uint32_t &blockCount,
                    uint32_t &blockSize,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,

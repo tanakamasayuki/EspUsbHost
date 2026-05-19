@@ -1554,6 +1554,36 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   return ok;
 }
 
+bool EspUsbHost::mscInquiry(EspUsbHostMscInquiry &inquiry, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscInquiry() called before a USB MSC device is ready");
+    return false;
+  }
+
+  uint8_t command[6] = {};
+  uint8_t data[36] = {};
+  command[0] = SCSI_CMD_INQUIRY;
+  command[4] = sizeof(data);
+  if (!mscCommand(*device, command, sizeof(command), data, sizeof(data), true, timeoutMs))
+  {
+    return false;
+  }
+
+  inquiry = EspUsbHostMscInquiry();
+  inquiry.peripheralDeviceType = data[0] & 0x1f;
+  inquiry.removable = (data[1] & 0x80) != 0;
+  memcpy(inquiry.vendor, data + 8, 8);
+  memcpy(inquiry.product, data + 16, 16);
+  memcpy(inquiry.revision, data + 32, 4);
+  inquiry.vendor[8] = '\0';
+  inquiry.product[16] = '\0';
+  inquiry.revision[4] = '\0';
+  return true;
+}
+
 bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
 {
   DeviceState *device = findMscDevice(address);
