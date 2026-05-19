@@ -13,6 +13,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 - **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
 - **MIDI** — USB MIDI input and output
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
+- **MSC block I/O** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
@@ -27,7 +28,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental |
 | HUB — hub detection, topology info, and port power control | 🔲 Partial; `hub_info` and `hub_power` manual tests pass |
-| MSC — USB storage | 💭 Under consideration |
+| MSC — USB storage block I/O | 🔲 Experimental |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
@@ -355,6 +356,23 @@ bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
 `onAudioOutputRequest` is the preferred USB Audio OUT API. After `audioOutputStart()`, the library drives isochronous OUT transfers and calls the callback when it needs the next PCM frames. Fill `request.data` with up to `request.frameCount` interleaved frames and set `request.writtenFrames`; any unwritten frames are sent as silence and counted as underruns. The callback runs on the USB client task, so keep it short and non-blocking; copy from an existing PCM buffer rather than doing heavy decoding in the callback.
 
 `getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and UAC1 Type I format fields when available, including discrete sample rates or a continuous sample-rate range. `espUsbHostAudioStreamSupportsSampleRate` checks those fields, and `espUsbHostAudioStreamMatchesPcm` checks channels, sample size, bit depth, and sample rate together. `setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` remains as a low-level API for manually submitting raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
+
+### USB Mass Storage
+
+```cpp
+bool mscReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool mscCapacity(uint32_t &blockCount, uint32_t &blockSize,
+                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t blockCount,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+```
+
+MSC support is currently block-level only. It supports SCSI transparent / Bulk-Only Transport devices and does not mount FAT or expose an Arduino `FS` object yet. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
 
 ### Device discovery
 

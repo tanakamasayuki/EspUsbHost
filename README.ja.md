@@ -13,6 +13,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 - **USBシリアル** — CDC ACMおよび主要VCPデバイス（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応（Arduino `Stream`/`Print` 互換）
 - **MIDI** — USB MIDI入出力
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
+- **MSCブロックI/O** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
 
@@ -27,7 +28,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | USB MIDI | ✅ 実装済み |
 | UAC — USBオーディオ入出力 | 🔲 実験的 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | 🔲 部分実装。手動テストの`hub_info`と`hub_power`はPASS |
-| MSC — USBストレージ | 💭 検討中 |
+| MSC — USBストレージのブロックI/O | 🔲 実験的 |
 | UVC — USBカメラ | 💭 検討中 |
 
 ### その他の予定機能
@@ -355,6 +356,23 @@ bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
 `onAudioOutputRequest`はUSB Audio OUTの推奨APIです。`audioOutputStart()`後、ライブラリがIsochronous OUT転送を駆動し、次のPCMフレームが必要なタイミングでコールバックを呼びます。`request.data`へ最大`request.frameCount`フレームのinterleaved PCMを書き込み、`request.writtenFrames`へ書き込んだフレーム数を設定します。不足分はライブラリが無音として送信し、underrunとしてカウントします。このコールバックはUSB client task上で呼ばれるため、短時間で戻り、ブロックしない処理にしてください。重いデコードはコールバック内で行わず、既存のPCMバッファからコピーする用途に向きます。
 
 `getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostAudioStreamSupportsSampleRate`はその情報を使って指定サンプルレートに対応しているか判定し、`espUsbHostAudioStreamMatchesPcm`はチャンネル数、サンプルサイズ、ビット深度、サンプルレートをまとめて判定します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
+
+### USB Mass Storage
+
+```cpp
+bool mscReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool mscCapacity(uint32_t &blockCount, uint32_t &blockSize,
+                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t blockCount,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+```
+
+現時点のMSC対応はブロックI/Oのみです。SCSI transparent / Bulk-Only Transportデバイスの容量取得とブロックread/writeに対応し、FATのマウントやArduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
 
 ### デバイス探索
 

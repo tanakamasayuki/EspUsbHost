@@ -10,10 +10,22 @@ static constexpr uint8_t USB_CLASS_HUB_VALUE = 0x09;
 static constexpr uint8_t USB_CLASS_AUDIO_VALUE = 0x01;
 static constexpr uint8_t USB_CLASS_CDC_CONTROL_VALUE = 0x02;
 static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
+static constexpr uint8_t USB_CLASS_MASS_STORAGE_VALUE = 0x08;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
 static constexpr uint8_t USB_CS_INTERFACE_DESC = 0x24;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
+static constexpr uint8_t USB_MSC_SUBCLASS_SCSI = 0x06;
+static constexpr uint8_t USB_MSC_PROTOCOL_BULK_ONLY = 0x50;
+static constexpr uint32_t USB_MSC_CBW_SIGNATURE = 0x43425355;
+static constexpr uint32_t USB_MSC_CSW_SIGNATURE = 0x53425355;
+static constexpr uint8_t USB_MSC_CSW_STATUS_PASSED = 0x00;
+static constexpr uint8_t SCSI_CMD_TEST_UNIT_READY = 0x00;
+static constexpr uint8_t SCSI_CMD_REQUEST_SENSE = 0x03;
+static constexpr uint8_t SCSI_CMD_INQUIRY = 0x12;
+static constexpr uint8_t SCSI_CMD_READ_CAPACITY_10 = 0x25;
+static constexpr uint8_t SCSI_CMD_READ_10 = 0x28;
+static constexpr uint8_t SCSI_CMD_WRITE_10 = 0x2a;
 static constexpr uint8_t USB_AUDIO_CS_AS_FORMAT_TYPE = 0x02;
 static constexpr uint8_t USB_AUDIO_FORMAT_TYPE_I = 0x01;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
@@ -51,6 +63,60 @@ static constexpr uint8_t MIDI_CIN_CONTROL_CHANGE = 0x0b;
 static constexpr uint8_t MIDI_CIN_PROGRAM_CHANGE = 0x0c;
 static constexpr uint8_t MIDI_CIN_CHANNEL_PRESSURE = 0x0d;
 static constexpr uint8_t MIDI_CIN_PITCH_BEND_CHANGE = 0x0e;
+
+struct EspUsbHostMscCbw
+{
+  uint32_t signature;
+  uint32_t tag;
+  uint32_t dataTransferLength;
+  uint8_t flags;
+  uint8_t lun;
+  uint8_t commandBlockLength;
+  uint8_t commandBlock[16];
+} __attribute__((packed));
+
+struct EspUsbHostMscCsw
+{
+  uint32_t signature;
+  uint32_t tag;
+  uint32_t dataResidue;
+  uint8_t status;
+} __attribute__((packed));
+
+struct EspUsbHostSyncTransferContext
+{
+  SemaphoreHandle_t done = nullptr;
+  usb_transfer_status_t status = USB_TRANSFER_STATUS_ERROR;
+  size_t actualLength = 0;
+};
+
+static void syncTransferCallback(usb_transfer_t *transfer)
+{
+  EspUsbHostSyncTransferContext *context = static_cast<EspUsbHostSyncTransferContext *>(transfer->context);
+  if (!context)
+  {
+    return;
+  }
+  context->status = transfer->status;
+  context->actualLength = transfer->actual_num_bytes;
+  xSemaphoreGive(context->done);
+}
+
+static uint32_t readBe32(const uint8_t *data)
+{
+  return (static_cast<uint32_t>(data[0]) << 24) |
+         (static_cast<uint32_t>(data[1]) << 16) |
+         (static_cast<uint32_t>(data[2]) << 8) |
+         static_cast<uint32_t>(data[3]);
+}
+
+static void writeBe32(uint8_t *data, uint32_t value)
+{
+  data[0] = (value >> 24) & 0xff;
+  data[1] = (value >> 16) & 0xff;
+  data[2] = (value >> 8) & 0xff;
+  data[3] = value & 0xff;
+}
 
 static unsigned hostPeripheralMap(EspUsbHostPort port)
 {
@@ -1177,6 +1243,11 @@ bool EspUsbHost::audioOutputReady(uint8_t address) const
   return findAudioOutputDevice(address) != nullptr;
 }
 
+bool EspUsbHost::mscReady(uint8_t address) const
+{
+  return findMscDevice(address) != nullptr;
+}
+
 bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
 {
   if (sampleRate == 0 || sampleRate > 0x00ffffff)
@@ -1339,6 +1410,246 @@ bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
     offset += chunkLength;
   }
   return true;
+}
+
+bool EspUsbHost::mscCommand(DeviceState &device,
+                            const uint8_t *command,
+                            uint8_t commandLength,
+                            uint8_t *data,
+                            size_t dataLength,
+                            bool dataIn,
+                            uint32_t timeoutMs)
+{
+  if (!command || commandLength == 0 || commandLength > 16)
+  {
+    return false;
+  }
+  if (dataLength > 0 && !data)
+  {
+    return false;
+  }
+  if (!device.handle || !device.hasMscInEndpoint || !device.hasMscOutEndpoint)
+  {
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "MSC block APIs cannot run from USB client task");
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  auto submitAndWait = [&](uint8_t endpointAddress, const uint8_t *out, uint8_t *in, size_t length, size_t &actual) -> bool {
+    size_t transferLength = length;
+    if ((endpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0 && device.mscInPacketSize > 0)
+    {
+      transferLength = ((length + device.mscInPacketSize - 1) / device.mscInPacketSize) * device.mscInPacketSize;
+    }
+    const size_t allocLength = transferLength > 0 ? transferLength : 1;
+    usb_transfer_t *transfer = nullptr;
+    esp_err_t err = usb_host_transfer_alloc(allocLength, 0, &transfer);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC ep=0x%02x) failed: %s", endpointAddress, esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
+    if (out && length > 0)
+    {
+      memcpy(transfer->data_buffer, out, length);
+    }
+    context.status = USB_TRANSFER_STATUS_ERROR;
+    context.actualLength = 0;
+    transfer->device_handle = device.handle;
+    transfer->bEndpointAddress = endpointAddress;
+    transfer->callback = syncTransferCallback;
+    transfer->context = &context;
+    transfer->num_bytes = transferLength;
+
+    err = usb_host_transfer_submit(transfer);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_submit(MSC ep=0x%02x) failed: %s", endpointAddress, esp_err_to_name(err));
+      setLastError(err);
+      usb_host_transfer_free(transfer);
+      return false;
+    }
+
+    const TickType_t waitTicks = pdMS_TO_TICKS(timeoutMs);
+    const bool done = xSemaphoreTake(context.done, waitTicks) == pdTRUE;
+    if (!done)
+    {
+      ESP_LOGW(TAG, "MSC transfer timeout ep=0x%02x", endpointAddress);
+      usb_host_endpoint_clear(device.handle, endpointAddress);
+      usb_host_transfer_free(transfer);
+      setLastError(ESP_ERR_TIMEOUT);
+      return false;
+    }
+    actual = context.actualLength;
+    const bool ok = context.status == USB_TRANSFER_STATUS_COMPLETED;
+    if (ok && in && length > 0)
+    {
+      memcpy(in, transfer->data_buffer, actual < length ? actual : length);
+    }
+    usb_host_transfer_free(transfer);
+    if (!ok)
+    {
+      ESP_LOGW(TAG, "MSC transfer failed ep=0x%02x status=%d", endpointAddress, context.status);
+      setLastError(ESP_FAIL);
+    }
+    return ok;
+  };
+
+  const uint32_t tag = device.mscTag++;
+  EspUsbHostMscCbw cbw = {};
+  cbw.signature = USB_MSC_CBW_SIGNATURE;
+  cbw.tag = tag;
+  cbw.dataTransferLength = dataLength;
+  cbw.flags = dataIn ? 0x80 : 0x00;
+  cbw.lun = 0;
+  cbw.commandBlockLength = commandLength;
+  memcpy(cbw.commandBlock, command, commandLength);
+
+  size_t actual = 0;
+  bool ok = submitAndWait(device.mscOutEndpointAddress,
+                          reinterpret_cast<const uint8_t *>(&cbw),
+                          nullptr,
+                          sizeof(cbw),
+                          actual);
+
+  if (ok && dataLength > 0)
+  {
+    ok = submitAndWait(dataIn ? device.mscInEndpointAddress : device.mscOutEndpointAddress,
+                       dataIn ? nullptr : data,
+                       dataIn ? data : nullptr,
+                       dataLength,
+                       actual);
+    ok = ok && (!dataIn || actual == dataLength);
+  }
+
+  EspUsbHostMscCsw csw = {};
+  if (ok)
+  {
+    actual = 0;
+    ok = submitAndWait(device.mscInEndpointAddress,
+                       nullptr,
+                       reinterpret_cast<uint8_t *>(&csw),
+                       sizeof(csw),
+                       actual) &&
+         actual == sizeof(csw) &&
+         csw.signature == USB_MSC_CSW_SIGNATURE &&
+         csw.tag == tag &&
+         csw.status == USB_MSC_CSW_STATUS_PASSED;
+  }
+
+  vSemaphoreDelete(context.done);
+  return ok;
+}
+
+bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscCapacity() called before a USB MSC device is ready");
+    return false;
+  }
+
+  uint8_t command[10] = {};
+  command[0] = SCSI_CMD_TEST_UNIT_READY;
+  if (!mscCommand(*device, command, 6, nullptr, 0, true, timeoutMs))
+  {
+    uint8_t sense[18] = {};
+    command[0] = SCSI_CMD_REQUEST_SENSE;
+    command[4] = sizeof(sense);
+    mscCommand(*device, command, 6, sense, sizeof(sense), true, timeoutMs);
+  }
+
+  uint8_t capacity[8] = {};
+  memset(command, 0, sizeof(command));
+  command[0] = SCSI_CMD_READ_CAPACITY_10;
+  if (!mscCommand(*device, command, 10, capacity, sizeof(capacity), true, timeoutMs))
+  {
+    return false;
+  }
+
+  const uint32_t lastLba = readBe32(capacity);
+  blockCount = lastLba + 1;
+  blockSize = readBe32(capacity + 4);
+  device->mscBlockCount = blockCount;
+  device->mscBlockSize = blockSize;
+  return blockCount > 0 && blockSize > 0;
+}
+
+bool EspUsbHost::mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device || !data || blockCount == 0)
+  {
+    return false;
+  }
+  if (device->mscBlockSize == 0)
+  {
+    uint32_t capacityBlocks = 0;
+    uint32_t blockSize = 0;
+    if (!mscCapacity(capacityBlocks, blockSize, device->info.address, timeoutMs))
+    {
+      return false;
+    }
+  }
+  if (blockCount > 0xffff)
+  {
+    return false;
+  }
+
+  uint8_t command[10] = {};
+  command[0] = SCSI_CMD_READ_10;
+  writeBe32(command + 2, lba);
+  command[7] = (blockCount >> 8) & 0xff;
+  command[8] = blockCount & 0xff;
+  return mscCommand(*device, command, sizeof(command), data, static_cast<size_t>(blockCount) * device->mscBlockSize, true, timeoutMs);
+}
+
+bool EspUsbHost::mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t blockCount, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device || !data || blockCount == 0)
+  {
+    return false;
+  }
+  if (device->mscBlockSize == 0)
+  {
+    uint32_t capacityBlocks = 0;
+    uint32_t blockSize = 0;
+    if (!mscCapacity(capacityBlocks, blockSize, device->info.address, timeoutMs))
+    {
+      return false;
+    }
+  }
+  if (blockCount > 0xffff)
+  {
+    return false;
+  }
+
+  uint8_t command[10] = {};
+  command[0] = SCSI_CMD_WRITE_10;
+  writeBe32(command + 2, lba);
+  command[7] = (blockCount >> 8) & 0xff;
+  command[8] = blockCount & 0xff;
+  return mscCommand(*device,
+                    command,
+                    sizeof(command),
+                    const_cast<uint8_t *>(data),
+                    static_cast<size_t>(blockCount) * device->mscBlockSize,
+                    false,
+                    timeoutMs);
 }
 
 bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)
@@ -2108,7 +2419,8 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
   const bool hasCdc = device->hasCdcControlInterface || device->hasCdcDataInterface;
   const bool hasAudio = device->hasAudioInterface || device->hasAudioOutEndpoint;
-  device->info.supported = isHub || hasHid || hasCdc || hasAudio || device->vendorSerialSupported;
+  const bool hasMsc = device->hasMscInterface && device->hasMscInEndpoint && device->hasMscOutEndpoint;
+  device->info.supported = isHub || hasHid || hasCdc || hasAudio || hasMsc || device->vendorSerialSupported;
   device->info.isHub = isHub;
   if (deviceConnectedCallback_)
   {
@@ -2377,6 +2689,10 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isMidiInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
                                  currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
                                  !device->hasMidiInterface;
+    const bool isMscInterface = currentInterfaceClass_ == USB_CLASS_MASS_STORAGE_VALUE &&
+                                currentInterfaceSubClass_ == USB_MSC_SUBCLASS_SCSI &&
+                                currentInterfaceProtocol_ == USB_MSC_PROTOCOL_BULK_ONLY &&
+                                !device->hasMscInterface;
     bool interfaceAlreadyClaimed = false;
     for (uint8_t i = 0; i < device->interfaceCount; i++)
     {
@@ -2395,6 +2711,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
         isAudioInterface ||
         isMidiInterface ||
+        isMscInterface ||
         isVendorSerialInterface)
     {
       currentClaimResult_ = usb_host_interface_claim(clientHandle_, device->handle, currentInterfaceNumber_, intf->bAlternateSetting);
@@ -2441,6 +2758,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
           device->hasMidiInterface = true;
           device->midiInterfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "USB MIDI interface ready: iface=%u", device->midiInterfaceNumber);
+        }
+        else if (isMscInterface)
+        {
+          device->hasMscInterface = true;
+          device->mscInterfaceNumber = currentInterfaceNumber_;
+          ESP_LOGI(TAG, "USB MSC interface ready: iface=%u", device->mscInterfaceNumber);
         }
         else if (isAudioInterface)
         {
@@ -2517,6 +2840,35 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isInterrupt = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_INT;
     const bool isBulk = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK;
     const bool isIsochronous = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_ISOC;
+
+    if (currentClaimResult_ == ESP_OK &&
+        currentInterfaceClass_ == USB_CLASS_MASS_STORAGE_VALUE &&
+        currentInterfaceSubClass_ == USB_MSC_SUBCLASS_SCSI &&
+        currentInterfaceProtocol_ == USB_MSC_PROTOCOL_BULK_ONLY &&
+        isBulk)
+    {
+      if (isIn)
+      {
+        device->hasMscInEndpoint = true;
+        device->mscInEndpointAddress = ep->bEndpointAddress;
+        device->mscInPacketSize = ep->wMaxPacketSize;
+        ESP_LOGI(TAG, "USB MSC bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
+                 currentInterfaceNumber_,
+                 ep->bEndpointAddress,
+                 ep->wMaxPacketSize);
+      }
+      else
+      {
+        device->hasMscOutEndpoint = true;
+        device->mscOutEndpointAddress = ep->bEndpointAddress;
+        device->mscOutPacketSize = ep->wMaxPacketSize;
+        ESP_LOGI(TAG, "USB MSC bulk OUT endpoint ready: iface=%u ep=0x%02x size=%u",
+                 currentInterfaceNumber_,
+                 ep->bEndpointAddress,
+                 ep->wMaxPacketSize);
+      }
+      return;
+    }
 
     const bool isSerialBulkEndpoint = currentClaimResult_ == ESP_OK &&
                                        (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
@@ -3640,6 +3992,31 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioDevice(uint8_t address) cons
   for (const DeviceState &device : devices_)
   {
     if (!device.inUse || !device.hasAudioInterface)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::DeviceState *EspUsbHost::findMscDevice(uint8_t address)
+{
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findMscDevice(address));
+}
+
+const EspUsbHost::DeviceState *EspUsbHost::findMscDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse ||
+        !device.handle ||
+        !device.hasMscInterface ||
+        !device.hasMscInEndpoint ||
+        !device.hasMscOutEndpoint)
     {
       continue;
     }
