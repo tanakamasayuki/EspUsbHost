@@ -1584,6 +1584,32 @@ bool EspUsbHost::mscInquiry(EspUsbHostMscInquiry &inquiry, uint8_t address, uint
   return true;
 }
 
+bool EspUsbHost::mscRequestSense(EspUsbHostMscSense &sense, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscRequestSense() called before a USB MSC device is ready");
+    return false;
+  }
+
+  uint8_t command[6] = {};
+  uint8_t data[18] = {};
+  command[0] = SCSI_CMD_REQUEST_SENSE;
+  command[4] = sizeof(data);
+  if (!mscCommand(*device, command, sizeof(command), data, sizeof(data), true, timeoutMs))
+  {
+    return false;
+  }
+
+  sense = EspUsbHostMscSense();
+  sense.responseCode = data[0] & 0x7f;
+  sense.senseKey = data[2] & 0x0f;
+  sense.additionalSenseCode = data[12];
+  sense.additionalSenseQualifier = data[13];
+  return true;
+}
+
 bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
 {
   DeviceState *device = findMscDevice(address);
@@ -1597,10 +1623,8 @@ bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t 
   command[0] = SCSI_CMD_TEST_UNIT_READY;
   if (!mscCommand(*device, command, 6, nullptr, 0, true, timeoutMs))
   {
-    uint8_t sense[18] = {};
-    command[0] = SCSI_CMD_REQUEST_SENSE;
-    command[4] = sizeof(sense);
-    mscCommand(*device, command, 6, sense, sizeof(sense), true, timeoutMs);
+    EspUsbHostMscSense sense;
+    mscRequestSense(sense, device->info.address, timeoutMs);
   }
 
   uint8_t capacity[8] = {};
