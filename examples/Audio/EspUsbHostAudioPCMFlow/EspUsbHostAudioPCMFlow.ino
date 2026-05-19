@@ -154,8 +154,7 @@ void setup()
                           {
                             audioAddress = info.address;
                           }
-                          Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);
-                        });
+                          Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address); });
 
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
@@ -166,13 +165,10 @@ void setup()
                              if (info.address == audioAddress)
                              {
                                audioAddress = 0;
-                             }
-                           });
+                             } });
 
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
-                           {
-                             fillAudioOutput(request);
-                           });
+                           { fillAudioOutput(request); });
 
   if (!usb.begin())
   {
