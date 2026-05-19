@@ -153,6 +153,12 @@ void loop() {
 | [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | Bidirectional serial bridge (CDC ACM and VCP) |
 | [EspUsbHostMultiUSBSerial](examples/Serial/EspUsbHostMultiUSBSerial/) | Use FTDI and CP210x USB serial devices at the same time |
 
+### Storage
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | Print MSC capacity and dump the first block |
+
 ## API reference
 
 ### Core

@@ -16,25 +16,56 @@ static uint8_t disk[BLOCK_COUNT][BLOCK_SIZE];
 
 static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize)
 {
-    if (lba >= BLOCK_COUNT || offset + bufsize > BLOCK_SIZE)
+    if (lba >= BLOCK_COUNT || offset >= BLOCK_SIZE)
     {
         return -1;
     }
-    memcpy(buffer, disk[lba] + offset, bufsize);
+    uint8_t *out = static_cast<uint8_t *>(buffer);
+    uint32_t remaining = bufsize;
+    uint32_t currentLba = lba;
+    uint32_t currentOffset = offset;
+    while (remaining > 0)
+    {
+        if (currentLba >= BLOCK_COUNT)
+        {
+            return -1;
+        }
+        const uint32_t chunk = min<uint32_t>(remaining, BLOCK_SIZE - currentOffset);
+        memcpy(out, disk[currentLba] + currentOffset, chunk);
+        out += chunk;
+        remaining -= chunk;
+        currentLba++;
+        currentOffset = 0;
+    }
     return bufsize;
 }
 
 static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize)
 {
-    if (lba >= BLOCK_COUNT || offset + bufsize > BLOCK_SIZE)
+    if (lba >= BLOCK_COUNT || offset >= BLOCK_SIZE)
     {
         return -1;
     }
-    memcpy(disk[lba] + offset, buffer, bufsize);
-    Serial.printf("DEVICE_WRITE lba=%lu offset=%lu size=%lu\n",
-                  static_cast<unsigned long>(lba),
-                  static_cast<unsigned long>(offset),
-                  static_cast<unsigned long>(bufsize));
+    uint32_t remaining = bufsize;
+    uint32_t currentLba = lba;
+    uint32_t currentOffset = offset;
+    while (remaining > 0)
+    {
+        if (currentLba >= BLOCK_COUNT)
+        {
+            return -1;
+        }
+        const uint32_t chunk = min<uint32_t>(remaining, BLOCK_SIZE - currentOffset);
+        memcpy(disk[currentLba] + currentOffset, buffer, chunk);
+        Serial.printf("DEVICE_WRITE lba=%lu offset=%lu size=%lu\n",
+                      static_cast<unsigned long>(currentLba),
+                      static_cast<unsigned long>(currentOffset),
+                      static_cast<unsigned long>(chunk));
+        buffer += chunk;
+        remaining -= chunk;
+        currentLba++;
+        currentOffset = 0;
+    }
     return bufsize;
 }
 

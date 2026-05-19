@@ -153,6 +153,12 @@ void loop() {
 | [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | CDC ACM・VCPシリアルの双方向ブリッジ |
 | [EspUsbHostMultiUSBSerial](examples/Serial/EspUsbHostMultiUSBSerial/) | FTDIとCP210xのUSBシリアルデバイスを同時利用 |
 
+### Storage
+
+| スケッチ | 説明 |
+|----------|------|
+| [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | MSCの容量情報を表示し、先頭ブロックをダンプ |
+
 ## APIリファレンス
 
 ### コア

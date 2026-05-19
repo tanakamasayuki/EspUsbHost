@@ -78,4 +78,31 @@ void loop()
                       block[255],
                       block[511]);
     }
+    else if (command == 'm')
+    {
+        uint8_t blocks[1024] = {};
+        for (size_t i = 0; i < sizeof(blocks); i++)
+        {
+            blocks[i] = static_cast<uint8_t>((i + 0x31) & 0xff);
+        }
+        const bool writeOk = usb.mscWriteBlocks(6, blocks, 2);
+        memset(blocks, 0, sizeof(blocks));
+        const bool readOk = usb.mscReadBlocks(6, blocks, 2);
+        Serial.printf("MSC_MULTI write=%u read=%u b0=%02x b511=%02x b512=%02x b1023=%02x\n",
+                      writeOk ? 1 : 0,
+                      readOk ? 1 : 0,
+                      blocks[0],
+                      blocks[511],
+                      blocks[512],
+                      blocks[1023]);
+    }
+    else if (command == 'o')
+    {
+        uint8_t block[512] = {};
+        const bool readOk = usb.mscReadBlocks(16, block, 1);
+        const bool writeOk = usb.mscWriteBlocks(16, block, 1);
+        Serial.printf("MSC_OUT_OF_RANGE read=%u write=%u\n",
+                      readOk ? 1 : 0,
+                      writeOk ? 1 : 0);
+    }
 }
