@@ -88,6 +88,8 @@ void loop()
                       sense.additionalSenseCode,
                       sense.additionalSenseQualifier);
     }
+    const bool ready = usb.mscTestUnitReady();
+    Serial.printf("MSC_TEST_UNIT_READY ok=%u\n", ready ? 1 : 0);
 
     uint32_t blockCount = 0;
     uint32_t blockSize = 0;

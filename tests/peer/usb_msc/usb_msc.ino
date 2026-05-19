@@ -71,6 +71,11 @@ void loop()
                       sense.additionalSenseCode,
                       sense.additionalSenseQualifier);
     }
+    else if (command == 't')
+    {
+        const bool ok = usb.mscTestUnitReady();
+        Serial.printf("MSC_TEST_UNIT_READY ok=%u\n", ok ? 1 : 0);
+    }
     else if (command == 'r')
     {
         uint8_t block[512] = {};

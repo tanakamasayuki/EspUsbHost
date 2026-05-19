@@ -30,6 +30,7 @@ def test_msc_block_read(dut):
     dut.expect("MSC_MANUAL_READY")
     dut.expect("MSC_DEVICE", timeout=30)
     dut.expect("MSC_INQUIRY")
+    dut.expect("MSC_TEST_UNIT_READY ok=1")
     dut.expect("MSC_CAPACITY blocks=")
     dut.expect("MSC_LBA0")
     dut.expect(r"\[PASS\]", timeout=30)

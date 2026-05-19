@@ -468,6 +468,8 @@ public:
   bool mscRequestSense(EspUsbHostMscSense &sense,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                        uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity(uint32_t &blockCount,
                    uint32_t &blockSize,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
