@@ -4,6 +4,43 @@ EspUsbHost usb;
 
 static bool printed = false;
 
+static uint32_t readLe32(const uint8_t *data)
+{
+    return static_cast<uint32_t>(data[0]) |
+           (static_cast<uint32_t>(data[1]) << 8) |
+           (static_cast<uint32_t>(data[2]) << 16) |
+           (static_cast<uint32_t>(data[3]) << 24);
+}
+
+static void printMbrPartitions(const uint8_t *block)
+{
+    if (block[510] != 0x55 || block[511] != 0xaa)
+    {
+        Serial.println("No MBR signature at LBA0.");
+        return;
+    }
+
+    Serial.println("MBR partitions:");
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        const uint8_t *entry = block + 446 + i * 16;
+        const uint8_t type = entry[4];
+        const uint32_t firstLba = readLe32(entry + 8);
+        const uint32_t sectors = readLe32(entry + 12);
+        if (type == 0 || sectors == 0)
+        {
+            continue;
+        }
+        Serial.printf("  #%u boot=0x%02x type=0x%02x first_lba=%lu sectors=%lu size_kib=%lu\n",
+                      i + 1,
+                      entry[0],
+                      type,
+                      static_cast<unsigned long>(firstLba),
+                      static_cast<unsigned long>(sectors),
+                      static_cast<unsigned long>((static_cast<uint64_t>(sectors) * 512) / 1024));
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -79,5 +116,6 @@ void loop()
         Serial.printf(" %02x", block[i]);
     }
     Serial.println();
+    printMbrPartitions(block);
     printed = true;
 }
