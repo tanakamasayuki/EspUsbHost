@@ -3,6 +3,11 @@ def test_usb_msc_capacity(dut, peers):
     dut.expect_exact("MSC_CAPACITY ok=1 blocks=16 block_size=512")
 
 
+def test_usb_msc_capacity64(dut, peers):
+    dut.write("C")
+    dut.expect_exact("MSC_CAPACITY64 ok=1 blocks=16 block_size=512")
+
+
 def test_usb_msc_inquiry(dut, peers):
     dut.write("i")
     dut.expect_exact("MSC_INQUIRY ok=1 removable=1 vendor='ESP32' product='MSC_PEER' revision='1.0'")
