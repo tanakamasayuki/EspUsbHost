@@ -26,6 +26,7 @@ static constexpr uint8_t SCSI_CMD_INQUIRY = 0x12;
 static constexpr uint8_t SCSI_CMD_READ_CAPACITY_10 = 0x25;
 static constexpr uint8_t SCSI_CMD_READ_10 = 0x28;
 static constexpr uint8_t SCSI_CMD_WRITE_10 = 0x2a;
+static constexpr size_t USB_MSC_MAX_TRANSFER_BYTES = 4096;
 static constexpr uint8_t USB_AUDIO_CS_AS_FORMAT_TYPE = 0x02;
 static constexpr uint8_t USB_AUDIO_FORMAT_TYPE_I = 0x01;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
@@ -1686,12 +1687,32 @@ bool EspUsbHost::mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount,
     return false;
   }
 
-  uint8_t command[10] = {};
-  command[0] = SCSI_CMD_READ_10;
-  writeBe32(command + 2, lba);
-  command[7] = (blockCount >> 8) & 0xff;
-  command[8] = blockCount & 0xff;
-  return mscCommand(*device, command, sizeof(command), data, static_cast<size_t>(blockCount) * device->mscBlockSize, true, timeoutMs);
+  const uint32_t maxBlocksPerTransfer = USB_MSC_MAX_TRANSFER_BYTES / device->mscBlockSize;
+  if (maxBlocksPerTransfer == 0)
+  {
+    return false;
+  }
+
+  uint32_t remaining = blockCount;
+  uint32_t currentLba = lba;
+  uint8_t *currentData = data;
+  while (remaining > 0)
+  {
+    const uint32_t chunkBlocks = remaining > maxBlocksPerTransfer ? maxBlocksPerTransfer : remaining;
+    uint8_t command[10] = {};
+    command[0] = SCSI_CMD_READ_10;
+    writeBe32(command + 2, currentLba);
+    command[7] = (chunkBlocks >> 8) & 0xff;
+    command[8] = chunkBlocks & 0xff;
+    if (!mscCommand(*device, command, sizeof(command), currentData, static_cast<size_t>(chunkBlocks) * device->mscBlockSize, true, timeoutMs))
+    {
+      return false;
+    }
+    remaining -= chunkBlocks;
+    currentLba += chunkBlocks;
+    currentData += static_cast<size_t>(chunkBlocks) * device->mscBlockSize;
+  }
+  return true;
 }
 
 bool EspUsbHost::mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t blockCount, uint8_t address, uint32_t timeoutMs)
@@ -1724,18 +1745,38 @@ bool EspUsbHost::mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t bloc
     return false;
   }
 
-  uint8_t command[10] = {};
-  command[0] = SCSI_CMD_WRITE_10;
-  writeBe32(command + 2, lba);
-  command[7] = (blockCount >> 8) & 0xff;
-  command[8] = blockCount & 0xff;
-  return mscCommand(*device,
+  const uint32_t maxBlocksPerTransfer = USB_MSC_MAX_TRANSFER_BYTES / device->mscBlockSize;
+  if (maxBlocksPerTransfer == 0)
+  {
+    return false;
+  }
+
+  uint32_t remaining = blockCount;
+  uint32_t currentLba = lba;
+  const uint8_t *currentData = data;
+  while (remaining > 0)
+  {
+    const uint32_t chunkBlocks = remaining > maxBlocksPerTransfer ? maxBlocksPerTransfer : remaining;
+    uint8_t command[10] = {};
+    command[0] = SCSI_CMD_WRITE_10;
+    writeBe32(command + 2, currentLba);
+    command[7] = (chunkBlocks >> 8) & 0xff;
+    command[8] = chunkBlocks & 0xff;
+    if (!mscCommand(*device,
                     command,
                     sizeof(command),
-                    const_cast<uint8_t *>(data),
-                    static_cast<size_t>(blockCount) * device->mscBlockSize,
+                    const_cast<uint8_t *>(currentData),
+                    static_cast<size_t>(chunkBlocks) * device->mscBlockSize,
                     false,
-                    timeoutMs);
+                    timeoutMs))
+    {
+      return false;
+    }
+    remaining -= chunkBlocks;
+    currentLba += chunkBlocks;
+    currentData += static_cast<size_t>(chunkBlocks) * device->mscBlockSize;
+  }
+  return true;
 }
 
 bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)
