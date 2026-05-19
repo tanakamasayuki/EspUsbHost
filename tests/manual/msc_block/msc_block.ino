@@ -70,6 +70,16 @@ void loop()
         return;
     }
 
+    EspUsbHostMscInquiry inquiry;
+    if (usb.mscInquiry(inquiry))
+    {
+        Serial.printf("MSC_INQUIRY removable=%u vendor='%s' product='%s' revision='%s'\n",
+                      inquiry.removable ? 1 : 0,
+                      inquiry.vendor,
+                      inquiry.product,
+                      inquiry.revision);
+    }
+
     uint32_t blockCount = 0;
     uint32_t blockSize = 0;
     if (!usb.mscCapacity(blockCount, blockSize))

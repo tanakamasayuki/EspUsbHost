@@ -49,6 +49,17 @@ void loop()
                       static_cast<unsigned long>(blocks),
                       static_cast<unsigned long>(blockSize));
     }
+    else if (command == 'i')
+    {
+        EspUsbHostMscInquiry inquiry;
+        const bool ok = usb.mscInquiry(inquiry);
+        Serial.printf("MSC_INQUIRY ok=%u removable=%u vendor='%s' product='%s' revision='%s'\n",
+                      ok ? 1 : 0,
+                      inquiry.removable ? 1 : 0,
+                      inquiry.vendor,
+                      inquiry.product,
+                      inquiry.revision);
+    }
     else if (command == 'r')
     {
         uint8_t block[512] = {};
