@@ -123,6 +123,24 @@ void loop()
                       blocks[512],
                       blocks[1023]);
     }
+    else if (command == 'g')
+    {
+        static uint8_t blocks[512 * 9] = {};
+        for (size_t i = 0; i < sizeof(blocks); i++)
+        {
+            blocks[i] = static_cast<uint8_t>((i * 3 + 0x17) & 0xff);
+        }
+        const bool writeOk = usb.mscWriteBlocks(1, blocks, 9);
+        memset(blocks, 0, sizeof(blocks));
+        const bool readOk = usb.mscReadBlocks(1, blocks, 9);
+        Serial.printf("MSC_CHUNKED write=%u read=%u b0=%02x b4095=%02x b4096=%02x b4607=%02x\n",
+                      writeOk ? 1 : 0,
+                      readOk ? 1 : 0,
+                      blocks[0],
+                      blocks[4095],
+                      blocks[4096],
+                      blocks[4607]);
+    }
     else if (command == 'o')
     {
         uint8_t block[512] = {};
