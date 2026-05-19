@@ -49,6 +49,16 @@ void loop()
                       static_cast<unsigned long>(blocks),
                       static_cast<unsigned long>(blockSize));
     }
+    else if (command == 'C')
+    {
+        uint64_t blocks = 0;
+        uint32_t blockSize = 0;
+        const bool ok = usb.mscCapacity64(blocks, blockSize);
+        Serial.printf("MSC_CAPACITY64 ok=%u blocks=%lu block_size=%lu\n",
+                      ok ? 1 : 0,
+                      static_cast<unsigned long>(blocks),
+                      static_cast<unsigned long>(blockSize));
+    }
     else if (command == 'i')
     {
         EspUsbHostMscInquiry inquiry;

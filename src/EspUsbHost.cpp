@@ -26,6 +26,8 @@ static constexpr uint8_t SCSI_CMD_INQUIRY = 0x12;
 static constexpr uint8_t SCSI_CMD_READ_CAPACITY_10 = 0x25;
 static constexpr uint8_t SCSI_CMD_READ_10 = 0x28;
 static constexpr uint8_t SCSI_CMD_WRITE_10 = 0x2a;
+static constexpr uint8_t SCSI_CMD_SERVICE_ACTION_IN_16 = 0x9e;
+static constexpr uint8_t SCSI_SERVICE_ACTION_READ_CAPACITY_16 = 0x10;
 static constexpr size_t USB_MSC_MAX_TRANSFER_BYTES = 4096;
 static constexpr uint8_t USB_AUDIO_CS_AS_FORMAT_TYPE = 0x02;
 static constexpr uint8_t USB_AUDIO_FORMAT_TYPE_I = 0x01;
@@ -109,6 +111,18 @@ static uint32_t readBe32(const uint8_t *data)
          (static_cast<uint32_t>(data[1]) << 16) |
          (static_cast<uint32_t>(data[2]) << 8) |
          static_cast<uint32_t>(data[3]);
+}
+
+static uint64_t readBe64(const uint8_t *data)
+{
+  return (static_cast<uint64_t>(data[0]) << 56) |
+         (static_cast<uint64_t>(data[1]) << 48) |
+         (static_cast<uint64_t>(data[2]) << 40) |
+         (static_cast<uint64_t>(data[3]) << 32) |
+         (static_cast<uint64_t>(data[4]) << 24) |
+         (static_cast<uint64_t>(data[5]) << 16) |
+         (static_cast<uint64_t>(data[6]) << 8) |
+         static_cast<uint64_t>(data[7]);
 }
 
 static void writeBe32(uint8_t *data, uint32_t value)
@@ -1625,12 +1639,12 @@ bool EspUsbHost::mscTestUnitReady(uint8_t address, uint32_t timeoutMs)
   return mscCommand(*device, command, sizeof(command), nullptr, 0, true, timeoutMs);
 }
 
-bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
+bool EspUsbHost::mscCapacity64(uint64_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
 {
   DeviceState *device = findMscDevice(address);
   if (!device)
   {
-    ESP_LOGW(TAG, "mscCapacity() called before a USB MSC device is ready");
+    ESP_LOGW(TAG, "mscCapacity64() called before a USB MSC device is ready");
     return false;
   }
 
@@ -1642,7 +1656,6 @@ bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t 
 
   uint8_t command[10] = {};
   uint8_t capacity[8] = {};
-  memset(command, 0, sizeof(command));
   command[0] = SCSI_CMD_READ_CAPACITY_10;
   if (!mscCommand(*device, command, 10, capacity, sizeof(capacity), true, timeoutMs))
   {
@@ -1650,11 +1663,48 @@ bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t 
   }
 
   const uint32_t lastLba = readBe32(capacity);
-  blockCount = lastLba + 1;
   blockSize = readBe32(capacity + 4);
-  device->mscBlockCount = blockCount;
+  if (lastLba == 0xffffffff)
+  {
+    uint8_t command16[16] = {};
+    uint8_t capacity16[32] = {};
+    command16[0] = SCSI_CMD_SERVICE_ACTION_IN_16;
+    command16[1] = SCSI_SERVICE_ACTION_READ_CAPACITY_16;
+    command16[10] = sizeof(capacity16) >> 24;
+    command16[11] = sizeof(capacity16) >> 16;
+    command16[12] = sizeof(capacity16) >> 8;
+    command16[13] = sizeof(capacity16);
+    if (!mscCommand(*device, command16, sizeof(command16), capacity16, sizeof(capacity16), true, timeoutMs))
+    {
+      return false;
+    }
+    blockCount = readBe64(capacity16) + 1;
+    blockSize = readBe32(capacity16 + 8);
+  }
+  else
+  {
+    blockCount = static_cast<uint64_t>(lastLba) + 1;
+  }
+  device->mscBlockCount = blockCount > 0xffffffffULL ? 0 : static_cast<uint32_t>(blockCount);
   device->mscBlockSize = blockSize;
   return blockCount > 0 && blockSize > 0;
+}
+
+bool EspUsbHost::mscCapacity(uint32_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
+{
+  uint64_t blockCount64 = 0;
+  if (!mscCapacity64(blockCount64, blockSize, address, timeoutMs))
+  {
+    return false;
+  }
+  if (blockCount64 > 0xffffffffULL)
+  {
+    ESP_LOGW(TAG, "mscCapacity() block count exceeds 32-bit range: %llu",
+             static_cast<unsigned long long>(blockCount64));
+    return false;
+  }
+  blockCount = static_cast<uint32_t>(blockCount64);
+  return true;
 }
 
 bool EspUsbHost::mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount, uint8_t address, uint32_t timeoutMs)
