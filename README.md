@@ -36,7 +36,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Feature | Status |
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | 🔲 Planned |
-| HID gamepad redesign — report descriptor parsing for 16-bit axes, variable button layouts, and XInput-style devices | 💭 Design in progress; may introduce breaking changes from the current fixed-format API |
+| HID gamepad redesign — report descriptor parsing, a generic `onGamepad()` event, and mapping helpers for 16-bit axes, variable button layouts, and XInput-style devices | 💭 Design in progress; may introduce breaking changes from the current fixed-format API |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
 
@@ -422,7 +422,7 @@ const char *lastErrorName() const;
 
 **Breaking changes are accepted.** The library prioritises a clean Arduino-oriented API over backwards compatibility with its earlier inheritance-based interface.
 
-**HID gamepad support is planned for redesign.** The current `onGamepad()` path assumes a fixed report format, which is not enough for generic 16-bit axes, device-specific button layouts, or XInput-style devices. A future version is expected to add HID report descriptor access and parsing, then revise the gamepad event structure and callback API. Compatibility with the current `EspUsbHostGamepadEvent` is not guaranteed.
+**HID gamepad support is planned for redesign.** The current `onGamepad()` path assumes a fixed report format, which is not enough for generic 16-bit axes, device-specific button layouts, or XInput-style devices. A future version is expected to add HID report descriptor access and parsing, then return a generic parsed event from `onGamepad()`. XInput-style layouts and axis/button remapping are expected to be handled by mapping helpers or wrapper classes built from `EspUsbHostGamepadEvent`, instead of adding input callbacks such as `onGamepadXInput()`. The exact event fields and mapper design are still open. Compatibility with the current `EspUsbHostGamepadEvent` is not guaranteed.
 
 **Non-goals:**
 - Fully automatic interpretation of all HID report descriptors from the first implementation
