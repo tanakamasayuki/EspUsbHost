@@ -60,6 +60,17 @@ void loop()
                       inquiry.product,
                       inquiry.revision);
     }
+    else if (command == 's')
+    {
+        EspUsbHostMscSense sense;
+        const bool ok = usb.mscRequestSense(sense);
+        Serial.printf("MSC_SENSE ok=%u response=0x%02x key=0x%02x asc=0x%02x ascq=0x%02x\n",
+                      ok ? 1 : 0,
+                      sense.responseCode,
+                      sense.senseKey,
+                      sense.additionalSenseCode,
+                      sense.additionalSenseQualifier);
+    }
     else if (command == 'r')
     {
         uint8_t block[512] = {};

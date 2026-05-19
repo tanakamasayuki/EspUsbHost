@@ -8,6 +8,11 @@ def test_usb_msc_inquiry(dut, peers):
     dut.expect_exact("MSC_INQUIRY ok=1 removable=1 vendor='ESP32' product='MSC_PEER' revision='1.0'")
 
 
+def test_usb_msc_request_sense(dut, peers):
+    dut.write("s")
+    dut.expect_exact("MSC_SENSE ok=1 response=0x70 key=0x00 asc=0x00 ascq=0x00")
+
+
 def test_usb_msc_read_boot_block(dut, peers):
     dut.write("r")
     dut.expect_exact("MSC_READ ok=1 b0=eb b1=3c b510=55 b511=aa")

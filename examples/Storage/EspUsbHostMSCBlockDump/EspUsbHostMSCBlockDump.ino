@@ -86,6 +86,15 @@ void loop()
                       inquiry.product,
                       inquiry.revision);
     }
+    EspUsbHostMscSense sense;
+    if (usb.mscRequestSense(sense))
+    {
+        Serial.printf("MSC sense: response=0x%02x key=0x%02x asc=0x%02x ascq=0x%02x\n",
+                      sense.responseCode,
+                      sense.senseKey,
+                      sense.additionalSenseCode,
+                      sense.additionalSenseQualifier);
+    }
 
     uint32_t blockCount = 0;
     uint32_t blockSize = 0;

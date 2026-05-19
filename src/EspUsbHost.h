@@ -267,6 +267,14 @@ struct EspUsbHostMscInquiry
   char revision[5] = {};
 };
 
+struct EspUsbHostMscSense
+{
+  uint8_t responseCode = 0;
+  uint8_t senseKey = 0;
+  uint8_t additionalSenseCode = 0;
+  uint8_t additionalSenseQualifier = 0;
+};
+
 struct EspUsbHostAudioStreamInfo
 {
   uint8_t address = 0;
@@ -457,6 +465,9 @@ public:
   bool mscInquiry(EspUsbHostMscInquiry &inquiry,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                   uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscRequestSense(EspUsbHostMscSense &sense,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity(uint32_t &blockCount,
                    uint32_t &blockSize,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
