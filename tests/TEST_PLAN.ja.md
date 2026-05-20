@@ -36,8 +36,8 @@ tests/
 | HIDベンダー入出力 | ✅ peer | | |
 | HID生データダンプ | ✅ peer (custom_hid) | | |
 | キーボードLED出力 | ✅ peer (hid_logic) | ✅ manual（目視） | |
-| USBシリアル — CDC ACM | ✅ peer | | |
-| USBシリアル — VCP（FTDI・CP210x・CH34x） | | ✅ manual | |
+| USBシリアル — CDC ACM | ✅ peer、設定API | | |
+| USBシリアル — VCP（FTDI・CP210x・CH34x） | | ✅ manual、シリアル形式設定 | |
 | USB MIDI | ✅ peer | | |
 | USBオーディオ入出力 | ✅ peer（出力）、入力は一部 | | |
 | 複数デバイス同時接続 | | ✅ manual | |

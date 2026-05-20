@@ -792,6 +792,108 @@ static uint16_t ftdiBaudDivisor(uint32_t baud)
   return static_cast<uint16_t>(divisor & 0xffff);
 }
 
+static bool isValidSerialConfig(const EspUsbHostSerialConfig &config)
+{
+  if (config.baud == 0 || config.dataBits < 5 || config.dataBits > 8)
+  {
+    return false;
+  }
+  return config.parity <= ESP_USB_HOST_SERIAL_PARITY_SPACE &&
+         config.stopBits <= ESP_USB_HOST_SERIAL_STOP_BITS_2;
+}
+
+static uint8_t cdcStopBits(EspUsbHostSerialStopBits stopBits)
+{
+  return static_cast<uint8_t>(stopBits);
+}
+
+static uint8_t cdcParity(EspUsbHostSerialParity parity)
+{
+  return static_cast<uint8_t>(parity);
+}
+
+static void fillCdcLineCoding(const EspUsbHostSerialConfig &config, uint8_t lineCoding[7])
+{
+  lineCoding[0] = static_cast<uint8_t>(config.baud & 0xff);
+  lineCoding[1] = static_cast<uint8_t>((config.baud >> 8) & 0xff);
+  lineCoding[2] = static_cast<uint8_t>((config.baud >> 16) & 0xff);
+  lineCoding[3] = static_cast<uint8_t>((config.baud >> 24) & 0xff);
+  lineCoding[4] = cdcStopBits(config.stopBits);
+  lineCoding[5] = cdcParity(config.parity);
+  lineCoding[6] = config.dataBits;
+}
+
+static uint16_t ftdiDataCharacteristics(const EspUsbHostSerialConfig &config)
+{
+  uint16_t value = config.dataBits;
+  switch (config.stopBits)
+  {
+  case ESP_USB_HOST_SERIAL_STOP_BITS_1_5:
+    value |= 0x0100;
+    break;
+  case ESP_USB_HOST_SERIAL_STOP_BITS_2:
+    value |= 0x0200;
+    break;
+  case ESP_USB_HOST_SERIAL_STOP_BITS_1:
+  default:
+    break;
+  }
+  value |= static_cast<uint16_t>(config.parity) << 12;
+  return value;
+}
+
+static uint16_t cp210xLineControl(const EspUsbHostSerialConfig &config)
+{
+  uint16_t value = static_cast<uint16_t>(config.dataBits) << 8;
+  switch (config.parity)
+  {
+  case ESP_USB_HOST_SERIAL_PARITY_ODD:
+    value |= 0x0010;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_EVEN:
+    value |= 0x0020;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_MARK:
+    value |= 0x0030;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_SPACE:
+    value |= 0x0040;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_NONE:
+  default:
+    break;
+  }
+  value |= static_cast<uint16_t>(config.stopBits);
+  return value;
+}
+
+static bool ch34xLineControl(const EspUsbHostSerialConfig &config, uint16_t &value)
+{
+  if (config.parity == ESP_USB_HOST_SERIAL_PARITY_MARK ||
+      config.parity == ESP_USB_HOST_SERIAL_PARITY_SPACE ||
+      config.stopBits == ESP_USB_HOST_SERIAL_STOP_BITS_1_5)
+  {
+    return false;
+  }
+
+  uint8_t lcr = 0xc0 | static_cast<uint8_t>(config.dataBits - 5);
+  if (config.stopBits == ESP_USB_HOST_SERIAL_STOP_BITS_2)
+  {
+    lcr |= 0x04;
+  }
+  if (config.parity == ESP_USB_HOST_SERIAL_PARITY_ODD ||
+      config.parity == ESP_USB_HOST_SERIAL_PARITY_EVEN)
+  {
+    lcr |= 0x08;
+    if (config.parity == ESP_USB_HOST_SERIAL_PARITY_EVEN)
+    {
+      lcr |= 0x10;
+    }
+  }
+  value = lcr;
+  return true;
+}
+
 static uint32_t ch34xClockDiv(int prescaler, int factor)
 {
   return 1UL << (12 - 3 * prescaler - factor);
@@ -1554,23 +1656,55 @@ bool EspUsbHost::serialReady(uint8_t address) const
 
 bool EspUsbHost::setSerialBaudRate(uint32_t baud, uint8_t address)
 {
-  if (baud == 0)
+  EspUsbHostSerialConfig config = defaultSerialConfig_;
+  DeviceState *device = findSerialDevice(address);
+  if (device)
   {
-    ESP_LOGW(TAG, "setSerialBaudRate() called with baud=0");
+    config = device->serialConfig;
+  }
+  config.baud = baud;
+  return setSerialConfig(config, address);
+}
+
+bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address)
+{
+  if (!isValidSerialConfig(config))
+  {
+    ESP_LOGW(TAG, "setSerialConfig() called with invalid config: baud=%lu dataBits=%u parity=%u stopBits=%u",
+             static_cast<unsigned long>(config.baud),
+             config.dataBits,
+             static_cast<unsigned>(config.parity),
+             static_cast<unsigned>(config.stopBits));
     return false;
   }
 
   DeviceState *device = findSerialDevice(address);
-  if (address == ESP_USB_HOST_ANY_ADDRESS)
-  {
-    defaultSerialBaudRate_ = baud;
-  }
   if (!device)
   {
+    if (address == ESP_USB_HOST_ANY_ADDRESS)
+    {
+      defaultSerialConfig_ = config;
+    }
     return true;
   }
+  if (device->vendorSerialSupported && device->info.vid == 0x1a86)
+  {
+    uint16_t lineControl = 0;
+    if (!ch34xLineControl(config, lineControl))
+    {
+      ESP_LOGW(TAG, "setSerialConfig() unsupported for CH34x: dataBits=%u parity=%u stopBits=%u",
+               config.dataBits,
+               static_cast<unsigned>(config.parity),
+               static_cast<unsigned>(config.stopBits));
+      return false;
+    }
+  }
+  if (address == ESP_USB_HOST_ANY_ADDRESS)
+  {
+    defaultSerialConfig_ = config;
+  }
 
-  device->serialBaudRate = baud;
+  device->serialConfig = config;
   if (device->hasCdcControlInterface)
   {
     device->cdcConfigured = false;
@@ -2828,7 +2962,7 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   }
   device->inUse = true;
   device->info.address = address;
-  device->serialBaudRate = defaultSerialBaudRate_;
+  device->serialConfig = defaultSerialConfig_;
   device->audioSampleRate = defaultAudioSampleRate_;
 
   esp_err_t err = usb_host_device_open(clientHandle_, address, &device->handle);
@@ -3072,7 +3206,7 @@ void EspUsbHost::scanHostDevices()
     device->inUse = true;
     device->handle = handle;
     device->info.address = address;
-    device->serialBaudRate = defaultSerialBaudRate_;
+    device->serialConfig = defaultSerialConfig_;
     device->audioSampleRate = defaultAudioSampleRate_;
 
     usb_device_info_t devInfo = {};
@@ -5114,14 +5248,8 @@ void EspUsbHost::configureCdcAcm(DeviceState &device)
     return;
   }
 
-  uint8_t lineCoding[7] = {
-      static_cast<uint8_t>(device.serialBaudRate & 0xff),
-      static_cast<uint8_t>((device.serialBaudRate >> 8) & 0xff),
-      static_cast<uint8_t>((device.serialBaudRate >> 16) & 0xff),
-      static_cast<uint8_t>((device.serialBaudRate >> 24) & 0xff),
-      0x00,
-      0x00,
-      0x08};
+  uint8_t lineCoding[7] = {};
+  fillCdcLineCoding(device.serialConfig, lineCoding);
 
   usb_transfer_t *lineCodingTransfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + sizeof(lineCoding), 0, &lineCodingTransfer);
@@ -5171,8 +5299,11 @@ void EspUsbHost::configureCdcAcm(DeviceState &device)
   }
 
   device.cdcConfigured = true;
-  ESP_LOGI(TAG, "CDC ACM configured: baud=%lu dtr=%u rts=%u",
-           static_cast<unsigned long>(device.serialBaudRate),
+  ESP_LOGI(TAG, "CDC ACM configured: baud=%lu dataBits=%u parity=%u stopBits=%u dtr=%u rts=%u",
+           static_cast<unsigned long>(device.serialConfig.baud),
+           device.serialConfig.dataBits,
+           static_cast<unsigned>(device.serialConfig.parity),
+           static_cast<unsigned>(device.serialConfig.stopBits),
            device.serialDtr ? 1 : 0,
            device.serialRts ? 1 : 0);
 }
@@ -5219,44 +5350,56 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
     return;
   }
 
-  ESP_LOGI(TAG, "Configuring %s VCP: iface=%u baud=%lu dtr=%u rts=%u",
+  ESP_LOGI(TAG, "Configuring %s VCP: iface=%u baud=%lu dataBits=%u parity=%u stopBits=%u dtr=%u rts=%u",
            vendorSerialName(device.info.vid),
            device.vendorSerialInterfaceNumber,
-           static_cast<unsigned long>(device.serialBaudRate),
+           static_cast<unsigned long>(device.serialConfig.baud),
+           device.serialConfig.dataBits,
+           static_cast<unsigned>(device.serialConfig.parity),
+           static_cast<unsigned>(device.serialConfig.stopBits),
            device.serialDtr ? 1 : 0,
            device.serialRts ? 1 : 0);
 
   if (device.info.vid == 0x0403)
   {
-    const uint16_t divisor = ftdiBaudDivisor(device.serialBaudRate);
+    const uint16_t divisor = ftdiBaudDivisor(device.serialConfig.baud);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x00, 0x0000, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x03, divisor, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x04, 0x0008, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x04, ftdiDataCharacteristics(device.serialConfig), device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x02, device.serialDtr ? 0x0011 : 0x0010, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x02, device.serialRts ? 0x0021 : 0x0020, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
   }
   else if (device.info.vid == 0x10c4)
   {
     const uint8_t baud[4] = {
-        static_cast<uint8_t>(device.serialBaudRate & 0xff),
-        static_cast<uint8_t>((device.serialBaudRate >> 8) & 0xff),
-        static_cast<uint8_t>((device.serialBaudRate >> 16) & 0xff),
-        static_cast<uint8_t>((device.serialBaudRate >> 24) & 0xff)};
+        static_cast<uint8_t>(device.serialConfig.baud & 0xff),
+        static_cast<uint8_t>((device.serialConfig.baud >> 8) & 0xff),
+        static_cast<uint8_t>((device.serialConfig.baud >> 16) & 0xff),
+        static_cast<uint8_t>((device.serialConfig.baud >> 24) & 0xff)};
     submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x00, 0x0001, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x1e, 0x0000, device.vendorSerialInterfaceNumber, baud, sizeof(baud), device.info.address);
-    submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x03, 0x0800, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x03, cp210xLineControl(device.serialConfig), device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x07,
                               (device.serialDtr ? 0x0001 : 0) | (device.serialRts ? 0x0002 : 0) | 0x0300,
                               device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
   }
   else if (device.info.vid == 0x1a86)
   {
-    const uint16_t baudReg = ch34xBaudValue(device.serialBaudRate);
+    uint16_t lineControl = 0;
+    if (!ch34xLineControl(device.serialConfig, lineControl))
+    {
+      ESP_LOGW(TAG, "CH34x serial config is not supported yet: dataBits=%u parity=%u stopBits=%u",
+               device.serialConfig.dataBits,
+               static_cast<unsigned>(device.serialConfig.parity),
+               static_cast<unsigned>(device.serialConfig.stopBits));
+      return;
+    }
+    const uint16_t baudReg = ch34xBaudValue(device.serialConfig.baud);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa1, 0x0000, 0x0000, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x1312, baudReg, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x2518, 0x00c3, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x2518, lineControl, nullptr, 0, device.info.address);
     const uint8_t modemControl = (device.serialDtr ? 0x20 : 0) | (device.serialRts ? 0x40 : 0);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa4,
                               static_cast<uint16_t>(~modemControl),
@@ -5281,14 +5424,8 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
       submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, VENDOR_WRITE_REQUEST, 0x0009, 0x0000, nullptr, 0, device.info.address);
     }
 
-    uint8_t lineCoding[7] = {
-        static_cast<uint8_t>(device.serialBaudRate & 0xff),
-        static_cast<uint8_t>((device.serialBaudRate >> 8) & 0xff),
-        static_cast<uint8_t>((device.serialBaudRate >> 16) & 0xff),
-        static_cast<uint8_t>((device.serialBaudRate >> 24) & 0xff),
-        0x00,
-        0x00,
-        0x08};
+    uint8_t lineCoding[7] = {};
+    fillCdcLineCoding(device.serialConfig, lineCoding);
     submitVendorSerialControl(CDC_SET_REQUEST_TYPE, CDC_CLASS_REQUEST_SET_LINE_CODING,
                               0x0000, 0x0000,
                               lineCoding, sizeof(lineCoding), device.info.address);
@@ -5550,6 +5687,11 @@ size_t EspUsbHostCdcSerial::write(const uint8_t *buffer, size_t size)
 bool EspUsbHostCdcSerial::setBaudRate(uint32_t baud)
 {
   return host_.setSerialBaudRate(baud, address_);
+}
+
+bool EspUsbHostCdcSerial::setConfig(const EspUsbHostSerialConfig &config)
+{
+  return host_.setSerialConfig(config, address_);
 }
 
 bool EspUsbHostCdcSerial::setDtr(bool enable)

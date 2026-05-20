@@ -26,9 +26,10 @@ private:
     void initPatterns();
     void drainUsb();
     void drainSniff();
-    bool runPattern(uint32_t baud, const Pattern &pattern);
-    bool runOneBaud(uint32_t baud);
+    bool runPattern(const EspUsbHostSerialConfig &config, const char *configName, const Pattern &pattern);
+    bool runOneConfig(const EspUsbHostSerialConfig &config, const char *configName);
     bool deviceMatches(const EspUsbHostDeviceInfo &device) const;
+    uint32_t arduinoSerialConfig(const EspUsbHostSerialConfig &config) const;
 
     EspUsbHost usb_;
     EspUsbHostCdcSerial cdc_;

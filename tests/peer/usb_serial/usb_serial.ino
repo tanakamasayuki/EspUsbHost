@@ -25,6 +25,19 @@ void loop()
         {
             Serial.printf("SERIAL_TX %u\n", CdcSerial.write(reinterpret_cast<const uint8_t *>("host to serial\n"), 15) == 15 ? 1 : 0);
         }
+        else if (command == 'c')
+        {
+            EspUsbHostSerialConfig config;
+            config.baud = 57600;
+            config.dataBits = 7;
+            config.parity = ESP_USB_HOST_SERIAL_PARITY_EVEN;
+            config.stopBits = ESP_USB_HOST_SERIAL_STOP_BITS_2;
+            Serial.printf("SERIAL_CONFIG %u\n", CdcSerial.setConfig(config) ? 1 : 0);
+        }
+        else if (command == 'b')
+        {
+            Serial.printf("SERIAL_BAUD %u\n", CdcSerial.setBaudRate(115200) ? 1 : 0);
+        }
     }
     if (CdcSerial.available() > 0)
     {
