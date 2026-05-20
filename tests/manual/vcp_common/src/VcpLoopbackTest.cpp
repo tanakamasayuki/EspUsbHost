@@ -11,6 +11,8 @@ namespace
         EspUsbHostSerialConfig config;
     };
     const TestConfig TEST_CONFIGS[] = {
+        {"300-8N1", {300, 8, ESP_USB_HOST_SERIAL_PARITY_NONE, ESP_USB_HOST_SERIAL_STOP_BITS_1}},
+        {"1200-8N1", {1200, 8, ESP_USB_HOST_SERIAL_PARITY_NONE, ESP_USB_HOST_SERIAL_STOP_BITS_1}},
         {"9600-8N1", {9600, 8, ESP_USB_HOST_SERIAL_PARITY_NONE, ESP_USB_HOST_SERIAL_STOP_BITS_1}},
         {"38400-8N1", {38400, 8, ESP_USB_HOST_SERIAL_PARITY_NONE, ESP_USB_HOST_SERIAL_STOP_BITS_1}},
         {"115200-8N1", {115200, 8, ESP_USB_HOST_SERIAL_PARITY_NONE, ESP_USB_HOST_SERIAL_STOP_BITS_1}},
@@ -140,6 +142,10 @@ bool VcpLoopbackTest::runOneConfig(const EspUsbHostSerialConfig &config, const c
     for (const Pattern &p : patterns_)
     {
         if ((config.dataBits < 8 && strcmp(p.name, "ascii") != 0))
+        {
+            continue;
+        }
+        if (config.baud <= 300 && strcmp(p.name, "ascii") != 0)
         {
             continue;
         }

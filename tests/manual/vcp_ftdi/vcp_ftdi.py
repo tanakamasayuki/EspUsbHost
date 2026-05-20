@@ -27,6 +27,8 @@ Setup:
 import pytest
 
 CONFIG_PATTERNS = {
+    "300-8N1": ["ascii"],
+    "1200-8N1": ["ascii", "allbytes", "long"],
     "9600-8N1": ["ascii", "allbytes", "long"],
     "38400-8N1": ["ascii", "allbytes", "long"],
     "115200-8N1": ["ascii", "allbytes", "long"],
