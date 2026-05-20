@@ -867,31 +867,34 @@ static uint16_t cp210xLineControl(const EspUsbHostSerialConfig &config)
   return value;
 }
 
-static bool ch34xLineControl(const EspUsbHostSerialConfig &config, uint16_t &value)
+static uint16_t ch34xLineControl(const EspUsbHostSerialConfig &config)
 {
-  if (config.parity == ESP_USB_HOST_SERIAL_PARITY_MARK ||
-      config.parity == ESP_USB_HOST_SERIAL_PARITY_SPACE ||
-      config.stopBits == ESP_USB_HOST_SERIAL_STOP_BITS_1_5)
-  {
-    return false;
-  }
-
   uint8_t lcr = 0xc0 | static_cast<uint8_t>(config.dataBits - 5);
-  if (config.stopBits == ESP_USB_HOST_SERIAL_STOP_BITS_2)
+  if (config.stopBits == ESP_USB_HOST_SERIAL_STOP_BITS_1_5 ||
+      config.stopBits == ESP_USB_HOST_SERIAL_STOP_BITS_2)
   {
     lcr |= 0x04;
   }
-  if (config.parity == ESP_USB_HOST_SERIAL_PARITY_ODD ||
-      config.parity == ESP_USB_HOST_SERIAL_PARITY_EVEN)
+
+  switch (config.parity)
   {
+  case ESP_USB_HOST_SERIAL_PARITY_ODD:
     lcr |= 0x08;
-    if (config.parity == ESP_USB_HOST_SERIAL_PARITY_EVEN)
-    {
-      lcr |= 0x10;
-    }
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_EVEN:
+    lcr |= 0x18;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_MARK:
+    lcr |= 0x28;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_SPACE:
+    lcr |= 0x38;
+    break;
+  case ESP_USB_HOST_SERIAL_PARITY_NONE:
+  default:
+    break;
   }
-  value = lcr;
-  return true;
+  return lcr;
 }
 
 static uint32_t ch34xClockDiv(int prescaler, int factor)
@@ -1686,18 +1689,6 @@ bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t a
       defaultSerialConfig_ = config;
     }
     return true;
-  }
-  if (device->vendorSerialSupported && device->info.vid == 0x1a86)
-  {
-    uint16_t lineControl = 0;
-    if (!ch34xLineControl(config, lineControl))
-    {
-      ESP_LOGW(TAG, "setSerialConfig() unsupported for CH34x: dataBits=%u parity=%u stopBits=%u",
-               config.dataBits,
-               static_cast<unsigned>(config.parity),
-               static_cast<unsigned>(config.stopBits));
-      return false;
-    }
   }
   if (address == ESP_USB_HOST_ANY_ADDRESS)
   {
@@ -3900,8 +3891,8 @@ bool EspUsbHost::submitHIDReportDescriptorRequest(const HIDReportDescriptorState
   }
 
   const size_t requestLength = descriptorState.reportedLength < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE
-                                 ? descriptorState.reportedLength
-                                 : ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE;
+                                   ? descriptorState.reportedLength
+                                   : ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE;
   usb_transfer_t *transfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + requestLength, 0, &transfer);
   if (err != ESP_OK)
@@ -5386,15 +5377,7 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
   }
   else if (device.info.vid == 0x1a86)
   {
-    uint16_t lineControl = 0;
-    if (!ch34xLineControl(device.serialConfig, lineControl))
-    {
-      ESP_LOGW(TAG, "CH34x serial config is not supported yet: dataBits=%u parity=%u stopBits=%u",
-               device.serialConfig.dataBits,
-               static_cast<unsigned>(device.serialConfig.parity),
-               static_cast<unsigned>(device.serialConfig.stopBits));
-      return;
-    }
+    const uint16_t lineControl = ch34xLineControl(device.serialConfig);
     const uint16_t baudReg = ch34xBaudValue(device.serialConfig.baud);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa1, 0x0000, 0x0000, nullptr, 0, device.info.address);
