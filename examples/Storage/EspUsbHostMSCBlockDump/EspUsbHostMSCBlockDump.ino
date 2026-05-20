@@ -47,21 +47,17 @@ void setup()
     delay(5000);
 
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
-                          { Serial.printf("connected: address=%u vid=%04x pid=%04x class=0x%02x supported=%u product=%s\n",
-                                          device.address,
-                                          device.vid,
-                                          device.pid,
-                                          device.deviceClass,
-                                          device.supported ? 1 : 0,
-                                          device.product); });
+                          {
+                              Serial.print("connected: ");
+                              espUsbHostPrint(device);
+                          });
 
     usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                              {
-                                 Serial.printf("disconnected: address=%u vid=%04x pid=%04x\n",
-                                               device.address,
-                                               device.vid,
-                                               device.pid);
-                                 printed = false; });
+                                 Serial.print("disconnected: ");
+                                 espUsbHostPrint(device);
+                                 printed = false;
+                             });
 
     if (!usb.begin())
     {
