@@ -26,15 +26,15 @@
   - `input.data` — 生のレポートバイト列
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
   - `device.address` — USBデバイスアドレス
-- `espUsbHostPrintHIDInput` / `espUsbHostPrintDeviceConnected` / `espUsbHostPrintDeviceDisconnected` — このサンプルで使っている標準のシリアルダンプ用コールバック
+- `espUsbHostPrint(input)` / `espUsbHostPrint(device)` — このサンプルで使っている1行シリアルダンプ用ヘルパー
 
 ## シリアル出力例
 
 ```
-connected: address=1 vid=045e pid=07a5 product=USB Keyboard
+connected: device: address=1 portId=0x01 vid=045e pid=07a5 class=0x00(Device) speed=full product="USB Keyboard"
 hid: address=1 iface=0 subclass=0x01 protocol=0x01 len=8 data=00 00 00 00 00 00 00 00
 hid: address=1 iface=0 subclass=0x01 protocol=0x01 len=8 data=00 00 04 00 00 00 00 00
-disconnected: address=1 vid=045e pid=07a5
+disconnected: device: address=1 portId=0x01 vid=045e pid=07a5 class=0x00(Device) speed=full product="USB Keyboard"
 ```
 
 ## 関連サンプル

@@ -9,7 +9,8 @@ static constexpr uint16_t VID_CP210X = 0x10c4;
 
 static void onDeviceConnected(const EspUsbHostDeviceInfo &device)
 {
-  espUsbHostPrintDeviceConnected(device);
+  Serial.print("connected: ");
+  espUsbHostPrint(device);
 
   if (device.vid == VID_FTDI)
   {
@@ -31,7 +32,8 @@ static void onDeviceConnected(const EspUsbHostDeviceInfo &device)
 
 static void onDeviceDisconnected(const EspUsbHostDeviceInfo &device)
 {
-  espUsbHostPrintDeviceDisconnected(device);
+  Serial.print("disconnected: ");
+  espUsbHostPrint(device);
 
   if (FtdiSerial.address() == device.address)
   {

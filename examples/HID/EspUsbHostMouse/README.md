@@ -26,7 +26,7 @@ Reads movement and button events from a USB HID mouse, tracks accumulated positi
 ## Expected Serial output
 
 ```
-connected: address=1 vid=046d pid=c52b product=USB Receiver
+connected: device: address=1 portId=0x01 vid=046d pid=c52b class=0x00(Device) speed=full product="USB Receiver"
 left   press
 pos: x=3 y=-2  delta: dx=3 dy=-2 wheel=0
 pos: x=3 y=-3  delta: dx=0 dy=-1 wheel=0

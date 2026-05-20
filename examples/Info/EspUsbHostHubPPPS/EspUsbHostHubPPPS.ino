@@ -127,6 +127,7 @@ void setup()
                                         device.isHub ? 1 : 0,
                                         device.vid,
                                         device.pid); });
+
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              lastDeviceEventMs = millis();

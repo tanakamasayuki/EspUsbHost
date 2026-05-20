@@ -9,8 +9,15 @@ void setup()
 
   usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP);
 
-  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
-  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
+  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
+                        {
+                          Serial.print("connected: ");
+                          espUsbHostPrint(device); });
+
+  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
+                           {
+                             Serial.print("disconnected: ");
+                             espUsbHostPrint(device); });
 
   usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
                  {

@@ -7,9 +7,18 @@ void setup()
   Serial.begin(115200);
   delay(500);
 
-  usb.onDeviceConnected(espUsbHostPrintDeviceConnected);
-  usb.onDeviceDisconnected(espUsbHostPrintDeviceDisconnected);
-  usb.onHIDInput(espUsbHostPrintHIDInput);
+  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
+                        {
+                          Serial.print("connected: ");
+                          espUsbHostPrint(device); });
+
+  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
+                           {
+                             Serial.print("disconnected: ");
+                             espUsbHostPrint(device); });
+
+  usb.onHIDInput([](const EspUsbHostHIDInput &input)
+                 { espUsbHostPrint(input); });
 
   if (!usb.begin())
   {

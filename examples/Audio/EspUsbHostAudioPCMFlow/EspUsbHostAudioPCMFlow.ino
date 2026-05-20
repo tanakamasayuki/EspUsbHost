@@ -81,18 +81,7 @@ static bool chooseAudioOutputStream(uint8_t address)
   const size_t count = usb.getAudioStreams(address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
   for (size_t i = 0; i < count; i++)
   {
-    Serial.printf("audio stream: iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max=%u interval=%u\n",
-                  streams[i].interfaceNumber,
-                  streams[i].alternate,
-                  streams[i].endpointAddress,
-                  streams[i].input ? "IN" : "OUT",
-                  streams[i].channels,
-                  streams[i].bytesPerSample,
-                  streams[i].bitsPerSample,
-                  static_cast<unsigned long>(streams[i].sampleRate),
-                  streams[i].sampleRateCount,
-                  streams[i].maxPacketSize,
-                  streams[i].interval);
+    espUsbHostPrint(streams[i]);
 
     if (!streams[i].output ||
         (streams[i].channels != 1 && streams[i].channels != 2) ||
@@ -139,12 +128,8 @@ void setup()
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
-                          Serial.printf("connected: addr=%u portId=0x%02x vid=%04x pid=%04x product=%s\n",
-                                        info.address,
-                                        info.portId,
-                                        info.vid,
-                                        info.pid,
-                                        info.product);
+                          Serial.print("connected: ");
+                          espUsbHostPrint(info);
                           if (!usb.audioOutputReady(info.address))
                           {
                             return;
@@ -158,10 +143,8 @@ void setup()
 
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
-                             Serial.printf("disconnected: addr=%u vid=%04x pid=%04x\n",
-                                           info.address,
-                                           info.vid,
-                                           info.pid);
+                             Serial.print("disconnected: ");
+                             espUsbHostPrint(info);
                              if (info.address == audioAddress)
                              {
                                audioAddress = 0;

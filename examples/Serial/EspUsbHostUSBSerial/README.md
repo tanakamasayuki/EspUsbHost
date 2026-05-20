@@ -38,7 +38,7 @@ Supported device types are detected automatically by VID:
 
 ```
 EspUsbHost USB serial example start
-connected: address=1 vid=0403 pid=6001 product=FT232R USB UART
+connected: device: address=1 portId=0x01 vid=0403 pid=6001 class=0x00(Device) speed=full product="FT232R USB UART"
 ```
 
 After connection, any data sent from the USB serial device appears in the Serial monitor, and any text typed in the Serial monitor is forwarded to the USB device.
