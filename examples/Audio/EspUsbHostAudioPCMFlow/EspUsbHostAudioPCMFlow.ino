@@ -17,6 +17,8 @@ static bool openNextFile()
 {
   audio.close();
 
+  // en: Walk through embedded assets and open the next MP3 file for decoding.
+  // ja: 埋め込みアセットを順に調べ、次のMP3ファイルをデコード用に開きます。
   while (fileIndex < assets_file_count)
   {
     const size_t index = fileIndex++;
@@ -47,6 +49,8 @@ static bool openNextFile()
 
 static void restartCurrentFile()
 {
+  // en: Reopen the current file after the USB device format has been selected.
+  // ja: USBデバイス側の形式が決まったあと、現在のファイルをその形式で開き直します。
   if (fileIndex > 0)
   {
     fileIndex--;
@@ -54,43 +58,31 @@ static void restartCurrentFile()
   openNextFile();
 }
 
-static uint32_t chooseSampleRate(const EspUsbHostAudioStreamInfo &stream)
+static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
 {
-  if (espUsbHostAudioStreamSupportsSampleRate(stream, DEFAULT_SAMPLE_RATE))
-  {
-    return DEFAULT_SAMPLE_RATE;
-  }
-  if (stream.sampleRate > 0 && espUsbHostAudioStreamSupportsSampleRate(stream, stream.sampleRate))
-  {
-    return stream.sampleRate;
-  }
-  if (stream.sampleRateCount > 0)
-  {
-    return stream.sampleRates[0];
-  }
-  if (stream.sampleRateMin > 0)
-  {
-    return stream.sampleRateMin;
-  }
-  return 0;
+  // en: PCMFlow can produce mono/stereo 8-bit or 16-bit PCM for this example.
+  // ja: このサンプルではPCMFlowからモノラル/ステレオの8bitまたは16bit PCMを出力します。
+  return stream.output &&
+         (stream.channels == 1 || stream.channels == 2) &&
+         (stream.bitsPerSample == 8 || stream.bitsPerSample == 16);
 }
 
 static bool chooseAudioOutputStream(uint8_t address)
 {
   EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
   const size_t count = usb.getAudioStreams(address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+  // en: Pick the first USB Audio OUT stream that PCMFlow can feed directly.
+  // ja: PCMFlowが直接供給できる最初のUSB Audio OUTストリームを選びます。
   for (size_t i = 0; i < count; i++)
   {
     espUsbHostPrint(streams[i]);
 
-    if (!streams[i].output ||
-        (streams[i].channels != 1 && streams[i].channels != 2) ||
-        (streams[i].bitsPerSample != 8 && streams[i].bitsPerSample != 16))
+    if (!isSupportedOutputStream(streams[i]))
     {
       continue;
     }
 
-    const uint32_t sampleRate = chooseSampleRate(streams[i]);
+    const uint32_t sampleRate = espUsbHostAudioStreamPreferredSampleRate(streams[i], DEFAULT_SAMPLE_RATE);
     if (sampleRate == 0 || !espUsbHostAudioStreamSupportsSampleRate(streams[i], sampleRate))
     {
       continue;
@@ -101,6 +93,8 @@ static bool chooseAudioOutputStream(uint8_t address)
                   static_cast<unsigned long>(outputFormat.sampleRate),
                   outputFormat.channels,
                   outputFormat.bitsPerSample);
+    // en: PCMFlow output format must match the selected USB stream before playback starts.
+    // ja: 再生開始前に、PCMFlowの出力形式を選択したUSBストリームに合わせます。
     restartCurrentFile();
     usb.setAudioSampleRate(outputFormat.sampleRate, address);
     return usb.audioOutputStart(address);
@@ -110,6 +104,8 @@ static bool chooseAudioOutputStream(uint8_t address)
 
 static void fillAudioOutput(EspUsbHostAudioOutputRequest &request)
 {
+  // en: This callback runs from the USB task; only copy already-decoded PCM frames.
+  // ja: このコールバックはUSBタスクから呼ばれるため、デコード済みPCMフレームのコピーだけを行います。
   request.writtenFrames = audio.readFrames(request.data, request.frameCount);
 }
 
@@ -130,6 +126,8 @@ void setup()
                         {
                           Serial.print("connected: ");
                           espUsbHostPrint(info);
+                          // en: Wait until the library has parsed usable USB Audio OUT interfaces.
+                          // ja: ライブラリが利用可能なUSB Audio OUTインターフェースを解析するまで待ちます。
                           if (!usb.audioOutputReady(info.address))
                           {
                             return;
@@ -161,6 +159,8 @@ void setup()
 
 void loop()
 {
+  // en: Keep PCMFlow decoding outside the USB callback and advance to the next file at EOF.
+  // ja: PCMFlowのデコードはUSBコールバック外で進め、終端に達したら次のファイルへ進みます。
   if (audio.isEof())
   {
     openNextFile();

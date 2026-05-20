@@ -331,6 +331,31 @@ inline bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamI
   return stream.sampleRate == 0 || stream.sampleRate == sampleRate;
 }
 
+inline uint32_t espUsbHostAudioStreamPreferredSampleRate(const EspUsbHostAudioStreamInfo &stream, uint32_t preferredSampleRate)
+{
+  if (espUsbHostAudioStreamSupportsSampleRate(stream, preferredSampleRate))
+  {
+    return preferredSampleRate;
+  }
+
+  if (stream.sampleRate > 0 && espUsbHostAudioStreamSupportsSampleRate(stream, stream.sampleRate))
+  {
+    return stream.sampleRate;
+  }
+
+  if (stream.sampleRateCount > 0)
+  {
+    return stream.sampleRates[0];
+  }
+
+  if (stream.sampleRateMin > 0)
+  {
+    return stream.sampleRateMin;
+  }
+
+  return 0;
+}
+
 inline bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
                                             uint8_t channels,
                                             uint8_t bytesPerSample,
