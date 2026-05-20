@@ -20,11 +20,8 @@ static bool isKeyboardLike(const EspUsbHostDeviceInfo &device)
 
 static void onDeviceConnected(const EspUsbHostDeviceInfo &device)
 {
-  Serial.printf("connected #%u: %04x:%04x %s\n",
-                device.address,
-                device.vid,
-                device.pid,
-                device.product);
+  Serial.print("connected: ");
+  espUsbHostPrint(device);
 
   if (isKeyboardLike(device))
   {
@@ -40,10 +37,8 @@ static void onDeviceConnected(const EspUsbHostDeviceInfo &device)
 
 static void onDeviceDisconnected(const EspUsbHostDeviceInfo &device)
 {
-  Serial.printf("disconnected #%u: %04x:%04x\n",
-                device.address,
-                device.vid,
-                device.pid);
+  Serial.print("disconnected: ");
+  espUsbHostPrint(device);
   Serial.printf("  total devices: %u\n", static_cast<unsigned>(usb.deviceCount()));
 }
 
