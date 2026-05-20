@@ -79,6 +79,8 @@ static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
 static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
 static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
 static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
+static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS = 8;
+static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE = 512;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
@@ -175,6 +177,18 @@ struct EspUsbHostEndpointInfo
   uint8_t attributes = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
+};
+
+struct EspUsbHostHIDReportDescriptor
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint16_t hidVersion = 0;
+  uint8_t countryCode = 0;
+  uint8_t descriptorType = USB_HID_REPORT_DESC;
+  uint16_t reportedLength = 0;
+  uint16_t length = 0;
+  uint8_t data[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE] = {};
 };
 
 struct EspUsbHostKeyboardEvent
@@ -375,6 +389,8 @@ void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out = Serial
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out = Serial);
+void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Print &out = Serial);
 
 struct EspUsbHostConsumerControlEvent
 {
@@ -537,6 +553,8 @@ public:
   size_t getHostDeviceAddresses(uint8_t *addresses, size_t maxAddresses) const;
   bool probeHostDevice(uint8_t address, EspUsbHostDeviceProbeInfo &probe);
   bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
+  size_t getHIDReportDescriptors(uint8_t address, EspUsbHostHIDReportDescriptor *descriptors, size_t maxDescriptors);
+  bool getHIDReportDescriptor(uint8_t address, uint8_t interfaceNumber, EspUsbHostHIDReportDescriptor &descriptor);
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
@@ -642,6 +660,8 @@ private:
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
     uint8_t endpointInfoCount = 0;
+    EspUsbHostHIDReportDescriptor hidReportDescriptors[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS] = {};
+    uint8_t hidReportDescriptorCount = 0;
     uint8_t interfaces[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceCount = 0;
     bool isHub = false;
