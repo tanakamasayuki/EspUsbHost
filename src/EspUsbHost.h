@@ -95,6 +95,30 @@ struct EspUsbHostConfig
   EspUsbHostPort port = ESP_USB_HOST_PORT_DEFAULT;
 };
 
+enum EspUsbHostSerialParity : uint8_t
+{
+  ESP_USB_HOST_SERIAL_PARITY_NONE = 0,
+  ESP_USB_HOST_SERIAL_PARITY_ODD,
+  ESP_USB_HOST_SERIAL_PARITY_EVEN,
+  ESP_USB_HOST_SERIAL_PARITY_MARK,
+  ESP_USB_HOST_SERIAL_PARITY_SPACE,
+};
+
+enum EspUsbHostSerialStopBits : uint8_t
+{
+  ESP_USB_HOST_SERIAL_STOP_BITS_1 = 0,
+  ESP_USB_HOST_SERIAL_STOP_BITS_1_5,
+  ESP_USB_HOST_SERIAL_STOP_BITS_2,
+};
+
+struct EspUsbHostSerialConfig
+{
+  uint32_t baud = 115200;
+  uint8_t dataBits = 8;
+  EspUsbHostSerialParity parity = ESP_USB_HOST_SERIAL_PARITY_NONE;
+  EspUsbHostSerialStopBits stopBits = ESP_USB_HOST_SERIAL_STOP_BITS_1;
+};
+
 struct EspUsbHostDeviceInfo
 {
   uint8_t address = 0;
@@ -497,6 +521,7 @@ public:
   bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -627,7 +652,7 @@ private:
     bool hasSerialOutEndpoint = false;
     uint8_t serialOutEndpointAddress = 0;
     uint16_t serialOutPacketSize = 0;
-    uint32_t serialBaudRate = 115200;
+    EspUsbHostSerialConfig serialConfig;
     bool serialDtr = true;
     bool serialRts = true;
     bool hasVendorSerialInterface = false;
@@ -773,7 +798,7 @@ private:
   DeviceState devices_[ESP_USB_HOST_MAX_DEVICES];
   DeviceState *currentDevice_ = nullptr;
   EspUsbHostCdcSerial *cdcSerials_[ESP_USB_HOST_MAX_CDC_SERIALS] = {};
-  uint32_t defaultSerialBaudRate_ = 115200;
+  EspUsbHostSerialConfig defaultSerialConfig_;
   uint32_t defaultAudioSampleRate_ = 48000;
   uint8_t nextHubIndex_ = 1;
   uint32_t lastHostDeviceScanMs_ = 0;
@@ -831,6 +856,7 @@ public:
   using Print::write;
 
   bool setBaudRate(uint32_t baud);
+  bool setConfig(const EspUsbHostSerialConfig &config);
   bool setDtr(bool enable);
   bool setRts(bool enable);
   void setAddress(uint8_t address);

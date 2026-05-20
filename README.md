@@ -24,7 +24,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Class | Status |
 |-------|--------|
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
-| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; 8 data bits only, serial format settings are not implemented yet | ✅ Done |
+| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental |
 | HUB — hub detection, topology info, and port power control | 🔲 Partial; `hub_info` and `hub_power` manual tests pass |
@@ -276,6 +276,8 @@ bool sendSerial(const char *text,
 bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool setSerialBaudRate(uint32_t baud,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool setSerialConfig(const EspUsbHostSerialConfig &config,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
 `EspUsbHostCdcSerial` wraps the above as a standard Arduino `Stream` / `Print`:
@@ -293,12 +295,15 @@ void    flush();
 size_t  write(uint8_t data);
 size_t  write(const uint8_t *buffer, size_t size);
 bool    setBaudRate(uint32_t baud);
+bool    setConfig(const EspUsbHostSerialConfig &config);
 bool    setDtr(bool enable);
 bool    setRts(bool enable);
 void    setAddress(uint8_t address);
 uint8_t address() const;
 void    clearAddress();
 ```
+
+`EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`. CH34x currently rejects mark/space parity and 1.5 stop bits until those modes are verified on real hardware.
 
 Use `setAddress()` inside `onDeviceConnected` to bind a specific device when multiple USB serial devices are connected.
 

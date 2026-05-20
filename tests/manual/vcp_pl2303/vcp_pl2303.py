@@ -25,12 +25,18 @@ Setup:
 
 import pytest
 
-BAUDS = [9600, 38400, 115200, 460800]
-PATTERNS = ["ascii", "allbytes", "long"]
+CONFIG_PATTERNS = {
+    "9600-8N1": ["ascii", "allbytes", "long"],
+    "38400-8N1": ["ascii", "allbytes", "long"],
+    "115200-8N1": ["ascii", "allbytes", "long"],
+    "460800-8N1": ["ascii", "allbytes", "long"],
+    "57600-7E1": ["ascii"],
+    "57600-7O2": ["ascii"],
+}
 
 
 def test_loopback_with_sniff(dut):
-    for baud in BAUDS:
-        for pattern in PATTERNS:
-            dut.expect_exact(f"BAUD={baud} PATTERN={pattern} OK", timeout=30)
+    for config, patterns in CONFIG_PATTERNS.items():
+        for pattern in patterns:
+            dut.expect_exact(f"CONFIG={config} PATTERN={pattern} OK", timeout=30)
     assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=10) == b"[PASS]"

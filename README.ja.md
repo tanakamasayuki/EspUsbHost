@@ -24,7 +24,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | クラス | 状況 |
 |--------|------|
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
-| USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。データビットは8ビットのみで、シリアル形式設定は未実装 | ✅ 実装済み |
+| USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | UAC — USBオーディオ入出力 | 🔲 実験的 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | 🔲 部分実装。手動テストの`hub_info`と`hub_power`はPASS |
@@ -276,6 +276,8 @@ bool sendSerial(const char *text,
 bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool setSerialBaudRate(uint32_t baud,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool setSerialConfig(const EspUsbHostSerialConfig &config,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
 `EspUsbHostCdcSerial`は標準Arduino `Stream`/`Print`ラッパーです：
@@ -293,12 +295,15 @@ void    flush();
 size_t  write(uint8_t data);
 size_t  write(const uint8_t *buffer, size_t size);
 bool    setBaudRate(uint32_t baud);
+bool    setConfig(const EspUsbHostSerialConfig &config);
 bool    setDtr(bool enable);
 bool    setRts(bool enable);
 void    setAddress(uint8_t address);
 uint8_t address() const;
 void    clearAddress();
 ```
+
+`EspUsbHostSerialConfig`のデフォルトは115200 8N1です。`dataBits`は5〜8ビット、`parity`は`ESP_USB_HOST_SERIAL_PARITY_NONE`、`ODD`、`EVEN`、`MARK`、`SPACE`、`stopBits`は`ESP_USB_HOST_SERIAL_STOP_BITS_1`、`1_5`、`2`を指定できます。CH34xは実機検証が済むまで、mark/spaceパリティと1.5ストップビットを未対応として拒否します。
 
 複数のUSBシリアルデバイスが接続されている場合は、`onDeviceConnected`内で`setAddress()`を呼び特定デバイスにバインドします。
 
