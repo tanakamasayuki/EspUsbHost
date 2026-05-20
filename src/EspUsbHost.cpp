@@ -522,6 +522,62 @@ static const char *hidLocalItemName(uint8_t tag)
   }
 }
 
+static const char *hidCollectionTypeName(uint32_t value)
+{
+  switch (value)
+  {
+  case 0x00:
+    return "Physical";
+  case 0x01:
+    return "Application";
+  case 0x02:
+    return "Logical";
+  case 0x03:
+    return "Report";
+  case 0x04:
+    return "Named Array";
+  case 0x05:
+    return "Usage Switch";
+  case 0x06:
+    return "Usage Modifier";
+  default:
+    return "Vendor/Reserved";
+  }
+}
+
+static void hidPrintMainItemFlags(uint32_t value, Print &out)
+{
+  out.print(value & (1 << 0) ? "Constant" : "Data");
+  out.print(',');
+  out.print(value & (1 << 1) ? "Variable" : "Array");
+  out.print(',');
+  out.print(value & (1 << 2) ? "Relative" : "Absolute");
+  if (value & (1 << 3))
+  {
+    out.print(",Wrap");
+  }
+  if (value & (1 << 4))
+  {
+    out.print(",NonLinear");
+  }
+  if (value & (1 << 5))
+  {
+    out.print(",NoPreferred");
+  }
+  if (value & (1 << 6))
+  {
+    out.print(",NullState");
+  }
+  if (value & (1 << 8))
+  {
+    out.print(",Volatile");
+  }
+  if (value & (1 << 9))
+  {
+    out.print(",BufferedBytes");
+  }
+}
+
 void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Print &out)
 {
   if (!data || length == 0)
@@ -531,6 +587,7 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
   }
 
   out.printf("HID report descriptor: len=%u\n", static_cast<unsigned>(length));
+  uint8_t indent = 0;
   for (size_t i = 0; i < length;)
   {
     const uint8_t prefix = data[i++];
@@ -551,6 +608,7 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
       continue;
     }
 
+    const size_t itemOffset = i - 1;
     const uint8_t sizeCode = prefix & 0x03;
     const size_t itemSize = sizeCode == 3 ? 4 : sizeCode;
     const uint8_t type = (prefix >> 2) & 0x03;
@@ -576,7 +634,17 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
       itemName = hidLocalItemName(tag);
     }
 
-    out.printf("  %04u: 0x%02x %-8s %-18s", static_cast<unsigned>(i - 1), prefix, typeName, itemName);
+    if (type == 0 && tag == 0x0c && indent > 0)
+    {
+      indent--;
+    }
+
+    out.printf("  %04u: 0x%02x ", static_cast<unsigned>(itemOffset), prefix);
+    for (uint8_t level = 0; level < indent; level++)
+    {
+      out.print("  ");
+    }
+    out.printf("%-8s %-18s", typeName, itemName);
     if (itemSize > 0)
     {
       out.print(" value=");
@@ -592,7 +660,23 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
       out.print(" raw=");
       espUsbHostPrintHex(&data[i], available, out);
     }
+    if (type == 0 && tag == 0x0a)
+    {
+      out.print(" (");
+      out.print(hidCollectionTypeName(unsignedValue));
+      out.print(')');
+    }
+    else if (type == 0 && (tag == 0x08 || tag == 0x09 || tag == 0x0b) && itemSize > 0)
+    {
+      out.print(" (");
+      hidPrintMainItemFlags(unsignedValue, out);
+      out.print(')');
+    }
     out.println();
+    if (type == 0 && tag == 0x0a)
+    {
+      indent++;
+    }
     i += available;
     if (available < itemSize)
     {
