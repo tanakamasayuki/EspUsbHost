@@ -407,6 +407,192 @@ void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out)
   out.println();
 }
 
+static int32_t hidItemValue(const uint8_t *data, size_t size)
+{
+  uint32_t value = 0;
+  for (size_t i = 0; i < size; i++)
+  {
+    value |= static_cast<uint32_t>(data[i]) << (8 * i);
+  }
+  if (size == 1 && (value & 0x80))
+  {
+    return static_cast<int32_t>(value | 0xffffff00);
+  }
+  if (size == 2 && (value & 0x8000))
+  {
+    return static_cast<int32_t>(value | 0xffff0000);
+  }
+  return static_cast<int32_t>(value);
+}
+
+static const char *hidMainItemName(uint8_t tag)
+{
+  switch (tag)
+  {
+  case 0x08:
+    return "Input";
+  case 0x09:
+    return "Output";
+  case 0x0a:
+    return "Collection";
+  case 0x0b:
+    return "Feature";
+  case 0x0c:
+    return "End Collection";
+  default:
+    return "Main";
+  }
+}
+
+static const char *hidGlobalItemName(uint8_t tag)
+{
+  switch (tag)
+  {
+  case 0x00:
+    return "Usage Page";
+  case 0x01:
+    return "Logical Minimum";
+  case 0x02:
+    return "Logical Maximum";
+  case 0x03:
+    return "Physical Minimum";
+  case 0x04:
+    return "Physical Maximum";
+  case 0x05:
+    return "Unit Exponent";
+  case 0x06:
+    return "Unit";
+  case 0x07:
+    return "Report Size";
+  case 0x08:
+    return "Report ID";
+  case 0x09:
+    return "Report Count";
+  case 0x0a:
+    return "Push";
+  case 0x0b:
+    return "Pop";
+  default:
+    return "Global";
+  }
+}
+
+static const char *hidLocalItemName(uint8_t tag)
+{
+  switch (tag)
+  {
+  case 0x00:
+    return "Usage";
+  case 0x01:
+    return "Usage Minimum";
+  case 0x02:
+    return "Usage Maximum";
+  case 0x03:
+    return "Designator Index";
+  case 0x04:
+    return "Designator Minimum";
+  case 0x05:
+    return "Designator Maximum";
+  case 0x07:
+    return "String Index";
+  case 0x08:
+    return "String Minimum";
+  case 0x09:
+    return "String Maximum";
+  case 0x0a:
+    return "Delimiter";
+  default:
+    return "Local";
+  }
+}
+
+void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Print &out)
+{
+  if (!data || length == 0)
+  {
+    out.println("HID report descriptor: empty");
+    return;
+  }
+
+  out.printf("HID report descriptor: len=%u\n", static_cast<unsigned>(length));
+  for (size_t i = 0; i < length;)
+  {
+    const uint8_t prefix = data[i++];
+    if (prefix == 0xfe)
+    {
+      if (i + 1 >= length)
+      {
+        out.println("  truncated long item");
+        break;
+      }
+      const uint8_t itemLength = data[i++];
+      const uint8_t longTag = data[i++];
+      out.printf("  long item tag=0x%02x len=%u data=", longTag, itemLength);
+      const size_t available = (i + itemLength <= length) ? itemLength : (length - i);
+      espUsbHostPrintHex(&data[i], available, out);
+      out.println();
+      i += available;
+      continue;
+    }
+
+    const uint8_t sizeCode = prefix & 0x03;
+    const size_t itemSize = sizeCode == 3 ? 4 : sizeCode;
+    const uint8_t type = (prefix >> 2) & 0x03;
+    const uint8_t tag = (prefix >> 4) & 0x0f;
+    const size_t available = (i + itemSize <= length) ? itemSize : (length - i);
+    const int32_t value = hidItemValue(&data[i], available);
+    const char *typeName = "Reserved";
+    const char *itemName = "Reserved";
+    if (type == 0)
+    {
+      typeName = "Main";
+      itemName = hidMainItemName(tag);
+    }
+    else if (type == 1)
+    {
+      typeName = "Global";
+      itemName = hidGlobalItemName(tag);
+    }
+    else if (type == 2)
+    {
+      typeName = "Local";
+      itemName = hidLocalItemName(tag);
+    }
+
+    out.printf("  %04u: 0x%02x %-8s %-18s", static_cast<unsigned>(i - 1), prefix, typeName, itemName);
+    if (itemSize > 0)
+    {
+      out.print(" value=");
+      out.print(value);
+      out.print(" raw=");
+      espUsbHostPrintHex(&data[i], available, out);
+    }
+    out.println();
+    i += available;
+    if (available < itemSize)
+    {
+      out.println("  truncated item");
+      break;
+    }
+  }
+}
+
+void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out)
+{
+  out.printf("hid report descriptor: address=%u iface=%u hid=0x%04x country=0x%02x type=0x%02x reported_len=%u len=%u\n",
+             descriptor.address,
+             descriptor.interfaceNumber,
+             descriptor.hidVersion,
+             descriptor.countryCode,
+             descriptor.descriptorType,
+             descriptor.reportedLength,
+             descriptor.length);
+  out.print("Raw HID report descriptor: ");
+  espUsbHostPrintHex(descriptor.data, descriptor.length, out);
+  out.println();
+  espUsbHostPrintHIDReportDescriptor(descriptor.data, descriptor.length, out);
+}
+
 static void printHubPortStatus(EspUsbHost &usb, uint8_t hubAddress, uint8_t port, Print &out)
 {
   uint16_t status = 0;
@@ -3347,7 +3533,38 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
   }
 
   case USB_HID_DESC:
-    ESP_LOGD(TAG, "HID descriptor");
+    if (data[0] >= 9 && device->hidReportDescriptorCount < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS)
+    {
+      const uint8_t descriptorCount = data[5];
+      for (uint8_t i = 0; i < descriptorCount; i++)
+      {
+        const size_t offset = 6 + static_cast<size_t>(i) * 3;
+        if (offset + 2 >= data[0])
+        {
+          break;
+        }
+        if (data[offset] != USB_HID_REPORT_DESC)
+        {
+          continue;
+        }
+        EspUsbHostHIDReportDescriptor &info = device->hidReportDescriptors[device->hidReportDescriptorCount++];
+        info.address = device->info.address;
+        info.interfaceNumber = currentInterfaceNumber_;
+        info.hidVersion = static_cast<uint16_t>(data[2]) | (static_cast<uint16_t>(data[3]) << 8);
+        info.countryCode = data[4];
+        info.descriptorType = data[offset];
+        info.reportedLength = static_cast<uint16_t>(data[offset + 1]) | (static_cast<uint16_t>(data[offset + 2]) << 8);
+        ESP_LOGI(TAG, "HID report descriptor available: iface=%u length=%u country=0x%02x",
+                 info.interfaceNumber,
+                 info.reportedLength,
+                 info.countryCode);
+        break;
+      }
+    }
+    else
+    {
+      ESP_LOGD(TAG, "HID descriptor");
+    }
     break;
 
   default:
@@ -4545,6 +4762,147 @@ bool EspUsbHost::getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub)
     usb_host_device_close(clientHandle_, hubHandle);
   }
   return ok && hub.descriptorLength >= 7;
+}
+
+size_t EspUsbHost::getHIDReportDescriptors(uint8_t address,
+                                           EspUsbHostHIDReportDescriptor *descriptors,
+                                           size_t maxDescriptors)
+{
+  if (!descriptors || maxDescriptors == 0)
+  {
+    return 0;
+  }
+  DeviceState *device = findDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+
+  size_t count = 0;
+  for (uint8_t i = 0; i < device->hidReportDescriptorCount && count < maxDescriptors; i++)
+  {
+    if (getHIDReportDescriptor(address, device->hidReportDescriptors[i].interfaceNumber, descriptors[count]))
+    {
+      count++;
+    }
+  }
+  return count;
+}
+
+bool EspUsbHost::getHIDReportDescriptor(uint8_t address,
+                                        uint8_t interfaceNumber,
+                                        EspUsbHostHIDReportDescriptor &descriptor)
+{
+  descriptor = EspUsbHostHIDReportDescriptor();
+  if (!running_ || !clientHandle_)
+  {
+    ESP_LOGW(TAG, "getHIDReportDescriptor() called before USB Host is ready");
+    return false;
+  }
+
+  DeviceState *device = findDevice(address);
+  if (!device || !device->handle)
+  {
+    ESP_LOGW(TAG, "getHIDReportDescriptor() unknown address=%u", address);
+    return false;
+  }
+
+  const EspUsbHostHIDReportDescriptor *knownDescriptor = nullptr;
+  for (uint8_t i = 0; i < device->hidReportDescriptorCount; i++)
+  {
+    if (device->hidReportDescriptors[i].interfaceNumber == interfaceNumber)
+    {
+      knownDescriptor = &device->hidReportDescriptors[i];
+      break;
+    }
+  }
+  if (!knownDescriptor || knownDescriptor->reportedLength == 0)
+  {
+    ESP_LOGW(TAG, "HID report descriptor length unknown address=%u iface=%u", address, interfaceNumber);
+    return false;
+  }
+
+  descriptor = *knownDescriptor;
+  const size_t requestLength = knownDescriptor->reportedLength < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE
+                                 ? knownDescriptor->reportedLength
+                                 : ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + requestLength, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(HID report descriptor) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    usb_host_transfer_free(transfer);
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = 0x81;
+  setup->bRequest = USB_REQUEST_GET_DESCRIPTOR;
+  setup->wValue = static_cast<uint16_t>(USB_HID_REPORT_DESC) << 8;
+  setup->wIndex = interfaceNumber;
+  setup->wLength = requestLength;
+
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + requestLength;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(HID report descriptor) failed: %s", esp_err_to_name(err));
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    setLastError(err);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(1000)) == pdTRUE;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "HID report descriptor request timed out address=%u iface=%u", address, interfaceNumber);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+  if (context.status != USB_TRANSFER_STATUS_COMPLETED)
+  {
+    ESP_LOGW(TAG, "HID report descriptor request failed status=%d address=%u iface=%u",
+             context.status,
+             address,
+             interfaceNumber);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    setLastError(ESP_FAIL);
+    return false;
+  }
+
+  size_t actualLength = context.actualLength;
+  if (actualLength >= USB_SETUP_PACKET_SIZE)
+  {
+    actualLength -= USB_SETUP_PACKET_SIZE;
+  }
+  if (actualLength > requestLength)
+  {
+    actualLength = requestLength;
+  }
+  descriptor.length = actualLength;
+  memcpy(descriptor.data, transfer->data_buffer + USB_SETUP_PACKET_SIZE, actualLength);
+
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  return descriptor.length > 0;
 }
 
 size_t EspUsbHost::getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const
