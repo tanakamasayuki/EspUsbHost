@@ -303,7 +303,7 @@ uint8_t address() const;
 void    clearAddress();
 ```
 
-`EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`. CH34x currently rejects mark/space parity and 1.5 stop bits until those modes are verified on real hardware.
+`EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`.
 
 Use `setAddress()` inside `onDeviceConnected` to bind a specific device when multiple USB serial devices are connected.
 
