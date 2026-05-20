@@ -34,6 +34,15 @@ void loop()
             config.stopBits = ESP_USB_HOST_SERIAL_STOP_BITS_2;
             Serial.printf("SERIAL_CONFIG %u\n", CdcSerial.setConfig(config) ? 1 : 0);
         }
+        else if (command == 'm')
+        {
+            EspUsbHostSerialConfig config;
+            config.baud = 300;
+            config.dataBits = 5;
+            config.parity = ESP_USB_HOST_SERIAL_PARITY_MARK;
+            config.stopBits = ESP_USB_HOST_SERIAL_STOP_BITS_1_5;
+            Serial.printf("SERIAL_CONFIG_MARK %u\n", CdcSerial.setConfig(config) ? 1 : 0);
+        }
         else if (command == 'b')
         {
             Serial.printf("SERIAL_BAUD %u\n", CdcSerial.setBaudRate(115200) ? 1 : 0);
