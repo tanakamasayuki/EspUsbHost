@@ -14,6 +14,8 @@ static uint32_t readLe32(const uint8_t *data)
 
 static void printMbrPartitions(const uint8_t *block)
 {
+    // en: LBA0 contains an MBR only when the boot signature is present.
+    // ja: LBA0がMBRとして扱えるのは、ブートシグネチャがある場合だけです。
     if (block[510] != 0x55 || block[511] != 0xaa)
     {
         Serial.println("No MBR signature at LBA0.");
@@ -21,6 +23,8 @@ static void printMbrPartitions(const uint8_t *block)
     }
 
     Serial.println("MBR partitions:");
+    // en: The classic MBR partition table has four 16-byte entries at offset 446.
+    // ja: 古典的なMBRパーティションテーブルは、オフセット446から16バイトのエントリが4つ並びます。
     for (uint8_t i = 0; i < 4; i++)
     {
         const uint8_t *entry = block + 446 + i * 16;
@@ -67,6 +71,8 @@ void setup()
 
 void loop()
 {
+    // en: MSC commands block until USB transfers complete, so run them from loop(), not USB callbacks.
+    // ja: MSCコマンドはUSB転送完了を待つため、USBコールバック内ではなくloop()から実行します。
     if (printed || !usb.mscReady())
     {
         delay(10);
@@ -123,6 +129,8 @@ void loop()
     }
 
     Serial.print("LBA0:");
+    // en: Dump only the first 64 bytes to keep the example output readable.
+    // ja: サンプル出力を読みやすくするため、先頭64バイトだけをダンプします。
     for (size_t i = 0; i < 64 && i < blockSize; i++)
     {
         if ((i % 16) == 0)

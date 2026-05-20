@@ -21,6 +21,8 @@ void setup()
 
   usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
                  {
+    // en: Print characters only on key press; release events do not emit text.
+    // ja: キー押下時だけ文字を表示し、キー解放イベントでは文字を出しません。
     if (!event.pressed) return;
 
     if (event.ascii == '\r')

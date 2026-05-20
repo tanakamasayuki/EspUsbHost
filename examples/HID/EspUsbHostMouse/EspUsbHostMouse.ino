@@ -24,6 +24,8 @@ void setup()
               {
     if (event.buttonsChanged)
     {
+      // en: Compare current and previous button bitmasks to report edge events.
+      // ja: 現在と前回のボタンビットマスクを比較し、押下/解放の変化だけを表示します。
       uint8_t pressed  = event.buttons & ~event.previousButtons;
       uint8_t released = event.previousButtons & ~event.buttons;
       if (pressed  & 0x01) Serial.println("left   press");
@@ -35,6 +37,8 @@ void setup()
     }
     if (event.moved)
     {
+      // en: Mouse reports relative deltas; accumulate them to show a simple position.
+      // ja: マウスは相対移動量を報告するため、累積して簡易的な位置として表示します。
       posX += event.x;
       posY += event.y;
       Serial.printf("pos: x=%ld y=%ld  delta: dx=%d dy=%d wheel=%d\n",

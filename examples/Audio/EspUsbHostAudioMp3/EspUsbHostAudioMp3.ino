@@ -15,7 +15,8 @@ static constexpr size_t MAX_CHANNELS = 2;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
 static constexpr float VOLUME = 1.0f; // 0.0-1.0
 
-// Ring buffer: decoded stereo PCM frames waiting to be sent (~32ms)
+// en: Ring buffer for decoded stereo PCM frames waiting to be sent (~32ms).
+// ja: 送信待ちのデコード済みステレオPCMフレーム用リングバッファです（約32ms）。
 static constexpr size_t PCM_BUF_FRAMES = FRAMES_PER_PACKET * 32;
 static int16_t pcmBuf[PCM_BUF_FRAMES * CHANNELS];
 static size_t pcmHead = 0;
@@ -54,7 +55,8 @@ public:
     return true;
   }
 
-  // Linear interpolation resampler: hertz (decoded MP3 rate) → SAMPLE_RATE (48000 Hz)
+  // en: Linear interpolation resampler: hertz (decoded MP3 rate) -> SAMPLE_RATE (48000 Hz).
+  // ja: 線形補間で、MP3のデコードレート hertz から SAMPLE_RATE（48000 Hz）へ変換します。
   bool ConsumeSample(int16_t sample[2]) override
   {
     const float step = (hertz > 0) ? (float)hertz / SAMPLE_RATE : 1.0f;
@@ -85,6 +87,8 @@ static bool srcDone()
 
 static bool startNextFile()
 {
+  // en: Release the previous decoder/source before opening the next embedded MP3.
+  // ja: 次の埋め込みMP3を開く前に、前回のデコーダとソースを解放します。
   delete mp3gen;
   mp3gen = nullptr;
   delete mp3src;
@@ -117,6 +121,8 @@ static bool startNextFile()
 
 static void fillAudioOutput(EspUsbHostAudioOutputRequest &request)
 {
+  // en: USB callback path: copy buffered PCM only; decoding runs from loop().
+  // ja: USBコールバック経路ではバッファ済みPCMのコピーだけを行い、デコードはloop()で進めます。
   const size_t frames = min(pcmAvail(), request.frameCount);
   for (size_t f = 0; f < frames; f++)
   {
@@ -154,6 +160,8 @@ void setup()
                           {
                             EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
                             const size_t count = usb.getAudioStreams(info.address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+                            // en: This example sends 48 kHz 16-bit PCM and accepts mono or stereo USB OUT streams.
+                            // ja: このサンプルは48 kHz 16bit PCMを送信し、モノラルまたはステレオのUSB OUTストリームを使います。
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
@@ -192,7 +200,8 @@ void setup()
 
 void loop()
 {
-  // Drive decoder; isRunning() becomes false only when source is exhausted
+  // en: Drive the MP3 decoder outside the USB callback; isRunning() stops at source exhaustion.
+  // ja: MP3デコードはUSBコールバック外で進めます。isRunning()はソース終端でfalseになります。
   if (mp3gen && mp3gen->isRunning())
     mp3gen->loop();
 

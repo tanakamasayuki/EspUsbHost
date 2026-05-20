@@ -12,6 +12,8 @@ static void onDeviceConnected(const EspUsbHostDeviceInfo &device)
   Serial.print("connected: ");
   espUsbHostPrint(device);
 
+  // en: Bind each serial wrapper to the matching USB device address.
+  // ja: 各シリアルラッパーを、対応するUSBデバイスアドレスに割り当てます。
   if (device.vid == VID_FTDI)
   {
     FtdiSerial.setAddress(device.address);
@@ -35,6 +37,8 @@ static void onDeviceDisconnected(const EspUsbHostDeviceInfo &device)
   Serial.print("disconnected: ");
   espUsbHostPrint(device);
 
+  // en: Clear only the wrapper that was bound to the removed device.
+  // ja: 取り外されたデバイスに割り当てていたラッパーだけを解除します。
   if (FtdiSerial.address() == device.address)
   {
     FtdiSerial.setAddress(0);
@@ -49,6 +53,8 @@ static void onDeviceDisconnected(const EspUsbHostDeviceInfo &device)
 
 static void forwardUsbToSerial(EspUsbHostCdcSerial &usbSerial, const char *label)
 {
+  // en: Drain one USB serial stream and label its bytes in the Serial Monitor.
+  // ja: 1つのUSBシリアルストリームを読み出し、シリアルモニター上でラベル付き表示します。
   while (usbSerial.connected() && usbSerial.available() > 0)
   {
     Serial.printf("%s: ", label);
@@ -84,6 +90,8 @@ void setup()
 
 void loop()
 {
+  // en: Broadcast Serial Monitor input to all currently connected USB serial devices.
+  // ja: シリアルモニターからの入力を、現在接続中のUSBシリアルデバイスすべてへ送ります。
   while (Serial.available() > 0)
   {
     const int c = Serial.read();

@@ -22,6 +22,8 @@ static bool isConnected(uint16_t status)
 
 static void printPortStatus(uint8_t hubAddress, uint8_t port)
 {
+  // en: Hub port status contains both current state bits and latched change bits.
+  // ja: Hubポート状態には、現在状態のビットとラッチされた変化ビットの両方が含まれます。
   uint16_t status = 0;
   uint16_t change = 0;
   if (!usb.getHubPortStatus(hubAddress, port, status, change))
@@ -69,6 +71,8 @@ static bool printHub(uint8_t hubAddress)
 
 static bool printFirstAvailableHub()
 {
+  // en: Try the root hub address first, then any tracked downstream hub devices.
+  // ja: まずルートHubアドレスを試し、その後に追跡中の下流Hubデバイスを調べます。
   if (printHub(DEFAULT_HUB_ADDRESS))
   {
     return true;
@@ -90,6 +94,8 @@ static bool printFirstAvailableHub()
 
 static void setSelectedPortPower(bool enable)
 {
+  // en: PPPS is hub-dependent; refresh the selected port after sending the power request.
+  // ja: PPPSはHub依存なので、電源要求の送信後に選択ポートの状態を再取得します。
   Serial.printf("hub=%u port=%u power=%s\n",
                 targetHubAddress,
                 selectedPort,
@@ -146,6 +152,8 @@ void setup()
 
 void loop()
 {
+  // en: Wait briefly after hotplug so hub descriptors and port status are ready.
+  // ja: ホットプラグ直後はHubディスクリプタとポート状態が揃うまで少し待ちます。
   if (!printedInitialHub && millis() - lastDeviceEventMs > 2000)
   {
     printedInitialHub = true;
@@ -159,6 +167,8 @@ void loop()
   }
 
   const char command = Serial.read();
+  // en: Single-key commands keep the example usable from Arduino Serial Monitor.
+  // ja: Arduinoシリアルモニターから扱いやすいよう、1文字コマンドにしています。
   if (command >= '1' && command <= '9')
   {
     selectedPort = command - '0';

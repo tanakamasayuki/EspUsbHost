@@ -6,6 +6,8 @@ static constexpr int8_t DEADZONE = 10;
 
 static float normalize(int8_t val)
 {
+  // en: Apply a small deadzone before converting the signed 8-bit axis to -1.0..1.0.
+  // ja: 符号付き8bit軸を-1.0〜1.0へ変換する前に、小さなデッドゾーンを適用します。
   if (val > -DEADZONE && val < DEADZONE)
     return 0.0f;
   return val / 127.0f;
@@ -55,6 +57,8 @@ void setup()
 
   usb.onGamepad([](const EspUsbHostGamepadEvent &event)
                 {
+    // en: Print both analog state and button edge changes for each parsed report.
+    // ja: パース済みレポートごとに、アナログ状態とボタン変化の両方を表示します。
     float nx  = normalize(event.x);
     float ny  = normalize(event.y);
     float nz  = normalize(event.z);

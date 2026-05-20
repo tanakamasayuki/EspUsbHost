@@ -4,6 +4,8 @@ EspUsbHost usb;
 
 static const char *consumerUsageName(uint16_t usage)
 {
+  // en: Map a few common Consumer Page usages to readable names.
+  // ja: Consumer Pageの代表的なusageを読みやすい名前に変換します。
   switch (usage)
   {
   case 0x00e2:

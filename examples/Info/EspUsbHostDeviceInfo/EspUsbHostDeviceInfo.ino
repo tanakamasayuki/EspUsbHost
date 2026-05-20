@@ -17,6 +17,8 @@ void setup()
                         {
                           lastDeviceEventMs = millis();
                           Serial.printf("CONNECTED address=%u\n", device.address);
+                          // en: Print the full descriptor tree for the device that just connected.
+                          // ja: 接続されたデバイスの詳細ディスクリプタツリーを表示します。
                           usb.printDeviceInfo(device.address); });
 
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
@@ -42,6 +44,8 @@ void loop()
   }
   if (!printedInitialTopology && millis() - lastDeviceEventMs > 2000)
   {
+    // en: After startup hotplug settles, print the complete tracked topology once.
+    // ja: 起動直後の接続処理が落ち着いたら、追跡中の全トポロジを一度だけ表示します。
     printedInitialTopology = true;
     usb.printAllDeviceInfo();
   }
