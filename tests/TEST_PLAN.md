@@ -35,7 +35,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | HID vendor input/output | ✅ peer | | |
 | HID raw input dump | ✅ peer (custom_hid) | | |
 | Keyboard LED output | ✅ peer (hid_logic) | ✅ manual (visual) | |
-| USB serial — CDC ACM | ✅ peer, config API | | |
+| USB serial — CDC ACM | ✅ peer, line coding config | | |
 | USB serial — VCP (FTDI/CP210x/CH34x) | | ✅ manual, serial format configs | |
 | USB MIDI | ✅ peer | | |
 | USB audio input/output | ✅ peer (output), partial input | | |
