@@ -129,6 +129,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | Print device descriptors, interfaces, and endpoints for all connected devices |
+| [EspUsbHostHIDReportDescriptor](examples/Info/EspUsbHostHIDReportDescriptor/) | Print HID report descriptors and a simple item decode for HID investigation |
 | [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | Define custom connect/disconnect callbacks and inspect connected devices |
 | [EspUsbHostHubPPPS](examples/Info/EspUsbHostHubPPPS/) | Control power on a PPPS-capable USB hub port |
 
