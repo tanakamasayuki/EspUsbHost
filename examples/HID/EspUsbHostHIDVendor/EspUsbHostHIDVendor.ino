@@ -27,6 +27,8 @@ void setup()
   usb.onVendorInput([](const EspUsbHostVendorInput &input)
                     {
     Serial.printf("vendor iface=%u len=%u data=", input.interfaceNumber, (unsigned)input.length);
+    // en: This peer sends a NUL-terminated text payload inside a fixed-size report.
+    // ja: この相手デバイスは固定長レポート内にNUL終端テキストを入れて送ります。
     for (size_t i = 0; i < input.length && input.data[i] != 0; i++)
     {
       Serial.write(input.data[i]);
@@ -43,6 +45,8 @@ void loop()
 {
   if (Serial.available() > 0)
   {
+    // en: Serial commands exercise HID Output and Feature reports separately.
+    // ja: シリアルコマンドでHID OutputレポートとFeatureレポートを個別に試します。
     char command = Serial.read();
     if (command == 'o')
     {

@@ -4,6 +4,8 @@ EspUsbHost usb;
 
 static void printModifiers(uint8_t modifiers)
 {
+  // en: Modifier bits are printed as a compact '+' separated list.
+  // ja: モディファイアのビット列を、'+'区切りの短い一覧として表示します。
   static const char *modifierNames[] = {
       "LCTRL", "LSHIFT", "LALT", "LGUI",
       "RCTRL", "RSHIFT", "RALT", "RGUI"};
@@ -31,6 +33,8 @@ static void printModifiers(uint8_t modifiers)
 
 static void onKeyboard(const EspUsbHostKeyboardEvent &event)
 {
+  // en: Dump parsed keyboard fields instead of only printable characters.
+  // ja: 表示可能文字だけでなく、パース済みキーボード情報をそのまま表示します。
   const char displayChar = (event.ascii >= 0x20 && event.ascii != 0x7F) ? static_cast<char>(event.ascii) : '.';
 
   Serial.printf("[%s] keycode=0x%02x ascii=0x%02x(%c) modifiers=",

@@ -4,6 +4,8 @@ EspUsbHost usb;
 
 static const char *systemUsageName(uint8_t usage)
 {
+  // en: Map System Control usages to readable names for Serial output.
+  // ja: System Controlのusageを、シリアル出力用の読みやすい名前に変換します。
   switch (usage)
   {
   case ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF:

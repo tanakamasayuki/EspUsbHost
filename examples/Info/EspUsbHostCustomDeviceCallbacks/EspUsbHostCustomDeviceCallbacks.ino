@@ -8,6 +8,8 @@ static bool isKeyboardLike(const EspUsbHostDeviceInfo &device)
   EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
   const size_t count = usb.getInterfaces(device.address, interfaces, ESP_USB_HOST_MAX_INTERFACES);
 
+  // en: Detect a boot keyboard-style HID interface by class/protocol.
+  // ja: class/protocolから、ブートキーボード相当のHIDインターフェースを検出します。
   for (size_t i = 0; i < count; i++)
   {
     if (interfaces[i].interfaceClass == 0x03 && interfaces[i].interfaceProtocol == 0x01)

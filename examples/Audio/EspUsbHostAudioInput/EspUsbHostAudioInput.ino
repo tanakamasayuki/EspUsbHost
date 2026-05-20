@@ -21,6 +21,8 @@ void setup()
                           {
                             EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
                             const size_t count = usb.getAudioStreams(info.address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+                            // en: Print every parsed USB Audio stream before selecting the sample rate.
+                            // ja: サンプルレート設定前に、解析済みのUSB Audioストリームをすべて表示します。
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
@@ -35,6 +37,8 @@ void setup()
 
   usb.onAudioData([](const EspUsbHostAudioData &audio)
                   {
+                    // en: Audio data arrives on the USB task, so only count bytes and print once per second.
+                    // ja: 音声データはUSBタスクで届くため、バイト数を数えて1秒ごとに表示するだけにします。
                     audioBytes += audio.length;
                     const uint32_t now = millis();
                     if (now - lastPrintMs >= 1000)

@@ -30,6 +30,8 @@ void setup()
 
 void loop()
 {
+  // en: Bridge data in both directions between USB CDC and the board Serial port.
+  // ja: USB CDCとボードのSerialポート間で、双方向にデータを中継します。
   while (CdcSerial.available() > 0)
   {
     Serial.write(CdcSerial.read());

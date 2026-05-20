@@ -14,6 +14,8 @@ static uint8_t audioAddress = 0;
 static void fillTone(EspUsbHostAudioOutputRequest &request)
 {
   static uint32_t phase = 0;
+  // en: Generate only the frames requested by the USB Audio scheduler.
+  // ja: USB Audioのスケジューラが要求したフレーム数だけ生成します。
   for (size_t frame = 0; frame < request.frameCount; frame++)
   {
     const int16_t value = (phase < SAMPLE_RATE / 2) ? VOLUME : -VOLUME;
@@ -47,6 +49,8 @@ void setup()
                           {
                             EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
                             const size_t count = usb.getAudioStreams(info.address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+                            // en: Start output on the first stream that exactly matches this tone format.
+                            // ja: このトーン生成形式に完全一致する最初のストリームで出力を開始します。
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
@@ -75,7 +79,10 @@ void setup()
                              } });
 
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
-                           { fillTone(request); });
+                           {
+                             // en: Keep this callback short; it runs on the USB client task.
+                             // ja: このコールバックはUSBクライアントタスク上で動くため、短時間で戻します。
+                             fillTone(request); });
 
   if (!usb.begin())
   {

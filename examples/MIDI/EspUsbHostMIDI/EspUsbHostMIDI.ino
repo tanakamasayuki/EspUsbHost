@@ -13,6 +13,8 @@ static void printNote(uint8_t note)
 
 static void printMidiMessage(const EspUsbHostMidiMessage &msg)
 {
+  // en: Decode the high nibble as the MIDI message type and the low nibble as channel.
+  // ja: 上位4bitをMIDIメッセージ種別、下位4bitをチャンネルとして解釈します。
   uint8_t type = msg.status & 0xF0;
   uint8_t channel = (msg.status & 0x0F) + 1;
 
@@ -83,6 +85,8 @@ void loop()
 {
   if (Serial.available() > 0)
   {
+    // en: Serial Monitor keys send a few common MIDI messages for quick testing.
+    // ja: シリアルモニターのキー入力で、よく使うMIDIメッセージを送信して動作確認します。
     char command = Serial.read();
     if (command == 'n')
       usb.midiSendNoteOn(0, 60, 100);

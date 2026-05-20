@@ -18,7 +18,11 @@ void setup()
                              espUsbHostPrint(device); });
 
   usb.onHIDInput([](const EspUsbHostHIDInput &input)
-                 { espUsbHostPrint(input); });
+                 {
+                   // en: Raw HID input fires before any keyboard/mouse/vendor-specific parsing.
+                   // ja: Raw HID入力は、キーボード/マウス/ベンダー固有の解析前に通知されます。
+                   espUsbHostPrint(input);
+                 });
 
   if (!usb.begin())
   {
