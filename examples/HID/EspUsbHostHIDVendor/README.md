@@ -33,7 +33,7 @@ Demonstrates vendor-class HID communication: receiving input reports and sending
 ## Expected Serial output
 
 ```
-connected: address=1 vid=303a pid=4004 product=ESP32S3 HID Vendor
+connected: device: address=1 portId=0x01 vid=303a pid=4004 class=0x00(Device) speed=full product="ESP32S3 HID Vendor"
 vendor iface=0 len=63 data=device input
 send output: ok
 send feature: ok

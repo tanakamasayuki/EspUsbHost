@@ -148,30 +148,15 @@ void setup()
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
-                          Serial.printf("connected: addr=%u portId=0x%02x vid=%04x pid=%04x product=%s\n",
-                                        info.address,
-                                        info.portId,
-                                        info.vid,
-                                        info.pid,
-                                        info.product);
+                          Serial.print("connected: ");
+                          espUsbHostPrint(info);
                           if (usb.audioOutputReady(info.address))
                           {
                             EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
                             const size_t count = usb.getAudioStreams(info.address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
                             for (size_t i = 0; i < count; i++)
                             {
-                              Serial.printf("audio stream: iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max=%u interval=%u\n",
-                                            streams[i].interfaceNumber,
-                                            streams[i].alternate,
-                                            streams[i].endpointAddress,
-                                            streams[i].input ? "IN" : "OUT",
-                                            streams[i].channels,
-                                            streams[i].bytesPerSample,
-                                            streams[i].bitsPerSample,
-                                            static_cast<unsigned long>(streams[i].sampleRate),
-                                            streams[i].sampleRateCount,
-                                            streams[i].maxPacketSize,
-                                            streams[i].interval);
+                              espUsbHostPrint(streams[i]);
                               if (!audioReady &&
                                   streams[i].output &&
                                   streams[i].channels >= 1 &&
@@ -190,10 +175,8 @@ void setup()
 
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
-                             Serial.printf("disconnected: addr=%u vid=%04x pid=%04x\n",
-                                           info.address,
-                                           info.vid,
-                                           info.pid);
+                             Serial.print("disconnected: ");
+                             espUsbHostPrint(info);
                              if (info.address == audioAddress)
                              {
                                audioReady = false;
@@ -201,9 +184,7 @@ void setup()
                              } });
 
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
-                           {
-                             fillAudioOutput(request);
-                           });
+                           { fillAudioOutput(request); });
 
   if (!usb.begin())
     Serial.printf("usb.begin failed: %s\n", usb.lastErrorName());

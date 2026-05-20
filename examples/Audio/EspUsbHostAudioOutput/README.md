@@ -19,7 +19,7 @@ Sends raw USB Audio isochronous OUT payloads to a USB speaker or audio interface
 
 ```
 EspUsbHost Audio Output example start
-connected: addr=1 portId=0x01 vid=1234 pid=5678 product=USB Speaker
-audio stream: iface=1 alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=48000 rates=1 max=98 interval=1
+connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
+audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=48000 rates=1 max_packet=98 interval=1
 audio output ready: addr=1
 ```

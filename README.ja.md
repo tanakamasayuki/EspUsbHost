@@ -189,12 +189,11 @@ ESP32-P4で特定のOTG peripheralを選びたい場合は、`port`に`ESP_USB_H
 ```cpp
 void onDeviceConnected(DeviceCallback callback);
 void onDeviceDisconnected(DeviceCallback callback);
-void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device);
-void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device);
+void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 ```
 
 コールバックは`const EspUsbHostDeviceInfo &device`を受け取ります。主要フィールド：`address`、`vid`、`pid`、`product`、`manufacturer`、`serial`、`speed`、`parentAddress`、`portId`。
-標準的なシリアル表示だけでよいサンプルでは、`espUsbHostPrintDeviceConnected`と`espUsbHostPrintDeviceDisconnected`をそのまま登録できます。
+`espUsbHostPrint(device)`は1行サマリを出力します。`connected:`や`disconnected:`などのイベント文脈はコールバック側で付けてください。
 
 `portId`はデバイスの接続位置を表します。`0x01`はルートポート直結です。ハブ配下のデバイスでは上位ニブルが検出順に割り当てられたハブ番号、下位ニブルがそのハブのポート番号です。例えば`0x12`は「ハブ#1のポート2」を表します。
 
@@ -208,8 +207,8 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // 生データ — 全HIDインターフェースで発火
 void onVendorInput(VendorInputCallback callback);
-void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input);
-void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event);
+void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 ```
 
 主なイベントフィールド：
@@ -349,6 +348,8 @@ bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams,
                        size_t maxStreams) const;
+void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream,
+                     Print &out = Serial);
 bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream,
                                              uint32_t sampleRate);
 bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
@@ -402,6 +403,10 @@ size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces,
                      size_t maxInterfaces) const;
 size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
+void   espUsbHostPrint(const EspUsbHostInterfaceInfo &interface,
+                       Print &out = Serial);
+void   espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint,
+                       Print &out = Serial);
 void   printDeviceInfo(uint8_t address, bool includeHubInfo = false,
                        Print &out = Serial);
 void   printAllDeviceInfo(Print &out = Serial);

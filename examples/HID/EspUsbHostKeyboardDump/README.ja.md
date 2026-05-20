@@ -25,7 +25,7 @@
 ## シリアル出力例
 
 ```
-connected: address=1 vid=045e pid=07a5 product=USB Keyboard
+connected: device: address=1 portId=0x01 vid=045e pid=07a5 class=0x00(Device) speed=full product="USB Keyboard"
 [press  ] keycode=0x04 ascii=0x61(a) modifiers=none
 [release] keycode=0x04 ascii=0x61(a) modifiers=none
 [press  ] keycode=0x04 ascii=0x41(A) modifiers=LSHIFT

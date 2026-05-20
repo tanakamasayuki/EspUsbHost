@@ -17,16 +17,15 @@ void setup()
                         {
                           lastDeviceEventMs = millis();
                           Serial.printf("CONNECTED address=%u\n", device.address);
-                          usb.printDeviceInfo(device.address);
-                        });
+                          usb.printDeviceInfo(device.address); });
+
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              lastDeviceEventMs = millis();
                              Serial.printf("DISCONNECTED address=%u vid=%04x pid=%04x\n",
                                            device.address,
                                            device.vid,
-                                           device.pid);
-                           });
+                                           device.pid); });
 
   if (!usb.begin())
   {

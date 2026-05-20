@@ -303,38 +303,78 @@ void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out)
   }
 }
 
-void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device)
+void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out)
 {
-  Serial.printf("connected: address=%u vid=%04x pid=%04x product=%s\n",
-                device.address,
-                device.vid,
-                device.pid,
-                device.product);
+  out.printf("device: address=%u portId=0x%02x vid=%04x pid=%04x class=0x%02x(%s) speed=%s product=\"%s\"\n",
+             device.address,
+             device.portId,
+             device.vid,
+             device.pid,
+             device.deviceClass,
+             className(device.deviceClass),
+             speedName(device.speed),
+             device.product);
 }
 
-void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device)
+void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out)
 {
-  Serial.printf("disconnected: address=%u vid=%04x pid=%04x\n",
-                device.address,
-                device.vid,
-                device.pid);
+  out.printf("interface: number=%u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u\n",
+             intf.number,
+             intf.alternate,
+             intf.interfaceClass,
+             className(intf.interfaceClass),
+             intf.interfaceSubClass,
+             intf.interfaceProtocol,
+             intf.endpointCount);
 }
 
-void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event)
+void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out)
+{
+  out.printf("endpoint: iface=%u ep=0x%02x dir=%s type=%s max_packet=%u interval=%u attrs=0x%02x\n",
+             endpoint.interfaceNumber,
+             endpoint.address,
+             (endpoint.address & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) ? "IN" : "OUT",
+             transferTypeName(endpoint.attributes),
+             endpoint.maxPacketSize,
+             endpoint.interval,
+             endpoint.attributes);
+}
+
+void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out)
+{
+  out.printf("audio stream: addr=%u iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max_packet=%u interval=%u\n",
+             stream.address,
+             stream.interfaceNumber,
+             stream.alternate,
+             stream.endpointAddress,
+             stream.input ? "IN" : stream.output ? "OUT"
+                                                 : "unknown",
+             stream.channels,
+             stream.bytesPerSample,
+             stream.bitsPerSample,
+             static_cast<unsigned long>(stream.sampleRate),
+             stream.sampleRateCount,
+             stream.maxPacketSize,
+             stream.interval);
+}
+
+void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out)
 {
   static const char *modifierNames[] = {
       "LCTRL", "LSHIFT", "LALT", "LGUI",
       "RCTRL", "RSHIFT", "RALT", "RGUI"};
   const char displayChar = (event.ascii >= 0x20 && event.ascii != 0x7F) ? static_cast<char>(event.ascii) : '.';
 
-  Serial.printf("[%s] keycode=0x%02x ascii=0x%02x(%c) modifiers=",
-                event.pressed ? "press  " : "release",
-                event.keycode,
-                event.ascii,
-                displayChar);
+  out.printf("keyboard: [%s] address=%u iface=%u keycode=0x%02x ascii=0x%02x(%c) modifiers=",
+             event.pressed ? "press  " : "release",
+             event.address,
+             event.interfaceNumber,
+             event.keycode,
+             event.ascii,
+             displayChar);
   if (event.modifiers == 0)
   {
-    Serial.print("none");
+    out.print("none");
   }
   else
   {
@@ -345,26 +385,26 @@ void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event)
       {
         if (!first)
         {
-          Serial.print('+');
+          out.print('+');
         }
-        Serial.print(modifierNames[i]);
+        out.print(modifierNames[i]);
         first = false;
       }
     }
   }
-  Serial.println();
+  out.println();
 }
 
-void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input)
+void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out)
 {
-  Serial.printf("hid: address=%u iface=%u subclass=0x%02x protocol=0x%02x len=%u data=",
-                input.address,
-                input.interfaceNumber,
-                input.subclass,
-                input.protocol,
-                static_cast<unsigned>(input.length));
-  espUsbHostPrintHex(input.data, input.length);
-  Serial.println();
+  out.printf("hid: address=%u iface=%u subclass=0x%02x protocol=0x%02x len=%u data=",
+             input.address,
+             input.interfaceNumber,
+             input.subclass,
+             input.protocol,
+             static_cast<unsigned>(input.length));
+  espUsbHostPrintHex(input.data, input.length, out);
+  out.println();
 }
 
 static void printHubPortStatus(EspUsbHost &usb, uint8_t hubAddress, uint8_t port, Print &out)

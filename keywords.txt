@@ -42,10 +42,7 @@ getAudioStreams	KEYWORD2
 espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 espUsbHostAudioStreamMatchesPcm	KEYWORD2
 espUsbHostPrintHex	KEYWORD2
-espUsbHostPrintDeviceConnected	KEYWORD2
-espUsbHostPrintDeviceDisconnected	KEYWORD2
-espUsbHostPrintKeyboardEvent	KEYWORD2
-espUsbHostPrintHIDInput	KEYWORD2
+espUsbHostPrint	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 setKeyboardLeds	KEYWORD2

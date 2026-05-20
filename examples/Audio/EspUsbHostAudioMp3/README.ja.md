@@ -24,8 +24,8 @@
 ```
 EspUsbHost Audio MP3 example start
 playing: /sfx_alarm_loop6.mp3 (5447 bytes)
-connected: addr=1 portId=0x01 vid=xxxx pid=xxxx product=USB Speaker
-audio stream: iface=1 alt=1 ep=0x03 dir=OUT channels=2 bytes=2 bits=16 rate=48000 ...
+connected: device: address=1 portId=0x01 vid=xxxx pid=xxxx class=0x00(Device) speed=full product="USB Speaker"
+audio stream: addr=1 iface=1 alt=1 ep=0x03 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=192 interval=1
 audio output ready: addr=1
 playing: /sfx_coin_double1.mp3 (4265 bytes)
 ...

@@ -344,10 +344,12 @@ inline bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &str
 }
 
 void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out = Serial);
-void espUsbHostPrintDeviceConnected(const EspUsbHostDeviceInfo &device);
-void espUsbHostPrintDeviceDisconnected(const EspUsbHostDeviceInfo &device);
-void espUsbHostPrintKeyboardEvent(const EspUsbHostKeyboardEvent &event);
-void espUsbHostPrintHIDInput(const EspUsbHostHIDInput &input);
+void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 
 struct EspUsbHostConsumerControlEvent
 {
