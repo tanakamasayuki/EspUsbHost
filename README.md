@@ -352,6 +352,8 @@ void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream,
                      Print &out = Serial);
 bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream,
                                              uint32_t sampleRate);
+uint32_t espUsbHostAudioStreamPreferredSampleRate(const EspUsbHostAudioStreamInfo &stream,
+                                                  uint32_t preferredSampleRate);
 bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
                                      uint8_t channels,
                                      uint8_t bytesPerSample,
