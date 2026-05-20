@@ -450,6 +450,7 @@ public:
   using KeyboardCallback = std::function<void(const EspUsbHostKeyboardEvent &)>;
   using MouseCallback = std::function<void(const EspUsbHostMouseEvent &)>;
   using HIDInputCallback = std::function<void(const EspUsbHostHIDInput &)>;
+  using HIDReportDescriptorCallback = std::function<void(const EspUsbHostHIDReportDescriptor &)>;
   using SerialDataCallback = std::function<void(const EspUsbHostSerialData &)>;
   using MidiMessageCallback = std::function<void(const EspUsbHostMidiMessage &)>;
   using AudioDataCallback = std::function<void(const EspUsbHostAudioData &)>;
@@ -472,6 +473,7 @@ public:
   void onKeyboard(KeyboardCallback callback);
   void onMouse(MouseCallback callback);
   void onHIDInput(HIDInputCallback callback);
+  void onHIDReportDescriptor(HIDReportDescriptorCallback callback);
   void onSerialData(SerialDataCallback callback);
   void onMidiMessage(MidiMessageCallback callback);
   void onAudioData(AudioDataCallback callback);
@@ -553,8 +555,6 @@ public:
   size_t getHostDeviceAddresses(uint8_t *addresses, size_t maxAddresses) const;
   bool probeHostDevice(uint8_t address, EspUsbHostDeviceProbeInfo &probe);
   bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
-  size_t getHIDReportDescriptors(uint8_t address, EspUsbHostHIDReportDescriptor *descriptors, size_t maxDescriptors);
-  bool getHIDReportDescriptor(uint8_t address, uint8_t interfaceNumber, EspUsbHostHIDReportDescriptor &descriptor);
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
@@ -585,6 +585,16 @@ private:
     uint16_t lastConsumerUsage = 0;
     EspUsbHostGamepadPrevState lastGamepadState;
     uint8_t lastSystemUsage = 0;
+  };
+
+  struct HIDReportDescriptorState
+  {
+    uint8_t address = 0;
+    uint8_t interfaceNumber = 0;
+    uint16_t hidVersion = 0;
+    uint8_t countryCode = 0;
+    uint8_t descriptorType = USB_HID_REPORT_DESC;
+    uint16_t reportedLength = 0;
   };
 
   struct DeviceState
@@ -660,7 +670,7 @@ private:
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
     uint8_t endpointInfoCount = 0;
-    EspUsbHostHIDReportDescriptor hidReportDescriptors[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS] = {};
+    HIDReportDescriptorState hidReportDescriptors[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS] = {};
     uint8_t hidReportDescriptorCount = 0;
     uint8_t interfaces[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceCount = 0;
@@ -673,6 +683,7 @@ private:
   static void clientEventCallback(const usb_host_client_event_msg_t *eventMsg, void *arg);
   static void transferCallback(usb_transfer_t *transfer);
   static void controlTransferCallback(usb_transfer_t *transfer);
+  static void hidReportDescriptorTransferCallback(usb_transfer_t *transfer);
   static void outputTransferCallback(usb_transfer_t *transfer);
   static void serialOutTransferCallback(usb_transfer_t *transfer);
 
@@ -721,6 +732,7 @@ private:
   void configureCdcAcm(DeviceState &device);
   void configureVendorSerial(DeviceState &device);
   bool submitInputTransfer(EndpointState &endpoint);
+  bool submitHIDReportDescriptorRequest(const HIDReportDescriptorState &descriptor);
   void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
@@ -790,6 +802,7 @@ private:
   KeyboardCallback keyboardCallback_;
   MouseCallback mouseCallback_;
   HIDInputCallback hidInputCallback_;
+  HIDReportDescriptorCallback hidReportDescriptorCallback_;
   SerialDataCallback serialDataCallback_;
   MidiMessageCallback midiMessageCallback_;
   AudioDataCallback audioDataCallback_;
