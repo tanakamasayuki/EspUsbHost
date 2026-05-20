@@ -1,6 +1,7 @@
 # USB Serial
 
 マニュアルテストをすべて再実行
+CH9102の実機を確保
 
 # USB Audio
 
