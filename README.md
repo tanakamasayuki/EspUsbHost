@@ -35,7 +35,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 
 | Feature | Status |
 |---------|--------|
-| `onHIDReportDescriptor()` — HID report descriptor access | 🔲 Planned |
+| `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
 | HID gamepad redesign — report descriptor parsing, a generic `onGamepad()` event, and mapping helpers for 16-bit axes, variable button layouts, and XInput-style devices | 💭 Design in progress; may introduce breaking changes from the current fixed-format API |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |

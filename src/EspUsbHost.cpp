@@ -93,6 +93,12 @@ struct EspUsbHostSyncTransferContext
   size_t actualLength = 0;
 };
 
+struct HIDReportDescriptorTransferContext
+{
+  EspUsbHost *host = nullptr;
+  EspUsbHostHIDReportDescriptor descriptor;
+};
+
 static void syncTransferCallback(usb_transfer_t *transfer)
 {
   EspUsbHostSyncTransferContext *context = static_cast<EspUsbHostSyncTransferContext *>(transfer->context);
@@ -425,6 +431,16 @@ static int32_t hidItemValue(const uint8_t *data, size_t size)
   return static_cast<int32_t>(value);
 }
 
+static uint32_t hidItemUnsignedValue(const uint8_t *data, size_t size)
+{
+  uint32_t value = 0;
+  for (size_t i = 0; i < size; i++)
+  {
+    value |= static_cast<uint32_t>(data[i]) << (8 * i);
+  }
+  return value;
+}
+
 static const char *hidMainItemName(uint8_t tag)
 {
   switch (tag)
@@ -541,6 +557,7 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
     const uint8_t tag = (prefix >> 4) & 0x0f;
     const size_t available = (i + itemSize <= length) ? itemSize : (length - i);
     const int32_t value = hidItemValue(&data[i], available);
+    const uint32_t unsignedValue = hidItemUnsignedValue(&data[i], available);
     const char *typeName = "Reserved";
     const char *itemName = "Reserved";
     if (type == 0)
@@ -563,7 +580,15 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
     if (itemSize > 0)
     {
       out.print(" value=");
-      out.print(value);
+      const bool signedValue = type == 1 && tag >= 0x01 && tag <= 0x05;
+      if (signedValue)
+      {
+        out.print(value);
+      }
+      else
+      {
+        out.print(unsignedValue);
+      }
       out.print(" raw=");
       espUsbHostPrintHex(&data[i], available, out);
     }
@@ -887,6 +912,11 @@ void EspUsbHost::onMouse(MouseCallback callback)
 void EspUsbHost::onHIDInput(HIDInputCallback callback)
 {
   hidInputCallback_ = callback;
+}
+
+void EspUsbHost::onHIDReportDescriptor(HIDReportDescriptorCallback callback)
+{
+  hidReportDescriptorCallback_ = callback;
 }
 
 void EspUsbHost::onSerialData(SerialDataCallback callback)
@@ -3547,7 +3577,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         {
           continue;
         }
-        EspUsbHostHIDReportDescriptor &info = device->hidReportDescriptors[device->hidReportDescriptorCount++];
+        HIDReportDescriptorState &info = device->hidReportDescriptors[device->hidReportDescriptorCount++];
         info.address = device->info.address;
         info.interfaceNumber = currentInterfaceNumber_;
         info.hidVersion = static_cast<uint16_t>(data[2]) | (static_cast<uint16_t>(data[3]) << 8);
@@ -3558,6 +3588,10 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                  info.interfaceNumber,
                  info.reportedLength,
                  info.countryCode);
+        if (hidReportDescriptorCallback_)
+        {
+          submitHIDReportDescriptorRequest(info);
+        }
         break;
       }
     }
@@ -3639,6 +3673,66 @@ bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
   return true;
 }
 
+bool EspUsbHost::submitHIDReportDescriptorRequest(const HIDReportDescriptorState &descriptorState)
+{
+  DeviceState *device = findDevice(descriptorState.address);
+  if (!device || !device->handle || descriptorState.reportedLength == 0)
+  {
+    return false;
+  }
+
+  const size_t requestLength = descriptorState.reportedLength < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE
+                                 ? descriptorState.reportedLength
+                                 : ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + requestLength, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(HID report descriptor async) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  HIDReportDescriptorTransferContext *context = new HIDReportDescriptorTransferContext();
+  if (!context)
+  {
+    usb_host_transfer_free(transfer);
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+  context->host = this;
+  context->descriptor.address = descriptorState.address;
+  context->descriptor.interfaceNumber = descriptorState.interfaceNumber;
+  context->descriptor.hidVersion = descriptorState.hidVersion;
+  context->descriptor.countryCode = descriptorState.countryCode;
+  context->descriptor.descriptorType = descriptorState.descriptorType;
+  context->descriptor.reportedLength = descriptorState.reportedLength;
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = 0x81;
+  setup->bRequest = USB_REQUEST_GET_DESCRIPTOR;
+  setup->wValue = static_cast<uint16_t>(USB_HID_REPORT_DESC) << 8;
+  setup->wIndex = descriptorState.interfaceNumber;
+  setup->wLength = requestLength;
+
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = hidReportDescriptorTransferCallback;
+  transfer->context = context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + requestLength;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(HID report descriptor async) failed: %s", esp_err_to_name(err));
+    usb_host_transfer_free(transfer);
+    delete context;
+    setLastError(err);
+    return false;
+  }
+  return true;
+}
+
 void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber)
 {
   for (EndpointState &endpoint : endpoints_)
@@ -3716,6 +3810,46 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
   }
 
   usb_host_transfer_free(transfer);
+}
+
+void EspUsbHost::hidReportDescriptorTransferCallback(usb_transfer_t *transfer)
+{
+  HIDReportDescriptorTransferContext *context = static_cast<HIDReportDescriptorTransferContext *>(transfer->context);
+  EspUsbHost *host = context ? context->host : nullptr;
+  if (host && context && transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+  {
+    size_t actualLength = transfer->actual_num_bytes;
+    if (actualLength >= USB_SETUP_PACKET_SIZE)
+    {
+      actualLength -= USB_SETUP_PACKET_SIZE;
+    }
+    else
+    {
+      actualLength = 0;
+    }
+    if (actualLength > ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE)
+    {
+      actualLength = ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE;
+    }
+
+    context->descriptor.length = actualLength;
+    if (actualLength > 0)
+    {
+      memcpy(context->descriptor.data, transfer->data_buffer + USB_SETUP_PACKET_SIZE, actualLength);
+    }
+    if (host->hidReportDescriptorCallback_)
+    {
+      host->hidReportDescriptorCallback_(context->descriptor);
+    }
+  }
+  else if (host)
+  {
+    ESP_LOGD(TAG, "HID report descriptor transfer status=%d", transfer->status);
+    host->setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  delete context;
 }
 
 void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
@@ -4762,147 +4896,6 @@ bool EspUsbHost::getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub)
     usb_host_device_close(clientHandle_, hubHandle);
   }
   return ok && hub.descriptorLength >= 7;
-}
-
-size_t EspUsbHost::getHIDReportDescriptors(uint8_t address,
-                                           EspUsbHostHIDReportDescriptor *descriptors,
-                                           size_t maxDescriptors)
-{
-  if (!descriptors || maxDescriptors == 0)
-  {
-    return 0;
-  }
-  DeviceState *device = findDevice(address);
-  if (!device)
-  {
-    return 0;
-  }
-
-  size_t count = 0;
-  for (uint8_t i = 0; i < device->hidReportDescriptorCount && count < maxDescriptors; i++)
-  {
-    if (getHIDReportDescriptor(address, device->hidReportDescriptors[i].interfaceNumber, descriptors[count]))
-    {
-      count++;
-    }
-  }
-  return count;
-}
-
-bool EspUsbHost::getHIDReportDescriptor(uint8_t address,
-                                        uint8_t interfaceNumber,
-                                        EspUsbHostHIDReportDescriptor &descriptor)
-{
-  descriptor = EspUsbHostHIDReportDescriptor();
-  if (!running_ || !clientHandle_)
-  {
-    ESP_LOGW(TAG, "getHIDReportDescriptor() called before USB Host is ready");
-    return false;
-  }
-
-  DeviceState *device = findDevice(address);
-  if (!device || !device->handle)
-  {
-    ESP_LOGW(TAG, "getHIDReportDescriptor() unknown address=%u", address);
-    return false;
-  }
-
-  const EspUsbHostHIDReportDescriptor *knownDescriptor = nullptr;
-  for (uint8_t i = 0; i < device->hidReportDescriptorCount; i++)
-  {
-    if (device->hidReportDescriptors[i].interfaceNumber == interfaceNumber)
-    {
-      knownDescriptor = &device->hidReportDescriptors[i];
-      break;
-    }
-  }
-  if (!knownDescriptor || knownDescriptor->reportedLength == 0)
-  {
-    ESP_LOGW(TAG, "HID report descriptor length unknown address=%u iface=%u", address, interfaceNumber);
-    return false;
-  }
-
-  descriptor = *knownDescriptor;
-  const size_t requestLength = knownDescriptor->reportedLength < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE
-                                 ? knownDescriptor->reportedLength
-                                 : ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE;
-  usb_transfer_t *transfer = nullptr;
-  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + requestLength, 0, &transfer);
-  if (err != ESP_OK)
-  {
-    ESP_LOGW(TAG, "usb_host_transfer_alloc(HID report descriptor) failed: %s", esp_err_to_name(err));
-    setLastError(err);
-    return false;
-  }
-
-  EspUsbHostSyncTransferContext context;
-  context.done = xSemaphoreCreateBinary();
-  if (!context.done)
-  {
-    usb_host_transfer_free(transfer);
-    setLastError(ESP_ERR_NO_MEM);
-    return false;
-  }
-
-  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
-  setup->bmRequestType = 0x81;
-  setup->bRequest = USB_REQUEST_GET_DESCRIPTOR;
-  setup->wValue = static_cast<uint16_t>(USB_HID_REPORT_DESC) << 8;
-  setup->wIndex = interfaceNumber;
-  setup->wLength = requestLength;
-
-  transfer->device_handle = device->handle;
-  transfer->bEndpointAddress = 0;
-  transfer->callback = syncTransferCallback;
-  transfer->context = &context;
-  transfer->num_bytes = USB_SETUP_PACKET_SIZE + requestLength;
-
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
-  if (err != ESP_OK)
-  {
-    ESP_LOGW(TAG, "usb_host_transfer_submit_control(HID report descriptor) failed: %s", esp_err_to_name(err));
-    usb_host_transfer_free(transfer);
-    vSemaphoreDelete(context.done);
-    setLastError(err);
-    return false;
-  }
-
-  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(1000)) == pdTRUE;
-  if (!done)
-  {
-    ESP_LOGW(TAG, "HID report descriptor request timed out address=%u iface=%u", address, interfaceNumber);
-    usb_host_transfer_free(transfer);
-    vSemaphoreDelete(context.done);
-    setLastError(ESP_ERR_TIMEOUT);
-    return false;
-  }
-  if (context.status != USB_TRANSFER_STATUS_COMPLETED)
-  {
-    ESP_LOGW(TAG, "HID report descriptor request failed status=%d address=%u iface=%u",
-             context.status,
-             address,
-             interfaceNumber);
-    usb_host_transfer_free(transfer);
-    vSemaphoreDelete(context.done);
-    setLastError(ESP_FAIL);
-    return false;
-  }
-
-  size_t actualLength = context.actualLength;
-  if (actualLength >= USB_SETUP_PACKET_SIZE)
-  {
-    actualLength -= USB_SETUP_PACKET_SIZE;
-  }
-  if (actualLength > requestLength)
-  {
-    actualLength = requestLength;
-  }
-  descriptor.length = actualLength;
-  memcpy(descriptor.data, transfer->data_buffer + USB_SETUP_PACKET_SIZE, actualLength);
-
-  usb_host_transfer_free(transfer);
-  vSemaphoreDelete(context.done);
-  return descriptor.length > 0;
 }
 
 size_t EspUsbHost::getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const
