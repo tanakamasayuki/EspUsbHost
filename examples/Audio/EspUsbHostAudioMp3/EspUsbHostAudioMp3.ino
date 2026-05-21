@@ -150,8 +150,6 @@ void setup()
   if (!startNextFile())
     Serial.println("no MP3 files found in assets");
 
-  usb.setAudioSampleRate(SAMPLE_RATE);
-
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
                           Serial.print("connected: ");
@@ -172,10 +170,11 @@ void setup()
                                   streams[i].bitsPerSample == BITS_PER_SAMPLE &&
                                   espUsbHostAudioStreamSupportsSampleRate(streams[i], SAMPLE_RATE))
                               {
-                                audioAddress = info.address;
-                                audioReady = true;
-                                usb.setAudioSampleRate(SAMPLE_RATE, info.address);
-                                usb.audioOutputStart(info.address);
+                                if (usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address))
+                                {
+                                  audioAddress = info.address;
+                                  audioReady = true;
+                                }
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);

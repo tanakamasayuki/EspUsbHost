@@ -34,8 +34,10 @@ onKeyboard	KEYWORD2
 onMouse	KEYWORD2
 onHIDInput	KEYWORD2
 onAudioData	KEYWORD2
-audioReady	KEYWORD2
+audioInputReady	KEYWORD2
+audioInputStart	KEYWORD2
 audioOutputReady	KEYWORD2
+audioOutputStart	KEYWORD2
 setAudioSampleRate	KEYWORD2
 audioSend	KEYWORD2
 getAudioStreams	KEYWORD2

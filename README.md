@@ -344,11 +344,24 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 ```cpp
 void onAudioData(AudioDataCallback callback);
 void onAudioOutputRequest(AudioOutputCallback callback);
-bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioInputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioInputStart(uint8_t channels,
+                     uint8_t bitsPerSample,
+                     uint32_t sampleRate,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool audioInputStart(const EspUsbHostAudioStreamInfo &stream,
+                     uint32_t sampleRate = 0,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool setAudioSampleRate(uint32_t sampleRate,
                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool audioOutputStart(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool audioOutputStart(uint8_t channels,
+                      uint8_t bitsPerSample,
+                      uint32_t sampleRate,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
+                      uint32_t sampleRate = 0,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 void audioOutputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
