@@ -22,6 +22,8 @@ Reads movement and button events from a USB HID mouse, tracks accumulated positi
   - `event.moved` — true when position changed
   - `event.x`, `event.y`, `event.wheel` — relative movement deltas (`int16_t`)
   - `event.buttons`, `event.previousButtons` — button bitmask (`uint8_t`)
+  - `event.data`, `event.length` — raw HID input report bytes
+  - `event.reportData`, `event.reportLength` — mouse report bytes after removing the Report ID when one is present
 
 ## Expected Serial output
 

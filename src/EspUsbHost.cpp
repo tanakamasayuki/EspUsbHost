@@ -4387,6 +4387,9 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
     return;
   }
 
+  const uint8_t *rawData = data;
+  const size_t rawLength = length;
+
   if (endpoint.interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
       length >= 5 &&
       data[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE)
@@ -4405,6 +4408,10 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
     return;
   }
   event.address = endpoint.deviceAddress;
+  event.data = rawData;
+  event.length = rawLength;
+  event.reportData = data;
+  event.reportLength = length;
 
   ESP_LOGD(TAG, "Mouse iface=%u x=%d y=%d wheel=%d buttons=0x%02x previous=0x%02x",
            event.interfaceNumber,
