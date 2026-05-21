@@ -37,26 +37,53 @@ void setup()
 
   usb.onGamepad([](const EspUsbHostGamepadEvent &event)
                 {
-    // en: Interpret reportData/rawData in application code for your controller.
-    // ja: コントローラーごとの解釈は、アプリケーション側でreportData/rawDataを見て行います。
-    uint32_t pressed  = event.buttons & ~event.previousButtons;
-    uint32_t released = event.previousButtons & ~event.buttons;
-
     Serial.printf("report[%u]=", (unsigned)event.reportLength);
     printHex(event.reportData, event.reportLength);
-    Serial.print(' ');
-    if (event.hasHat)
+    Serial.println();
+
+    for (size_t i = 0; i < event.fieldCount; i++)
     {
-      Serial.printf("hat=%u ", event.hat);
+      const EspUsbHostHIDFieldValue &field = event.fields[i];
+      Serial.printf("  field[%u] page=0x%04x usage=0x%04x value=%ld logical=%ld..%ld bits=%u@%u flags=0x%02x\n",
+                    (unsigned)i,
+                    field.usagePage,
+                    field.usage,
+                    (long)field.value,
+                    (long)field.logicalMin,
+                    (long)field.logicalMax,
+                    field.bitSize,
+                    field.bitOffset,
+                    field.flags);
     }
-    else
+
+    // en: Example mapping. Replace VID/PID and usage choices with your controller.
+    // ja: マッピング例です。VID/PIDとusageの選択はコントローラーに合わせて置き換えてください。
+    if (event.vid == 0x054c)
     {
-      Serial.print("hat=- ");
-    }
-    Serial.printf("buttons=0x%08lx", (unsigned long)event.buttons);
-    if (pressed)  Serial.printf(" +0x%lx", (unsigned long)pressed);
-    if (released) Serial.printf(" -0x%lx", (unsigned long)released);
-    Serial.println(); });
+      int32_t lx = 0;
+      int32_t ly = 0;
+      uint32_t buttons = 0;
+      for (size_t i = 0; i < event.fieldCount; i++)
+      {
+        const EspUsbHostHIDFieldValue &field = event.fields[i];
+        if (field.usagePage == 0x01 && field.usage == 0x30)
+        {
+          lx = field.value;
+        }
+        else if (field.usagePage == 0x01 && field.usage == 0x31)
+        {
+          ly = field.value;
+        }
+        else if (field.usagePage == 0x09 && field.value && field.usage > 0 && field.usage <= 32)
+        {
+          buttons |= 1UL << (field.usage - 1);
+        }
+      }
+      Serial.printf("  mapped lx=%ld ly=%ld buttons=0x%08lx\n",
+                    (long)lx,
+                    (long)ly,
+                    (unsigned long)buttons);
+    } });
 
   if (!usb.begin())
   {

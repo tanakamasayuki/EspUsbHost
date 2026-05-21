@@ -231,18 +231,6 @@ bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
 
   event = EspUsbHostGamepadEvent();
   event.interfaceNumber = interfaceNumber;
-  size_t offset = 6;
-  if (offset < length)
-  {
-    event.hasHat = true;
-    event.hat = data[offset++];
-  }
-  for (uint8_t i = 0; i < 4 && offset < length; i++, offset++)
-  {
-    event.buttons |= static_cast<uint32_t>(data[offset]) << (8 * i);
-  }
-
-  event.previousButtons = previous.buttons;
   event.changed = length != previous.reportLength;
   if (!event.changed)
   {

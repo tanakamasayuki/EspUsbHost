@@ -36,7 +36,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Feature | Status |
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
-| HID gamepad input — raw/report bytes plus hat/button candidates for user-defined mapping | ✅ Mappable event API; descriptor-driven mapping helpers still under consideration |
+| HID gamepad input — descriptor-decoded fields plus raw/report bytes for user-defined mapping | ✅ Mappable event API; mapping helpers still under consideration |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
 
@@ -222,7 +222,7 @@ Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemCon
 | `onMouse` | `x`, `y`, `wheel`, `buttons`, `previousButtons`, `moved`, `buttonsChanged`, `address` |
 | `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
-| `onGamepad` | `hat`, `hasHat`, `buttons`, `previousButtons`, `rawData`, `reportData`, `vid`, `pid`, `address` |
+| `onGamepad` | `fields`, `fieldCount`, `rawData`, `reportData`, `vid`, `pid`, `address` |
 | `onHIDInput` | `address`, `vid`, `pid`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
 
 ### HID output
@@ -437,7 +437,7 @@ const char *lastErrorName() const;
 
 **Breaking changes are accepted.** The library prioritises a clean Arduino-oriented API over backwards compatibility with its earlier inheritance-based interface.
 
-**HID gamepad reports are exposed as mappable data.** `onGamepad()` reports raw/report bytes plus simple hat and button candidates. It does not assign semantic names such as left stick X/Y or right stick X/Y because those fields vary by device and may be 8-bit, 12-bit, 16-bit, or packed. Use `vid` / `pid`, `rawData`, and `reportData` to build the mapping that matches your controller.
+**HID gamepad reports are exposed as mappable data.** `onGamepad()` reports descriptor-decoded fields plus raw/report bytes. It does not assign semantic names such as left stick X/Y or right stick X/Y because those fields vary by device and may be 8-bit, 12-bit, 16-bit, or packed. Use `vid` / `pid`, `fields`, `rawData`, and `reportData` to build the mapping that matches your controller.
 
 **Non-goals:**
 - Fully automatic interpretation of all HID report descriptors from the first implementation
