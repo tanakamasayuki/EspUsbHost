@@ -1,6 +1,6 @@
-# EspUsbHostAudioOutput
+# EspUsbHostAudioOutputTone
 
-Sends raw USB Audio isochronous OUT payloads to a USB speaker or audio interface.
+Generates a simple tone and sends it to a USB Audio OUT device such as a USB speaker or audio interface.
 
 ## Hardware
 
@@ -18,7 +18,7 @@ Sends raw USB Audio isochronous OUT payloads to a USB speaker or audio interface
 ## Expected Serial output
 
 ```
-EspUsbHost Audio Output example start
+EspUsbHost Audio Output Tone example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
 audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=48000 rates=1 max_packet=98 interval=1
 audio output ready: addr=1

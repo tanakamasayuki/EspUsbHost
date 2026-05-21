@@ -1,4 +1,4 @@
-# EspUsbHostAudioPCMFlow
+# EspUsbHostAudioOutputMP3PCMFlow
 
 > 日本語版: [README.ja.md](README.ja.md)
 

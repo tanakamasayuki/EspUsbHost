@@ -1,4 +1,4 @@
-# EspUsbHostAudioPCMFlow
+# EspUsbHostAudioOutputMP3PCMFlow
 
 > English: [README.md](README.md)
 
