@@ -92,7 +92,7 @@ static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
 
 struct EspUsbHostConfig
 {
-  uint32_t taskStackSize = 4096;
+  uint32_t taskStackSize = 8192;
   UBaseType_t taskPriority = 5;
   BaseType_t taskCore = tskNO_AFFINITY;
   EspUsbHostPort port = ESP_USB_HOST_PORT_DEFAULT;
