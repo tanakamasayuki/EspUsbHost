@@ -2,7 +2,7 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Reads axis, hat switch, and button input from a USB HID gamepad and prints them to the Serial monitor.
+Reads USB HID gamepad reports and prints raw report bytes plus simple hat/button candidates to the Serial monitor.
 
 ## Hardware
 
@@ -11,18 +11,16 @@ Reads axis, hat switch, and button input from a USB HID gamepad and prints them 
 
 ## What it does
 
-- Normalizes axis values to the range −1.0 to 1.0 (raw axes are `int8_t`, range −128 to 127)
-- Applies a deadzone of ±10 — values within this range are reported as 0.0
-- Displays the hat switch direction as a compass label (N, NE, E, …)
+- Prints the parsed report bytes without interpreting axes
+- Leaves scaling, deadzones, and multi-byte sensor/axis interpretation to application code
+- Prints the hat candidate value when one is present
 - Shows button press and release deltas alongside the current bitmask
 
 ## Key APIs
 
 - `usb.onGamepad(callback)` — fired on each gamepad report with `EspUsbHostGamepadEvent`
-  - `event.x`, `event.y` — left stick axes (`int8_t`)
-  - `event.z`, `event.rz` — right stick axes (or throttle/rudder)
-  - `event.rx`, `event.ry` — additional axes
-  - `event.hat` — hat switch direction (0–7 = N/NE/E/SE/S/SW/W/NW, other = center)
+  - `event.hat` — raw hat candidate value
+  - `event.hasHat` — true when a hat candidate was present in the parsed report
   - `event.buttons` — 32-bit button bitmask (current state)
   - `event.previousButtons` — previous button bitmask
   - `event.rawData`, `event.rawLength` — raw HID input report bytes
@@ -32,11 +30,9 @@ Reads axis, hat switch, and button input from a USB HID gamepad and prints them 
 
 ```
 connected: device: address=1 portId=0x01 vid=054c pid=09cc class=0x00(Device) speed=full product="Wireless Controller"
-x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=- buttons=0x00000000
-x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=- buttons=0x00000001 +0x1
-x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=N buttons=0x00000001
+report[11]=00 00 00 00 00 00 00 00 00 00 00 hat=0 buttons=0x00000000
+report[11]=0A F6 14 EC 1E E2 03 05 00 00 00 hat=3 buttons=0x00000005 +0x5
 ```
 
-> **Note:** Axis range and button layout vary by device and HID report descriptor.
-> Devices that do not conform to the boot gamepad report format may not be recognized correctly.
-> For those devices, use `event.rawData` / `event.rawLength` or `event.reportData` / `event.reportLength` to inspect the actual report and add device-specific mapping.
+> **Note:** Axis order, axis meaning, and button layout vary by device and HID report descriptor.
+> `onGamepad()` intentionally does not name axes as left/right stick fields or normalize values. Use `event.rawData` / `event.rawLength` or `event.reportData` / `event.reportLength` to inspect the actual report and add device-specific mapping, including 16-bit axes or 12-bit sensor fields.

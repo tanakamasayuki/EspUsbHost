@@ -71,6 +71,7 @@ static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_GAMEPAD = 0x03;
 static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_CONSUMER_CONTROL = 0x04;
 static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_SYSTEM_CONTROL = 0x05;
 static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_VENDOR = 0x06;
+static constexpr size_t ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES = 64;
 
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF = 0x01;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_STANDBY = 0x02;
@@ -217,6 +218,11 @@ struct EspUsbHostHIDReportDescriptor
 
 struct EspUsbHostHIDReportData
 {
+  uint16_t vid = 0;
+  uint16_t pid = 0;
+  const char *manufacturer = "";
+  const char *product = "";
+  const char *serial = "";
   const uint8_t *rawData = nullptr;
   size_t rawLength = 0;
   const uint8_t *reportData = nullptr;
@@ -254,6 +260,11 @@ struct EspUsbHostHIDInput
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
+  uint16_t vid = 0;
+  uint16_t pid = 0;
+  const char *manufacturer = "";
+  const char *product = "";
+  const char *serial = "";
   uint8_t subclass = 0;
   uint8_t protocol = 0;
   const uint8_t *data = nullptr;
@@ -437,13 +448,8 @@ struct EspUsbHostGamepadEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
-  int8_t x = 0;
-  int8_t y = 0;
-  int8_t z = 0;
-  int8_t rz = 0;
-  int8_t rx = 0;
-  int8_t ry = 0;
   uint8_t hat = 0;
+  bool hasHat = false;
   uint32_t buttons = 0;
   uint32_t previousButtons = 0;
   bool changed = false;
@@ -451,8 +457,10 @@ struct EspUsbHostGamepadEvent : EspUsbHostHIDReportData
 
 struct EspUsbHostGamepadPrevState
 {
-  int8_t x = 0, y = 0, z = 0, rz = 0, rx = 0, ry = 0;
+  uint8_t reportData[ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES] = {};
+  size_t reportLength = 0;
   uint8_t hat = 0;
+  bool hasHat = false;
   uint32_t buttons = 0;
 };
 

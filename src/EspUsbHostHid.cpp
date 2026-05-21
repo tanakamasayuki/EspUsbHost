@@ -224,30 +224,36 @@ bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
                                   const EspUsbHostGamepadPrevState &previous,
                                   EspUsbHostGamepadEvent &event)
 {
-  if (!data || length < 11)
+  if (!data || length == 0)
   {
     return false;
   }
 
   event = EspUsbHostGamepadEvent();
   event.interfaceNumber = interfaceNumber;
-  event.x = static_cast<int8_t>(data[0]);
-  event.y = static_cast<int8_t>(data[1]);
-  event.z = static_cast<int8_t>(data[2]);
-  event.rz = static_cast<int8_t>(data[3]);
-  event.rx = static_cast<int8_t>(data[4]);
-  event.ry = static_cast<int8_t>(data[5]);
-  event.hat = data[6];
-  event.buttons = static_cast<uint32_t>(data[7]) |
-                  (static_cast<uint32_t>(data[8]) << 8) |
-                  (static_cast<uint32_t>(data[9]) << 16) |
-                  (static_cast<uint32_t>(data[10]) << 24);
+  size_t offset = 6;
+  if (offset < length)
+  {
+    event.hasHat = true;
+    event.hat = data[offset++];
+  }
+  for (uint8_t i = 0; i < 4 && offset < length; i++, offset++)
+  {
+    event.buttons |= static_cast<uint32_t>(data[offset]) << (8 * i);
+  }
+
   event.previousButtons = previous.buttons;
-  event.changed = event.x != previous.x || event.y != previous.y ||
-                  event.z != previous.z || event.rz != previous.rz ||
-                  event.rx != previous.rx || event.ry != previous.ry ||
-                  event.hat != previous.hat ||
-                  event.buttons != previous.buttons;
+  event.changed = length != previous.reportLength;
+  if (!event.changed)
+  {
+    const size_t compareLength = length < ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES
+                                   ? length
+                                   : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
+    if (memcmp(data, previous.reportData, compareLength) != 0)
+    {
+      event.changed = true;
+    }
+  }
   return event.changed;
 }
 

@@ -36,7 +36,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | Feature | Status |
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
-| HID gamepad redesign — report descriptor parsing, a generic `onGamepad()` event, and mapping helpers for 16-bit axes, variable button layouts, and XInput-style devices | 💭 Design in progress; may introduce breaking changes from the current fixed-format API |
+| HID gamepad input — raw/report bytes plus hat/button candidates for user-defined mapping | ✅ Mappable event API; descriptor-driven mapping helpers still under consideration |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
 
@@ -214,7 +214,7 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 
 Notable event fields:
 
-Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemControl`, `onGamepad`, `onVendorInput`) all include `rawData` / `rawLength` for the full input report and `reportData` / `reportLength` for the report bytes after removing the Report ID when one is present.
+Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemControl`, `onGamepad`, `onVendorInput`) all include `vid`, `pid`, `manufacturer`, `product`, `serial`, `rawData` / `rawLength` for the full input report, and `reportData` / `reportLength` for the report bytes after removing the Report ID when one is present.
 
 | Callback | Key fields |
 |----------|-----------|
@@ -222,8 +222,8 @@ Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemCon
 | `onMouse` | `x`, `y`, `wheel`, `buttons`, `previousButtons`, `moved`, `buttonsChanged`, `address` |
 | `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
-| `onGamepad` | `x`, `y`, `z`, `rz`, `rx`, `ry`, `hat`, `buttons`, `previousButtons`, `address` |
-| `onHIDInput` | `address`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
+| `onGamepad` | `hat`, `hasHat`, `buttons`, `previousButtons`, `rawData`, `reportData`, `vid`, `pid`, `address` |
+| `onHIDInput` | `address`, `vid`, `pid`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
 
 ### HID output
 
@@ -437,7 +437,7 @@ const char *lastErrorName() const;
 
 **Breaking changes are accepted.** The library prioritises a clean Arduino-oriented API over backwards compatibility with its earlier inheritance-based interface.
 
-**HID gamepad support is planned for redesign.** The current `onGamepad()` path assumes a fixed report format, which is not enough for generic 16-bit axes, device-specific button layouts, or XInput-style devices. A future version is expected to add HID report descriptor access and parsing, then return a generic parsed event from `onGamepad()`. XInput-style layouts and axis/button remapping are expected to be handled by mapping helpers or wrapper classes built from `EspUsbHostGamepadEvent`, instead of adding input callbacks such as `onGamepadXInput()`. The exact event fields and mapper design are still open. Compatibility with the current `EspUsbHostGamepadEvent` is not guaranteed.
+**HID gamepad reports are exposed as mappable data.** `onGamepad()` reports raw/report bytes plus simple hat and button candidates. It does not assign semantic names such as left stick X/Y or right stick X/Y because those fields vary by device and may be 8-bit, 12-bit, 16-bit, or packed. Use `vid` / `pid`, `rawData`, and `reportData` to build the mapping that matches your controller.
 
 **Non-goals:**
 - Fully automatic interpretation of all HID report descriptors from the first implementation
