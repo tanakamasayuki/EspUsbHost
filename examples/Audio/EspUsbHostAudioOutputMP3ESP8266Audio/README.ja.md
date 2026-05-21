@@ -9,7 +9,7 @@
 
 ## 依存ライブラリ
 
-- [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio)（Arduino Library Managerで入手可能）— MP3デコード
+- [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio)（Arduino Library Managerで入手可能、GPL-3.0 License）— MP3デコード
 
 ## 注意
 
@@ -18,6 +18,20 @@
 - USB出力は48 kHz・16-bit ステレオPCMです。接続するUSBデバイスがこのフォーマットに対応している必要があります。
 - `onAudioOutputRequest()`で要求されたフレーム数をリングバッファから取り出し、送信タイミングはライブラリに任せます。
 - 全ファイルを1周再生したら停止します。
+- ESP8266AudioはMP3以外にも複数形式に対応する多機能ライブラリです。一方でGPL-3.0ライセンスのため、配布するプロジェクトで使う場合はライセンス条件を確認してください。
+- ESP8266Audioは出力機能も持っていますが、このサンプルではUSB Audio OUTをEspUsbHostが管理するため、ESP8266Audioは主にコーデック部分だけを利用します。そのためリングバッファやリサンプリングなどの接続コードが必要です。
+- 対応コーデックが多い分、PCMFlow版よりビルドに時間がかかることがあります。
+
+## コーデックライブラリの選び方
+
+このリポジトリには、MP3をUSB Audio OUTへ再生するサンプルが2つあります。
+
+| サンプル | 向いている用途 |
+| --- | --- |
+| `EspUsbHostAudioOutputMP3PCMFlow` | MP3だけを再生したい場合。MITライセンスで軽量、USB Audio向けのPCM変換も扱いやすいです。 |
+| `EspUsbHostAudioOutputMP3ESP8266Audio` | ESP8266Audioとの連携を確認したい場合。MP3以外にも複数形式へ対応する多機能ライブラリですが、GPL-3.0ライセンスに注意が必要です。 |
+
+MP3だけであれば、まずPCMFlow版を使うのがシンプルです。このESP8266Audio版は、有名なESP8266Audioを既存プロジェクトで使っている場合や、ESP8266Audioのコーデック層との連携を確認したい場合に向いています。
 
 ## シリアル出力例
 
