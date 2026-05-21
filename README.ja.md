@@ -214,6 +214,8 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 
 主なイベントフィールド：
 
+パース済みHIDコールバック（`onKeyboard`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onVendorInput`）はすべて、入力レポート全体を指す`rawData` / `rawLength`と、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
+
 | コールバック | 主要フィールド |
 |-------------|--------------|
 | `onKeyboard` | `pressed`、`keycode`、`ascii`、`modifiers`、`address` |
@@ -221,7 +223,7 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |
 | `onGamepad` | `x`、`y`、`z`、`rz`、`rx`、`ry`、`hat`、`buttons`、`previousButtons`、`address` |
-| `onHIDInput` / `onVendorInput` | `address`、`interfaceNumber`、`subclass`、`protocol`、`data`、`length` |
+| `onHIDInput` | `address`、`interfaceNumber`、`subclass`、`protocol`、`data`、`length` |
 
 ### HID出力
 

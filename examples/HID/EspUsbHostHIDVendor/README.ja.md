@@ -25,8 +25,8 @@
 
 - `usb.onVendorInput(callback)` — ベンダーHID入力レポートごとに`EspUsbHostVendorInput`付きで呼ばれる
   - `input.interfaceNumber` — HIDインターフェース番号
-  - `input.length` — レポートのバイト長
-  - `input.data` — レポートのデータ
+  - `input.rawData`, `input.rawLength` — 生のHID入力レポートバイト
+  - `input.reportData`, `input.reportLength` — Report IDがある場合はそれを除いたレポートバイト
 - `usb.sendVendorOutput(data, length)` — HID出力レポートを送信
 - `usb.sendVendorFeature(data, length)` — HIDフィーチャーレポートを送信
 

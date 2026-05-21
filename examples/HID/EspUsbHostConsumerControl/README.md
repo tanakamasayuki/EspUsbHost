@@ -30,6 +30,8 @@ Common consumer control usage codes handled:
 - `usb.onConsumerControl(callback)` — fired on press/release with `EspUsbHostConsumerControlEvent`
   - `event.pressed` — true on press, false on release
   - `event.usage` — HID usage code (16-bit)
+  - `event.rawData`, `event.rawLength` — raw HID input report bytes
+  - `event.reportData`, `event.reportLength` — consumer control report bytes after removing the Report ID when one is present
 
 ## Expected Serial output
 

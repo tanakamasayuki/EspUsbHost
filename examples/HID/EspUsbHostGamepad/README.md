@@ -25,6 +25,8 @@ Reads axis, hat switch, and button input from a USB HID gamepad and prints them 
   - `event.hat` — hat switch direction (0–7 = N/NE/E/SE/S/SW/W/NW, other = center)
   - `event.buttons` — 32-bit button bitmask (current state)
   - `event.previousButtons` — previous button bitmask
+  - `event.rawData`, `event.rawLength` — raw HID input report bytes
+  - `event.reportData`, `event.reportLength` — gamepad report bytes after removing the Report ID when one is present
 
 ## Expected Serial output
 
@@ -37,3 +39,4 @@ x= 0.000 y= 0.000 z= 0.000 rz= 0.000 hat=N buttons=0x00000001
 
 > **Note:** Axis range and button layout vary by device and HID report descriptor.
 > Devices that do not conform to the boot gamepad report format may not be recognized correctly.
+> For those devices, use `event.rawData` / `event.rawLength` or `event.reportData` / `event.reportLength` to inspect the actual report and add device-specific mapping.

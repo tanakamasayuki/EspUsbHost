@@ -25,8 +25,8 @@ Demonstrates vendor-class HID communication: receiving input reports and sending
 
 - `usb.onVendorInput(callback)` — fired on each vendor HID input report with `EspUsbHostVendorInput`
   - `input.interfaceNumber` — HID interface number
-  - `input.length` — report byte length
-  - `input.data` — report payload
+  - `input.rawData`, `input.rawLength` — raw HID input report bytes
+  - `input.reportData`, `input.reportLength` — report bytes after removing the Report ID when one is present
 - `usb.sendVendorOutput(data, length)` — sends an HID output report
 - `usb.sendVendorFeature(data, length)` — sends an HID feature report
 

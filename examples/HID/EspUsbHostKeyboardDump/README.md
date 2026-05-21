@@ -21,6 +21,7 @@ Useful for debugging custom keyboards, verifying keycode mapping, or understandi
 
 - `usb.onKeyboard(callback)` — fired on each key press/release with `EspUsbHostKeyboardEvent`
 - `event.keycode` / `event.ascii` / `event.modifiers` — parsed keyboard fields used by the custom callback in this example
+- `event.rawData` / `event.rawLength` and `event.reportData` / `event.reportLength` — access to the original HID report bytes alongside the parsed keyboard fields
 
 ## Expected Serial output
 

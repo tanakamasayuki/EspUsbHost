@@ -215,7 +215,15 @@ struct EspUsbHostHIDReportDescriptor
   uint8_t data[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE] = {};
 };
 
-struct EspUsbHostKeyboardEvent
+struct EspUsbHostHIDReportData
+{
+  const uint8_t *rawData = nullptr;
+  size_t rawLength = 0;
+  const uint8_t *reportData = nullptr;
+  size_t reportLength = 0;
+};
+
+struct EspUsbHostKeyboardEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
@@ -229,7 +237,7 @@ struct EspUsbHostKeyboardEvent
   bool scrollLock = false;
 };
 
-struct EspUsbHostMouseEvent
+struct EspUsbHostMouseEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
@@ -240,10 +248,6 @@ struct EspUsbHostMouseEvent
   uint8_t previousButtons = 0;
   bool moved = false;
   bool buttonsChanged = false;
-  const uint8_t *data = nullptr;
-  size_t length = 0;
-  const uint8_t *reportData = nullptr;
-  size_t reportLength = 0;
 };
 
 struct EspUsbHostHIDInput
@@ -420,7 +424,7 @@ void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out = Serial);
 void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Print &out = Serial);
 
-struct EspUsbHostConsumerControlEvent
+struct EspUsbHostConsumerControlEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
@@ -429,7 +433,7 @@ struct EspUsbHostConsumerControlEvent
   bool released = false;
 };
 
-struct EspUsbHostGamepadEvent
+struct EspUsbHostGamepadEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
@@ -452,15 +456,13 @@ struct EspUsbHostGamepadPrevState
   uint32_t buttons = 0;
 };
 
-struct EspUsbHostVendorInput
+struct EspUsbHostVendorInput : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
-  const uint8_t *data = nullptr;
-  size_t length = 0;
 };
 
-struct EspUsbHostSystemControlEvent
+struct EspUsbHostSystemControlEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
@@ -727,15 +729,15 @@ private:
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
   void handleTransfer(usb_transfer_t *transfer);
-  void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleAudio(EndpointState &endpoint, usb_transfer_t *transfer);
-  void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length);
-  void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length);
-  void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length);
-  void handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
+  void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
+  void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
+  void handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
 
   EndpointState *findEndpoint(usb_device_handle_t deviceHandle, uint8_t endpointAddress);
   EndpointState *allocateEndpoint(DeviceState &device);
