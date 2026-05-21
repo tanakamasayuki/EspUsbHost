@@ -403,8 +403,10 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out)
 
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out)
 {
-  out.printf("hid: address=%u iface=%u subclass=0x%02x protocol=0x%02x len=%u data=",
+  out.printf("hid: address=%u vid=%04x pid=%04x iface=%u subclass=0x%02x protocol=0x%02x len=%u data=",
              input.address,
+             input.vid,
+             input.pid,
              input.interfaceNumber,
              input.subclass,
              input.protocol,
@@ -4167,6 +4169,14 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
       EspUsbHostHIDInput input;
       input.address = endpoint->deviceAddress;
       input.interfaceNumber = endpoint->interfaceNumber;
+      if (device)
+      {
+        input.vid = device->info.vid;
+        input.pid = device->info.pid;
+        input.manufacturer = device->info.manufacturer;
+        input.product = device->info.product;
+        input.serial = device->info.serial;
+      }
       input.subclass = endpoint->interfaceSubClass;
       input.protocol = endpoint->interfaceProtocol;
       input.data = transfer->data_buffer;
@@ -4192,7 +4202,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
       {
         handleSystemControl(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
       }
-      else if (transfer->actual_num_bytes >= 12 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_GAMEPAD)
+      else if (transfer->actual_num_bytes >= 2 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_GAMEPAD)
       {
         handleGamepad(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
       }
@@ -4359,6 +4369,14 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
   for (size_t i = 0; i < eventCount; i++)
   {
     events[i].address = endpoint.deviceAddress;
+    if (device)
+    {
+      events[i].vid = device->info.vid;
+      events[i].pid = device->info.pid;
+      events[i].manufacturer = device->info.manufacturer;
+      events[i].product = device->info.product;
+      events[i].serial = device->info.serial;
+    }
     events[i].numLock = numLock;
     events[i].capsLock = capsLock;
     events[i].scrollLock = scrollLock;
@@ -4412,6 +4430,15 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
     return;
   }
   event.address = endpoint.deviceAddress;
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  if (device)
+  {
+    event.vid = device->info.vid;
+    event.pid = device->info.pid;
+    event.manufacturer = device->info.manufacturer;
+    event.product = device->info.product;
+    event.serial = device->info.serial;
+  }
   event.rawData = rawData;
   event.rawLength = rawLength;
   event.reportData = data;
@@ -4540,6 +4567,15 @@ void EspUsbHost::handleConsumerControl(EndpointState &endpoint, const uint8_t *d
     return;
   }
   event.address = endpoint.deviceAddress;
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  if (device)
+  {
+    event.vid = device->info.vid;
+    event.pid = device->info.pid;
+    event.manufacturer = device->info.manufacturer;
+    event.product = device->info.product;
+    event.serial = device->info.serial;
+  }
   event.rawData = rawData;
   event.rawLength = rawLength;
   event.reportData = data;
@@ -4571,24 +4607,36 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
     return;
   }
   event.address = endpoint.deviceAddress;
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  if (device)
+  {
+    event.vid = device->info.vid;
+    event.pid = device->info.pid;
+    event.manufacturer = device->info.manufacturer;
+    event.product = device->info.product;
+    event.serial = device->info.serial;
+  }
   event.rawData = rawData;
   event.rawLength = rawLength;
   event.reportData = data;
   event.reportLength = length;
 
-  ESP_LOGD(TAG, "Gamepad iface=%u x=%d y=%d z=%d rz=%d rx=%d ry=%d hat=%u buttons=0x%08lx previous=0x%08lx",
+  ESP_LOGD(TAG, "Gamepad iface=%u report_len=%u hat=%s%u buttons=0x%08lx previous=0x%08lx",
            event.interfaceNumber,
-           event.x,
-           event.y,
-           event.z,
-           event.rz,
-           event.rx,
-           event.ry,
+           static_cast<unsigned>(event.reportLength),
+           event.hasHat ? "" : "-",
            event.hat,
            static_cast<unsigned long>(event.buttons),
            static_cast<unsigned long>(event.previousButtons));
   gamepadCallback_(event);
-  endpoint.lastGamepadState = {event.x, event.y, event.z, event.rz, event.rx, event.ry, event.hat, event.buttons};
+  endpoint.lastGamepadState = {};
+  endpoint.lastGamepadState.reportLength = event.reportLength < ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES
+                                             ? event.reportLength
+                                             : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
+  memcpy(endpoint.lastGamepadState.reportData, event.reportData, endpoint.lastGamepadState.reportLength);
+  endpoint.lastGamepadState.hat = event.hat;
+  endpoint.lastGamepadState.hasHat = event.hasHat;
+  endpoint.lastGamepadState.buttons = event.buttons;
 }
 
 void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
@@ -4609,6 +4657,14 @@ void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data,
   EspUsbHostVendorInput input;
   input.address = endpoint.deviceAddress;
   input.interfaceNumber = endpoint.interfaceNumber;
+  if (device)
+  {
+    input.vid = device->info.vid;
+    input.pid = device->info.pid;
+    input.manufacturer = device->info.manufacturer;
+    input.product = device->info.product;
+    input.serial = device->info.serial;
+  }
   input.rawData = rawData;
   input.rawLength = rawLength;
   input.reportData = data;
@@ -4637,6 +4693,15 @@ void EspUsbHost::handleSystemControl(EndpointState &endpoint, const uint8_t *dat
     return;
   }
   event.address = endpoint.deviceAddress;
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  if (device)
+  {
+    event.vid = device->info.vid;
+    event.pid = device->info.pid;
+    event.manufacturer = device->info.manufacturer;
+    event.product = device->info.product;
+    event.serial = device->info.serial;
+  }
   event.rawData = rawData;
   event.rawLength = rawLength;
   event.reportData = data;

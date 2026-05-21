@@ -19,6 +19,8 @@
 
 - `usb.onHIDInput(callback)` — HID入力レポートごとに`EspUsbHostHIDInput`付きで呼ばれる
   - `input.address` — USBデバイスアドレス（複数デバイスの区別に使用）
+  - `input.vid`, `input.pid` — デバイス別処理に使えるUSBベンダーID/プロダクトID
+  - `input.product` — 取得できた場合のUSBプロダクト文字列
   - `input.interfaceNumber` — HIDインターフェース番号
   - `input.subclass` — HIDサブクラス（0=なし、1=ブートインターフェース）
   - `input.protocol` — HIDプロトコル（0=なし、1=キーボード、2=マウス）

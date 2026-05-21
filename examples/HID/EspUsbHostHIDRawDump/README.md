@@ -19,6 +19,8 @@ Supports multiple simultaneous USB devices.
 
 - `usb.onHIDInput(callback)` — fired on every HID input report with `EspUsbHostHIDInput`
   - `input.address` — USB device address (distinguishes multiple devices)
+  - `input.vid`, `input.pid` — USB vendor/product IDs for device-specific handling
+  - `input.product` — USB product string when available
   - `input.interfaceNumber` — HID interface number
   - `input.subclass` — HID subclass (0 = no subclass, 1 = boot interface)
   - `input.protocol` — HID protocol (0 = none, 1 = keyboard, 2 = mouse)

@@ -36,7 +36,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | 機能 | 状況 |
 |------|------|
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | ✅ 実装済み |
-| HIDゲームパッド再設計 — レポートディスクリプタ解析、汎用`onGamepad()`イベント、用途別マッパーによる16ビット軸・可変ボタン配置・XInput系デバイス対応 | 💭 設計中。現在の固定フォーマットAPIから破壊的変更を行う可能性があります |
+| HIDゲームパッド入力 — ユーザー定義マッピング用のraw/reportバイトとhat/ボタン候補 | ✅ マッピング前提のイベントAPI。ディスクリプタ駆動のマッピング補助は検討中 |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 整備中 |
 | 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | 🔲 整備中 |
 
@@ -214,7 +214,7 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 
 主なイベントフィールド：
 
-パース済みHIDコールバック（`onKeyboard`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onVendorInput`）はすべて、入力レポート全体を指す`rawData` / `rawLength`と、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
+パース済みHIDコールバック（`onKeyboard`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onVendorInput`）はすべて、`vid`、`pid`、`manufacturer`、`product`、`serial`、入力レポート全体を指す`rawData` / `rawLength`、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
 
 | コールバック | 主要フィールド |
 |-------------|--------------|
@@ -222,8 +222,8 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 | `onMouse` | `x`、`y`、`wheel`、`buttons`、`previousButtons`、`moved`、`buttonsChanged`、`address` |
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |
-| `onGamepad` | `x`、`y`、`z`、`rz`、`rx`、`ry`、`hat`、`buttons`、`previousButtons`、`address` |
-| `onHIDInput` | `address`、`interfaceNumber`、`subclass`、`protocol`、`data`、`length` |
+| `onGamepad` | `hat`、`hasHat`、`buttons`、`previousButtons`、`rawData`、`reportData`、`vid`、`pid`、`address` |
+| `onHIDInput` | `address`、`vid`、`pid`、`interfaceNumber`、`subclass`、`protocol`、`data`、`length` |
 
 ### HID出力
 
@@ -437,7 +437,7 @@ const char *lastErrorName() const;
 
 **破壊的変更を許容。** 旧来の継承ベースのAPIとの後方互換性よりも、クリーンなArduino向けAPIを優先します。
 
-**HIDゲームパッドは再設計予定。** 現在の`onGamepad()`は固定レポート形式を前提としており、汎用的な16ビット軸、デバイスごとに異なるボタン配置、XInput系デバイスには十分対応できません。今後はHIDレポートディスクリプタの取得と解析を追加し、`onGamepad()`では汎用的なパース済みイベントを返す方針です。XInput風の操作体系や軸・ボタン入れ替えは、`onGamepadXInput()`のような専用入力コールバックを増やすのではなく、`EspUsbHostGamepadEvent`から用途別のマッパーや補助クラスへ詰め替える設計を検討します。イベント構造体とマッパーの詳細は今後詰めます。この変更では既存の`EspUsbHostGamepadEvent`との互換性を維持しない可能性があります。
+**HIDゲームパッドレポートはマッピング前提のデータとして公開します。** `onGamepad()`はraw/reportバイトと簡易的なhat/ボタン候補を公開します。左スティックX/Y・右スティックX/Yのような意味名は、デバイスごとに位置が異なり、8bit・12bit・16bit・bit詰めなど幅も異なるため割り当てません。利用側で`vid` / `pid`、`rawData`、`reportData`を見て、そのコントローラーに合うマッピングを作ってください。
 
 **非ゴール：**
 - 初期段階からすべてのHIDレポートディスクリプタを完全自動解釈すること

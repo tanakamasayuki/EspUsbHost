@@ -2,39 +2,19 @@
 
 EspUsbHost usb;
 
-static constexpr int8_t DEADZONE = 10;
-
-static float normalize(int8_t val)
+static void printHex(const uint8_t *data, size_t length)
 {
-  // en: Apply a small deadzone before converting the signed 8-bit axis to -1.0..1.0.
-  // ja: 符号付き8bit軸を-1.0〜1.0へ変換する前に、小さなデッドゾーンを適用します。
-  if (val > -DEADZONE && val < DEADZONE)
-    return 0.0f;
-  return val / 127.0f;
-}
-
-static const char *hatName(uint8_t hat)
-{
-  switch (hat)
+  for (size_t i = 0; i < length; i++)
   {
-  case 0:
-    return "N";
-  case 1:
-    return "NE";
-  case 2:
-    return "E";
-  case 3:
-    return "SE";
-  case 4:
-    return "S";
-  case 5:
-    return "SW";
-  case 6:
-    return "W";
-  case 7:
-    return "NW";
-  default:
-    return "-";
+    if (data[i] < 0x10)
+    {
+      Serial.print('0');
+    }
+    Serial.print(data[i], HEX);
+    if (i + 1 < length)
+    {
+      Serial.print(' ');
+    }
   }
 }
 
@@ -57,20 +37,23 @@ void setup()
 
   usb.onGamepad([](const EspUsbHostGamepadEvent &event)
                 {
-    // en: Print both analog state and button edge changes for each parsed report.
-    // ja: パース済みレポートごとに、アナログ状態とボタン変化の両方を表示します。
-    float nx  = normalize(event.x);
-    float ny  = normalize(event.y);
-    float nz  = normalize(event.z);
-    float nrz = normalize(event.rz);
-
+    // en: Interpret reportData/rawData in application code for your controller.
+    // ja: コントローラーごとの解釈は、アプリケーション側でreportData/rawDataを見て行います。
     uint32_t pressed  = event.buttons & ~event.previousButtons;
     uint32_t released = event.previousButtons & ~event.buttons;
 
-    Serial.printf("x=%6.3f y=%6.3f z=%6.3f rz=%6.3f hat=%s buttons=0x%08lx",
-                  nx, ny, nz, nrz,
-                  hatName(event.hat),
-                  (unsigned long)event.buttons);
+    Serial.printf("report[%u]=", (unsigned)event.reportLength);
+    printHex(event.reportData, event.reportLength);
+    Serial.print(' ');
+    if (event.hasHat)
+    {
+      Serial.printf("hat=%u ", event.hat);
+    }
+    else
+    {
+      Serial.print("hat=- ");
+    }
+    Serial.printf("buttons=0x%08lx", (unsigned long)event.buttons);
     if (pressed)  Serial.printf(" +0x%lx", (unsigned long)pressed);
     if (released) Serial.printf(" -0x%lx", (unsigned long)released);
     Serial.println(); });
