@@ -9,6 +9,15 @@ PCMFlow audio;
 static constexpr uint32_t DEFAULT_SAMPLE_RATE = 48000;
 static constexpr size_t BUFFER_FRAMES = 2048;
 
+static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
+{
+  // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
+  // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
+  return stream.output &&
+         (stream.channels == 1 || stream.channels == 2) &&
+         (stream.bitsPerSample == 8 || stream.bitsPerSample == 16);
+}
+
 static uint8_t audioAddress = 0;
 static size_t fileIndex = 0;
 static PCMFormat outputFormat = {DEFAULT_SAMPLE_RATE, 2, 16};
@@ -56,15 +65,6 @@ static void restartCurrentFile()
     fileIndex--;
   }
   openNextFile();
-}
-
-static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
-{
-  // en: PCMFlow can produce mono/stereo 8-bit or 16-bit PCM for this example.
-  // ja: このサンプルではPCMFlowからモノラル/ステレオの8bitまたは16bit PCMを出力します。
-  return stream.output &&
-         (stream.channels == 1 || stream.channels == 2) &&
-         (stream.bitsPerSample == 8 || stream.bitsPerSample == 16);
 }
 
 static bool chooseAudioOutputStream(uint8_t address)

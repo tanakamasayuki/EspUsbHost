@@ -15,6 +15,17 @@ static constexpr size_t MAX_CHANNELS = 2;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
 static constexpr float VOLUME = 1.0f; // 0.0-1.0
 
+static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
+{
+  // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
+  // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
+  return stream.output &&
+         stream.channels >= 1 &&
+         stream.channels <= MAX_CHANNELS &&
+         stream.bitsPerSample == BITS_PER_SAMPLE &&
+         espUsbHostAudioStreamSupportsSampleRate(stream, SAMPLE_RATE);
+}
+
 // en: Ring buffer for decoded stereo PCM frames waiting to be sent (~32ms).
 // ja: 送信待ちのデコード済みステレオPCMフレーム用リングバッファです（約32ms）。
 static constexpr size_t PCM_BUF_FRAMES = FRAMES_PER_PACKET * 32;
@@ -163,12 +174,7 @@ void setup()
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
-                              if (!audioReady &&
-                                  streams[i].output &&
-                                  streams[i].channels >= 1 &&
-                                  streams[i].channels <= MAX_CHANNELS &&
-                                  streams[i].bitsPerSample == BITS_PER_SAMPLE &&
-                                  espUsbHostAudioStreamSupportsSampleRate(streams[i], SAMPLE_RATE))
+                              if (!audioReady && isSupportedOutputStream(streams[i]))
                               {
                                 if (usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address))
                                 {
