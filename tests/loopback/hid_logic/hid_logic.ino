@@ -7,8 +7,6 @@ static void check(bool condition, const char *name)
 {
   if (condition)
   {
-    Serial.print("PASS ");
-    Serial.println(name);
     passCount++;
   }
   else
@@ -149,6 +147,7 @@ void setup()
   testSystemControlReportEdges();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
+  Serial.flush();
 }
 
 void loop()

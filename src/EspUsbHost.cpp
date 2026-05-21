@@ -3838,10 +3838,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                  info.interfaceNumber,
                  info.reportedLength,
                  info.countryCode);
-        if (hidReportDescriptorCallback_)
-        {
-          submitHIDReportDescriptorRequest(info);
-        }
+        submitHIDReportDescriptorRequest(info);
         break;
       }
     }

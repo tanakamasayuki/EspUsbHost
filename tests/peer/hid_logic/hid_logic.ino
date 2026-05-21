@@ -7,8 +7,6 @@ static void check(bool condition, const char *name)
 {
   if (condition)
   {
-    Serial.print("PASS ");
-    Serial.println(name);
     passCount++;
   }
   else
@@ -120,7 +118,8 @@ static void testGamepadReportEdges()
       10, static_cast<uint8_t>(-10), 20, static_cast<uint8_t>(-20),
       30, static_cast<uint8_t>(-30), 3,
       0x05, 0x00, 0x00, 0x00};
-  check(!espUsbHostParseGamepadReport(4, active, 10, EspUsbHostGamepadPrevState{}, event), "gamepad_short_invalid");
+  check(espUsbHostParseGamepadReport(4, active, sizeof(active), EspUsbHostGamepadPrevState{}, event), "gamepad_active_changed");
+  check(!espUsbHostParseGamepadReport(4, nullptr, 0, EspUsbHostGamepadPrevState{}, event), "gamepad_null_invalid");
 }
 
 static void testSystemControlReportEdges()
@@ -148,6 +147,7 @@ void setup()
   testSystemControlReportEdges();
   Serial.printf("TEST_END pass=%d fail=%d\n", passCount, failCount);
   Serial.println(failCount == 0 ? "OK" : "NG");
+  Serial.flush();
 }
 
 void loop()
