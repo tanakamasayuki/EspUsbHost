@@ -547,10 +547,23 @@ public:
   bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-  bool audioReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool audioInputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool audioInputStart(uint8_t channels,
+                       uint8_t bitsPerSample,
+                       uint32_t sampleRate,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool audioInputStart(const EspUsbHostAudioStreamInfo &stream,
+                       uint32_t sampleRate = 0,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool setAudioSampleRate(uint32_t sampleRate, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool audioOutputStart(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool audioOutputStart(uint8_t channels,
+                        uint8_t bitsPerSample,
+                        uint32_t sampleRate,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
+                        uint32_t sampleRate = 0,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   void audioOutputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -622,9 +635,13 @@ private:
     usb_device_handle_t deviceHandle = nullptr;
     uint8_t address = 0;
     uint8_t interfaceNumber = 0;
+    uint8_t alternate = 0;
     uint8_t interfaceClass = 0;
     uint8_t interfaceSubClass = 0;
     uint8_t interfaceProtocol = 0;
+    uint8_t audioChannels = 0;
+    uint8_t audioBytesPerSample = 0;
+    uint8_t audioBitsPerSample = 0;
     usb_transfer_t *transfer = nullptr;
     bool transferSubmitted = false;
     bool resubmitAfterLed = false;
@@ -704,6 +721,13 @@ private:
     uint16_t midiOutPacketSize = 0;
     bool hasAudioInterface = false;
     uint8_t audioInterfaceNumber = 0;
+    bool hasAudioInEndpoint = false;
+    uint8_t audioInInterfaceNumber = 0;
+    uint8_t audioInAlternate = 0;
+    uint8_t audioInEndpointAddress = 0;
+    uint8_t audioInChannels = 0;
+    uint8_t audioInBytesPerSample = 0;
+    uint8_t audioInBitsPerSample = 0;
     bool hasAudioOutEndpoint = false;
     uint8_t audioOutInterfaceNumber = 0;
     uint8_t audioOutEndpointAddress = 0;
@@ -794,6 +818,8 @@ private:
   const DeviceState *findMidiDevice(uint8_t address) const;
   DeviceState *findAudioOutputDevice(uint8_t address);
   const DeviceState *findAudioOutputDevice(uint8_t address) const;
+  DeviceState *findAudioInputDevice(uint8_t address);
+  const DeviceState *findAudioInputDevice(uint8_t address) const;
   const DeviceState *findAudioDevice(uint8_t address) const;
   DeviceState *findMscDevice(uint8_t address);
   const DeviceState *findMscDevice(uint8_t address) const;

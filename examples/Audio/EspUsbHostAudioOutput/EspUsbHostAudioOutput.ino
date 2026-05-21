@@ -39,7 +39,6 @@ void setup()
   Serial.begin(115200);
   delay(500);
   Serial.println("EspUsbHost Audio Output example start");
-  usb.setAudioSampleRate(SAMPLE_RATE);
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
@@ -61,9 +60,10 @@ void setup()
                                                                   BITS_PER_SAMPLE,
                                                                   SAMPLE_RATE))
                               {
-                                audioAddress = info.address;
-                                usb.setAudioSampleRate(SAMPLE_RATE, info.address);
-                                usb.audioOutputStart(info.address);
+                                if (usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address))
+                                {
+                                  audioAddress = info.address;
+                                }
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);

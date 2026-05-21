@@ -96,8 +96,7 @@ static bool chooseAudioOutputStream(uint8_t address)
     // en: PCMFlow output format must match the selected USB stream before playback starts.
     // ja: 再生開始前に、PCMFlowの出力形式を選択したUSBストリームに合わせます。
     restartCurrentFile();
-    usb.setAudioSampleRate(outputFormat.sampleRate, address);
-    return usb.audioOutputStart(address);
+    return usb.audioOutputStart(streams[i], outputFormat.sampleRate, address);
   }
   return false;
 }

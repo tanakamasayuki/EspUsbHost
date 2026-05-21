@@ -18,7 +18,7 @@ void setup()
                                             device.address,
                                             device.portId,
                                             device.deviceClass);
-                              if (usb.audioReady(device.address))
+                              if (usb.audioInputReady(device.address))
                               {
                                   Serial.printf("AUDIO_READY addr=%u\n", device.address);
                               }
