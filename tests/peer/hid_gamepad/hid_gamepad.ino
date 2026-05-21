@@ -18,11 +18,16 @@ void setup()
                               Serial.print(" ");
                           }
                       }
-                      Serial.printf(" hat=%s%u buttons=0x%08lx previous=0x%08lx\n",
-                                    event.hasHat ? "" : "-",
-                                    event.hat,
-                                    static_cast<unsigned long>(event.buttons),
-                                    static_cast<unsigned long>(event.previousButtons)); });
+                      Serial.printf(" fields=%u", (unsigned)event.fieldCount);
+                      for (size_t i = 0; i < event.fieldCount; i++)
+                      {
+                          const EspUsbHostHIDFieldValue &field = event.fields[i];
+                          Serial.printf(" %04x:%04x=%ld",
+                                        field.usagePage,
+                                        field.usage,
+                                        (long)field.value);
+                      }
+                      Serial.println(); });
 
     if (!usb.begin())
     {

@@ -121,8 +121,6 @@ static void testGamepadReportEdges()
       30, static_cast<uint8_t>(-30), 3,
       0x05, 0x00, 0x00, 0x00};
   check(espUsbHostParseGamepadReport(4, active, sizeof(active), EspUsbHostGamepadPrevState{}, event), "gamepad_active_changed");
-  check(event.hasHat && event.hat == 3, "gamepad_hat_collected");
-  check(event.buttons == 0x00000005, "gamepad_buttons_collected");
   check(!espUsbHostParseGamepadReport(4, nullptr, 0, EspUsbHostGamepadPrevState{}, event), "gamepad_null_invalid");
 }
 

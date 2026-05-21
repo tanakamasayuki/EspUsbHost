@@ -36,7 +36,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | 機能 | 状況 |
 |------|------|
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | ✅ 実装済み |
-| HIDゲームパッド入力 — ユーザー定義マッピング用のraw/reportバイトとhat/ボタン候補 | ✅ マッピング前提のイベントAPI。ディスクリプタ駆動のマッピング補助は検討中 |
+| HIDゲームパッド入力 — ユーザー定義マッピング用のディスクリプタデコード済みフィールドとraw/reportバイト | ✅ マッピング前提のイベントAPI。マッピング補助は検討中 |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 整備中 |
 | 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | 🔲 整備中 |
 
@@ -222,7 +222,7 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 | `onMouse` | `x`、`y`、`wheel`、`buttons`、`previousButtons`、`moved`、`buttonsChanged`、`address` |
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |
-| `onGamepad` | `hat`、`hasHat`、`buttons`、`previousButtons`、`rawData`、`reportData`、`vid`、`pid`、`address` |
+| `onGamepad` | `fields`、`fieldCount`、`rawData`、`reportData`、`vid`、`pid`、`address` |
 | `onHIDInput` | `address`、`vid`、`pid`、`interfaceNumber`、`subclass`、`protocol`、`data`、`length` |
 
 ### HID出力
@@ -437,7 +437,7 @@ const char *lastErrorName() const;
 
 **破壊的変更を許容。** 旧来の継承ベースのAPIとの後方互換性よりも、クリーンなArduino向けAPIを優先します。
 
-**HIDゲームパッドレポートはマッピング前提のデータとして公開します。** `onGamepad()`はraw/reportバイトと簡易的なhat/ボタン候補を公開します。左スティックX/Y・右スティックX/Yのような意味名は、デバイスごとに位置が異なり、8bit・12bit・16bit・bit詰めなど幅も異なるため割り当てません。利用側で`vid` / `pid`、`rawData`、`reportData`を見て、そのコントローラーに合うマッピングを作ってください。
+**HIDゲームパッドレポートはマッピング前提のデータとして公開します。** `onGamepad()`はディスクリプタからデコードしたフィールドとraw/reportバイトを公開します。左スティックX/Y・右スティックX/Yのような意味名は、デバイスごとに位置が異なり、8bit・12bit・16bit・bit詰めなど幅も異なるため割り当てません。利用側で`vid` / `pid`、`fields`、`rawData`、`reportData`を見て、そのコントローラーに合うマッピングを作ってください。
 
 **非ゴール：**
 - 初期段階からすべてのHIDレポートディスクリプタを完全自動解釈すること

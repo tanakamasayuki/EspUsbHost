@@ -72,6 +72,8 @@ static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_CONSUMER_CONTROL = 0x04;
 static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_SYSTEM_CONTROL = 0x05;
 static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_VENDOR = 0x06;
 static constexpr size_t ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES = 64;
+static constexpr size_t ESP_USB_HOST_MAX_HID_INPUT_FIELDS = 96;
+static constexpr size_t ESP_USB_HOST_MAX_HID_EVENT_FIELDS = 64;
 
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF = 0x01;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_STANDBY = 0x02;
@@ -227,6 +229,19 @@ struct EspUsbHostHIDReportData
   size_t rawLength = 0;
   const uint8_t *reportData = nullptr;
   size_t reportLength = 0;
+};
+
+struct EspUsbHostHIDFieldValue
+{
+  uint8_t reportId = 0;
+  uint16_t usagePage = 0;
+  uint16_t usage = 0;
+  int32_t value = 0;
+  int32_t logicalMin = 0;
+  int32_t logicalMax = 0;
+  uint16_t bitOffset = 0;
+  uint8_t bitSize = 0;
+  uint8_t flags = 0;
 };
 
 struct EspUsbHostKeyboardEvent : EspUsbHostHIDReportData
@@ -448,10 +463,8 @@ struct EspUsbHostGamepadEvent : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
-  uint8_t hat = 0;
-  bool hasHat = false;
-  uint32_t buttons = 0;
-  uint32_t previousButtons = 0;
+  const EspUsbHostHIDFieldValue *fields = nullptr;
+  size_t fieldCount = 0;
   bool changed = false;
 };
 
@@ -459,9 +472,6 @@ struct EspUsbHostGamepadPrevState
 {
   uint8_t reportData[ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES] = {};
   size_t reportLength = 0;
-  uint8_t hat = 0;
-  bool hasHat = false;
-  uint32_t buttons = 0;
 };
 
 struct EspUsbHostVendorInput : EspUsbHostHIDReportData
@@ -623,7 +633,22 @@ private:
     uint8_t lastMouseButtons = 0;
     uint16_t lastConsumerUsage = 0;
     EspUsbHostGamepadPrevState lastGamepadState;
+    EspUsbHostHIDFieldValue hidFieldValues[ESP_USB_HOST_MAX_HID_EVENT_FIELDS] = {};
+    size_t hidFieldValueCount = 0;
     uint8_t lastSystemUsage = 0;
+  };
+
+  struct HIDInputFieldState
+  {
+    uint8_t interfaceNumber = 0;
+    uint8_t reportId = 0;
+    uint16_t usagePage = 0;
+    uint16_t usage = 0;
+    int32_t logicalMin = 0;
+    int32_t logicalMax = 0;
+    uint16_t bitOffset = 0;
+    uint8_t bitSize = 0;
+    uint8_t flags = 0;
   };
 
   struct HIDReportDescriptorState
@@ -711,6 +736,8 @@ private:
     uint8_t endpointInfoCount = 0;
     HIDReportDescriptorState hidReportDescriptors[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS] = {};
     uint8_t hidReportDescriptorCount = 0;
+    HIDInputFieldState hidInputFields[ESP_USB_HOST_MAX_HID_INPUT_FIELDS] = {};
+    size_t hidInputFieldCount = 0;
     uint8_t interfaces[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceCount = 0;
     bool isHub = false;
@@ -746,6 +773,14 @@ private:
   void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
+  void parseHIDReportDescriptor(DeviceState &device, const EspUsbHostHIDReportDescriptor &descriptor);
+  size_t decodeHIDInputFields(const DeviceState &device,
+                              uint8_t interfaceNumber,
+                              uint8_t reportId,
+                              const uint8_t *data,
+                              size_t length,
+                              EspUsbHostHIDFieldValue *fields,
+                              size_t maxFields) const;
 
   EndpointState *findEndpoint(usb_device_handle_t deviceHandle, uint8_t endpointAddress);
   EndpointState *allocateEndpoint(DeviceState &device);

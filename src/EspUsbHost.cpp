@@ -688,6 +688,45 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
   }
 }
 
+static uint32_t hidExtractUnsignedBits(const uint8_t *data, size_t length, uint16_t bitOffset, uint8_t bitSize)
+{
+  if (!data || bitSize == 0 || bitSize > 32)
+  {
+    return 0;
+  }
+
+  uint32_t value = 0;
+  for (uint8_t bit = 0; bit < bitSize; bit++)
+  {
+    const size_t sourceBit = static_cast<size_t>(bitOffset) + bit;
+    const size_t byteIndex = sourceBit / 8;
+    if (byteIndex >= length)
+    {
+      break;
+    }
+    if (data[byteIndex] & (1U << (sourceBit % 8)))
+    {
+      value |= 1UL << bit;
+    }
+  }
+  return value;
+}
+
+static int32_t hidSignExtend(uint32_t value, uint8_t bitSize)
+{
+  if (bitSize == 0 || bitSize >= 32)
+  {
+    return static_cast<int32_t>(value);
+  }
+  const uint32_t signBit = 1UL << (bitSize - 1);
+  if ((value & signBit) == 0)
+  {
+    return static_cast<int32_t>(value);
+  }
+  const uint32_t extendMask = ~((1UL << bitSize) - 1);
+  return static_cast<int32_t>(value | extendMask);
+}
+
 void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out)
 {
   out.printf("hid report descriptor: address=%u iface=%u hid=0x%04x country=0x%02x type=0x%02x reported_len=%u len=%u\n",
@@ -3944,6 +3983,191 @@ bool EspUsbHost::submitHIDReportDescriptorRequest(const HIDReportDescriptorState
   return true;
 }
 
+void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostHIDReportDescriptor &descriptor)
+{
+  size_t writeIndex = device.hidInputFieldCount;
+  while (writeIndex > 0 && device.hidInputFields[writeIndex - 1].interfaceNumber == descriptor.interfaceNumber)
+  {
+    writeIndex--;
+  }
+  for (size_t i = writeIndex; i < device.hidInputFieldCount; i++)
+  {
+    device.hidInputFields[i] = {};
+  }
+  device.hidInputFieldCount = writeIndex;
+
+  struct GlobalState
+  {
+    uint16_t usagePage = 0;
+    int32_t logicalMin = 0;
+    int32_t logicalMax = 0;
+    uint8_t reportSize = 0;
+    uint8_t reportCount = 0;
+    uint8_t reportId = 0;
+  } global;
+
+  uint16_t usages[32] = {};
+  size_t usageCount = 0;
+  uint16_t usageMinimum = 0;
+  uint16_t usageMaximum = 0;
+  bool hasUsageRange = false;
+  uint16_t bitOffsets[256] = {};
+
+  for (size_t i = 0; i < descriptor.length;)
+  {
+    const uint8_t prefix = descriptor.data[i++];
+    if (prefix == 0xfe)
+    {
+      if (i + 1 >= descriptor.length)
+      {
+        break;
+      }
+      const uint8_t itemLength = descriptor.data[i++];
+      i++; // long item tag
+      i += (i + itemLength <= descriptor.length) ? itemLength : (descriptor.length - i);
+      continue;
+    }
+
+    const uint8_t sizeCode = prefix & 0x03;
+    const size_t itemSize = sizeCode == 3 ? 4 : sizeCode;
+    const uint8_t type = (prefix >> 2) & 0x03;
+    const uint8_t tag = (prefix >> 4) & 0x0f;
+    const size_t available = (i + itemSize <= descriptor.length) ? itemSize : (descriptor.length - i);
+    const int32_t signedValue = hidItemValue(&descriptor.data[i], available);
+    const uint32_t unsignedValue = hidItemUnsignedValue(&descriptor.data[i], available);
+
+    if (type == 1)
+    {
+      switch (tag)
+      {
+      case 0x00:
+        global.usagePage = static_cast<uint16_t>(unsignedValue);
+        break;
+      case 0x01:
+        global.logicalMin = signedValue;
+        break;
+      case 0x02:
+        global.logicalMax = signedValue;
+        break;
+      case 0x07:
+        global.reportSize = static_cast<uint8_t>(unsignedValue);
+        break;
+      case 0x08:
+        global.reportId = static_cast<uint8_t>(unsignedValue);
+        break;
+      case 0x09:
+        global.reportCount = static_cast<uint8_t>(unsignedValue);
+        break;
+      default:
+        break;
+      }
+    }
+    else if (type == 2)
+    {
+      switch (tag)
+      {
+      case 0x00:
+        if (usageCount < sizeof(usages) / sizeof(usages[0]))
+        {
+          usages[usageCount++] = static_cast<uint16_t>(unsignedValue);
+        }
+        break;
+      case 0x01:
+        usageMinimum = static_cast<uint16_t>(unsignedValue);
+        hasUsageRange = true;
+        break;
+      case 0x02:
+        usageMaximum = static_cast<uint16_t>(unsignedValue);
+        hasUsageRange = true;
+        break;
+      default:
+        break;
+      }
+    }
+    else if (type == 0 && tag == 0x08)
+    {
+      const uint8_t flags = static_cast<uint8_t>(unsignedValue & 0xff);
+      const bool constant = (flags & 0x01) != 0;
+      const uint8_t reportCount = global.reportCount == 0 ? 1 : global.reportCount;
+      const uint8_t reportSize = global.reportSize;
+      uint16_t &bitOffset = bitOffsets[global.reportId];
+
+      for (uint8_t field = 0; field < reportCount; field++)
+      {
+        if (!constant && reportSize > 0 && device.hidInputFieldCount < ESP_USB_HOST_MAX_HID_INPUT_FIELDS)
+        {
+          HIDInputFieldState &inputField = device.hidInputFields[device.hidInputFieldCount++];
+          inputField.interfaceNumber = descriptor.interfaceNumber;
+          inputField.reportId = global.reportId;
+          inputField.usagePage = global.usagePage;
+          if (field < usageCount)
+          {
+            inputField.usage = usages[field];
+          }
+          else if (hasUsageRange && usageMinimum <= usageMaximum)
+          {
+            const uint16_t usage = static_cast<uint16_t>(usageMinimum + field);
+            inputField.usage = usage <= usageMaximum ? usage : usageMaximum;
+          }
+          inputField.logicalMin = global.logicalMin;
+          inputField.logicalMax = global.logicalMax;
+          inputField.bitOffset = bitOffset;
+          inputField.bitSize = reportSize;
+          inputField.flags = flags;
+        }
+        bitOffset += reportSize;
+      }
+
+      usageCount = 0;
+      usageMinimum = 0;
+      usageMaximum = 0;
+      hasUsageRange = false;
+    }
+
+    i += available;
+    if (available < itemSize)
+    {
+      break;
+    }
+  }
+}
+
+size_t EspUsbHost::decodeHIDInputFields(const DeviceState &device,
+                                        uint8_t interfaceNumber,
+                                        uint8_t reportId,
+                                        const uint8_t *data,
+                                        size_t length,
+                                        EspUsbHostHIDFieldValue *fields,
+                                        size_t maxFields) const
+{
+  if (!data || !fields || maxFields == 0)
+  {
+    return 0;
+  }
+
+  size_t count = 0;
+  for (size_t i = 0; i < device.hidInputFieldCount && count < maxFields; i++)
+  {
+    const HIDInputFieldState &inputField = device.hidInputFields[i];
+    if (inputField.interfaceNumber != interfaceNumber || inputField.reportId != reportId)
+    {
+      continue;
+    }
+    EspUsbHostHIDFieldValue &value = fields[count++];
+    value.reportId = inputField.reportId;
+    value.usagePage = inputField.usagePage;
+    value.usage = inputField.usage;
+    value.logicalMin = inputField.logicalMin;
+    value.logicalMax = inputField.logicalMax;
+    value.bitOffset = inputField.bitOffset;
+    value.bitSize = inputField.bitSize;
+    value.flags = inputField.flags;
+    const uint32_t rawValue = hidExtractUnsignedBits(data, length, inputField.bitOffset, inputField.bitSize);
+    value.value = inputField.logicalMin < 0 ? hidSignExtend(rawValue, inputField.bitSize) : static_cast<int32_t>(rawValue);
+  }
+  return count;
+}
+
 void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber)
 {
   for (EndpointState &endpoint : endpoints_)
@@ -4047,6 +4271,11 @@ void EspUsbHost::hidReportDescriptorTransferCallback(usb_transfer_t *transfer)
     if (actualLength > 0)
     {
       memcpy(context->descriptor.data, transfer->data_buffer + USB_SETUP_PACKET_SIZE, actualLength);
+    }
+    DeviceState *device = host->findDevice(context->descriptor.address);
+    if (device)
+    {
+      host->parseHIDReportDescriptor(*device, context->descriptor);
     }
     if (host->hidReportDescriptorCallback_)
     {
@@ -4620,23 +4849,30 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
   event.rawLength = rawLength;
   event.reportData = data;
   event.reportLength = length;
+  const uint8_t reportId = rawLength > 0 && rawData && rawData != data ? rawData[0] : 0;
+  if (device)
+  {
+    endpoint.hidFieldValueCount = decodeHIDInputFields(*device,
+                                                       endpoint.interfaceNumber,
+                                                       reportId,
+                                                       data,
+                                                       length,
+                                                       endpoint.hidFieldValues,
+                                                       ESP_USB_HOST_MAX_HID_EVENT_FIELDS);
+    event.fields = endpoint.hidFieldValues;
+    event.fieldCount = endpoint.hidFieldValueCount;
+  }
 
-  ESP_LOGD(TAG, "Gamepad iface=%u report_len=%u hat=%s%u buttons=0x%08lx previous=0x%08lx",
+  ESP_LOGD(TAG, "Gamepad iface=%u report_len=%u fields=%u",
            event.interfaceNumber,
            static_cast<unsigned>(event.reportLength),
-           event.hasHat ? "" : "-",
-           event.hat,
-           static_cast<unsigned long>(event.buttons),
-           static_cast<unsigned long>(event.previousButtons));
+           static_cast<unsigned>(event.fieldCount));
   gamepadCallback_(event);
   endpoint.lastGamepadState = {};
   endpoint.lastGamepadState.reportLength = event.reportLength < ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES
                                              ? event.reportLength
                                              : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
   memcpy(endpoint.lastGamepadState.reportData, event.reportData, endpoint.lastGamepadState.reportLength);
-  endpoint.lastGamepadState.hat = event.hat;
-  endpoint.lastGamepadState.hasHat = event.hasHat;
-  endpoint.lastGamepadState.buttons = event.buttons;
 }
 
 void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
