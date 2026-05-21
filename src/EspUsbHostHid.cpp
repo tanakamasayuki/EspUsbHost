@@ -229,14 +229,28 @@ bool espUsbHostParseGamepadReport(uint8_t interfaceNumber,
     return false;
   }
 
+  bool allZero = true;
+  for (size_t i = 0; i < length; i++)
+  {
+    if (data[i] != 0)
+    {
+      allZero = false;
+      break;
+    }
+  }
+  if (previous.reportLength == 0 && allZero)
+  {
+    return false;
+  }
+
   event = EspUsbHostGamepadEvent();
   event.interfaceNumber = interfaceNumber;
   event.changed = length != previous.reportLength;
   if (!event.changed)
   {
     const size_t compareLength = length < ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES
-                                   ? length
-                                   : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
+                                     ? length
+                                     : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
     if (memcmp(data, previous.reportData, compareLength) != 0)
     {
       event.changed = true;

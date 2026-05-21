@@ -19,14 +19,6 @@ void setup()
                           }
                       }
                       Serial.printf(" fields=%u", (unsigned)event.fieldCount);
-                      for (size_t i = 0; i < event.fieldCount; i++)
-                      {
-                          const EspUsbHostHIDFieldValue &field = event.fields[i];
-                          Serial.printf(" %04x:%04x=%ld",
-                                        field.usagePage,
-                                        field.usage,
-                                        (long)field.value);
-                      }
                       Serial.println(); });
 
     if (!usb.begin())
