@@ -4011,7 +4011,11 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
   uint16_t usageMinimum = 0;
   uint16_t usageMaximum = 0;
   bool hasUsageRange = false;
-  uint16_t bitOffsets[256] = {};
+  uint16_t *bitOffsets = new uint16_t[256]();
+  if (!bitOffsets)
+  {
+    return;
+  }
 
   for (size_t i = 0; i < descriptor.length;)
   {
@@ -4130,6 +4134,8 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
       break;
     }
   }
+
+  delete[] bitOffsets;
 }
 
 size_t EspUsbHost::decodeHIDInputFields(const DeviceState &device,
