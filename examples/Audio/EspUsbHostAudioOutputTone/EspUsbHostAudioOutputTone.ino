@@ -9,6 +9,18 @@ static constexpr uint8_t CHANNELS = 1;
 static constexpr uint8_t BYTES_PER_SAMPLE = 2;
 static constexpr uint8_t BITS_PER_SAMPLE = 16;
 static constexpr int16_t VOLUME = 100; // 0-32767
+
+static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
+{
+  // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
+  // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
+  return espUsbHostAudioStreamMatchesPcm(stream,
+                                         CHANNELS,
+                                         BYTES_PER_SAMPLE,
+                                         BITS_PER_SAMPLE,
+                                         SAMPLE_RATE);
+}
+
 static uint8_t audioAddress = 0;
 
 static void fillTone(EspUsbHostAudioOutputRequest &request)
@@ -53,12 +65,7 @@ void setup()
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
-                              if (streams[i].output &&
-                                  espUsbHostAudioStreamMatchesPcm(streams[i],
-                                                                  CHANNELS,
-                                                                  BYTES_PER_SAMPLE,
-                                                                  BITS_PER_SAMPLE,
-                                                                  SAMPLE_RATE))
+                              if (isSupportedOutputStream(streams[i]))
                               {
                                 if (usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address))
                                 {
