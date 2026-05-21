@@ -240,6 +240,10 @@ struct EspUsbHostMouseEvent
   uint8_t previousButtons = 0;
   bool moved = false;
   bool buttonsChanged = false;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+  const uint8_t *reportData = nullptr;
+  size_t reportLength = 0;
 };
 
 struct EspUsbHostHIDInput
