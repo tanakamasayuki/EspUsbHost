@@ -214,6 +214,8 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 
 Notable event fields:
 
+Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemControl`, `onGamepad`, `onVendorInput`) all include `rawData` / `rawLength` for the full input report and `reportData` / `reportLength` for the report bytes after removing the Report ID when one is present.
+
 | Callback | Key fields |
 |----------|-----------|
 | `onKeyboard` | `pressed`, `keycode`, `ascii`, `modifiers`, `address` |
@@ -221,7 +223,7 @@ Notable event fields:
 | `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
 | `onGamepad` | `x`, `y`, `z`, `rz`, `rx`, `ry`, `hat`, `buttons`, `previousButtons`, `address` |
-| `onHIDInput` / `onVendorInput` | `address`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
+| `onHIDInput` | `address`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
 
 ### HID output
 

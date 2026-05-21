@@ -27,6 +27,8 @@ Supported usage codes (defined in `EspUsbHost.h`):
 - `usb.onSystemControl(callback)` — fired on press/release with `EspUsbHostSystemControlEvent`
   - `event.pressed` — true on press, false on release
   - `event.usage` — HID usage code (8-bit)
+  - `event.rawData`, `event.rawLength` — raw HID input report bytes
+  - `event.reportData`, `event.reportLength` — system control report bytes after removing the Report ID when one is present
 
 ## Expected Serial output
 

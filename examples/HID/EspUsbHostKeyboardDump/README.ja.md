@@ -21,6 +21,7 @@
 
 - `usb.onKeyboard(callback)` — キー押下・解放時に`EspUsbHostKeyboardEvent`付きで呼ばれる
 - `event.keycode` / `event.ascii` / `event.modifiers` — このサンプルの自前コールバックで使っているパース済みキーボード情報
+- `event.rawData` / `event.rawLength` と `event.reportData` / `event.reportLength` — パース済みキーボード情報とあわせて元のHIDレポートバイトを参照可能
 
 ## シリアル出力例
 

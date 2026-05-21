@@ -26,12 +26,12 @@ void setup()
 
   usb.onVendorInput([](const EspUsbHostVendorInput &input)
                     {
-    Serial.printf("vendor iface=%u len=%u data=", input.interfaceNumber, (unsigned)input.length);
+    Serial.printf("vendor iface=%u len=%u data=", input.interfaceNumber, (unsigned)input.reportLength);
     // en: This peer sends a NUL-terminated text payload inside a fixed-size report.
     // ja: この相手デバイスは固定長レポート内にNUL終端テキストを入れて送ります。
-    for (size_t i = 0; i < input.length && input.data[i] != 0; i++)
+    for (size_t i = 0; i < input.reportLength && input.reportData[i] != 0; i++)
     {
-      Serial.write(input.data[i]);
+      Serial.write(input.reportData[i]);
     }
     Serial.println(); });
 

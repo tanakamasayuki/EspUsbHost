@@ -22,6 +22,8 @@ Reads keyboard input from a USB HID keyboard, prints typed characters to the Ser
 - `usb.onKeyboard(callback)` — fired on each key press/release with `EspUsbHostKeyboardEvent`
   - `event.ascii` — character reflecting current CapsLock / NumLock state
   - `event.capsLock` / `event.numLock` / `event.scrollLock` — current lock state after this keypress
+  - `event.rawData`, `event.rawLength` — raw HID input report bytes
+  - `event.reportData`, `event.reportLength` — keyboard report bytes after removing the Report ID when one is present
 - `usb.getKeyboardCapsLock()` / `usb.getKeyboardNumLock()` / `usb.getKeyboardScrollLock()` — read lock state at any time
 - `usb.setKeyboardLeds(numLock, capsLock, scrollLock)` — override lock state and LEDs manually
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
