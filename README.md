@@ -144,9 +144,9 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | Receive USB Audio isochronous IN payloads |
-| [EspUsbHostAudioMp3](examples/Audio/EspUsbHostAudioMp3/) | Decode embedded MP3 assets and play them to USB Audio output |
-| [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | Send USB Audio isochronous OUT payloads |
-| [EspUsbHostAudioPCMFlow](examples/Audio/EspUsbHostAudioPCMFlow/) | Temporary PCMFlow integration example for USB Audio output |
+| [EspUsbHostAudioOutputTone](examples/Audio/EspUsbHostAudioOutputTone/) | Generate a simple tone and send it to USB Audio OUT |
+| [EspUsbHostAudioOutputMP3PCMFlow](examples/Audio/EspUsbHostAudioOutputMP3PCMFlow/) | Decode embedded MP3 assets with PCMFlow and play them to USB Audio OUT |
+| [EspUsbHostAudioOutputMP3ESP8266Audio](examples/Audio/EspUsbHostAudioOutputMP3ESP8266Audio/) | Decode embedded MP3 assets with ESP8266Audio and play them to USB Audio OUT |
 
 ### Serial
 

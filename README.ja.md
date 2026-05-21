@@ -144,9 +144,9 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | USB AudioのIsochronous INペイロードを受信 |
-| [EspUsbHostAudioMp3](examples/Audio/EspUsbHostAudioMp3/) | 埋め込みMP3素材をデコードしてUSB Audio出力へ再生 |
-| [EspUsbHostAudioOutput](examples/Audio/EspUsbHostAudioOutput/) | USB AudioのIsochronous OUTペイロードを送信 |
-| [EspUsbHostAudioPCMFlow](examples/Audio/EspUsbHostAudioPCMFlow/) | USB Audio出力向けの暫定PCMFlow連携例 |
+| [EspUsbHostAudioOutputTone](examples/Audio/EspUsbHostAudioOutputTone/) | 簡単なトーンを生成してUSB Audio OUTへ送信 |
+| [EspUsbHostAudioOutputMP3PCMFlow](examples/Audio/EspUsbHostAudioOutputMP3PCMFlow/) | PCMFlowで埋め込みMP3素材をデコードしてUSB Audio OUTへ再生 |
+| [EspUsbHostAudioOutputMP3ESP8266Audio](examples/Audio/EspUsbHostAudioOutputMP3ESP8266Audio/) | ESP8266Audioで埋め込みMP3素材をデコードしてUSB Audio OUTへ再生 |
 
 ### Serial
 

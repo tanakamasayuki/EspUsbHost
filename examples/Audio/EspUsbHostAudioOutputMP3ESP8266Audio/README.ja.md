@@ -1,6 +1,6 @@
-# EspUsbHostAudioMp3
+# EspUsbHostAudioOutputMP3ESP8266Audio
 
-埋め込みMP3ファイルをUSBスピーカーなどのUSB Audio出力デバイスで順番に再生するサンプルです。
+[ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio)で埋め込みMP3ファイルをデコードし、USBスピーカーなどのUSB Audio出力デバイスで順番に再生するサンプルです。
 
 ## ハードウェア
 
@@ -22,7 +22,7 @@
 ## シリアル出力例
 
 ```
-EspUsbHost Audio MP3 example start
+EspUsbHost Audio Output MP3 ESP8266Audio example start
 playing: /sfx_alarm_loop6.mp3 (5447 bytes)
 connected: device: address=1 portId=0x01 vid=xxxx pid=xxxx class=0x00(Device) speed=full product="USB Speaker"
 audio stream: addr=1 iface=1 alt=1 ep=0x03 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=192 interval=1

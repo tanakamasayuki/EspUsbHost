@@ -145,7 +145,7 @@ void setup()
 {
   Serial.begin(115200);
   delay(500);
-  Serial.println("EspUsbHost Audio MP3 example start");
+  Serial.println("EspUsbHost Audio Output MP3 ESP8266Audio example start");
 
   if (!startNextFile())
     Serial.println("no MP3 files found in assets");

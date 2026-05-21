@@ -112,7 +112,7 @@ void setup()
 {
   Serial.begin(115200);
   delay(500);
-  Serial.println("EspUsbHost Audio PCMFlow example start");
+  Serial.println("EspUsbHost Audio Output MP3 PCMFlow example start");
 
   if (!openNextFile())
   {

@@ -38,7 +38,7 @@ void setup()
 {
   Serial.begin(115200);
   delay(500);
-  Serial.println("EspUsbHost Audio Output example start");
+  Serial.println("EspUsbHost Audio Output Tone example start");
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
