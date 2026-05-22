@@ -1,6 +1,6 @@
 # EspUsbHostAudioOutputTone
 
-簡単なトーンを生成し、USBスピーカーなどのUSB Audio OUTデバイスへ送信するサンプルです。
+左右で異なる周波数のステレオトーンを生成し、USBスピーカーなどのUSB Audio OUTデバイスへ送信するサンプルです。
 
 ## ハードウェア
 
@@ -9,10 +9,10 @@
 
 ## 注意
 
-- このサンプルは48 kHz、16-bit、mono PCMを送信します。
+- このサンプルは48 kHz、16-bit、ステレオ（2ch）PCMを送信します。
 - 検出したUSB Audioストリームのフォーマット情報を表示し、対応しているOUTストリームが見つかった場合だけ送信を開始します。
 - `onAudioOutputRequest()`で要求されたフレーム数だけPCMを生成し、送信タイミングはライブラリに任せます。
-- 使用するデバイスに合わせてスケッチ内の`SAMPLE_RATE`とサンプル形式の定数を調整してください。
+- 使用するデバイスに合わせて `isSupportedOutputStream()` 内の条件を調整してください。
 - デバイスによってはFeature Unitやクロック制御の追加対応が必要になる場合があります。
 
 ## スケッチ先頭の設定
@@ -21,14 +21,11 @@
 
 | 定数 | 意味 | デフォルト |
 | --- | --- | --- |
-| `SAMPLE_RATE` | USB Audio OUTへ送るサンプリングレート | `48000` |
-| `TONE_HZ` | 生成するトーンの周波数 | `440` |
-| `CHANNELS` | チャンネル数 | `1` |
-| `BYTES_PER_SAMPLE` | 1サンプルあたりのバイト数 | `2` |
-| `BITS_PER_SAMPLE` | 1サンプルあたりの有効bit数 | `16` |
+| `TONE_HZ_LEFT` | 左チャンネルのトーン周波数 | `440` |
+| `TONE_HZ_RIGHT` | 右チャンネルのトーン周波数 | `880` |
 | `VOLUME` | 16-bit PCMの振幅 | `100` |
 
-このサンプルは生成側のPCM形式が固定なので、`CHANNELS`、`BYTES_PER_SAMPLE`、`BITS_PER_SAMPLE`、`SAMPLE_RATE` に完全一致するUSB Audio OUT streamだけを選びます。
+受け入れるPCMフォーマットは `isSupportedOutputStream()` で定義しており、デフォルトでは 48 kHz / 2ch / 16-bit です。この条件に完全一致するUSB Audio OUT streamだけを選びます。
 
 ## 処理の流れ
 
@@ -66,6 +63,6 @@
 ```
 EspUsbHost Audio Output Tone example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
-audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=48000 rates=1 max_packet=98 interval=1
+audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1
 audio output ready: addr=1
 ```

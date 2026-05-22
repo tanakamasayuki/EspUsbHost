@@ -1,6 +1,6 @@
 # EspUsbHostAudioOutputTone
 
-Generates a simple tone and sends it to a USB Audio OUT device such as a USB speaker or audio interface.
+Generates simple stereo tones (different frequencies for left/right) and sends them to a USB Audio OUT device such as a USB speaker or audio interface.
 
 ## Hardware
 
@@ -9,10 +9,10 @@ Generates a simple tone and sends it to a USB Audio OUT device such as a USB spe
 
 ## Notes
 
-- This example sends 48 kHz, 16-bit, mono PCM.
+- This example sends 48 kHz, 16-bit, stereo (2-channel) PCM.
 - It prints detected USB Audio stream format information and only starts output when a compatible OUT stream is found.
 - It generates the number of frames requested by `onAudioOutputRequest()` and lets the library drive the USB transfer timing.
-- Adjust `SAMPLE_RATE` and the sample format constants in the sketch to match your device.
+- Adjust the conditions in `isSupportedOutputStream()` to match your device.
 - Some devices may require additional feature-unit or clock control support.
 
 ## Sketch Settings
@@ -21,14 +21,11 @@ This example defines the generated tone PCM format with constants at the top of 
 
 | Constant | Meaning | Default |
 | --- | --- | --- |
-| `SAMPLE_RATE` | Sample rate sent to USB Audio OUT | `48000` |
-| `TONE_HZ` | Generated tone frequency | `440` |
-| `CHANNELS` | Channel count | `1` |
-| `BYTES_PER_SAMPLE` | Bytes per sample | `2` |
-| `BITS_PER_SAMPLE` | Valid bits per sample | `16` |
+| `TONE_HZ_LEFT` | Generated tone frequency for the left channel | `440` |
+| `TONE_HZ_RIGHT` | Generated tone frequency for the right channel | `880` |
 | `VOLUME` | 16-bit PCM amplitude | `100` |
 
-Because this sketch generates a fixed PCM format, it selects only a USB Audio OUT stream that exactly matches `CHANNELS`, `BYTES_PER_SAMPLE`, `BITS_PER_SAMPLE`, and `SAMPLE_RATE`.
+The accepted PCM format is defined in `isSupportedOutputStream()` and defaults to 48 kHz / 2 channels / 16-bit. The sketch selects only a USB Audio OUT stream that exactly matches that format.
 
 ## Flow
 
@@ -66,6 +63,6 @@ Output uses `audioOutputReady()` to detect a USB Audio OUT endpoint, then `audio
 ```
 EspUsbHost Audio Output Tone example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
-audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=48000 rates=1 max_packet=98 interval=1
+audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1
 audio output ready: addr=1
 ```
