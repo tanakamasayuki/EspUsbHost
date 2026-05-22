@@ -14,7 +14,7 @@ static constexpr uint8_t BITS_PER_SAMPLE = 16;
 static constexpr size_t MAX_CHANNELS = 2;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
 static constexpr float VOLUME = 1.0f; // 0.0-1.0
-static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 0};
+static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 10, 0};
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
@@ -37,25 +37,39 @@ static uint8_t audioAddress = 0;
 static bool audioReady = false;
 static size_t volumeStepIndex = 0;
 static bool playbackFinished = false;
+static bool hardwareVolumeChecked = false;
+static bool hardwareVolumeSupported = false;
 
 static int fileIndex = 0;
 static AudioGeneratorMP3 *mp3gen = nullptr;
 static AudioFileSourcePROGMEM *mp3src = nullptr;
 
+static float currentOutputGain()
+{
+  return hardwareVolumeSupported ? VOLUME : static_cast<float>(USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]) / 100.0f;
+}
+
 static void configureAudioOutputVolume(uint8_t address)
 {
   const uint8_t percent = USB_OUTPUT_VOLUME_STEPS[volumeStepIndex];
-  if (percent == 0 && !usb.audioHasMute(address))
+  if (hardwareVolumeChecked && !hardwareVolumeSupported)
   {
-    Serial.println("audio hardware mute unsupported; using minimum volume");
+    Serial.printf("software gain: %.2f\n", currentOutputGain());
+    return;
   }
+
   if (usb.audioConfigureVolumePercent(percent, address))
   {
+    hardwareVolumeChecked = true;
+    hardwareVolumeSupported = true;
     Serial.printf("audio hardware volume: %u%%\n", percent);
   }
   else
   {
+    hardwareVolumeChecked = true;
+    hardwareVolumeSupported = false;
     Serial.println("audio hardware volume unsupported");
+    Serial.printf("software gain: %.2f\n", currentOutputGain());
   }
 }
 
@@ -117,8 +131,9 @@ public:
       if (next == pcmHead)
         return false; // buffer full — generator retries this sample
       const float t = resamplePhase;
-      pcmBuf[pcmTail * CHANNELS + 0] = (int16_t)(((1.0f - t) * resamplePrev[0] + t * sample[LEFTCHANNEL]) * VOLUME);
-      pcmBuf[pcmTail * CHANNELS + 1] = (int16_t)(((1.0f - t) * resamplePrev[1] + t * sample[RIGHTCHANNEL]) * VOLUME);
+      const float gain = currentOutputGain();
+      pcmBuf[pcmTail * CHANNELS + 0] = (int16_t)(((1.0f - t) * resamplePrev[0] + t * sample[LEFTCHANNEL]) * gain);
+      pcmBuf[pcmTail * CHANNELS + 1] = (int16_t)(((1.0f - t) * resamplePrev[1] + t * sample[RIGHTCHANNEL]) * gain);
       pcmTail = next;
       resamplePhase += step;
     }
@@ -236,6 +251,8 @@ void setup()
                              {
                                audioReady = false;
                                audioAddress = 0;
+                               hardwareVolumeChecked = false;
+                               hardwareVolumeSupported = false;
                              } });
 
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
