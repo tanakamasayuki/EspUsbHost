@@ -867,19 +867,19 @@ static void fillCdcLineCoding(const EspUsbHostSerialConfig &config, uint8_t line
 static uint16_t ftdiDataCharacteristics(const EspUsbHostSerialConfig &config)
 {
   uint16_t value = config.dataBits;
+  value |= static_cast<uint16_t>(config.parity) << 8;
   switch (config.stopBits)
   {
   case ESP_USB_HOST_SERIAL_STOP_BITS_1_5:
-    value |= 0x0100;
+    value |= 0x0800;
     break;
   case ESP_USB_HOST_SERIAL_STOP_BITS_2:
-    value |= 0x0200;
+    value |= 0x1000;
     break;
   case ESP_USB_HOST_SERIAL_STOP_BITS_1:
   default:
     break;
   }
-  value |= static_cast<uint16_t>(config.parity) << 12;
   return value;
 }
 
