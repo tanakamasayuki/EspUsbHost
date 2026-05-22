@@ -3,22 +3,16 @@
 
 EspUsbHost usb;
 
-static constexpr uint32_t SAMPLE_RATE = 48000;
 static constexpr uint32_t TONE_HZ = 440;
-static constexpr uint8_t CHANNELS = 1;
-static constexpr uint8_t BYTES_PER_SAMPLE = 2;
-static constexpr uint8_t BITS_PER_SAMPLE = 16;
 static constexpr int16_t VOLUME = 100; // 0-32767
 
-static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
+static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
   // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
   // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
-  return espUsbHostAudioStreamMatchesPcm(stream,
-                                         CHANNELS,
-                                         BYTES_PER_SAMPLE,
-                                         BITS_PER_SAMPLE,
-                                         SAMPLE_RATE);
+  return sampleRate == 48000 &&
+         channels == 1 &&
+         bitsPerSample == 16;
 }
 
 static uint8_t audioAddress = 0;
@@ -30,15 +24,15 @@ static void fillTone(EspUsbHostAudioOutputRequest &request)
   // ja: USB Audioのスケジューラが要求したフレーム数だけ生成します。
   for (size_t frame = 0; frame < request.frameCount; frame++)
   {
-    const int16_t value = (phase < SAMPLE_RATE / 2) ? VOLUME : -VOLUME;
+    const int16_t value = (phase < request.sampleRate / 2) ? VOLUME : -VOLUME;
     phase += TONE_HZ;
-    if (phase >= SAMPLE_RATE)
+    if (phase >= request.sampleRate)
     {
-      phase -= SAMPLE_RATE;
+      phase -= request.sampleRate;
     }
     for (uint8_t channel = 0; channel < request.channels; channel++)
     {
-      const size_t offset = (frame * request.channels + channel) * BYTES_PER_SAMPLE;
+      const size_t offset = (frame * request.channels + channel) * request.bytesPerSample;
       request.data[offset] = value & 0xff;
       request.data[offset + 1] = (value >> 8) & 0xff;
     }
@@ -65,12 +59,13 @@ void setup()
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
-                              if (isSupportedOutputStream(streams[i]))
+                            }
+                            const EspUsbHostAudioStreamSelection selected = espUsbHostSelectAudioOutputStream(streams, count, isSupportedOutputStream);
+                            if (selected)
+                            {
+                              if (usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address))
                               {
-                                if (usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address))
-                                {
-                                  audioAddress = info.address;
-                                }
+                                audioAddress = info.address;
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);

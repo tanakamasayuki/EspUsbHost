@@ -368,6 +368,22 @@ struct EspUsbHostAudioStreamInfo
   uint8_t interval = 0;
 };
 
+struct EspUsbHostAudioStreamSelection
+{
+  int index = -1;
+  uint32_t sampleRate = 0;
+  int score = 0;
+
+  explicit operator bool() const
+  {
+    return index >= 0 && sampleRate > 0;
+  }
+};
+
+using EspUsbHostAudioStreamFilter = bool (*)(uint32_t sampleRate,
+                                             uint8_t channels,
+                                             uint8_t bitsPerSample);
+
 inline bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream, uint32_t sampleRate)
 {
   if (sampleRate == 0)
@@ -438,6 +454,208 @@ inline bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &str
          stream.bytesPerSample == bytesPerSample &&
          stream.bitsPerSample == bitsPerSample &&
          espUsbHostAudioStreamSupportsSampleRate(stream, sampleRate);
+}
+
+inline bool espUsbHostAudioStreamCandidateRateExists(const uint32_t *rates, size_t count, uint32_t rate)
+{
+  for (size_t i = 0; i < count; i++)
+  {
+    if (rates[i] == rate)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline size_t espUsbHostAudioStreamCandidateSampleRates(const EspUsbHostAudioStreamInfo &stream,
+                                                        uint32_t *rates,
+                                                        size_t maxRates)
+{
+  if (!rates || maxRates == 0)
+  {
+    return 0;
+  }
+
+  size_t count = 0;
+  auto addRate = [&](uint32_t rate)
+  {
+    if (rate == 0 ||
+        !espUsbHostAudioStreamSupportsSampleRate(stream, rate) ||
+        espUsbHostAudioStreamCandidateRateExists(rates, count, rate) ||
+        count >= maxRates)
+    {
+      return;
+    }
+    rates[count++] = rate;
+  };
+
+  addRate(48000);
+  addRate(44100);
+  addRate(stream.sampleRate);
+  for (uint8_t i = 0; i < stream.sampleRateCount && i < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES; i++)
+  {
+    addRate(stream.sampleRates[i]);
+  }
+  if (stream.sampleRateMax > 0)
+  {
+    addRate(stream.sampleRateMax);
+  }
+  addRate(stream.sampleRateMin);
+
+  return count;
+}
+
+inline int espUsbHostAudioStreamScore(const EspUsbHostAudioStreamInfo &stream, uint32_t sampleRate)
+{
+  int score = 0;
+
+  if (sampleRate == 48000)
+  {
+    score += 10000;
+  }
+  else if (sampleRate == 44100)
+  {
+    score += 9000;
+  }
+  else if (sampleRate >= 32000)
+  {
+    score += 6000 + static_cast<int>(sampleRate / 1000);
+  }
+  else
+  {
+    score += static_cast<int>(sampleRate / 100);
+  }
+
+  if (stream.bitsPerSample == 16)
+  {
+    score += 1000;
+    if (stream.bytesPerSample == 2)
+    {
+      score += 100;
+    }
+  }
+  else if (stream.bitsPerSample == 24)
+  {
+    score += 800;
+    if (stream.bytesPerSample == 3 || stream.bytesPerSample == 4)
+    {
+      score += 50;
+    }
+  }
+  else if (stream.bitsPerSample == 32)
+  {
+    score += 700;
+    if (stream.bytesPerSample == 4)
+    {
+      score += 50;
+    }
+  }
+  else if (stream.bitsPerSample == 8)
+  {
+    score += 200;
+    if (stream.bytesPerSample == 1)
+    {
+      score += 25;
+    }
+  }
+  else
+  {
+    score += stream.bitsPerSample;
+  }
+
+  if (stream.channels == 2)
+  {
+    score += 300;
+  }
+  else if (stream.channels == 1)
+  {
+    score += 200;
+  }
+  else
+  {
+    score += stream.channels;
+  }
+
+  return score;
+}
+
+inline uint32_t espUsbHostAudioStreamBestSampleRate(const EspUsbHostAudioStreamInfo &stream)
+{
+  uint32_t rates[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES + 4] = {};
+  const size_t count = espUsbHostAudioStreamCandidateSampleRates(stream, rates, sizeof(rates) / sizeof(rates[0]));
+  if (count == 0)
+  {
+    return 0;
+  }
+
+  uint32_t bestRate = 0;
+  int bestScore = -1;
+  for (size_t i = 0; i < count; i++)
+  {
+    const int score = espUsbHostAudioStreamScore(stream, rates[i]);
+    if (bestScore < 0 || score > bestScore)
+    {
+      bestRate = rates[i];
+      bestScore = score;
+    }
+  }
+  return bestRate;
+}
+
+inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioStream(const EspUsbHostAudioStreamInfo *streams,
+                                                                  size_t count,
+                                                                  bool input,
+                                                                  EspUsbHostAudioStreamFilter filter = nullptr)
+{
+  EspUsbHostAudioStreamSelection best;
+  if (!streams)
+  {
+    return best;
+  }
+
+  for (size_t i = 0; i < count; i++)
+  {
+    const EspUsbHostAudioStreamInfo &stream = streams[i];
+    if (input ? !stream.input : !stream.output)
+    {
+      continue;
+    }
+
+    uint32_t rates[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES + 4] = {};
+    const size_t rateCount = espUsbHostAudioStreamCandidateSampleRates(stream, rates, sizeof(rates) / sizeof(rates[0]));
+    for (size_t rateIndex = 0; rateIndex < rateCount; rateIndex++)
+    {
+      const uint32_t sampleRate = rates[rateIndex];
+      if (filter && !filter(sampleRate, stream.channels, stream.bitsPerSample))
+      {
+        continue;
+      }
+
+      const int score = espUsbHostAudioStreamScore(stream, sampleRate);
+      if (best.index < 0 || score > best.score)
+      {
+        best.index = static_cast<int>(i);
+        best.sampleRate = sampleRate;
+        best.score = score;
+      }
+    }
+  }
+  return best;
+}
+
+inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioInputStream(const EspUsbHostAudioStreamInfo *streams,
+                                                                       size_t count,
+                                                                       EspUsbHostAudioStreamFilter filter = nullptr)
+{
+  return espUsbHostSelectAudioStream(streams, count, true, filter);
+}
+
+inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(const EspUsbHostAudioStreamInfo *streams,
+                                                                        size_t count,
+                                                                        EspUsbHostAudioStreamFilter filter = nullptr)
+{
+  return espUsbHostSelectAudioStream(streams, count, false, filter);
 }
 
 void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out = Serial);

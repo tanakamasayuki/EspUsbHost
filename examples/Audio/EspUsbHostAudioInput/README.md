@@ -10,11 +10,10 @@ Receives USB Audio isochronous IN data from a USB microphone or audio interface 
 ## Notes
 
 - This example prints detected USB Audio stream format information and reports raw audio payload bytes.
-- Select the input format with `PREFERRED_SAMPLE_RATE`, `PREFERRED_CHANNELS`, and `PREFERRED_BITS_PER_SAMPLE` at the top of the sketch.
-- By default, the sketch selects the first input stream that supports `48000 Hz`; channel count and bit depth come from the selected device stream.
+- Select accepted input formats by editing `isSupportedInputStream(sampleRate, channels, bitsPerSample)`.
+- By default, the sketch accepts `48000 Hz` or `44100 Hz` input streams. The shared scoring helper prefers `48000 Hz`, 16-bit, and stereo when available.
 - `audioInputReady()` detects a USB Audio IN endpoint, and `audioInputStart()` starts the selected input stream.
-- The selected stream is started with `audioInputStart()`, so the preferred channel count, bit depth, and sample rate are passed to the library.
-- Set a preferred value to `0` to leave it unconstrained. Set all three to `0` to use the first input stream format.
+- The selected stream is started with `audioInputStart()`, so the selected sample rate, interface, alternate setting, and endpoint are passed to the library.
 - It does not decode, play, or store audio.
 - Devices that require explicit sample-rate or feature-unit control may need additional support.
 

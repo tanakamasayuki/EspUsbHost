@@ -38,12 +38,13 @@
 4. `usb.audioOutputReady(info.address)` で、そのデバイスにUSB Audio OUT endpointが見つかっているか確認します。
 5. `usb.getAudioStreams()` で、解析済みのAudio stream候補を取得します。
 6. 各候補を `espUsbHostPrint(streams[i])` で表示します。
-7. `streams[i].output` と `espUsbHostAudioStreamMatchesPcm()` で、トーン生成形式に完全一致するOUT streamを探します。
-8. 一致したstreamに対して `usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address)` を呼び、出力streamを開始します。この呼び出しでサンプリングレート、interface、alternate setting、endpointがライブラリへ渡ります。
-9. USB Audio OUT転送で次のPCMフレームが必要になると、`onAudioOutputRequest()` が呼ばれます。
-10. `fillTone()` が `request.frameCount` の分だけPCMフレームを生成し、`request.data` へ書き込みます。
-11. 生成したフレーム数を `request.writtenFrames` に設定します。
-12. ライブラリが `request.data` の内容をUSB Audio OUT endpointへ送信します。
+7. `isSupportedOutputStream(sampleRate, channels, bitsPerSample)` で、受け入れるOUT stream形式を定義します。
+8. `espUsbHostSelectAudioOutputStream()` が対応候補をスコアリングし、最適なstreamとサンプリングレートを選びます。
+9. `usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address)` を呼び、出力streamを開始します。この呼び出しでサンプリングレート、interface、alternate setting、endpointがライブラリへ渡ります。
+10. USB Audio OUT転送で次のPCMフレームが必要になると、`onAudioOutputRequest()` が呼ばれます。
+11. `fillTone()` が `request.frameCount` の分だけPCMフレームを生成し、`request.data` へ書き込みます。
+12. 生成したフレーム数を `request.writtenFrames` に設定します。
+13. ライブラリが `request.data` の内容をUSB Audio OUT endpointへ送信します。
 
 ## `audioInputReady()` と `audioOutputReady()` について
 

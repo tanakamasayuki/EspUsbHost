@@ -380,13 +380,24 @@ bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
                                      uint8_t bytesPerSample,
                                      uint8_t bitsPerSample,
                                      uint32_t sampleRate);
+using EspUsbHostAudioStreamFilter = bool (*)(uint32_t sampleRate,
+                                             uint8_t channels,
+                                             uint8_t bitsPerSample);
+EspUsbHostAudioStreamSelection espUsbHostSelectAudioInputStream(
+    const EspUsbHostAudioStreamInfo *streams,
+    size_t count,
+    EspUsbHostAudioStreamFilter filter = nullptr);
+EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
+    const EspUsbHostAudioStreamInfo *streams,
+    size_t count,
+    EspUsbHostAudioStreamFilter filter = nullptr);
 ```
 
 `onAudioData` receives raw payload bytes from USB Audio streaming isochronous IN endpoints. The callback receives `const EspUsbHostAudioData &audio` with fields `address`, `interfaceNumber`, `data`, and `length`.
 
 `onAudioOutputRequest` is the preferred USB Audio OUT API. After `audioOutputStart()`, the library drives isochronous OUT transfers and calls the callback when it needs the next PCM frames. Fill `request.data` with up to `request.frameCount` interleaved frames and set `request.writtenFrames`; any unwritten frames are sent as silence and counted as underruns. The callback runs on the USB client task, so keep it short and non-blocking; copy from an existing PCM buffer rather than doing heavy decoding in the callback.
 
-`getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and UAC1 Type I format fields when available, including discrete sample rates or a continuous sample-rate range. `espUsbHostAudioStreamSupportsSampleRate` checks those fields, and `espUsbHostAudioStreamMatchesPcm` checks channels, sample size, bit depth, and sample rate together. `setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` remains as a low-level API for manually submitting raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
+`getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and UAC1 Type I format fields when available, including discrete sample rates or a continuous sample-rate range. `espUsbHostSelectAudioInputStream` and `espUsbHostSelectAudioOutputStream` apply an optional `(sampleRate, channels, bitsPerSample)` filter, then score the remaining candidates. The default scoring prefers 48 kHz, then 44.1 kHz, 16-bit PCM, and stereo when available. `setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` remains as a low-level API for manually submitting raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
 
 ### USB Mass Storage
 

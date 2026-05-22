@@ -38,12 +38,13 @@ Because this sketch generates a fixed PCM format, it selects only a USB Audio OU
 4. `usb.audioOutputReady(info.address)` checks whether the device has a USB Audio OUT endpoint.
 5. `usb.getAudioStreams()` returns the parsed Audio stream candidates.
 6. Each candidate is printed with `espUsbHostPrint(streams[i])`.
-7. `streams[i].output` and `espUsbHostAudioStreamMatchesPcm()` find an OUT stream that exactly matches the tone format.
-8. `usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address)` starts the selected output stream. This call passes the sample rate, interface, alternate setting, and endpoint to the library.
-9. When the USB Audio OUT transfer needs the next PCM frames, `onAudioOutputRequest()` is called.
-10. `fillTone()` generates `request.frameCount` PCM frames and writes them to `request.data`.
-11. The sketch sets `request.writtenFrames` to the number of generated frames.
-12. The library sends `request.data` to the USB Audio OUT endpoint.
+7. `isSupportedOutputStream(sampleRate, channels, bitsPerSample)` defines the accepted OUT stream formats.
+8. `espUsbHostSelectAudioOutputStream()` scores the accepted candidates and selects the best stream and sample rate.
+9. `usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address)` starts the selected output stream. This call passes the sample rate, interface, alternate setting, and endpoint to the library.
+10. When the USB Audio OUT transfer needs the next PCM frames, `onAudioOutputRequest()` is called.
+11. `fillTone()` generates `request.frameCount` PCM frames and writes them to `request.data`.
+12. The sketch sets `request.writtenFrames` to the number of generated frames.
+13. The library sends `request.data` to the USB Audio OUT endpoint.
 
 ## `audioInputReady()` and `audioOutputReady()`
 

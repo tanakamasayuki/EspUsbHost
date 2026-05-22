@@ -15,15 +15,14 @@ static constexpr size_t MAX_CHANNELS = 2;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
 static constexpr float VOLUME = 1.0f; // 0.0-1.0
 
-static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
+static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
   // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
   // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
-  return stream.output &&
-         stream.channels >= 1 &&
-         stream.channels <= MAX_CHANNELS &&
-         stream.bitsPerSample == BITS_PER_SAMPLE &&
-         espUsbHostAudioStreamSupportsSampleRate(stream, SAMPLE_RATE);
+  return sampleRate == SAMPLE_RATE &&
+         channels >= 1 &&
+         channels <= MAX_CHANNELS &&
+         bitsPerSample == BITS_PER_SAMPLE;
 }
 
 // en: Ring buffer for decoded stereo PCM frames waiting to be sent (~32ms).
@@ -174,13 +173,14 @@ void setup()
                             for (size_t i = 0; i < count; i++)
                             {
                               espUsbHostPrint(streams[i]);
-                              if (!audioReady && isSupportedOutputStream(streams[i]))
+                            }
+                            const EspUsbHostAudioStreamSelection selected = espUsbHostSelectAudioOutputStream(streams, count, isSupportedOutputStream);
+                            if (!audioReady && selected)
+                            {
+                              if (usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address))
                               {
-                                if (usb.audioOutputStart(streams[i], SAMPLE_RATE, info.address))
-                                {
-                                  audioAddress = info.address;
-                                  audioReady = true;
-                                }
+                                audioAddress = info.address;
+                                audioReady = true;
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);
