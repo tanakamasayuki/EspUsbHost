@@ -212,7 +212,7 @@ void loop()
 
   if (srcDone() && pcmAvail() < FRAMES_PER_PACKET)
   {
-    if (!startNextFile())
+    if (!startNextFile() && audioReady)
     {
       Serial.println("all files played");
       audioReady = false;
