@@ -394,6 +394,17 @@ bool audioGetVolumeDb(float &db, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint8_t unitId = 0, uint8_t channel = 0);
 bool audioSetVolumeDb(float db, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint8_t unitId = 0, uint8_t channel = 0);
+bool audioSetVolumeDbClamped(float db, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t unitId = 0, uint8_t channel = 0);
+bool audioConfigureVolume(float db, bool mute = false,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                          uint8_t unitId = 0, uint8_t channel = 0);
+bool audioSetVolumePercent(uint8_t percent,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t unitId = 0, uint8_t channel = 0);
+bool audioConfigureVolumePercent(uint8_t percent,
+                                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                                 uint8_t unitId = 0, uint8_t channel = 0);
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream,
                      Print &out = Serial);
 bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream,
@@ -424,7 +435,7 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 `getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and UAC1 Type I format fields when available, including discrete sample rates or a continuous sample-rate range. `espUsbHostSelectAudioInputStream` and `espUsbHostSelectAudioOutputStream` apply an optional `(sampleRate, channels, bitsPerSample)` filter, then score the remaining candidates. The default scoring prefers 48 kHz, then 44.1 kHz, 16-bit PCM, and stereo when available. `setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` remains as a low-level API for manually submitting raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
 
-`getAudioFeatureUnits` reports parsed UAC1 Audio Control Feature Units. `audioGetMute`, `audioSetMute`, `audioGetVolume`, `audioSetVolume`, and the dB/range helpers use UAC1 class-specific Feature Unit requests. `unitId=0` selects the first Feature Unit that exposes the requested control. `channel=0` means master; channel values starting at 1 address per-channel controls. Raw volume values are signed 1/256 dB units.
+`getAudioFeatureUnits` reports parsed UAC1 Audio Control Feature Units. `audioGetMute`, `audioSetMute`, `audioGetVolume`, `audioSetVolume`, and the dB/range helpers use UAC1 class-specific Feature Unit requests. `audioSetVolumeDbClamped` applies the device min/max/resolution when the range is available. `audioConfigureVolume` is the simple playback helper: it unmutes/mutes when mute is supported and sets clamped dB volume when volume is supported. The percent helpers treat `1..100` as a PCM amplitude ratio (`20 * log10(percent / 100)`) and round to the device step after clamping to min/max; `0` mutes when mute is supported, or falls back to minimum volume. `unitId=0` selects the first Feature Unit that exposes the requested control. `channel=0` means master; channel values starting at 1 address per-channel controls. Raw volume values are signed 1/256 dB units.
 
 ### USB Mass Storage
 

@@ -846,6 +846,27 @@ public:
                         uint8_t unitId = 0,
                         uint8_t channel = 0,
                         uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioSetVolumeDbClamped(float db,
+                               uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                               uint8_t unitId = 0,
+                               uint8_t channel = 0,
+                               uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioConfigureVolume(float db,
+                            bool mute = false,
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                            uint8_t unitId = 0,
+                            uint8_t channel = 0,
+                            uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioSetVolumePercent(uint8_t percent,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t unitId = 0,
+                             uint8_t channel = 0,
+                             uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioConfigureVolumePercent(uint8_t percent,
+                                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                                   uint8_t unitId = 0,
+                                   uint8_t channel = 0,
+                                   uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
   bool mscReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool mscInquiry(EspUsbHostMscInquiry &inquiry,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,

@@ -8,6 +8,7 @@ PCMFlow audio;
 
 static constexpr uint32_t DEFAULT_SAMPLE_RATE = 48000;
 static constexpr size_t BUFFER_FRAMES = 2048;
+static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 0};
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
@@ -20,7 +21,45 @@ static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8
 
 static uint8_t audioAddress = 0;
 static size_t fileIndex = 0;
+static size_t volumeStepIndex = 0;
+static bool playbackFinished = false;
 static PCMFormat outputFormat = {DEFAULT_SAMPLE_RATE, 2, 16};
+
+static void configureAudioOutputVolume(uint8_t address)
+{
+  const uint8_t percent = USB_OUTPUT_VOLUME_STEPS[volumeStepIndex];
+  if (percent == 0 && !usb.audioHasMute(address))
+  {
+    Serial.println("audio hardware mute unsupported; using minimum volume");
+  }
+  if (usb.audioConfigureVolumePercent(percent, address))
+  {
+    Serial.printf("audio hardware volume: %u%%\n", percent);
+  }
+  else
+  {
+    Serial.println("audio hardware volume unsupported");
+  }
+}
+
+static bool nextVolumeLoop()
+{
+  if (volumeStepIndex + 1 >= sizeof(USB_OUTPUT_VOLUME_STEPS) / sizeof(USB_OUTPUT_VOLUME_STEPS[0]))
+  {
+    Serial.println("all volume loops played");
+    playbackFinished = true;
+    return false;
+  }
+
+  volumeStepIndex++;
+  fileIndex = 0;
+  if (audioAddress)
+  {
+    configureAudioOutputVolume(audioAddress);
+  }
+  Serial.printf("restart playlist at %u%% volume\n", USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]);
+  return true;
+}
 
 static bool openNextFile()
 {
@@ -52,7 +91,11 @@ static bool openNextFile()
                   static_cast<unsigned>(audio.lastError()));
   }
 
-  Serial.println("all files played");
+  Serial.printf("playlist finished at %u%% volume\n", USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]);
+  if (nextVolumeLoop())
+  {
+    return openNextFile();
+  }
   return false;
 }
 
@@ -128,6 +171,7 @@ void setup()
                           if (chooseAudioOutputStream(info.address))
                           {
                             audioAddress = info.address;
+                            configureAudioOutputVolume(info.address);
                           }
                           Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address); });
 
@@ -151,6 +195,12 @@ void setup()
 
 void loop()
 {
+  if (playbackFinished)
+  {
+    delay(10);
+    return;
+  }
+
   // en: Keep PCMFlow decoding outside the USB callback and advance to the next file at EOF.
   // ja: PCMFlowのデコードはUSBコールバック外で進め、終端に達したら次のファイルへ進みます。
   if (audio.isEof())

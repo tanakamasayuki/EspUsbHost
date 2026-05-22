@@ -14,6 +14,7 @@ static constexpr uint8_t BITS_PER_SAMPLE = 16;
 static constexpr size_t MAX_CHANNELS = 2;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
 static constexpr float VOLUME = 1.0f; // 0.0-1.0
+static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 0};
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
@@ -34,10 +35,50 @@ static size_t pcmTail = 0;
 
 static uint8_t audioAddress = 0;
 static bool audioReady = false;
+static size_t volumeStepIndex = 0;
+static bool playbackFinished = false;
 
 static int fileIndex = 0;
 static AudioGeneratorMP3 *mp3gen = nullptr;
 static AudioFileSourcePROGMEM *mp3src = nullptr;
+
+static void configureAudioOutputVolume(uint8_t address)
+{
+  const uint8_t percent = USB_OUTPUT_VOLUME_STEPS[volumeStepIndex];
+  if (percent == 0 && !usb.audioHasMute(address))
+  {
+    Serial.println("audio hardware mute unsupported; using minimum volume");
+  }
+  if (usb.audioConfigureVolumePercent(percent, address))
+  {
+    Serial.printf("audio hardware volume: %u%%\n", percent);
+  }
+  else
+  {
+    Serial.println("audio hardware volume unsupported");
+  }
+}
+
+static bool nextVolumeLoop()
+{
+  if (volumeStepIndex + 1 >= sizeof(USB_OUTPUT_VOLUME_STEPS) / sizeof(USB_OUTPUT_VOLUME_STEPS[0]))
+  {
+    Serial.println("all volume loops played");
+    playbackFinished = true;
+    return false;
+  }
+
+  volumeStepIndex++;
+  fileIndex = 0;
+  pcmHead = 0;
+  pcmTail = 0;
+  if (audioAddress)
+  {
+    configureAudioOutputVolume(audioAddress);
+  }
+  Serial.printf("restart playlist at %u%% volume\n", USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]);
+  return true;
+}
 
 static size_t pcmAvail()
 {
@@ -181,6 +222,7 @@ void setup()
                               {
                                 audioAddress = info.address;
                                 audioReady = true;
+                                configureAudioOutputVolume(info.address);
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);
@@ -205,6 +247,12 @@ void setup()
 
 void loop()
 {
+  if (playbackFinished)
+  {
+    delay(10);
+    return;
+  }
+
   // en: Drive the MP3 decoder outside the USB callback; isRunning() stops at source exhaustion.
   // ja: MP3デコードはUSBコールバック外で進めます。isRunning()はソース終端でfalseになります。
   if (mp3gen && mp3gen->isRunning())
@@ -214,8 +262,11 @@ void loop()
   {
     if (!startNextFile() && audioReady)
     {
-      Serial.println("all files played");
-      audioReady = false;
+      Serial.printf("playlist finished at %u%% volume\n", USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]);
+      if (nextVolumeLoop())
+      {
+        startNextFile();
+      }
       delay(10);
       return;
     }
