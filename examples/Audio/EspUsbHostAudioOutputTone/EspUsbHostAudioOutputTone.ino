@@ -3,7 +3,8 @@
 
 EspUsbHost usb;
 
-static constexpr uint32_t TONE_HZ = 440;
+static constexpr uint32_t TONE_HZ_LEFT = 440;
+static constexpr uint32_t TONE_HZ_RIGHT = 880;
 static constexpr int16_t VOLUME = 100; // 0-32767
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
@@ -11,7 +12,7 @@ static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8
   // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
   // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
   return sampleRate == 48000 &&
-         channels == 1 &&
+         channels == 2 &&
          bitsPerSample == 16;
 }
 
@@ -19,19 +20,27 @@ static uint8_t audioAddress = 0;
 
 static void fillTone(EspUsbHostAudioOutputRequest &request)
 {
-  static uint32_t phase = 0;
+  static uint32_t phaseLeft = 0;
+  static uint32_t phaseRight = 0;
   // en: Generate only the frames requested by the USB Audio scheduler.
   // ja: USB Audioのスケジューラが要求したフレーム数だけ生成します。
   for (size_t frame = 0; frame < request.frameCount; frame++)
   {
-    const int16_t value = (phase < request.sampleRate / 2) ? VOLUME : -VOLUME;
-    phase += TONE_HZ;
-    if (phase >= request.sampleRate)
+    const int16_t valueLeft = (phaseLeft < request.sampleRate / 2) ? VOLUME : -VOLUME;
+    const int16_t valueRight = (phaseRight < request.sampleRate / 2) ? VOLUME : -VOLUME;
+    phaseLeft += TONE_HZ_LEFT;
+    phaseRight += TONE_HZ_RIGHT;
+    if (phaseLeft >= request.sampleRate)
     {
-      phase -= request.sampleRate;
+      phaseLeft -= request.sampleRate;
+    }
+    if (phaseRight >= request.sampleRate)
+    {
+      phaseRight -= request.sampleRate;
     }
     for (uint8_t channel = 0; channel < request.channels; channel++)
     {
+      const int16_t value = (channel == 0) ? valueLeft : valueRight;
       const size_t offset = (frame * request.channels + channel) * request.bytesPerSample;
       request.data[offset] = value & 0xff;
       request.data[offset + 1] = (value >> 8) & 0xff;
