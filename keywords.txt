@@ -19,6 +19,8 @@ EspUsbHostMouseEvent	KEYWORD1
 EspUsbHostHIDInput	KEYWORD1
 EspUsbHostAudioData	KEYWORD1
 EspUsbHostAudioStreamInfo	KEYWORD1
+EspUsbHostAudioFeatureUnitInfo	KEYWORD1
+EspUsbHostAudioVolumeRange	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
 
 #######################################
@@ -41,6 +43,16 @@ audioOutputStart	KEYWORD2
 setAudioSampleRate	KEYWORD2
 audioSend	KEYWORD2
 getAudioStreams	KEYWORD2
+getAudioFeatureUnits	KEYWORD2
+audioHasMute	KEYWORD2
+audioHasVolume	KEYWORD2
+audioGetMute	KEYWORD2
+audioSetMute	KEYWORD2
+audioGetVolume	KEYWORD2
+audioSetVolume	KEYWORD2
+audioGetVolumeRange	KEYWORD2
+audioGetVolumeDb	KEYWORD2
+audioSetVolumeDb	KEYWORD2
 espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 espUsbHostAudioStreamPreferredSampleRate	KEYWORD2
 espUsbHostAudioStreamMatchesPcm	KEYWORD2

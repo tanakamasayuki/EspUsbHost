@@ -86,9 +86,12 @@ static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE = 512;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
+static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS = 4;
+static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
+static constexpr uint32_t ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 
 struct EspUsbHostConfig
 {
@@ -366,6 +369,25 @@ struct EspUsbHostAudioStreamInfo
   uint32_t sampleRateResolution = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
+};
+
+struct EspUsbHostAudioFeatureUnitInfo
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t unitId = 0;
+  uint8_t sourceId = 0;
+  uint8_t channelCount = 0;
+  uint8_t controlSize = 0;
+  uint32_t masterControls = 0;
+  uint32_t channelControls[ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS] = {};
+};
+
+struct EspUsbHostAudioVolumeRange
+{
+  int16_t min = 0;
+  int16_t max = 0;
+  int16_t resolution = 0;
 };
 
 struct EspUsbHostAudioStreamSelection
@@ -786,6 +808,44 @@ public:
   bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  size_t getAudioFeatureUnits(uint8_t address, EspUsbHostAudioFeatureUnitInfo *units, size_t maxUnits) const;
+  bool audioHasMute(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t unitId = 0, uint8_t channel = 0) const;
+  bool audioHasVolume(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t unitId = 0, uint8_t channel = 0) const;
+  bool audioGetMute(bool &mute,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint8_t unitId = 0,
+                    uint8_t channel = 0,
+                    uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioSetMute(bool mute,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint8_t unitId = 0,
+                    uint8_t channel = 0,
+                    uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioGetVolume(int16_t &volume,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t unitId = 0,
+                      uint8_t channel = 0,
+                      uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioSetVolume(int16_t volume,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t unitId = 0,
+                      uint8_t channel = 0,
+                      uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioGetVolumeRange(EspUsbHostAudioVolumeRange &range,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t unitId = 0,
+                           uint8_t channel = 0,
+                           uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioGetVolumeDb(float &db,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint8_t unitId = 0,
+                        uint8_t channel = 0,
+                        uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool audioSetVolumeDb(float db,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint8_t unitId = 0,
+                        uint8_t channel = 0,
+                        uint32_t timeoutMs = ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
   bool mscReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool mscInquiry(EspUsbHostMscInquiry &inquiry,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
@@ -959,6 +1019,9 @@ private:
     uint32_t audioOutUnderruns = 0;
     usb_transfer_t *audioOutTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
     uint32_t audioSampleRate = 48000;
+    uint8_t audioControlInterfaceNumber = 0xff;
+    EspUsbHostAudioFeatureUnitInfo audioFeatureUnits[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS] = {};
+    uint8_t audioFeatureUnitCount = 0;
     bool hasMscInterface = false;
     uint8_t mscInterfaceNumber = 0;
     bool hasMscInEndpoint = false;
@@ -1004,6 +1067,7 @@ private:
   void refreshDeviceTopology(DeviceState &device);
   void parseConfigDescriptor(DeviceState &device, const usb_config_desc_t *configDesc);
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
+  void parseAudioControlDescriptor(DeviceState &device, const uint8_t *data);
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
   void handleTransfer(usb_transfer_t *transfer);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
@@ -1039,6 +1103,12 @@ private:
   DeviceState *findAudioInputDevice(uint8_t address);
   const DeviceState *findAudioInputDevice(uint8_t address) const;
   const DeviceState *findAudioDevice(uint8_t address) const;
+  DeviceState *findAudioControlDevice(uint8_t address);
+  const DeviceState *findAudioControlDevice(uint8_t address) const;
+  const EspUsbHostAudioFeatureUnitInfo *findAudioFeatureUnit(const DeviceState &device,
+                                                             uint8_t unitId,
+                                                             uint8_t controlSelector,
+                                                             uint8_t channel) const;
   DeviceState *findMscDevice(uint8_t address);
   const DeviceState *findMscDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);
@@ -1054,6 +1124,15 @@ private:
   void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
+  bool audioFeatureControl(DeviceState &device,
+                           uint8_t request,
+                           uint8_t unitId,
+                           uint8_t controlSelector,
+                           uint8_t channel,
+                           uint8_t *data,
+                           size_t length,
+                           bool dataIn,
+                           uint32_t timeoutMs);
   bool submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length);
   bool submitAudioOutputRequestTransfer(DeviceState &device, usb_transfer_t *transfer);
   bool fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer);

@@ -11,10 +11,10 @@ USB Audio IN の peer 実証
 
 onAudioData() の受信経路はありますが、Arduino 側 USBAudioCard.write() で peer から実データを流す確認がまだ安定していません。
 今 peer で確実に通っているのは Host → Device の Audio OUT です。
-Feature Unit / Mixer / Volume / Mute 制御
+Mixer / Selector / Processing Unit 制御
 
-USBスピーカーやオーディオIFは音量・ミュート・ゲイン制御が別リクエストになることがあります。
-現状は生PCM送信とサンプルレート設定が中心です。
+UAC1 Feature Unit の Mute / Volume GET/SET は追加済みです。
+Mixer / Selector / Processing Unit や、Feature UnitのBass/Treble/AGCなどは未対応です。
 Clock Source / UAC2 対応
 
 今の実装は主に UAC1 Type I 前提です。
@@ -35,7 +35,7 @@ Input サンプルはビルドと情報表示までは整えました。
 
 OUT は peer で送信確認済み。
 IN は API あり、peer 実データは未確定。
-UAC1中心、UAC2/Feature Unit は限定的、という注意書きをもう少し明確にしてよさそうです。
+UAC1中心、UAC2やFeature Unit以外のAudio Controlは限定的、という注意書きをもう少し明確にしてよさそうです。
 
 # P4対応
 
