@@ -6,6 +6,7 @@ EspUsbHost usb;
 static constexpr uint32_t TONE_HZ_LEFT = 440;
 static constexpr uint32_t TONE_HZ_RIGHT = 880;
 static constexpr int16_t VOLUME = 100; // 0-32767
+static constexpr float USB_OUTPUT_VOLUME_DB = -12.0f;
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
@@ -17,6 +18,53 @@ static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8
 }
 
 static uint8_t audioAddress = 0;
+
+static void configureAudioOutputVolume(uint8_t address)
+{
+  EspUsbHostAudioFeatureUnitInfo units[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS];
+  const size_t count = usb.getAudioFeatureUnits(address, units, ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS);
+  for (size_t i = 0; i < count && i < ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS; i++)
+  {
+    Serial.printf("audio feature unit: unit=%u source=%u channels=%u master=0x%lx\n",
+                  units[i].unitId,
+                  units[i].sourceId,
+                  units[i].channelCount,
+                  static_cast<unsigned long>(units[i].masterControls));
+  }
+
+  if (usb.audioHasMute(address))
+  {
+    Serial.printf("audio mute %s\n", usb.audioSetMute(false, address) ? "off" : "failed");
+  }
+
+  if (!usb.audioHasVolume(address))
+  {
+    Serial.println("audio hardware volume unsupported");
+    return;
+  }
+
+  EspUsbHostAudioVolumeRange range;
+  if (usb.audioGetVolumeRange(range, address))
+  {
+    Serial.printf("audio volume range: %.2f..%.2f dB step %.2f dB\n",
+                  range.min / 256.0f,
+                  range.max / 256.0f,
+                  range.resolution / 256.0f);
+  }
+
+  if (usb.audioSetVolumeDbClamped(USB_OUTPUT_VOLUME_DB, address))
+  {
+    float db = 0.0f;
+    if (usb.audioGetVolumeDb(db, address))
+    {
+      Serial.printf("audio hardware volume: %.2f dB\n", db);
+    }
+  }
+  else
+  {
+    Serial.println("audio hardware volume set failed");
+  }
+}
 
 static void fillTone(EspUsbHostAudioOutputRequest &request)
 {
@@ -75,6 +123,7 @@ void setup()
                               if (usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address))
                               {
                                 audioAddress = info.address;
+                                configureAudioOutputVolume(info.address);
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);

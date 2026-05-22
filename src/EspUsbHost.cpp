@@ -1,6 +1,8 @@
 #include "EspUsbHost.h"
 #include "EspUsbHostHid.h"
 
+#include <math.h>
+
 #if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
 #endif
@@ -146,6 +148,35 @@ static void writeLe16(uint8_t *data, int16_t value)
   const uint16_t raw = static_cast<uint16_t>(value);
   data[0] = raw & 0xff;
   data[1] = (raw >> 8) & 0xff;
+}
+
+static int16_t audioDbToRaw(float db)
+{
+  const float scaled = db * 256.0f;
+  return static_cast<int16_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+}
+
+static int16_t audioClampVolumeRaw(int16_t volume, const EspUsbHostAudioVolumeRange &range)
+{
+  int32_t raw = volume;
+  if (raw < range.min)
+  {
+    raw = range.min;
+  }
+  if (raw > range.max)
+  {
+    raw = range.max;
+  }
+  if (range.resolution > 0)
+  {
+    const int32_t resolution = range.resolution;
+    raw = range.min + ((raw - range.min + resolution / 2) / resolution) * resolution;
+    if (raw > range.max)
+    {
+      raw = range.max;
+    }
+  }
+  return static_cast<int16_t>(raw);
 }
 
 static void writeBe32(uint8_t *data, uint32_t value)
@@ -2281,9 +2312,77 @@ bool EspUsbHost::audioGetVolumeDb(float &db, uint8_t address, uint8_t unitId, ui
 
 bool EspUsbHost::audioSetVolumeDb(float db, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
 {
-  const float scaled = db * 256.0f;
-  const int16_t volume = static_cast<int16_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+  return audioSetVolume(audioDbToRaw(db), address, unitId, channel, timeoutMs);
+}
+
+bool EspUsbHost::audioSetVolumeDbClamped(float db, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  int16_t volume = audioDbToRaw(db);
+
+  EspUsbHostAudioVolumeRange range;
+  if (audioGetVolumeRange(range, address, unitId, channel, timeoutMs))
+  {
+    volume = audioClampVolumeRaw(volume, range);
+  }
+
   return audioSetVolume(volume, address, unitId, channel, timeoutMs);
+}
+
+bool EspUsbHost::audioConfigureVolume(float db, bool mute, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  bool ok = true;
+  if (audioHasMute(address, unitId, channel))
+  {
+    ok = audioSetMute(mute, address, unitId, channel, timeoutMs) && ok;
+  }
+  if (audioHasVolume(address, unitId, channel))
+  {
+    ok = audioSetVolumeDbClamped(db, address, unitId, channel, timeoutMs) && ok;
+  }
+  return ok;
+}
+
+bool EspUsbHost::audioSetVolumePercent(uint8_t percent, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  if (percent > 100)
+  {
+    percent = 100;
+  }
+
+  if (percent == 0)
+  {
+    if (audioHasMute(address, unitId, channel))
+    {
+      return audioSetMute(true, address, unitId, channel, timeoutMs);
+    }
+    EspUsbHostAudioVolumeRange range;
+    if (!audioGetVolumeRange(range, address, unitId, channel, timeoutMs))
+    {
+      return false;
+    }
+    return audioSetVolume(range.min, address, unitId, channel, timeoutMs);
+  }
+
+  EspUsbHostAudioVolumeRange range;
+  if (!audioGetVolumeRange(range, address, unitId, channel, timeoutMs))
+  {
+    return false;
+  }
+
+  bool ok = true;
+  if (audioHasMute(address, unitId, channel))
+  {
+    ok = audioSetMute(false, address, unitId, channel, timeoutMs);
+  }
+
+  const float db = 20.0f * log10f(static_cast<float>(percent) / 100.0f);
+  const int16_t volume = audioClampVolumeRaw(audioDbToRaw(db), range);
+  return audioSetVolume(volume, address, unitId, channel, timeoutMs) && ok;
+}
+
+bool EspUsbHost::audioConfigureVolumePercent(uint8_t percent, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  return audioSetVolumePercent(percent, address, unitId, channel, timeoutMs);
 }
 
 bool EspUsbHost::mscCommand(DeviceState &device,
