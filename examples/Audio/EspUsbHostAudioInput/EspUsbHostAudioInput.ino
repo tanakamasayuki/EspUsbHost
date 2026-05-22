@@ -3,34 +3,17 @@
 
 EspUsbHost usb;
 
-static constexpr uint32_t PREFERRED_SAMPLE_RATE = 48000; // 0: use the first input stream rate
-static constexpr uint8_t PREFERRED_CHANNELS = 0;         // 0: use the first matching input stream
-static constexpr uint8_t PREFERRED_BITS_PER_SAMPLE = 0;  // 0: use the first matching input stream
-
 static EspUsbHostAudioStreamInfo selectedStream;
+static uint32_t selectedSampleRate = 0;
 static bool audioInputReady = false;
 static uint32_t audioBytes = 0;
 static uint32_t lastPrintMs = 0;
 
-static bool matchesPreferredInput(const EspUsbHostAudioStreamInfo &stream)
+static bool isSupportedInputStream(uint32_t sampleRate, uint8_t, uint8_t)
 {
-  if (!stream.input)
-  {
-    return false;
-  }
-  if (PREFERRED_SAMPLE_RATE != 0 && !espUsbHostAudioStreamSupportsSampleRate(stream, PREFERRED_SAMPLE_RATE))
-  {
-    return false;
-  }
-  if (PREFERRED_CHANNELS != 0 && stream.channels != PREFERRED_CHANNELS)
-  {
-    return false;
-  }
-  if (PREFERRED_BITS_PER_SAMPLE != 0 && stream.bitsPerSample != PREFERRED_BITS_PER_SAMPLE)
-  {
-    return false;
-  }
-  return true;
+  // en: Change this function to choose which USB Audio IN formats this sketch accepts.
+  // ja: 受け入れるUSB Audio INフォーマットを変える場合は、この関数を変更します。
+  return sampleRate == 48000 || sampleRate == 44100;
 }
 
 static bool selectAudioInput(uint8_t address)
@@ -38,23 +21,22 @@ static bool selectAudioInput(uint8_t address)
   EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
   const size_t count = usb.getAudioStreams(address, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
 
-  // en: Print every parsed USB Audio stream, then choose the first stream matching the constants above.
-  // ja: 解析済みのUSB Audioストリームをすべて表示し、上の定数に合う最初のストリームを選びます。
+  // en: Print every parsed USB Audio stream, then select the best supported input stream.
+  // ja: 解析済みのUSB Audioストリームをすべて表示し、対応する最適な入力ストリームを選びます。
   for (size_t i = 0; i < count; i++)
   {
     espUsbHostPrint(streams[i]);
-    if (!audioInputReady && matchesPreferredInput(streams[i]))
-    {
-      selectedStream = streams[i];
-      selectedStream.sampleRate = espUsbHostAudioStreamPreferredSampleRate(streams[i], PREFERRED_SAMPLE_RATE);
-      if (selectedStream.sampleRate == 0)
-      {
-        continue;
-      }
-      audioInputReady = usb.audioInputStart(selectedStream, selectedStream.sampleRate, address);
-    }
   }
 
+  const EspUsbHostAudioStreamSelection selected = espUsbHostSelectAudioInputStream(streams, count, isSupportedInputStream);
+  if (!selected)
+  {
+    return false;
+  }
+
+  selectedStream = streams[selected.index];
+  selectedSampleRate = selected.sampleRate;
+  audioInputReady = usb.audioInputStart(selectedStream, selected.sampleRate, address);
   if (!audioInputReady)
   {
     return false;
@@ -67,7 +49,7 @@ static bool selectAudioInput(uint8_t address)
                 selectedStream.channels,
                 selectedStream.bytesPerSample,
                 selectedStream.bitsPerSample,
-                static_cast<unsigned long>(selectedStream.sampleRate));
+                static_cast<unsigned long>(selected.sampleRate));
   return true;
 }
 
@@ -92,9 +74,10 @@ void setup()
                              Serial.print("disconnected: ");
                              espUsbHostPrint(info);
                              if (info.address == selectedStream.address)
-                             {
+                              {
                                audioInputReady = false;
                                selectedStream = EspUsbHostAudioStreamInfo();
+                               selectedSampleRate = 0;
                              } });
 
   usb.onAudioData([](const EspUsbHostAudioData &audio)
@@ -116,7 +99,7 @@ void setup()
                                     audio.interfaceNumber,
                                     selectedStream.channels,
                                     selectedStream.bitsPerSample,
-                                    static_cast<unsigned long>(selectedStream.sampleRate),
+                                    static_cast<unsigned long>(selectedSampleRate),
                                     static_cast<unsigned long>(audioBytes),
                                     static_cast<unsigned>(audio.length));
                       audioBytes = 0;

@@ -9,13 +9,13 @@ PCMFlow audio;
 static constexpr uint32_t DEFAULT_SAMPLE_RATE = 48000;
 static constexpr size_t BUFFER_FRAMES = 2048;
 
-static bool isSupportedOutputStream(const EspUsbHostAudioStreamInfo &stream)
+static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
   // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
   // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
-  return stream.output &&
-         (stream.channels == 1 || stream.channels == 2) &&
-         (stream.bitsPerSample == 8 || stream.bitsPerSample == 16);
+  return (sampleRate == 48000 || sampleRate == 44100) &&
+         (channels == 1 || channels == 2) &&
+         (bitsPerSample == 8 || bitsPerSample == 16);
 }
 
 static uint8_t audioAddress = 0;
@@ -76,29 +76,24 @@ static bool chooseAudioOutputStream(uint8_t address)
   for (size_t i = 0; i < count; i++)
   {
     espUsbHostPrint(streams[i]);
-
-    if (!isSupportedOutputStream(streams[i]))
-    {
-      continue;
-    }
-
-    const uint32_t sampleRate = espUsbHostAudioStreamPreferredSampleRate(streams[i], DEFAULT_SAMPLE_RATE);
-    if (sampleRate == 0 || !espUsbHostAudioStreamSupportsSampleRate(streams[i], sampleRate))
-    {
-      continue;
-    }
-
-    outputFormat = {sampleRate, streams[i].channels, streams[i].bitsPerSample};
-    Serial.printf("selected PCMFlow output: %lu Hz, %u ch, %u-bit\n",
-                  static_cast<unsigned long>(outputFormat.sampleRate),
-                  outputFormat.channels,
-                  outputFormat.bitsPerSample);
-    // en: PCMFlow output format must match the selected USB stream before playback starts.
-    // ja: 再生開始前に、PCMFlowの出力形式を選択したUSBストリームに合わせます。
-    restartCurrentFile();
-    return usb.audioOutputStart(streams[i], outputFormat.sampleRate, address);
   }
-  return false;
+
+  const EspUsbHostAudioStreamSelection selected = espUsbHostSelectAudioOutputStream(streams, count, isSupportedOutputStream);
+  if (!selected)
+  {
+    return false;
+  }
+
+  const EspUsbHostAudioStreamInfo &stream = streams[selected.index];
+  outputFormat = {selected.sampleRate, stream.channels, stream.bitsPerSample};
+  Serial.printf("selected PCMFlow output: %lu Hz, %u ch, %u-bit\n",
+                static_cast<unsigned long>(outputFormat.sampleRate),
+                outputFormat.channels,
+                outputFormat.bitsPerSample);
+  // en: PCMFlow output format must match the selected USB stream before playback starts.
+  // ja: 再生開始前に、PCMFlowの出力形式を選択したUSBストリームに合わせます。
+  restartCurrentFile();
+  return usb.audioOutputStart(stream, selected.sampleRate, address);
 }
 
 static void fillAudioOutput(EspUsbHostAudioOutputRequest &request)
@@ -118,8 +113,6 @@ void setup()
   {
     Serial.println("no MP3 files found in assets");
   }
-
-  usb.setAudioSampleRate(DEFAULT_SAMPLE_RATE);
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {

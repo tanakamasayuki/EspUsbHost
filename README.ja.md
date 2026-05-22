@@ -380,13 +380,24 @@ bool espUsbHostAudioStreamMatchesPcm(const EspUsbHostAudioStreamInfo &stream,
                                      uint8_t bytesPerSample,
                                      uint8_t bitsPerSample,
                                      uint32_t sampleRate);
+using EspUsbHostAudioStreamFilter = bool (*)(uint32_t sampleRate,
+                                             uint8_t channels,
+                                             uint8_t bitsPerSample);
+EspUsbHostAudioStreamSelection espUsbHostSelectAudioInputStream(
+    const EspUsbHostAudioStreamInfo *streams,
+    size_t count,
+    EspUsbHostAudioStreamFilter filter = nullptr);
+EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
+    const EspUsbHostAudioStreamInfo *streams,
+    size_t count,
+    EspUsbHostAudioStreamFilter filter = nullptr);
 ```
 
 `onAudioData`はUSB Audio StreamingのIsochronous INエンドポイントから受信した生ペイロードを通知します。コールバックは`const EspUsbHostAudioData &audio`を受け取り、フィールドは`address`、`interfaceNumber`、`data`、`length`です。
 
 `onAudioOutputRequest`はUSB Audio OUTの推奨APIです。`audioOutputStart()`後、ライブラリがIsochronous OUT転送を駆動し、次のPCMフレームが必要なタイミングでコールバックを呼びます。`request.data`へ最大`request.frameCount`フレームのinterleaved PCMを書き込み、`request.writtenFrames`へ書き込んだフレーム数を設定します。不足分はライブラリが無音として送信し、underrunとしてカウントします。このコールバックはUSB client task上で呼ばれるため、短時間で戻り、ブロックしない処理にしてください。重いデコードはコールバック内で行わず、既存のPCMバッファからコピーする用途に向きます。
 
-`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostAudioStreamSupportsSampleRate`はその情報を使って指定サンプルレートに対応しているか判定し、`espUsbHostAudioStreamMatchesPcm`はチャンネル数、サンプルサイズ、ビット深度、サンプルレートをまとめて判定します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
+`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostSelectAudioInputStream`と`espUsbHostSelectAudioOutputStream`は、任意の`(sampleRate, channels, bitsPerSample)`フィルターを適用したあと、残った候補をスコアリングします。標準スコアでは48 kHz、次に44.1 kHz、16-bit PCM、可能ならstereoを優先します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
 
 ### USB Mass Storage
 
