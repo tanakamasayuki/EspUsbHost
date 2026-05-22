@@ -41,3 +41,17 @@
 - `device.address` — `setAddress()`に渡す現在のUSBアドレス
 - `CdcSerial.setAddress(address)` — ストリームラッパーを接続中の1デバイスへバインド
 - `CdcSerial.setAddress(0)` — デバイスがない間はストリームラッパーを未割り当てにする
+
+## シリアル出力例
+
+```
+EspUsbHost multi USB serial example start
+Connect one FTDI device and one CP210x device.
+Serial Monitor input is sent to both devices.
+connected: device: address=1 portId=0x01 vid=0403 pid=6001 class=0x00(Device) speed=full product="FT232R USB UART"
+FTDI assigned: portId=0x01 address=1 serial=
+connected: device: address=2 portId=0x02 vid=10c4 pid=ea60 class=0x00(Device) speed=full product="CP2102 USB to UART Bridge Controller"
+CP210x assigned: portId=0x02 address=2 serial=0001
+FTDI: hello from ftdi
+CP210x: hello from cp210x
+```

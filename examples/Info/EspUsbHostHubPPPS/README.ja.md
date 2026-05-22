@@ -40,3 +40,32 @@
 - `usb.getHubInfo(hubAddress, hub)` — Hub descriptorとデコード済みハブ機能を取得
 - `usb.getHubPortStatus(hubAddress, port, status, change)` — Hub port status/changeビットを取得
 - `usb.setHubPortPower(hubAddress, port, enable)` — Hub port電源をON/OFF
+
+## シリアル出力例
+
+```
+EspUsbHostHubPPPS start
+Connect a USB hub that supports per-port power switching.
+Commands:
+  r  refresh hub and port status
+  1-9  select port
+  o  power off selected port
+  n  power on selected port
+CONNECTED address=1 portId=0x01 hub=1 vid=05e3 pid=0608
+hub address=1 ports=4 ppps=1 ganged_power=0 no_power_switch=0
+  port 1: status=0x0100 change=0x0000 powered=1 connected=0 enabled=0
+  port 2: status=0x0303 change=0x0000 powered=1 connected=1 enabled=1
+  port 3: status=0x0100 change=0x0000 powered=1 connected=0 enabled=0
+  port 4: status=0x0100 change=0x0000 powered=1 connected=0 enabled=0
+```
+
+ポート2を`2`で選択し、`o`で電源をOFFにした場合：
+
+```
+selected port=2
+  port 2: status=0x0303 change=0x0000 powered=1 connected=1 enabled=1
+hub=1 port=2 power=off
+request: OK
+  port 2: status=0x0100 change=0x0001 powered=1 connected=0 enabled=0
+DISCONNECTED address=2 portId=0x02 vid=045e pid=07a5
+```

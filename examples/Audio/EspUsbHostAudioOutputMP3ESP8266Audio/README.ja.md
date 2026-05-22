@@ -1,5 +1,7 @@
 # EspUsbHostAudioOutputMP3ESP8266Audio
 
+> English: [README.md](README.md)
+
 [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio)で埋め込みMP3ファイルをデコードし、USBスピーカーなどのUSB Audio出力デバイスで順番に再生するサンプルです。
 
 ## ハードウェア
@@ -11,6 +13,14 @@
 
 - [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio)（Arduino Library Managerで入手可能、GPL-3.0 License）— MP3デコード
 
+## 動作内容
+
+- MP3ファイルを`assets_embed.h`でCの配列として埋め込み、順番に再生
+- `AudioGeneratorMP3`で各MP3をデコードし、`RingBufferOutput`経由でデコード済みPCMをリングバッファへ書き込む
+- `RingBufferOutput::ConsumeSample()`内の線形補間リサンプラーで、MP3のソースレートから48 kHzへ変換
+- `onAudioOutputRequest()`でバッファ済みPCMを`request.data`へコピーし、`request.writtenFrames`を設定
+- USB Audio OUTの送信タイミングはEspUsbHostに任せ、デコードは`loop()`で進める
+
 ## 注意
 
 - MP3ファイルは `assets_embed.h` でCの配列として埋め込まれており、順番に再生されます。MP3以外のファイルはスキップされます。
@@ -21,6 +31,22 @@
 - ESP8266AudioはMP3以外にも複数形式に対応する多機能ライブラリです。一方でGPL-3.0ライセンスのため、配布するプロジェクトで使う場合はライセンス条件を確認してください。
 - ESP8266Audioは出力機能も持っていますが、このサンプルではUSB Audio OUTをEspUsbHostが管理するため、ESP8266Audioは主にコーデック部分だけを利用します。そのためリングバッファやリサンプリングなどの接続コードが必要です。
 - 対応コーデックが多い分、PCMFlow版よりビルドに時間がかかることがあります。
+
+## 主要API
+
+- `usb.onAudioOutputRequest(callback)` — USB転送が次のPCMフレームを必要とするたびに呼ばれる
+  - `request.data` — インターリーブされたPCMサンプルを書き込むバッファ
+  - `request.frameCount` — 要求されたフレーム数
+  - `request.writtenFrames` — 実際に書き込んだフレーム数を設定する
+  - `request.channels` — 選択したストリームのチャンネル数
+- `usb.audioOutputReady(address)` — USB Audio OUT endpointが見つかっているときtrue
+- `usb.getAudioStreams(address, streams, maxStreams)` — 解析済みのAudio stream候補を返す
+- `espUsbHostSelectAudioOutputStream(streams, count, filter)` — 候補をスコアリングして最適なものを返す
+- `usb.audioOutputStart(stream, sampleRate, address)` — 選択した出力streamを開始する
+- `AudioFileSourcePROGMEM(data, size)` — 埋め込みMP3データをESP8266Audioのソースとしてラップ
+- `AudioGeneratorMP3` / `mp3gen->begin(src, output)` / `mp3gen->loop()` — MP3デコードを駆動。`mp3gen->loop()`を`loop()`から呼ぶ
+- `RingBufferOutput::SetRate(hz)` — デコーダがMP3ソースレートを通知するために呼ぶ。リサンプラーをリセット
+- `RingBufferOutput::ConsumeSample(sample)` — ソースレートから48 kHzへの線形補間リサンプラー。リングバッファへ書き込む
 
 ## コーデックライブラリの選び方
 
