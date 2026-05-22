@@ -1,5 +1,7 @@
 # EspUsbHostAudioOutputMP3ESP8266Audio
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Uses [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio) to decode embedded MP3 files and play them sequentially through a USB speaker or audio interface.
 
 ## Hardware
@@ -11,6 +13,14 @@ Uses [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio) to decode em
 
 - [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio) (available in Arduino Library Manager, GPL-3.0 License) — MP3 decoding
 
+## What it does
+
+- Embeds MP3 files as C arrays via `assets_embed.h` and plays them in order
+- Decodes each MP3 with `AudioGeneratorMP3` and feeds decoded PCM into a ring buffer via `RingBufferOutput`
+- Resamples from the MP3 source rate to 48 kHz with a linear interpolation resampler in `RingBufferOutput::ConsumeSample()`
+- In `onAudioOutputRequest()`, copies buffered PCM into `request.data` and sets `request.writtenFrames`
+- Lets EspUsbHost drive USB Audio OUT timing; decoding runs from `loop()`
+
 ## Notes
 
 - MP3 files are embedded as C arrays via `assets_embed.h` and played back in order. Non-MP3 files are skipped.
@@ -21,6 +31,22 @@ Uses [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio) to decode em
 - ESP8266Audio is a feature-rich library that supports multiple audio formats, not only MP3. It is GPL-3.0 licensed, so check the license terms before using it in a distributed project.
 - ESP8266Audio also includes output support, but this USB Audio sketch lets EspUsbHost manage USB Audio OUT. As a result, this example mainly uses the codec layer and needs extra buffering and resampling glue code.
 - Because ESP8266Audio supports many codecs, builds can take longer than the PCMFlow example.
+
+## Key APIs
+
+- `usb.onAudioOutputRequest(callback)` — fired each time the USB transfer needs the next PCM frames
+  - `request.data` — buffer to fill with interleaved PCM samples
+  - `request.frameCount` — number of frames requested
+  - `request.writtenFrames` — set this to the number of frames actually written
+  - `request.channels` — channel count of the selected stream
+- `usb.audioOutputReady(address)` — true when a USB Audio OUT endpoint was found
+- `usb.getAudioStreams(address, streams, maxStreams)` — return parsed audio stream candidates
+- `espUsbHostSelectAudioOutputStream(streams, count, filter)` — score candidates and return the best match
+- `usb.audioOutputStart(stream, sampleRate, address)` — start the selected output stream
+- `AudioFileSourcePROGMEM(data, size)` — wrap embedded MP3 data as an ESP8266Audio source
+- `AudioGeneratorMP3` / `mp3gen->begin(src, output)` / `mp3gen->loop()` — drive MP3 decoding; call `loop()` from `loop()`
+- `RingBufferOutput::SetRate(hz)` — called by the decoder to report the MP3 source rate; resets the resampler
+- `RingBufferOutput::ConsumeSample(sample)` — linear-interpolation resampler from source rate to 48 kHz; writes to the ring buffer
 
 ## Choosing a Codec Library
 

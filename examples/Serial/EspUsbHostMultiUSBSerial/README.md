@@ -41,3 +41,17 @@ Uses two independent USB serial devices at the same time. For clarity, this exam
 - `device.address` — current USB address passed to `setAddress()`
 - `CdcSerial.setAddress(address)` — bind a stream wrapper to one connected device
 - `CdcSerial.setAddress(0)` — leave a stream wrapper unassigned when no device is present
+
+## Expected Serial output
+
+```
+EspUsbHost multi USB serial example start
+Connect one FTDI device and one CP210x device.
+Serial Monitor input is sent to both devices.
+connected: device: address=1 portId=0x01 vid=0403 pid=6001 class=0x00(Device) speed=full product="FT232R USB UART"
+FTDI assigned: portId=0x01 address=1 serial=
+connected: device: address=2 portId=0x02 vid=10c4 pid=ea60 class=0x00(Device) speed=full product="CP2102 USB to UART Bridge Controller"
+CP210x assigned: portId=0x02 address=2 serial=0001
+FTDI: hello from ftdi
+CP210x: hello from cp210x
+```
