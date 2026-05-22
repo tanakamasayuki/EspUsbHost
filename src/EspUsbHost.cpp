@@ -13,8 +13,12 @@ static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
 static constexpr uint8_t USB_CLASS_MASS_STORAGE_VALUE = 0x08;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
 static constexpr uint8_t USB_CS_INTERFACE_DESC = 0x24;
+static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_CONTROL = 0x01;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
+static constexpr uint8_t USB_AUDIO_AC_FEATURE_UNIT = 0x06;
+static constexpr uint8_t USB_AUDIO_FEATURE_MUTE_CONTROL = 0x01;
+static constexpr uint8_t USB_AUDIO_FEATURE_VOLUME_CONTROL = 0x02;
 static constexpr uint8_t USB_MSC_SUBCLASS_SCSI = 0x06;
 static constexpr uint8_t USB_MSC_PROTOCOL_BULK_ONLY = 0x50;
 static constexpr uint32_t USB_MSC_CBW_SIGNATURE = 0x43425355;
@@ -129,6 +133,19 @@ static uint64_t readBe64(const uint8_t *data)
          (static_cast<uint64_t>(data[5]) << 16) |
          (static_cast<uint64_t>(data[6]) << 8) |
          static_cast<uint64_t>(data[7]);
+}
+
+static int16_t readLe16s(const uint8_t *data)
+{
+  return static_cast<int16_t>(static_cast<uint16_t>(data[0]) |
+                              (static_cast<uint16_t>(data[1]) << 8));
+}
+
+static void writeLe16(uint8_t *data, int16_t value)
+{
+  const uint16_t raw = static_cast<uint16_t>(value);
+  data[0] = raw & 0xff;
+  data[1] = (raw >> 8) & 0xff;
 }
 
 static void writeBe32(uint8_t *data, uint32_t value)
@@ -2135,6 +2152,140 @@ bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
   return true;
 }
 
+size_t EspUsbHost::getAudioFeatureUnits(uint8_t address, EspUsbHostAudioFeatureUnitInfo *units, size_t maxUnits) const
+{
+  const DeviceState *device = findAudioControlDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+  const size_t count = device->audioFeatureUnitCount < maxUnits ? device->audioFeatureUnitCount : maxUnits;
+  if (units)
+  {
+    for (size_t i = 0; i < count; i++)
+    {
+      units[i] = device->audioFeatureUnits[i];
+    }
+  }
+  return device->audioFeatureUnitCount;
+}
+
+bool EspUsbHost::audioHasMute(uint8_t address, uint8_t unitId, uint8_t channel) const
+{
+  const DeviceState *device = findAudioControlDevice(address);
+  return device && findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel);
+}
+
+bool EspUsbHost::audioHasVolume(uint8_t address, uint8_t unitId, uint8_t channel) const
+{
+  const DeviceState *device = findAudioControlDevice(address);
+  return device && findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel);
+}
+
+bool EspUsbHost::audioGetMute(bool &mute, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  uint8_t value = 0;
+  if (!audioFeatureControl(*device, 0x81, unit->unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel, &value, sizeof(value), true, timeoutMs))
+  {
+    return false;
+  }
+  mute = value != 0;
+  return true;
+}
+
+bool EspUsbHost::audioSetMute(bool mute, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  uint8_t value = mute ? 1 : 0;
+  return audioFeatureControl(*device, 0x01, unit->unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel, &value, sizeof(value), false, timeoutMs);
+}
+
+bool EspUsbHost::audioGetVolume(int16_t &volume, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  uint8_t value[2] = {};
+  if (!audioFeatureControl(*device, 0x81, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
+  {
+    return false;
+  }
+  volume = readLe16s(value);
+  return true;
+}
+
+bool EspUsbHost::audioSetVolume(int16_t volume, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  uint8_t value[2] = {};
+  writeLe16(value, volume);
+  return audioFeatureControl(*device, 0x01, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), false, timeoutMs);
+}
+
+bool EspUsbHost::audioGetVolumeRange(EspUsbHostAudioVolumeRange &range, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioFeatureUnit(*device, unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  uint8_t value[2] = {};
+  if (!audioFeatureControl(*device, 0x82, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
+  {
+    return false;
+  }
+  range.min = readLe16s(value);
+  if (!audioFeatureControl(*device, 0x83, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
+  {
+    return false;
+  }
+  range.max = readLe16s(value);
+  if (!audioFeatureControl(*device, 0x84, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
+  {
+    return false;
+  }
+  range.resolution = readLe16s(value);
+  return true;
+}
+
+bool EspUsbHost::audioGetVolumeDb(float &db, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  int16_t volume = 0;
+  if (!audioGetVolume(volume, address, unitId, channel, timeoutMs))
+  {
+    return false;
+  }
+  db = static_cast<float>(volume) / 256.0f;
+  return true;
+}
+
+bool EspUsbHost::audioSetVolumeDb(float db, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
+{
+  const float scaled = db * 256.0f;
+  const int16_t volume = static_cast<int16_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+  return audioSetVolume(volume, address, unitId, channel, timeoutMs);
+}
+
 bool EspUsbHost::mscCommand(DeviceState &device,
                             const uint8_t *command,
                             uint8_t commandLength,
@@ -2965,6 +3116,25 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
                ep.interval,
                ep.attributes);
   }
+  EspUsbHostAudioFeatureUnitInfo audioUnits[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS];
+  const size_t audioUnitCount = getAudioFeatureUnits(address, audioUnits, ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS);
+  for (size_t i = 0; i < audioUnitCount && i < ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS; i++)
+  {
+    const EspUsbHostAudioFeatureUnitInfo &unit = audioUnits[i];
+    out.printf("  Audio Feature Unit iface=%u unit=%u source=%u channels=%u control_size=%u master=0x%lx\n",
+               unit.interfaceNumber,
+               unit.unitId,
+               unit.sourceId,
+               unit.channelCount,
+               unit.controlSize,
+               static_cast<unsigned long>(unit.masterControls));
+    for (uint8_t channel = 0; channel < unit.channelCount; channel++)
+    {
+      out.printf("    Channel %u controls=0x%lx\n",
+                 channel + 1,
+                 static_cast<unsigned long>(unit.channelControls[channel]));
+    }
+  }
   if (includeHubInfo && device.isHub)
   {
     printHubInfo(*this, device.address, true, out);
@@ -3303,7 +3473,9 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   parseConfigDescriptor(*device, configDesc);
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
   const bool hasCdc = device->hasCdcControlInterface || device->hasCdcDataInterface;
-  const bool hasAudio = device->hasAudioInterface || device->hasAudioOutEndpoint;
+  const bool hasAudio = device->hasAudioInterface ||
+                        device->hasAudioOutEndpoint ||
+                        device->audioFeatureUnitCount > 0;
   const bool hasMsc = device->hasMscInterface && device->hasMscInEndpoint && device->hasMscOutEndpoint;
   device->info.supported = isHub || hasHid || hasCdc || hasAudio || hasMsc || device->vendorSerialSupported;
   device->info.isHub = isHub;
@@ -3587,6 +3759,9 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         break;
       }
     }
+    const bool isAudioControlInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+                                         currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_CONTROL &&
+                                         !interfaceAlreadyClaimed;
     const bool isAudioInterface = currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
                                   currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
                                   intf->bNumEndpoints > 0 &&
@@ -3594,6 +3769,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE ||
         currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
+        isAudioControlInterface ||
         isAudioInterface ||
         isMidiInterface ||
         isMscInterface ||
@@ -3650,6 +3826,11 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
           device->mscInterfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "USB MSC interface ready: iface=%u", device->mscInterfaceNumber);
         }
+        else if (isAudioControlInterface)
+        {
+          device->audioControlInterfaceNumber = currentInterfaceNumber_;
+          ESP_LOGI(TAG, "USB Audio control interface ready: iface=%u", device->audioControlInterfaceNumber);
+        }
         else if (isAudioInterface)
         {
           device->hasAudioInterface = true;
@@ -3670,6 +3851,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
 
   case USB_CS_INTERFACE_DESC:
   {
+    if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+        currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_CONTROL)
+    {
+      parseAudioControlDescriptor(*device, data);
+      break;
+    }
     if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
         currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
         data[0] >= 8 &&
@@ -4048,6 +4235,83 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
   default:
     break;
   }
+}
+
+void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t *data)
+{
+  if (!data || data[0] < 7 || data[2] != USB_AUDIO_AC_FEATURE_UNIT)
+  {
+    return;
+  }
+
+  const uint8_t length = data[0];
+  const uint8_t unitId = data[3];
+  const uint8_t sourceId = data[4];
+  const uint8_t controlSize = data[5];
+  if (unitId == 0 || controlSize == 0 || controlSize > 4)
+  {
+    return;
+  }
+
+  const uint8_t controlBytes = length - 7;
+  if (controlBytes < controlSize)
+  {
+    return;
+  }
+  const uint8_t descriptorChannelCount = (controlBytes / controlSize) - 1;
+
+  EspUsbHostAudioFeatureUnitInfo *unit = nullptr;
+  for (EspUsbHostAudioFeatureUnitInfo &candidate : device.audioFeatureUnits)
+  {
+    if (candidate.unitId == unitId)
+    {
+      unit = &candidate;
+      break;
+    }
+  }
+  if (!unit)
+  {
+    if (device.audioFeatureUnitCount >= ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS)
+    {
+      ESP_LOGD(TAG, "USB Audio Feature Unit ignored, no slots: unit=%u", unitId);
+      return;
+    }
+    unit = &device.audioFeatureUnits[device.audioFeatureUnitCount++];
+  }
+
+  *unit = EspUsbHostAudioFeatureUnitInfo();
+  unit->address = device.info.address;
+  unit->interfaceNumber = currentInterfaceNumber_;
+  unit->unitId = unitId;
+  unit->sourceId = sourceId;
+  unit->controlSize = controlSize;
+  unit->channelCount = descriptorChannelCount < ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS
+                         ? descriptorChannelCount
+                         : ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS;
+
+  auto readControls = [&](uint8_t controlIndex) -> uint32_t
+  {
+    uint32_t controls = 0;
+    const uint8_t *controlData = &data[6 + controlIndex * controlSize];
+    for (uint8_t i = 0; i < controlSize; i++)
+    {
+      controls |= static_cast<uint32_t>(controlData[i]) << (8 * i);
+    }
+    return controls;
+  };
+
+  unit->masterControls = readControls(0);
+  for (uint8_t channel = 0; channel < unit->channelCount; channel++)
+  {
+    unit->channelControls[channel] = readControls(channel + 1);
+  }
+
+  ESP_LOGI(TAG, "USB Audio Feature Unit: iface=%u unit=%u source=%u channels=%u master=0x%lx",
+           unit->interfaceNumber,
+           unit->unitId,
+           unit->sourceId,
+           unit->channelCount,
+           static_cast<unsigned long>(unit->masterControls));
 }
 
 void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input)
@@ -5338,6 +5602,58 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioDevice(uint8_t address) cons
   return nullptr;
 }
 
+EspUsbHost::DeviceState *EspUsbHost::findAudioControlDevice(uint8_t address)
+{
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findAudioControlDevice(address));
+}
+
+const EspUsbHost::DeviceState *EspUsbHost::findAudioControlDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || device.audioControlInterfaceNumber == 0xff || device.audioFeatureUnitCount == 0)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
+const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioFeatureUnit(const DeviceState &device,
+                                                                       uint8_t unitId,
+                                                                       uint8_t controlSelector,
+                                                                       uint8_t channel) const
+{
+  if (channel > ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS)
+  {
+    return nullptr;
+  }
+
+  for (uint8_t i = 0; i < device.audioFeatureUnitCount; i++)
+  {
+    const EspUsbHostAudioFeatureUnitInfo &unit = device.audioFeatureUnits[i];
+    if (unitId != 0 && unit.unitId != unitId)
+    {
+      continue;
+    }
+    if (channel > unit.channelCount)
+    {
+      continue;
+    }
+    const uint32_t controls = channel == 0 ? unit.masterControls : unit.channelControls[channel - 1];
+    if ((controls & (1UL << (controlSelector - 1))) == 0)
+    {
+      continue;
+    }
+    return &unit;
+  }
+  return nullptr;
+}
+
 EspUsbHost::DeviceState *EspUsbHost::findMscDevice(uint8_t address)
 {
   return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findMscDevice(address));
@@ -6070,6 +6386,107 @@ bool EspUsbHost::submitAudioSamplingFrequency(DeviceState &device, uint8_t endpo
            endpointAddress,
            static_cast<unsigned long>(sampleRate));
   return true;
+}
+
+bool EspUsbHost::audioFeatureControl(DeviceState &device,
+                                     uint8_t request,
+                                     uint8_t unitId,
+                                     uint8_t controlSelector,
+                                     uint8_t channel,
+                                     uint8_t *data,
+                                     size_t length,
+                                     bool dataIn,
+                                     uint32_t timeoutMs)
+{
+  if (!clientHandle_ || !device.handle || !data || length == 0 || device.audioControlInterfaceNumber == 0xff)
+  {
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "USB Audio control APIs cannot run from USB client task");
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + length, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(Audio feature control) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = dataIn ? 0xa1 : 0x21;
+  setup->bRequest = request;
+  setup->wValue = (static_cast<uint16_t>(controlSelector) << 8) | channel;
+  setup->wIndex = (static_cast<uint16_t>(unitId) << 8) | device.audioControlInterfaceNumber;
+  setup->wLength = length;
+  if (!dataIn)
+  {
+    memcpy(transfer->data_buffer + USB_SETUP_PACKET_SIZE, data, length);
+  }
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + length;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Audio feature unit=%u control=%u) failed: %s",
+             unitId,
+             controlSelector,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "USB Audio control timeout unit=%u control=%u", unitId, controlSelector);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+
+  const bool ok = context.status == USB_TRANSFER_STATUS_COMPLETED &&
+                  (!dataIn || context.actualLength >= USB_SETUP_PACKET_SIZE + length);
+  if (ok && dataIn)
+  {
+    memcpy(data, transfer->data_buffer + USB_SETUP_PACKET_SIZE, length);
+  }
+  if (!ok)
+  {
+    ESP_LOGW(TAG, "USB Audio control failed unit=%u control=%u status=%d actual=%u",
+             unitId,
+             controlSelector,
+             context.status,
+             static_cast<unsigned>(context.actualLength));
+    setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  return ok;
 }
 
 bool EspUsbHost::submitVendorSerialControl(uint8_t requestType,

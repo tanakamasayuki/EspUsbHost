@@ -369,6 +369,31 @@ bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams,
                        size_t maxStreams) const;
+size_t getAudioFeatureUnits(uint8_t address,
+                            EspUsbHostAudioFeatureUnitInfo *units,
+                            size_t maxUnits) const;
+bool audioHasMute(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint8_t unitId = 0,
+                  uint8_t channel = 0) const;
+bool audioHasVolume(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint8_t unitId = 0,
+                    uint8_t channel = 0) const;
+bool audioGetMute(bool &mute, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint8_t unitId = 0, uint8_t channel = 0);
+bool audioSetMute(bool mute, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint8_t unitId = 0, uint8_t channel = 0);
+bool audioGetVolume(int16_t &volume, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint8_t unitId = 0, uint8_t channel = 0);
+bool audioSetVolume(int16_t volume, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint8_t unitId = 0, uint8_t channel = 0);
+bool audioGetVolumeRange(EspUsbHostAudioVolumeRange &range,
+                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                         uint8_t unitId = 0,
+                         uint8_t channel = 0);
+bool audioGetVolumeDb(float &db, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t unitId = 0, uint8_t channel = 0);
+bool audioSetVolumeDb(float db, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t unitId = 0, uint8_t channel = 0);
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream,
                      Print &out = Serial);
 bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream,
@@ -398,6 +423,8 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 `onAudioOutputRequest`はUSB Audio OUTの推奨APIです。`audioOutputStart()`後、ライブラリがIsochronous OUT転送を駆動し、次のPCMフレームが必要なタイミングでコールバックを呼びます。`request.data`へ最大`request.frameCount`フレームのinterleaved PCMを書き込み、`request.writtenFrames`へ書き込んだフレーム数を設定します。不足分はライブラリが無音として送信し、underrunとしてカウントします。このコールバックはUSB client task上で呼ばれるため、短時間で戻り、ブロックしない処理にしてください。重いデコードはコールバック内で行わず、既存のPCMバッファからコピーする用途に向きます。
 
 `getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostSelectAudioInputStream`と`espUsbHostSelectAudioOutputStream`は、任意の`(sampleRate, channels, bitsPerSample)`フィルターを適用したあと、残った候補をスコアリングします。標準スコアでは48 kHz、次に44.1 kHz、16-bit PCM、可能ならstereoを優先します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
+
+`getAudioFeatureUnits`は解析済みのUAC1 Audio Control Feature Unitを返します。`audioGetMute`、`audioSetMute`、`audioGetVolume`、`audioSetVolume`、dB/range系ヘルパーはUAC1のFeature Unit class-specific requestを使います。`unitId=0`は指定したcontrolを持つ最初のFeature Unitを選びます。`channel=0`はmaster、`channel=1`以降はチャンネル別controlです。raw volume値はsigned 1/256 dB単位です。
 
 ### USB Mass Storage
 
