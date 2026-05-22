@@ -12,6 +12,26 @@ static uint8_t connectedCount = 0;
 static bool assigned = false;
 static bool tested = false;
 
+static void assignSerialDevice(const EspUsbHostDeviceInfo &device)
+{
+    if (assigned || device.isHub || !usb.serialReady(device.address))
+    {
+        Serial.printf("Ignoring non-serial device: address=%u vid=%04x\n", device.address, device.vid);
+        return;
+    }
+
+    connectedAddresses[connectedCount++] = device.address;
+    Serial.printf("Serial device %u connected: address=%u vid=%04x\n",
+                  (unsigned)connectedCount, device.address, device.vid);
+    if (connectedCount == 2)
+    {
+        CdcSerial1.setAddress(connectedAddresses[0]);
+        CdcSerial2.setAddress(connectedAddresses[1]);
+        assigned = true;
+        Serial.println("Both devices assigned");
+    }
+}
+
 static bool loopbackTest(EspUsbHostCdcSerial &serial, uint8_t idx)
 {
     while (serial.available())
@@ -51,21 +71,7 @@ void setup()
     Serial.begin(115200);
     delay(5000);
 
-    usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
-                          {
-        if (connectedCount < 2)
-        {
-            connectedAddresses[connectedCount++] = device.address;
-            Serial.printf("Device %u connected: address=%u vid=%04x\n",
-                          (unsigned)connectedCount, device.address, device.vid);
-            if (connectedCount == 2)
-            {
-                CdcSerial1.setAddress(connectedAddresses[0]);
-                CdcSerial2.setAddress(connectedAddresses[1]);
-                assigned = true;
-                Serial.println("Both devices assigned");
-            }
-        } });
+    usb.onDeviceConnected(assignSerialDevice);
 
     CdcSerial1.begin(115200);
     CdcSerial2.begin(115200);
