@@ -8,7 +8,7 @@ PCMFlow audio;
 
 static constexpr uint32_t DEFAULT_SAMPLE_RATE = 48000;
 static constexpr size_t BUFFER_FRAMES = 2048;
-static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 0};
+static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 10, 0};
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
@@ -23,22 +23,39 @@ static uint8_t audioAddress = 0;
 static size_t fileIndex = 0;
 static size_t volumeStepIndex = 0;
 static bool playbackFinished = false;
+static bool hardwareVolumeChecked = false;
+static bool hardwareVolumeSupported = false;
 static PCMFormat outputFormat = {DEFAULT_SAMPLE_RATE, 2, 16};
+
+static float currentOutputGain()
+{
+  return hardwareVolumeSupported ? 1.0f : static_cast<float>(USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]) / 100.0f;
+}
 
 static void configureAudioOutputVolume(uint8_t address)
 {
   const uint8_t percent = USB_OUTPUT_VOLUME_STEPS[volumeStepIndex];
-  if (percent == 0 && !usb.audioHasMute(address))
+  if (hardwareVolumeChecked && !hardwareVolumeSupported)
   {
-    Serial.println("audio hardware mute unsupported; using minimum volume");
+    audio.setGain(currentOutputGain());
+    Serial.printf("PCMFlow gain: %.2f\n", currentOutputGain());
+    return;
   }
+
   if (usb.audioConfigureVolumePercent(percent, address))
   {
+    hardwareVolumeChecked = true;
+    hardwareVolumeSupported = true;
+    audio.setGain(1.0f);
     Serial.printf("audio hardware volume: %u%%\n", percent);
   }
   else
   {
+    hardwareVolumeChecked = true;
+    hardwareVolumeSupported = false;
+    audio.setGain(currentOutputGain());
     Serial.println("audio hardware volume unsupported");
+    Serial.printf("PCMFlow gain: %.2f\n", currentOutputGain());
   }
 }
 
@@ -79,7 +96,7 @@ static bool openNextFile()
 
     audio.setOutputFormat(outputFormat);
     audio.setBufferFrames(BUFFER_FRAMES);
-    audio.setGain(0.8f);
+    audio.setGain(currentOutputGain());
     if (audio.open(assets_file_data[index], assets_file_sizes[index], PCMFlow::CodecKind::Mp3))
     {
       Serial.printf("playing: %s (%u bytes)\n", name, static_cast<unsigned>(assets_file_sizes[index]));
@@ -182,6 +199,8 @@ void setup()
                              if (info.address == audioAddress)
                              {
                                audioAddress = 0;
+                               hardwareVolumeChecked = false;
+                               hardwareVolumeSupported = false;
                              } });
 
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
