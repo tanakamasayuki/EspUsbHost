@@ -1130,6 +1130,9 @@ private:
                                                              uint8_t unitId,
                                                              uint8_t controlSelector,
                                                              uint8_t channel) const;
+  const EspUsbHostAudioFeatureUnitInfo *findAudioPlaybackFeatureUnit(const DeviceState &device,
+                                                                     uint8_t unitId,
+                                                                     uint8_t channel) const;
   DeviceState *findMscDevice(uint8_t address);
   const DeviceState *findMscDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);

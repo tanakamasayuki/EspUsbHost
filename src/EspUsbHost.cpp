@@ -2330,6 +2330,14 @@ bool EspUsbHost::audioSetVolumeDbClamped(float db, uint8_t address, uint8_t unit
 
 bool EspUsbHost::audioConfigureVolume(float db, bool mute, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
 {
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioPlaybackFeatureUnit(*device, unitId, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  unitId = unit->unitId;
+
   bool ok = true;
   if (audioHasMute(address, unitId, channel))
   {
@@ -2344,6 +2352,14 @@ bool EspUsbHost::audioConfigureVolume(float db, bool mute, uint8_t address, uint
 
 bool EspUsbHost::audioSetVolumePercent(uint8_t percent, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
 {
+  DeviceState *device = findAudioControlDevice(address);
+  const EspUsbHostAudioFeatureUnitInfo *unit = device ? findAudioPlaybackFeatureUnit(*device, unitId, channel) : nullptr;
+  if (!unit)
+  {
+    return false;
+  }
+  unitId = unit->unitId;
+
   if (percent > 100)
   {
     percent = 100;
@@ -5751,6 +5767,57 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioFeatureUnit(const Dev
     return &unit;
   }
   return nullptr;
+}
+
+const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioPlaybackFeatureUnit(const DeviceState &device,
+                                                                               uint8_t unitId,
+                                                                               uint8_t channel) const
+{
+  if (channel > ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS)
+  {
+    return nullptr;
+  }
+
+  if (unitId != 0)
+  {
+    for (uint8_t i = 0; i < device.audioFeatureUnitCount; i++)
+    {
+      const EspUsbHostAudioFeatureUnitInfo &unit = device.audioFeatureUnits[i];
+      if (unit.unitId == unitId && channel <= unit.channelCount)
+      {
+        return &unit;
+      }
+    }
+    return nullptr;
+  }
+
+  const EspUsbHostAudioFeatureUnitInfo *muteOnlyUnit = nullptr;
+  const EspUsbHostAudioFeatureUnitInfo *volumeOnlyUnit = nullptr;
+  for (uint8_t i = 0; i < device.audioFeatureUnitCount; i++)
+  {
+    const EspUsbHostAudioFeatureUnitInfo &unit = device.audioFeatureUnits[i];
+    if (channel > unit.channelCount)
+    {
+      continue;
+    }
+    const uint32_t controls = channel == 0 ? unit.masterControls : unit.channelControls[channel - 1];
+    const bool hasMute = (controls & (1UL << (USB_AUDIO_FEATURE_MUTE_CONTROL - 1))) != 0;
+    const bool hasVolume = (controls & (1UL << (USB_AUDIO_FEATURE_VOLUME_CONTROL - 1))) != 0;
+    if (hasMute && hasVolume)
+    {
+      return &unit;
+    }
+    if (hasMute && !muteOnlyUnit)
+    {
+      muteOnlyUnit = &unit;
+    }
+    if (hasVolume && !volumeOnlyUnit)
+    {
+      volumeOnlyUnit = &unit;
+    }
+  }
+
+  return muteOnlyUnit ? muteOnlyUnit : volumeOnlyUnit;
 }
 
 EspUsbHost::DeviceState *EspUsbHost::findMscDevice(uint8_t address)
