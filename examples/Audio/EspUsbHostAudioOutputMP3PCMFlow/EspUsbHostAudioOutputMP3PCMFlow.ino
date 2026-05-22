@@ -106,7 +106,7 @@ static void fillAudioOutput(EspUsbHostAudioOutputRequest &request)
 void setup()
 {
   Serial.begin(115200);
-  delay(500);
+  delay(5000);
   Serial.println("EspUsbHost Audio Output MP3 PCMFlow example start");
 
   if (!openNextFile())

@@ -56,7 +56,7 @@ static bool selectAudioInput(uint8_t address)
 void setup()
 {
   Serial.begin(115200);
-  delay(500);
+  delay(5000);
   Serial.println("EspUsbHost Audio Input example start");
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
