@@ -145,6 +145,7 @@ void loop() {
 |--------|-------------|
 | [EspUsbHostAudioInput](examples/Audio/EspUsbHostAudioInput/) | Receive USB Audio isochronous IN payloads |
 | [EspUsbHostAudioOutputTone](examples/Audio/EspUsbHostAudioOutputTone/) | Generate a simple tone and send it to USB Audio OUT |
+| [EspUsbHostAudioOutputHardwareVolume](examples/Audio/EspUsbHostAudioOutputHardwareVolume/) | Check USB Audio Feature Unit mute and hardware volume support |
 | [EspUsbHostAudioOutputMP3PCMFlow](examples/Audio/EspUsbHostAudioOutputMP3PCMFlow/) | Decode embedded MP3 assets with PCMFlow and play them to USB Audio OUT |
 | [EspUsbHostAudioOutputMP3ESP8266Audio](examples/Audio/EspUsbHostAudioOutputMP3ESP8266Audio/) | Decode embedded MP3 assets with ESP8266Audio and play them to USB Audio OUT |
 

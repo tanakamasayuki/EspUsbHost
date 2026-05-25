@@ -18,6 +18,7 @@
 - MP3ファイルを`assets_embed.h`でCの配列として埋め込み、順番に再生
 - `AudioGeneratorMP3`で各MP3をデコードし、`RingBufferOutput`経由でデコード済みPCMをリングバッファへ書き込む
 - `RingBufferOutput::ConsumeSample()`内の線形補間リサンプラーで、MP3のソースレートから48 kHzへ変換
+- リングバッファへ書き込むときに80%固定のソフトウェアゲインを適用
 - `onAudioOutputRequest()`でバッファ済みPCMを`request.data`へコピーし、`request.writtenFrames`を設定
 - USB Audio OUTの送信タイミングはEspUsbHostに任せ、デコードは`loop()`で進める
 
@@ -25,9 +26,10 @@
 
 - MP3ファイルは `assets_embed.h` でCの配列として埋め込まれており、順番に再生されます。MP3以外のファイルはスキップされます。
 - デコーダが `SetRate()` でMP3のサンプルレートを通知します。線形補間リサンプラーによってUSB出力レート（48 kHz）に変換されます。
-- USB出力は48 kHz・16-bit ステレオPCMです。接続するUSBデバイスがこのフォーマットに対応している必要があります。
+- USB出力は48 kHz・16-bit ステレオPCMです。`espUsbHostSelectAudioOutputStream()`はカスタムフィルターなしで呼び出し、ライブラリ側が最適なOUT streamを選択します。
 - `onAudioOutputRequest()`で要求されたフレーム数をリングバッファから取り出し、送信タイミングはライブラリに任せます。
 - 全ファイルを1周再生したら停止します。
+- ここではUSBデバイス側のハードウェアボリューム制御は使いません。Feature Unitのボリューム制御は`EspUsbHostAudioOutputHardwareVolume`を参照してください。
 - ESP8266AudioはMP3以外にも複数形式に対応する多機能ライブラリです。一方でGPL-3.0ライセンスのため、配布するプロジェクトで使う場合はライセンス条件を確認してください。
 - ESP8266Audioは出力機能も持っていますが、このサンプルではUSB Audio OUTをEspUsbHostが管理するため、ESP8266Audioは主にコーデック部分だけを利用します。そのためリングバッファやリサンプリングなどの接続コードが必要です。
 - 対応コーデックが多い分、PCMFlow版よりビルドに時間がかかることがあります。
@@ -41,7 +43,7 @@
   - `request.channels` — 選択したストリームのチャンネル数
 - `usb.audioOutputReady(address)` — USB Audio OUT endpointが見つかっているときtrue
 - `usb.getAudioStreams(address, streams, maxStreams)` — 解析済みのAudio stream候補を返す
-- `espUsbHostSelectAudioOutputStream(streams, count, filter)` — 候補をスコアリングして最適なものを返す
+- `espUsbHostSelectAudioOutputStream(streams, count)` — 候補をスコアリングして最適なものを返す
 - `usb.audioOutputStart(stream, sampleRate, address)` — 選択した出力streamを開始する
 - `AudioFileSourcePROGMEM(data, size)` — 埋め込みMP3データをESP8266Audioのソースとしてラップ
 - `AudioGeneratorMP3` / `mp3gen->begin(src, output)` / `mp3gen->loop()` — MP3デコードを駆動。`mp3gen->loop()`を`loop()`から呼ぶ
