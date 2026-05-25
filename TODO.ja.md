@@ -1,7 +1,27 @@
-# USB Serial
+# チャンネル数チェック
 
-マニュアルテストをすべて再実行
-CH9102の実機を確保
+(1)現状把握APIを追加する
+claim済みinterfaceの bNumEndpoints 合計を返すAPI
+ライブラリが実際にtransferを張っているendpoint数を返すAPI
+claim成功/失敗時のログに推定カウントを出す
+ここでは制御ロジックを入れない
+
+(2)実験してカウントの正確性を確認する
+Hubのみ、HID、CDC、MSC、MIDI、Audioなどを順に追加
+推定カウントとESP-IDFの失敗ログを比較
+8 に近いところで失敗するのか、もっと早いのかを見る
+
+(3)どのタイミングで制御すべきか検討する
+interface_claim 前で止めるべきか
+device単位で除外すべきか
+endpoint単位の抑制に意味があるか
+Audioのように遅延claimした方がよいものがあるか確認する
+
+(4)制御用コールバックを追加する
+設定フラグは増やさない
+関連コールバック未登録なら自動で開かない方向にする
+必要なら onBeforeDeviceUse() / onBeforeInterfaceClaim() を追加する
+endpoint単位 callback は、実験結果を見て必要なら追加
 
 # USB Audio
 
