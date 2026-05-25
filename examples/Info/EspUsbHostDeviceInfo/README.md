@@ -14,7 +14,7 @@ Prints detailed USB device information for every connected device, including uns
 
 - Prints full descriptor info automatically when a device connects
 - Prints disconnect notifications with address, VID, and PID
-- Prints all currently connected devices, hub status, and endpoint channel estimates every 5 seconds
+- Prints all currently connected devices, hub status, and endpoint channel estimates every 10 seconds
 - Shows unsupported devices with VID/PID and descriptors instead of silently hiding them
 - Shows USB hub descriptor fields and per-port status when hub information is available
 
@@ -67,7 +67,7 @@ Prints detailed USB device information for every connected device, including uns
 
 ```
 EspUsbHostDeviceInfo start
-Printing connected devices and endpoint channel estimates every 5 seconds.
+Printing connected devices and endpoint channel estimates every 10 seconds.
 CONNECTED address=1
 
 =========== USB Device ===========

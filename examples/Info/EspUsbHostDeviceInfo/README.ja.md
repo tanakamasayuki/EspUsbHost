@@ -14,7 +14,7 @@
 
 - デバイス接続時に自動でディスクリプタ情報を全表示
 - 切断時にアドレス・VID・PIDを表示
-- 5秒間隔で現在接続中の全デバイス情報、ハブ状態、endpoint channel推定値を再表示
+- 10秒間隔で現在接続中の全デバイス情報、ハブ状態、endpoint channel推定値を再表示
 - 未対応デバイスもVID/PIDやdescriptor情報を表示し、無反応にしない
 - USBハブのdescriptor、PPPS、ポート状態を表示
 
@@ -67,7 +67,7 @@
 
 ```
 EspUsbHostDeviceInfo start
-Printing connected devices and endpoint channel estimates every 5 seconds.
+Printing connected devices and endpoint channel estimates every 10 seconds.
 CONNECTED address=1
 
 =========== USB Device ===========

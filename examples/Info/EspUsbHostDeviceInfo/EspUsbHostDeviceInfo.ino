@@ -5,14 +5,14 @@ EspUsbHost usb;
 
 static uint32_t lastDeviceEventMs = 0;
 static uint32_t lastPrintMs = 0;
-static constexpr uint32_t PRINT_INTERVAL_MS = 5000;
+static constexpr uint32_t PRINT_INTERVAL_MS = 10000;
 
 void setup()
 {
   Serial.begin(115200);
   delay(500);
   Serial.println("EspUsbHostDeviceInfo start");
-  Serial.println("Printing connected devices and endpoint channel estimates every 5 seconds.");
+  Serial.println("Printing connected devices and endpoint channel estimates every 10 seconds.");
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
