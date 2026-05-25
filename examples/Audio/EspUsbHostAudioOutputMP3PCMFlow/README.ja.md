@@ -15,34 +15,34 @@
 - `audio.open(data, size, PCMFlow::CodecKind::Mp3)`で各MP3を開く
 - 接続されたUSB AudioデバイスからOUTストリームを選択
 - モノラルスピーカーならmonoなど、選択したUSB Audioフォーマットに合わせてPCMFlowを設定
+- ソフトウェアゲインを80%固定で使用
 - `onAudioOutputRequest()`で要求されたフレーム数を`audio.readFrames()`で取得
 - 送信タイミングはEspUsbHost側に任せる
 
 ## 注意
 
 - PCMFlow側でデコード/変換し、EspUsbHost側がUSB Audio OUTの送信タイミングを管理します。
-- このサンプルは、1chまたは2ch、8-bitまたは16-bit PCMとして報告されるUSB Audio OUTストリームに対応します。
+- `espUsbHostSelectAudioOutputStream()`はカスタムフィルターなしで呼び出し、ライブラリ側のスコアリングで48 kHz / 16-bit / stereoなどの一般的な形式を優先します。
 - 重要な連携点は`PCMFlow::readFrames(void *out, size_t frameCount)`です。
 - デコードは`audio.pump()`で`loop()`から進め、USBコールバック内ではデコード済みPCMフレームのコピーだけを行います。
+- ここではUSBデバイス側のハードウェアボリューム制御は使いません。Feature Unitのボリューム制御は`EspUsbHostAudioOutputHardwareVolume`を参照してください。
 - PCMFlowはMITライセンスの軽量なMP3デコード/PCM変換ライブラリです。MP3再生だけが目的なら、このサンプルを基本の選択肢として推奨します。
 
 ## 処理の流れ
 
 1. `setup()`で`usb.onDeviceConnected()`、`usb.onDeviceDisconnected()`、`usb.onAudioOutputRequest()`を登録します。
 2. `usb.begin()`でUSB Hostを開始します。
-3. `openNextFile()`で最初の埋め込みMP3を`audio.open()`で開きます。
-4. USB Audioデバイスが接続されると`onDeviceConnected()`が呼ばれます。
-5. `usb.audioOutputReady(info.address)`で、そのデバイスにUSB Audio OUT endpointが見つかっているか確認します。
-6. `usb.getAudioStreams()`で解析済みのAudio stream候補を取得し、`espUsbHostPrint()`で各候補を表示します。
-7. `isSupportedOutputStream()`で受け入れるOUT streamフォーマットを定義します。
-8. `espUsbHostSelectAudioOutputStream()`が対応候補をスコアリングし、最適なstreamとサンプリングレートを選びます。
-9. `audio.setOutputFormat(outputFormat)`でPCMFlowの出力形式を選択したUSBストリーム（サンプルレート、チャンネル数、ビット深度）に合わせます。
-10. `restartCurrentFile()`で、決定したフォーマットで現在のMP3を開き直します。
-11. `usb.audioOutputStart(stream, sampleRate, address)`を呼び、出力streamを開始します。
-12. USB Audio OUTの転送でPCMフレームが必要になると`onAudioOutputRequest()`が呼ばれます。
-13. `audio.readFrames(request.data, request.frameCount)`でデコード済みフレームをコピーし、書き込んだフレーム数を返します。
-14. スケッチはその数を`request.writtenFrames`に設定します。
-15. `loop()`は`audio.pump()`でデコードを進め、`audio.isEof()`がtrueになったら`openNextFile()`で次のファイルへ進みます。
+3. USB Audioデバイスが接続されると`onDeviceConnected()`が呼ばれます。
+4. `usb.audioOutputReady(info.address)`で、そのデバイスにUSB Audio OUT endpointが見つかっているか確認します。
+5. `usb.getAudioStreams()`で解析済みのAudio stream候補を取得し、`espUsbHostPrint()`で各候補を表示します。
+6. `espUsbHostSelectAudioOutputStream()`が候補をスコアリングし、最適なstreamとサンプリングレートを選びます。
+7. `audio.setOutputFormat(outputFormat)`でPCMFlowの出力形式を選択したUSBストリーム（サンプルレート、チャンネル数、ビット深度）に合わせます。
+8. `usb.audioOutputStart(stream, sampleRate, address)`を呼び、出力streamを開始します。
+9. `openNextFile()`で最初の埋め込みMP3を`audio.open()`で開きます。
+10. USB Audio OUTの転送でPCMフレームが必要になると`onAudioOutputRequest()`が呼ばれます。
+11. `audio.readFrames(request.data, request.frameCount)`でデコード済みフレームをコピーし、書き込んだフレーム数を返します。
+12. スケッチはその数を`request.writtenFrames`に設定します。
+13. `loop()`は`audio.pump()`でデコードを進め、`audio.isEof()`がtrueになったら`openNextFile()`で次のファイルへ進みます。
 
 ## 主要API
 
@@ -53,7 +53,7 @@
   - `request.channels` — 選択したストリームのチャンネル数
 - `usb.audioOutputReady(address)` — USB Audio OUT endpointが見つかっているときtrue
 - `usb.getAudioStreams(address, streams, maxStreams)` — 解析済みのAudio stream候補を返す
-- `espUsbHostSelectAudioOutputStream(streams, count, filter)` — 候補をスコアリングして最適なものを返す
+- `espUsbHostSelectAudioOutputStream(streams, count)` — 候補をスコアリングして最適なものを返す
 - `usb.audioOutputStart(stream, sampleRate, address)` — 選択した出力streamを開始する
 - `audio.open(data, size, PCMFlow::CodecKind::Mp3)` — 埋め込みMP3をデコード用に開く
 - `audio.setOutputFormat(format)` — 出力のサンプルレート・チャンネル数・ビット深度を設定

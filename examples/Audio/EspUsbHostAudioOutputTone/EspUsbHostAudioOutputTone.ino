@@ -6,9 +6,6 @@ EspUsbHost usb;
 static constexpr uint32_t TONE_HZ_LEFT = 440;
 static constexpr uint32_t TONE_HZ_RIGHT = 880;
 static constexpr int16_t VOLUME = 100; // 0-32767
-static constexpr float USB_OUTPUT_VOLUME_DB = -12.0f;
-static constexpr uint32_t AUDIO_FEATURE_MUTE_CONTROL = 1UL << 0;
-static constexpr uint32_t AUDIO_FEATURE_VOLUME_CONTROL = 1UL << 1;
 
 static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
 {
@@ -20,77 +17,6 @@ static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8
 }
 
 static uint8_t audioAddress = 0;
-
-static uint8_t selectAudioOutputFeatureUnit(const EspUsbHostAudioFeatureUnitInfo *units, size_t count)
-{
-  uint8_t volumeUnit = 0;
-  for (size_t i = 0; i < count && i < ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS; i++)
-  {
-    if (units[i].masterControls & AUDIO_FEATURE_MUTE_CONTROL)
-    {
-      return units[i].unitId;
-    }
-    if (volumeUnit == 0 && (units[i].masterControls & AUDIO_FEATURE_VOLUME_CONTROL))
-    {
-      volumeUnit = units[i].unitId;
-    }
-  }
-  return volumeUnit;
-}
-
-static void configureAudioOutputVolume(uint8_t address)
-{
-  EspUsbHostAudioFeatureUnitInfo units[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS];
-  const size_t count = usb.getAudioFeatureUnits(address, units, ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS);
-  for (size_t i = 0; i < count && i < ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS; i++)
-  {
-    Serial.printf("audio feature unit: unit=%u source=%u channels=%u master=0x%lx\n",
-                  units[i].unitId,
-                  units[i].sourceId,
-                  units[i].channelCount,
-                  static_cast<unsigned long>(units[i].masterControls));
-  }
-
-  const uint8_t unitId = selectAudioOutputFeatureUnit(units, count);
-  if (unitId == 0)
-  {
-    Serial.println("audio hardware volume unsupported");
-    return;
-  }
-
-  if (usb.audioHasMute(address, unitId))
-  {
-    Serial.printf("audio mute %s\n", usb.audioSetMute(false, address, unitId) ? "off" : "failed");
-  }
-
-  if (!usb.audioHasVolume(address, unitId))
-  {
-    Serial.println("audio hardware volume unsupported");
-    return;
-  }
-
-  EspUsbHostAudioVolumeRange range;
-  if (usb.audioGetVolumeRange(range, address, unitId))
-  {
-    Serial.printf("audio volume range: %.2f..%.2f dB step %.2f dB\n",
-                  range.min / 256.0f,
-                  range.max / 256.0f,
-                  range.resolution / 256.0f);
-  }
-
-  if (usb.audioSetVolumeDbClamped(USB_OUTPUT_VOLUME_DB, address, unitId))
-  {
-    float db = 0.0f;
-    if (usb.audioGetVolumeDb(db, address, unitId))
-    {
-      Serial.printf("audio hardware volume: %.2f dB\n", db);
-    }
-  }
-  else
-  {
-    Serial.println("audio hardware volume set failed");
-  }
-}
 
 static void fillTone(EspUsbHostAudioOutputRequest &request)
 {
@@ -149,7 +75,6 @@ void setup()
                               if (usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address))
                               {
                                 audioAddress = info.address;
-                                configureAudioOutputVolume(info.address);
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);

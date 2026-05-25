@@ -13,7 +13,7 @@ Generates simple stereo tones (different frequencies for left/right) and sends t
 - It prints detected USB Audio stream format information and only starts output when a compatible OUT stream is found.
 - It generates the number of frames requested by `onAudioOutputRequest()` and lets the library drive the USB transfer timing.
 - Adjust the conditions in `isSupportedOutputStream()` to match your device.
-- Some devices may require additional feature-unit or clock control support.
+- Hardware volume control is not used in this basic tone example. See `EspUsbHostAudioOutputHardwareVolume` for Feature Unit volume control.
 
 ## Sketch Settings
 
@@ -66,3 +66,7 @@ connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) sp
 audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1
 audio output ready: addr=1
 ```
+
+## See also
+
+- [EspUsbHostAudioOutputHardwareVolume](../EspUsbHostAudioOutputHardwareVolume/) — USB Audio Feature Unit mute/volume control

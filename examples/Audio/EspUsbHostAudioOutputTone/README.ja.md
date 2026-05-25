@@ -13,7 +13,7 @@
 - 検出したUSB Audioストリームのフォーマット情報を表示し、対応しているOUTストリームが見つかった場合だけ送信を開始します。
 - `onAudioOutputRequest()`で要求されたフレーム数だけPCMを生成し、送信タイミングはライブラリに任せます。
 - 使用するデバイスに合わせて `isSupportedOutputStream()` 内の条件を調整してください。
-- デバイスによってはFeature Unitやクロック制御の追加対応が必要になる場合があります。
+- この基本トーン出力サンプルではハードウェアボリューム制御は使いません。Feature Unitのボリューム制御は`EspUsbHostAudioOutputHardwareVolume`を参照してください。
 
 ## スケッチ先頭の設定
 
@@ -66,3 +66,7 @@ connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) sp
 audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1
 audio output ready: addr=1
 ```
+
+## 関連
+
+- [EspUsbHostAudioOutputHardwareVolume](../EspUsbHostAudioOutputHardwareVolume/) — USB Audio Feature Unitのmute/volume制御

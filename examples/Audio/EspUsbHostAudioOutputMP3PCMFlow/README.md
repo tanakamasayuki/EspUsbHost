@@ -15,34 +15,34 @@ Uses [PCMFlow](https://github.com/tanakamasayuki/PCMFlow) to decode embedded MP3
 - Opens each MP3 with `audio.open(data, size, PCMFlow::CodecKind::Mp3)`
 - Selects an OUT stream from the connected USB Audio device
 - Configures PCMFlow to the selected USB Audio format, such as mono for a mono speaker
+- Uses a fixed software gain of 80%
 - Reads the requested frame count with `audio.readFrames()` from `onAudioOutputRequest()`
 - Lets EspUsbHost drive the USB Audio OUT transfer timing
 
 ## Notes
 
 - PCMFlow decodes/converts the audio, and EspUsbHost manages USB Audio OUT timing.
-- This example supports USB Audio OUT streams that report 1 or 2 channels and 8-bit or 16-bit PCM.
+- `espUsbHostSelectAudioOutputStream()` is called without a custom filter, so the library scores the available streams and prefers common formats such as 48 kHz / 16-bit / stereo.
 - The important integration point is `PCMFlow::readFrames(void *out, size_t frameCount)`.
 - Decoding runs in `loop()` via `audio.pump()`; only already-decoded PCM frames are copied in the USB callback.
+- Hardware volume control is intentionally not used here. See `EspUsbHostAudioOutputHardwareVolume` for Feature Unit volume control.
 - PCMFlow is a lightweight MP3 decoding / PCM conversion library under the MIT license. If you only need MP3 playback, this is the recommended starting point.
 
 ## Flow
 
 1. `setup()` registers `usb.onDeviceConnected()`, `usb.onDeviceDisconnected()`, and `usb.onAudioOutputRequest()`.
 2. `usb.begin()` starts USB Host.
-3. `openNextFile()` opens the first embedded MP3 with `audio.open()`.
-4. When a USB Audio device is connected, `onDeviceConnected()` is called.
-5. `usb.audioOutputReady(info.address)` checks whether the device has a USB Audio OUT endpoint.
-6. `usb.getAudioStreams()` returns the parsed Audio stream candidates. Each candidate is printed with `espUsbHostPrint()`.
-7. `isSupportedOutputStream()` defines which OUT stream formats are accepted.
-8. `espUsbHostSelectAudioOutputStream()` scores candidates and picks the best stream and sample rate.
-9. `audio.setOutputFormat(outputFormat)` configures PCMFlow to match the selected USB stream (sample rate, channels, bit depth).
-10. `restartCurrentFile()` reopens the current MP3 with the newly confirmed format.
-11. `usb.audioOutputStart(stream, sampleRate, address)` starts the selected output stream.
-12. When the USB Audio OUT transfer needs PCM frames, `onAudioOutputRequest()` is called.
-13. `audio.readFrames(request.data, request.frameCount)` copies decoded frames and returns the frame count.
-14. The sketch sets `request.writtenFrames` to that count.
-15. `loop()` calls `audio.pump()` to advance decoding, and `openNextFile()` when `audio.isEof()` is true.
+3. When a USB Audio device is connected, `onDeviceConnected()` is called.
+4. `usb.audioOutputReady(info.address)` checks whether the device has a USB Audio OUT endpoint.
+5. `usb.getAudioStreams()` returns the parsed Audio stream candidates. Each candidate is printed with `espUsbHostPrint()`.
+6. `espUsbHostSelectAudioOutputStream()` scores candidates and picks the best stream and sample rate.
+7. `audio.setOutputFormat(outputFormat)` configures PCMFlow to match the selected USB stream (sample rate, channels, bit depth).
+8. `usb.audioOutputStart(stream, sampleRate, address)` starts the selected output stream.
+9. `openNextFile()` opens the first embedded MP3 with `audio.open()`.
+10. When the USB Audio OUT transfer needs PCM frames, `onAudioOutputRequest()` is called.
+11. `audio.readFrames(request.data, request.frameCount)` copies decoded frames and returns the frame count.
+12. The sketch sets `request.writtenFrames` to that count.
+13. `loop()` calls `audio.pump()` to advance decoding, and `openNextFile()` when `audio.isEof()` is true.
 
 ## Key APIs
 
@@ -53,7 +53,7 @@ Uses [PCMFlow](https://github.com/tanakamasayuki/PCMFlow) to decode embedded MP3
   - `request.channels` — channel count of the selected stream
 - `usb.audioOutputReady(address)` — true when a USB Audio OUT endpoint was found
 - `usb.getAudioStreams(address, streams, maxStreams)` — return parsed audio stream candidates
-- `espUsbHostSelectAudioOutputStream(streams, count, filter)` — score candidates and return the best match
+- `espUsbHostSelectAudioOutputStream(streams, count)` — score candidates and return the best match
 - `usb.audioOutputStart(stream, sampleRate, address)` — start the selected output stream
 - `audio.open(data, size, PCMFlow::CodecKind::Mp3)` — open an embedded MP3 for decoding
 - `audio.setOutputFormat(format)` — set output sample rate, channels, and bit depth

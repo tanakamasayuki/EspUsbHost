@@ -10,21 +10,8 @@ EspUsbHost usb;
 static constexpr uint32_t SAMPLE_RATE = 48000;
 static constexpr uint8_t CHANNELS = 2;
 static constexpr uint8_t BYTES_PER_SAMPLE = 2;
-static constexpr uint8_t BITS_PER_SAMPLE = 16;
-static constexpr size_t MAX_CHANNELS = 2;
 static constexpr size_t FRAMES_PER_PACKET = SAMPLE_RATE / 1000;
-static constexpr float VOLUME = 1.0f; // 0.0-1.0
-static constexpr uint8_t USB_OUTPUT_VOLUME_STEPS[] = {100, 50, 10, 0};
-
-static bool isSupportedOutputStream(uint32_t sampleRate, uint8_t channels, uint8_t bitsPerSample)
-{
-  // en: Change this function to choose which USB Audio OUT formats this sketch accepts.
-  // ja: 受け入れるUSB Audio OUTフォーマットを変える場合は、この関数を変更します。
-  return sampleRate == SAMPLE_RATE &&
-         channels >= 1 &&
-         channels <= MAX_CHANNELS &&
-         bitsPerSample == BITS_PER_SAMPLE;
-}
+static constexpr float OUTPUT_GAIN = 0.8f; // 0.0-1.0
 
 // en: Ring buffer for decoded stereo PCM frames waiting to be sent (~32ms).
 // ja: 送信待ちのデコード済みステレオPCMフレーム用リングバッファです（約32ms）。
@@ -35,64 +22,11 @@ static size_t pcmTail = 0;
 
 static uint8_t audioAddress = 0;
 static bool audioReady = false;
-static size_t volumeStepIndex = 0;
 static bool playbackFinished = false;
-static bool hardwareVolumeChecked = false;
-static bool hardwareVolumeSupported = false;
 
 static int fileIndex = 0;
 static AudioGeneratorMP3 *mp3gen = nullptr;
 static AudioFileSourcePROGMEM *mp3src = nullptr;
-
-static float currentOutputGain()
-{
-  return hardwareVolumeSupported ? VOLUME : static_cast<float>(USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]) / 100.0f;
-}
-
-static void configureAudioOutputVolume(uint8_t address)
-{
-  const uint8_t percent = USB_OUTPUT_VOLUME_STEPS[volumeStepIndex];
-  if (hardwareVolumeChecked && !hardwareVolumeSupported)
-  {
-    Serial.printf("software gain: %.2f\n", currentOutputGain());
-    return;
-  }
-
-  if (usb.audioConfigureVolumePercent(percent, address))
-  {
-    hardwareVolumeChecked = true;
-    hardwareVolumeSupported = true;
-    Serial.printf("audio hardware volume: %u%%\n", percent);
-  }
-  else
-  {
-    hardwareVolumeChecked = true;
-    hardwareVolumeSupported = false;
-    Serial.println("audio hardware volume unsupported");
-    Serial.printf("software gain: %.2f\n", currentOutputGain());
-  }
-}
-
-static bool nextVolumeLoop()
-{
-  if (volumeStepIndex + 1 >= sizeof(USB_OUTPUT_VOLUME_STEPS) / sizeof(USB_OUTPUT_VOLUME_STEPS[0]))
-  {
-    Serial.println("all volume loops played");
-    playbackFinished = true;
-    return false;
-  }
-
-  volumeStepIndex++;
-  fileIndex = 0;
-  pcmHead = 0;
-  pcmTail = 0;
-  if (audioAddress)
-  {
-    configureAudioOutputVolume(audioAddress);
-  }
-  Serial.printf("restart playlist at %u%% volume\n", USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]);
-  return true;
-}
 
 static size_t pcmAvail()
 {
@@ -131,9 +65,8 @@ public:
       if (next == pcmHead)
         return false; // buffer full — generator retries this sample
       const float t = resamplePhase;
-      const float gain = currentOutputGain();
-      pcmBuf[pcmTail * CHANNELS + 0] = (int16_t)(((1.0f - t) * resamplePrev[0] + t * sample[LEFTCHANNEL]) * gain);
-      pcmBuf[pcmTail * CHANNELS + 1] = (int16_t)(((1.0f - t) * resamplePrev[1] + t * sample[RIGHTCHANNEL]) * gain);
+      pcmBuf[pcmTail * CHANNELS + 0] = (int16_t)(((1.0f - t) * resamplePrev[0] + t * sample[LEFTCHANNEL]) * OUTPUT_GAIN);
+      pcmBuf[pcmTail * CHANNELS + 1] = (int16_t)(((1.0f - t) * resamplePrev[1] + t * sample[RIGHTCHANNEL]) * OUTPUT_GAIN);
       pcmTail = next;
       resamplePhase += step;
     }
@@ -230,14 +163,13 @@ void setup()
                             {
                               espUsbHostPrint(streams[i]);
                             }
-                            const EspUsbHostAudioStreamSelection selected = espUsbHostSelectAudioOutputStream(streams, count, isSupportedOutputStream);
+                            const EspUsbHostAudioStreamSelection selected = espUsbHostSelectAudioOutputStream(streams, count);
                             if (!audioReady && selected)
                             {
                               if (usb.audioOutputStart(streams[selected.index], selected.sampleRate, info.address))
                               {
                                 audioAddress = info.address;
                                 audioReady = true;
-                                configureAudioOutputVolume(info.address);
                               }
                             }
                             Serial.printf("audio output %s: addr=%u\n", audioReady ? "ready" : "unsupported", info.address);
@@ -251,8 +183,6 @@ void setup()
                              {
                                audioReady = false;
                                audioAddress = 0;
-                               hardwareVolumeChecked = false;
-                               hardwareVolumeSupported = false;
                              } });
 
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
@@ -279,11 +209,8 @@ void loop()
   {
     if (!startNextFile() && audioReady)
     {
-      Serial.printf("playlist finished at %u%% volume\n", USB_OUTPUT_VOLUME_STEPS[volumeStepIndex]);
-      if (nextVolumeLoop())
-      {
-        startNextFile();
-      }
+      Serial.println("all files played");
+      playbackFinished = true;
       delay(10);
       return;
     }
