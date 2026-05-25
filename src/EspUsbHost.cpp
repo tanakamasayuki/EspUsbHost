@@ -3266,7 +3266,6 @@ void EspUsbHost::printAllDeviceInfo(Print &out)
 {
   out.println();
   out.println("=========== USB Topology ===========");
-  printHubInfo(*this, 1, true, out);
   EspUsbHostDeviceInfo devices[ESP_USB_HOST_MAX_DEVICES];
   const size_t count = getDevices(devices, ESP_USB_HOST_MAX_DEVICES);
   out.printf("Tracked devices=%u\n", static_cast<unsigned>(count));
@@ -3282,7 +3281,14 @@ void EspUsbHost::printAllDeviceInfo(Print &out)
   }
   for (size_t i = 0; i < count; i++)
   {
-    printDeviceInfo(devices[i].address, true, out);
+    printDeviceInfo(devices[i].address, false, out);
+  }
+  for (size_t i = 0; i < count; i++)
+  {
+    if (devices[i].isHub)
+    {
+      printHubInfo(*this, devices[i].address, true, out);
+    }
   }
   out.println("========= USB Topology End =========");
 }
@@ -4419,8 +4425,8 @@ void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t 
   unit->sourceId = sourceId;
   unit->controlSize = controlSize;
   unit->channelCount = descriptorChannelCount < ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS
-                         ? descriptorChannelCount
-                         : ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS;
+                           ? descriptorChannelCount
+                           : ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS;
 
   auto readControls = [&](uint8_t controlIndex) -> uint32_t
   {
@@ -5478,8 +5484,8 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
   gamepadCallback_(event);
   endpoint.lastGamepadState = {};
   endpoint.lastGamepadState.reportLength = event.reportLength < ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES
-                                             ? event.reportLength
-                                             : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
+                                               ? event.reportLength
+                                               : ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES;
   memcpy(endpoint.lastGamepadState.reportData, event.reportData, endpoint.lastGamepadState.reportLength);
 }
 

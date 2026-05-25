@@ -85,6 +85,8 @@ Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
 ========= USB Device End =========
 
 =========== USB Topology ===========
+Tracked devices=1
+Endpoint channels claimed=2/8 managed=2
 ----------- USB Hub -----------
 Hub address=1 ports=4 descriptor_len=9 characteristics=0x00a9
 Power switching: per-port=yes ganged=no none=no
@@ -93,7 +95,5 @@ Compound=no power_on_to_good=100ms controller_current=100mA
 Raw hub descriptor: 09 29 04 a9 00 32 64 00 ff
   Port 1 status=0x0303 change=0x0000 connected=yes enabled=yes suspended=no over_current=no reset=no powered=yes low_speed=yes high_speed=no test=no indicator=no
 --------- USB Hub End ---------
-Tracked devices=1
-Endpoint channels claimed=2/8 managed=2
 ========= USB Topology End =========
 ```
