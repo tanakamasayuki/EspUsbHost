@@ -3201,9 +3201,15 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
              configAttributeName(device.configurationAttributes),
              yesNo(device.configurationAttributes & 0x20),
              device.configurationMaxPower * 2);
-
   EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
   const size_t interfaceCount = getInterfaces(address, interfaces, ESP_USB_HOST_MAX_INTERFACES);
+  EspUsbHostEndpointInfo endpoints[ESP_USB_HOST_MAX_ENDPOINTS];
+  const size_t endpointCount = getEndpoints(address, endpoints, ESP_USB_HOST_MAX_ENDPOINTS);
+  out.printf("Endpoint channels claimed=%u/%u managed=%u descriptor_endpoints=%u\n",
+             static_cast<unsigned>(endpointChannelCount(address)),
+             static_cast<unsigned>(maxEndpointChannelCount()),
+             static_cast<unsigned>(managedEndpointCount(address)),
+             static_cast<unsigned>(endpointCount));
   for (size_t i = 0; i < interfaceCount; i++)
   {
     const EspUsbHostInterfaceInfo &intf = interfaces[i];
@@ -3217,8 +3223,6 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
                intf.endpointCount);
   }
 
-  EspUsbHostEndpointInfo endpoints[ESP_USB_HOST_MAX_ENDPOINTS];
-  const size_t endpointCount = getEndpoints(address, endpoints, ESP_USB_HOST_MAX_ENDPOINTS);
   for (size_t i = 0; i < endpointCount; i++)
   {
     const EspUsbHostEndpointInfo &ep = endpoints[i];
@@ -3266,6 +3270,10 @@ void EspUsbHost::printAllDeviceInfo(Print &out)
   EspUsbHostDeviceInfo devices[ESP_USB_HOST_MAX_DEVICES];
   const size_t count = getDevices(devices, ESP_USB_HOST_MAX_DEVICES);
   out.printf("Tracked devices=%u\n", static_cast<unsigned>(count));
+  out.printf("Endpoint channels claimed=%u/%u managed=%u\n",
+             static_cast<unsigned>(endpointChannelCount()),
+             static_cast<unsigned>(maxEndpointChannelCount()),
+             static_cast<unsigned>(managedEndpointCount()));
   if (count == 0)
   {
     out.println("No USB devices");
@@ -3894,7 +3902,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       if (currentClaimResult_ == ESP_OK && device->interfaceCount < sizeof(device->interfaces))
       {
         device->interfaces[device->interfaceCount++] = currentInterfaceNumber_;
-        ESP_LOGI(TAG, "Interface %u claimed", currentInterfaceNumber_);
+        device->endpointChannelCount = static_cast<uint8_t>(device->endpointChannelCount + intf->bNumEndpoints);
+        ESP_LOGI(TAG, "Interface %u claimed endpoints=%u endpoint_channels=%u/%u",
+                 currentInterfaceNumber_,
+                 intf->bNumEndpoints,
+                 static_cast<unsigned>(endpointChannelCount()),
+                 static_cast<unsigned>(maxEndpointChannelCount()));
         if (currentInterfaceAlternate_ > 0 && !isAudioInterface)
         {
           submitSetInterface(*device, currentInterfaceNumber_, currentInterfaceAlternate_);
@@ -3957,7 +3970,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       }
       else
       {
-        ESP_LOGW(TAG, "usb_host_interface_claim(%u) failed: %s", currentInterfaceNumber_, esp_err_to_name(currentClaimResult_));
+        ESP_LOGW(TAG, "usb_host_interface_claim(%u) failed: %s endpoints=%u endpoint_channels=%u/%u",
+                 currentInterfaceNumber_,
+                 esp_err_to_name(currentClaimResult_),
+                 intf->bNumEndpoints,
+                 static_cast<unsigned>(endpointChannelCount()),
+                 static_cast<unsigned>(maxEndpointChannelCount()));
         setLastError(currentClaimResult_);
       }
     }
@@ -6189,6 +6207,45 @@ size_t EspUsbHost::getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoin
   return count;
 }
 
+size_t EspUsbHost::endpointChannelCount(uint8_t address) const
+{
+  size_t count = 0;
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      count += device.endpointChannelCount;
+    }
+  }
+  return count;
+}
+
+size_t EspUsbHost::managedEndpointCount(uint8_t address) const
+{
+  size_t count = 0;
+  for (const EndpointState &endpoint : endpoints_)
+  {
+    if (!endpoint.inUse)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || endpoint.deviceAddress == address)
+    {
+      count++;
+    }
+  }
+  return count;
+}
+
+size_t EspUsbHost::maxEndpointChannelCount() const
+{
+  return 8;
+}
+
 size_t EspUsbHost::getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const
 {
   if (!streams || maxStreams == 0)
@@ -6270,6 +6327,7 @@ void EspUsbHost::releaseInterfaces(DeviceState &device)
     device.interfaces[i] = 0;
   }
   device.interfaceCount = 0;
+  device.endpointChannelCount = 0;
 }
 
 void EspUsbHost::configureCdcAcm(DeviceState &device)

@@ -918,6 +918,9 @@ public:
   bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
+  size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t maxEndpointChannelCount() const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
 
   int lastError() const;
@@ -1060,6 +1063,7 @@ private:
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
     uint8_t endpointInfoCount = 0;
+    uint8_t endpointChannelCount = 0;
     HIDReportDescriptorState hidReportDescriptors[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS] = {};
     uint8_t hidReportDescriptorCount = 0;
     HIDInputFieldState hidInputFields[ESP_USB_HOST_MAX_HID_INPUT_FIELDS] = {};
