@@ -25,9 +25,11 @@ endpoint単位 callback は、実験結果を見て必要なら追加
 
 # USB Audio
 
+
 主な残作業はこのあたりです。
 
 USB Audio IN の peer 実証
+→Arduinoのデバイス側マイクがおかしいかも。それの影響でPeerテストができていない可能性がある。
 
 onAudioData() の受信経路はありますが、Arduino 側 USBAudioCard.write() で peer から実データを流す確認がまだ安定していません。
 今 peer で確実に通っているのは Host → Device の Audio OUT です。
@@ -41,8 +43,6 @@ Clock Source / UAC2 対応
 UAC2 デバイスでは Clock Source / Clock Selector 周りが必要になる場合があります。
 フォーマット選択の強化
 
-現状は取得した Audio Streaming 情報を表示して、利用側が選ぶ形です。
-「48kHz 16bit mono/stereo の OUT を自動選択」みたいな便利 API はまだ最低限です。
 実機互換性テスト
 
 USBスピーカー、USBマイク、USBオーディオIFでの手動確認。
