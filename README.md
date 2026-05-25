@@ -477,6 +477,9 @@ size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
 size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t ep0ChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t hubEndpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t estimatedHcdChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 size_t maxEndpointChannelCount() const;
 void   espUsbHostPrint(const EspUsbHostInterfaceInfo &interface,
                        Print &out = Serial);
@@ -488,7 +491,7 @@ void   printAllDeviceInfo(Print &out = Serial);
 ```
 
 Array size constants: `ESP_USB_HOST_MAX_DEVICES`, `ESP_USB_HOST_MAX_INTERFACES`, `ESP_USB_HOST_MAX_ENDPOINTS`.
-`endpointChannelCount()` is an estimate based on endpoints in successfully claimed interfaces. `managedEndpointCount()` counts endpoints with persistent receive transfers managed by this library.
+`endpointChannelCount()` is based on endpoints in successfully claimed interfaces. `managedEndpointCount()` counts endpoints with persistent receive transfers managed by this library. `estimatedHcdChannelCount()` is an experimental estimate: tracked devices as EP0/control pipes + claimed endpoints + hub descriptor endpoints.
 
 ### Error handling
 
