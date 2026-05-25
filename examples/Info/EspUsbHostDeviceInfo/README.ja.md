@@ -14,16 +14,9 @@
 
 - デバイス接続時に自動でディスクリプタ情報を全表示
 - 切断時にアドレス・VID・PIDを表示
-- 列挙が落ち着いた後に全体トポロジーを自動表示
-- シリアルから`r`を送ると、現在接続中の全デバイス情報とハブ状態を再表示
+- 5秒間隔で現在接続中の全デバイス情報、ハブ状態、endpoint channel推定値を再表示
 - 未対応デバイスもVID/PIDやdescriptor情報を表示し、無反応にしない
 - USBハブのdescriptor、PPPS、ポート状態を表示
-
-## シリアルコマンド
-
-| コマンド | 動作 |
-|----------|------|
-| `r` | 接続中の全デバイス情報とハブ状態を再表示 |
 
 ## 表示される情報
 
@@ -34,6 +27,7 @@
 - USBバージョン・デバイスバージョン・EP0最大パケットサイズ
 - メーカー名・製品名・シリアル番号文字列
 - コンフィギュレーション値・インターフェース数・総長・属性・bus/self powered・remote wakeup・最大電力
+- claim済みinterfaceから推定したendpoint channel数、継続受信用に管理しているendpoint数、descriptor上のendpoint数
 
 **インターフェースレベル:**
 - インターフェース番号・代替設定・クラス/サブクラス/プロトコル・エンドポイント数
@@ -64,13 +58,16 @@
 - `usb.getHubPortStatus(hubAddress, port, status, change)` — Hub port status/changeビットを取得
 - `usb.getInterfaces(address, interfaces, maxInterfaces)` — インターフェース一覧を取得
 - `usb.getEndpoints(address, endpoints, maxEndpoints)` — エンドポイント一覧を取得
+- `usb.endpointChannelCount(address)` — claim済みinterfaceのendpoint数合計を取得
+- `usb.managedEndpointCount(address)` — 継続受信用transferを持つendpoint数を取得
+- `usb.maxEndpointChannelCount()` — endpoint channel推定上限を取得
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
 
 ## シリアル出力例
 
 ```
 EspUsbHostDeviceInfo start
-Press 'r' to reprint connected devices and hub status.
+Printing connected devices and endpoint channel estimates every 5 seconds.
 CONNECTED address=1
 
 =========== USB Device ===========
@@ -80,6 +77,7 @@ Supported=yes hub=no
 USB 2.00 device 0.01 ep0=8
 Strings manufacturer="Microsoft" product="USB Keyboard" serial=""
 Configuration value=1 interfaces=2 total_len=59 attributes=0xa0(bus-powered remote_wakeup=yes) max_power=100mA
+Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
   Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1
   Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1
     Endpoint iface=0 ep=0x81 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
@@ -96,5 +94,6 @@ Raw hub descriptor: 09 29 04 a9 00 32 64 00 ff
   Port 1 status=0x0303 change=0x0000 connected=yes enabled=yes suspended=no over_current=no reset=no powered=yes low_speed=yes high_speed=no test=no indicator=no
 --------- USB Hub End ---------
 Tracked devices=1
+Endpoint channels claimed=2/8 managed=2
 ========= USB Topology End =========
 ```

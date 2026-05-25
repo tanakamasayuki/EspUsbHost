@@ -475,6 +475,9 @@ size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces,
                      size_t maxInterfaces) const;
 size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
+size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t maxEndpointChannelCount() const;
 void   espUsbHostPrint(const EspUsbHostInterfaceInfo &interface,
                        Print &out = Serial);
 void   espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint,
@@ -485,6 +488,7 @@ void   printAllDeviceInfo(Print &out = Serial);
 ```
 
 配列サイズ定数：`ESP_USB_HOST_MAX_DEVICES`、`ESP_USB_HOST_MAX_INTERFACES`、`ESP_USB_HOST_MAX_ENDPOINTS`。
+`endpointChannelCount()`はclaimに成功したinterface内のendpoint数から推定します。`managedEndpointCount()`は、このライブラリが継続受信用transferを持って管理しているendpoint数です。
 
 ### エラーハンドリング
 

@@ -3,23 +3,21 @@
 
 EspUsbHost usb;
 
-static bool printedInitialTopology = false;
 static uint32_t lastDeviceEventMs = 0;
+static uint32_t lastPrintMs = 0;
+static constexpr uint32_t PRINT_INTERVAL_MS = 5000;
 
 void setup()
 {
   Serial.begin(115200);
   delay(500);
   Serial.println("EspUsbHostDeviceInfo start");
-  Serial.println("Press 'r' to reprint connected devices and hub status.");
+  Serial.println("Printing connected devices and endpoint channel estimates every 5 seconds.");
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
                           lastDeviceEventMs = millis();
-                          Serial.printf("CONNECTED address=%u\n", device.address);
-                          // en: Print the full descriptor tree for the device that just connected.
-                          // ja: 接続されたデバイスの詳細ディスクリプタツリーを表示します。
-                          usb.printDeviceInfo(device.address); });
+                          Serial.printf("CONNECTED address=%u\n", device.address); });
 
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
@@ -34,19 +32,20 @@ void setup()
     Serial.printf("usb.begin failed: %s\n", usb.lastErrorName());
   }
   lastDeviceEventMs = millis();
+  lastPrintMs = millis() - PRINT_INTERVAL_MS;
 }
 
 void loop()
 {
-  if (Serial.available() > 0 && Serial.read() == 'r')
+  while (Serial.available() > 0)
   {
-    usb.printAllDeviceInfo();
+    Serial.read();
   }
-  if (!printedInitialTopology && millis() - lastDeviceEventMs > 2000)
+
+  const uint32_t now = millis();
+  if (now - lastPrintMs >= PRINT_INTERVAL_MS && now - lastDeviceEventMs > 500)
   {
-    // en: After startup hotplug settles, print the complete tracked topology once.
-    // ja: 起動直後の接続処理が落ち着いたら、追跡中の全トポロジを一度だけ表示します。
-    printedInitialTopology = true;
+    lastPrintMs = now;
     usb.printAllDeviceInfo();
   }
   delay(10);

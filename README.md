@@ -475,6 +475,9 @@ size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces,
                      size_t maxInterfaces) const;
 size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
+size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t maxEndpointChannelCount() const;
 void   espUsbHostPrint(const EspUsbHostInterfaceInfo &interface,
                        Print &out = Serial);
 void   espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint,
@@ -485,6 +488,7 @@ void   printAllDeviceInfo(Print &out = Serial);
 ```
 
 Array size constants: `ESP_USB_HOST_MAX_DEVICES`, `ESP_USB_HOST_MAX_INTERFACES`, `ESP_USB_HOST_MAX_ENDPOINTS`.
+`endpointChannelCount()` is an estimate based on endpoints in successfully claimed interfaces. `managedEndpointCount()` counts endpoints with persistent receive transfers managed by this library.
 
 ### Error handling
 
