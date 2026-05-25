@@ -27,10 +27,10 @@ Prints detailed USB device information for every connected device, including uns
 - USB version, device version, EP0 max packet size
 - Manufacturer, product, and serial number strings
 - Configuration value, interface count, total config length, attributes, bus/self-powered flag, remote wakeup flag, max power
-- Estimated endpoint channels from claimed interfaces, managed receive endpoints, and descriptor endpoint count
+- Estimated endpoint channels from claimed interfaces, managed receive endpoints, descriptor endpoint count, and experimental HCD channel estimate
 
 **Interface level:**
-- Interface number, alternate setting, class/subclass/protocol, endpoint count, claim status
+- Interface number, alternate setting, class/subclass/protocol, endpoint count, claim status, claim result
 
 **Endpoint level:**
 - Interface number, endpoint address, direction (IN/OUT), transfer type, max packet size, interval
@@ -60,6 +60,7 @@ Prints detailed USB device information for every connected device, including uns
 - `usb.getEndpoints(address, endpoints, maxEndpoints)` — fetch endpoint list
 - `usb.endpointChannelCount(address)` — fetch the endpoint count from claimed interfaces
 - `usb.managedEndpointCount(address)` — fetch endpoints with persistent receive transfers
+- `usb.estimatedHcdChannelCount(address)` — fetch the experimental HCD channel estimate
 - `usb.maxEndpointChannelCount()` — fetch the endpoint channel estimate limit
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
 
@@ -78,8 +79,9 @@ USB 2.00 device 0.01 ep0=8
 Strings manufacturer="Microsoft" product="USB Keyboard" serial=""
 Configuration value=1 interfaces=2 total_len=59 attributes=0xa0(bus-powered remote_wakeup=yes) max_power=100mA
 Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
-  Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1 claimed=yes
-  Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1 claimed=yes
+Estimated HCD channels=3/8 (ep0=1 claimed=2 hub=0)
+  Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1 claimed=yes claim=ESP_OK
+  Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1 claimed=yes claim=ESP_OK
     Endpoint iface=0 ep=0x81 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
     Endpoint iface=1 ep=0x82 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
 ========= USB Device End =========
@@ -87,6 +89,7 @@ Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
 =========== USB Topology ===========
 Tracked devices=1
 Endpoint channels claimed=2/8 managed=2
+Estimated HCD channels=3/8 (ep0=1 claimed=2 hub=0)
 ----------- USB Hub -----------
 Hub address=1 ports=4 descriptor_len=9 characteristics=0x00a9
 Power switching: per-port=yes ganged=no none=no

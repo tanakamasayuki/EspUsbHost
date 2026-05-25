@@ -199,6 +199,8 @@ struct EspUsbHostInterfaceInfo
   uint8_t interfaceProtocol = 0;
   uint8_t endpointCount = 0;
   bool claimed = false;
+  bool claimAttempted = false;
+  esp_err_t claimResult = ESP_OK;
 };
 
 struct EspUsbHostEndpointInfo
@@ -921,6 +923,9 @@ public:
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
   size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t ep0ChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t hubEndpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t estimatedHcdChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t maxEndpointChannelCount() const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
 

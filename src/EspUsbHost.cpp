@@ -277,6 +277,11 @@ static const char *yesNo(bool value)
   return value ? "yes" : "no";
 }
 
+static const char *claimResultName(const EspUsbHostInterfaceInfo &intf)
+{
+  return intf.claimAttempted ? esp_err_to_name(intf.claimResult) : "not_attempted";
+}
+
 static const char *speedName(usb_speed_t speed)
 {
   switch (speed)
@@ -372,7 +377,7 @@ void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out)
 
 void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out)
 {
-  out.printf("interface: number=%u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u claimed=%s\n",
+  out.printf("interface: number=%u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u claimed=%s claim=%s\n",
              intf.number,
              intf.alternate,
              intf.interfaceClass,
@@ -380,7 +385,8 @@ void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out)
              intf.interfaceSubClass,
              intf.interfaceProtocol,
              intf.endpointCount,
-             yesNo(intf.claimed));
+             yesNo(intf.claimed),
+             claimResultName(intf));
 }
 
 void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out)
@@ -3211,10 +3217,16 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
              static_cast<unsigned>(maxEndpointChannelCount()),
              static_cast<unsigned>(managedEndpointCount(address)),
              static_cast<unsigned>(endpointCount));
+  out.printf("Estimated HCD channels=%u/%u (ep0=%u claimed=%u hub=%u)\n",
+             static_cast<unsigned>(estimatedHcdChannelCount(address)),
+             static_cast<unsigned>(maxEndpointChannelCount()),
+             static_cast<unsigned>(ep0ChannelCount(address)),
+             static_cast<unsigned>(endpointChannelCount(address)),
+             static_cast<unsigned>(hubEndpointChannelCount(address)));
   for (size_t i = 0; i < interfaceCount; i++)
   {
     const EspUsbHostInterfaceInfo &intf = interfaces[i];
-    out.printf("  Interface %u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u claimed=%s\n",
+    out.printf("  Interface %u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u claimed=%s claim=%s\n",
                intf.number,
                intf.alternate,
                intf.interfaceClass,
@@ -3222,7 +3234,8 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
                intf.interfaceSubClass,
                intf.interfaceProtocol,
                intf.endpointCount,
-               yesNo(intf.claimed));
+               yesNo(intf.claimed),
+               claimResultName(intf));
   }
 
   for (size_t i = 0; i < endpointCount; i++)
@@ -3275,6 +3288,12 @@ void EspUsbHost::printAllDeviceInfo(Print &out)
              static_cast<unsigned>(endpointChannelCount()),
              static_cast<unsigned>(maxEndpointChannelCount()),
              static_cast<unsigned>(managedEndpointCount()));
+  out.printf("Estimated HCD channels=%u/%u (ep0=%u claimed=%u hub=%u)\n",
+             static_cast<unsigned>(estimatedHcdChannelCount()),
+             static_cast<unsigned>(maxEndpointChannelCount()),
+             static_cast<unsigned>(ep0ChannelCount()),
+             static_cast<unsigned>(endpointChannelCount()),
+             static_cast<unsigned>(hubEndpointChannelCount()));
   if (count == 0)
   {
     out.println("No USB devices");
@@ -3907,6 +3926,16 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isVendorSerialInterface)
     {
       currentClaimResult_ = usb_host_interface_claim(clientHandle_, device->handle, currentInterfaceNumber_, intf->bAlternateSetting);
+      for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
+      {
+        EspUsbHostInterfaceInfo &info = device->interfaceInfos[i];
+        if (info.number == currentInterfaceNumber_ && info.alternate == currentInterfaceAlternate_)
+        {
+          info.claimAttempted = true;
+          info.claimResult = currentClaimResult_;
+          break;
+        }
+      }
       if (currentClaimResult_ == ESP_OK && device->interfaceCount < sizeof(device->interfaces))
       {
         device->interfaces[device->interfaceCount++] = currentInterfaceNumber_;
@@ -6256,6 +6285,46 @@ size_t EspUsbHost::managedEndpointCount(uint8_t address) const
     }
   }
   return count;
+}
+
+size_t EspUsbHost::ep0ChannelCount(uint8_t address) const
+{
+  size_t count = 0;
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      count++;
+    }
+  }
+  return count;
+}
+
+size_t EspUsbHost::hubEndpointChannelCount(uint8_t address) const
+{
+  size_t count = 0;
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.info.isHub)
+    {
+      continue;
+    }
+    if (address != ESP_USB_HOST_ANY_ADDRESS && device.info.address != address)
+    {
+      continue;
+    }
+    count += device.endpointInfoCount;
+  }
+  return count;
+}
+
+size_t EspUsbHost::estimatedHcdChannelCount(uint8_t address) const
+{
+  return ep0ChannelCount(address) + endpointChannelCount(address) + hubEndpointChannelCount(address);
 }
 
 size_t EspUsbHost::maxEndpointChannelCount() const

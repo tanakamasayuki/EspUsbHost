@@ -27,10 +27,10 @@
 - USBバージョン・デバイスバージョン・EP0最大パケットサイズ
 - メーカー名・製品名・シリアル番号文字列
 - コンフィギュレーション値・インターフェース数・総長・属性・bus/self powered・remote wakeup・最大電力
-- claim済みinterfaceから推定したendpoint channel数、継続受信用に管理しているendpoint数、descriptor上のendpoint数
+- claim済みinterfaceから推定したendpoint channel数、継続受信用に管理しているendpoint数、descriptor上のendpoint数、実験用HCD channel推定値
 
 **インターフェースレベル:**
-- インターフェース番号・代替設定・クラス/サブクラス/プロトコル・エンドポイント数・claim状態
+- インターフェース番号・代替設定・クラス/サブクラス/プロトコル・エンドポイント数・claim状態・claim結果
 
 **エンドポイントレベル:**
 - インターフェース番号・エンドポイントアドレス・方向（IN/OUT）・転送タイプ・最大パケットサイズ・インターバル
@@ -60,6 +60,7 @@
 - `usb.getEndpoints(address, endpoints, maxEndpoints)` — エンドポイント一覧を取得
 - `usb.endpointChannelCount(address)` — claim済みinterfaceのendpoint数合計を取得
 - `usb.managedEndpointCount(address)` — 継続受信用transferを持つendpoint数を取得
+- `usb.estimatedHcdChannelCount(address)` — 実験用HCD channel推定値を取得
 - `usb.maxEndpointChannelCount()` — endpoint channel推定上限を取得
 - `usb.onDeviceConnected(callback)` / `usb.onDeviceDisconnected(callback)`
 
@@ -78,8 +79,9 @@ USB 2.00 device 0.01 ep0=8
 Strings manufacturer="Microsoft" product="USB Keyboard" serial=""
 Configuration value=1 interfaces=2 total_len=59 attributes=0xa0(bus-powered remote_wakeup=yes) max_power=100mA
 Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
-  Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1 claimed=yes
-  Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1 claimed=yes
+Estimated HCD channels=3/8 (ep0=1 claimed=2 hub=0)
+  Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1 claimed=yes claim=ESP_OK
+  Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1 claimed=yes claim=ESP_OK
     Endpoint iface=0 ep=0x81 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
     Endpoint iface=1 ep=0x82 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
 ========= USB Device End =========
@@ -87,6 +89,7 @@ Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
 =========== USB Topology ===========
 Tracked devices=1
 Endpoint channels claimed=2/8 managed=2
+Estimated HCD channels=3/8 (ep0=1 claimed=2 hub=0)
 ----------- USB Hub -----------
 Hub address=1 ports=4 descriptor_len=9 characteristics=0x00a9
 Power switching: per-port=yes ganged=no none=no

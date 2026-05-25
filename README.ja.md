@@ -477,6 +477,9 @@ size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints,
                     size_t maxEndpoints) const;
 size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t ep0ChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t hubEndpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t estimatedHcdChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 size_t maxEndpointChannelCount() const;
 void   espUsbHostPrint(const EspUsbHostInterfaceInfo &interface,
                        Print &out = Serial);
@@ -488,7 +491,7 @@ void   printAllDeviceInfo(Print &out = Serial);
 ```
 
 配列サイズ定数：`ESP_USB_HOST_MAX_DEVICES`、`ESP_USB_HOST_MAX_INTERFACES`、`ESP_USB_HOST_MAX_ENDPOINTS`。
-`endpointChannelCount()`はclaimに成功したinterface内のendpoint数から推定します。`managedEndpointCount()`は、このライブラリが継続受信用transferを持って管理しているendpoint数です。
+`endpointChannelCount()`はclaimに成功したinterface内のendpoint数です。`managedEndpointCount()`は、このライブラリが継続受信用transferを持って管理しているendpoint数です。`estimatedHcdChannelCount()`は実験用の推定値で、追跡中デバイスをEP0/control pipeとして数え、claim済みendpoint数とHub descriptor上のendpoint数を加算します。
 
 ### エラーハンドリング
 
