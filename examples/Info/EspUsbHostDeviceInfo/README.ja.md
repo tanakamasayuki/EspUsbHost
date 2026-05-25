@@ -30,7 +30,7 @@
 - claim済みinterfaceから推定したendpoint channel数、継続受信用に管理しているendpoint数、descriptor上のendpoint数
 
 **インターフェースレベル:**
-- インターフェース番号・代替設定・クラス/サブクラス/プロトコル・エンドポイント数
+- インターフェース番号・代替設定・クラス/サブクラス/プロトコル・エンドポイント数・claim状態
 
 **エンドポイントレベル:**
 - インターフェース番号・エンドポイントアドレス・方向（IN/OUT）・転送タイプ・最大パケットサイズ・インターバル
@@ -78,8 +78,8 @@ USB 2.00 device 0.01 ep0=8
 Strings manufacturer="Microsoft" product="USB Keyboard" serial=""
 Configuration value=1 interfaces=2 total_len=59 attributes=0xa0(bus-powered remote_wakeup=yes) max_power=100mA
 Endpoint channels claimed=2/8 managed=2 descriptor_endpoints=2
-  Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1
-  Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1
+  Interface 0 alt=0 class=0x03(HID) subclass=0x01 protocol=0x01 endpoints=1 claimed=yes
+  Interface 1 alt=0 class=0x03(HID) subclass=0x00 protocol=0x00 endpoints=1 claimed=yes
     Endpoint iface=0 ep=0x81 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
     Endpoint iface=1 ep=0x82 dir=IN type=interrupt max_packet=8 interval=10 attrs=0x03
 ========= USB Device End =========

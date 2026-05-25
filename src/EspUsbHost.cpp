@@ -372,14 +372,15 @@ void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out)
 
 void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out)
 {
-  out.printf("interface: number=%u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u\n",
+  out.printf("interface: number=%u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u claimed=%s\n",
              intf.number,
              intf.alternate,
              intf.interfaceClass,
              className(intf.interfaceClass),
              intf.interfaceSubClass,
              intf.interfaceProtocol,
-             intf.endpointCount);
+             intf.endpointCount,
+             yesNo(intf.claimed));
 }
 
 void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out)
@@ -3213,14 +3214,15 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
   for (size_t i = 0; i < interfaceCount; i++)
   {
     const EspUsbHostInterfaceInfo &intf = interfaces[i];
-    out.printf("  Interface %u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u\n",
+    out.printf("  Interface %u alt=%u class=0x%02x(%s) subclass=0x%02x protocol=0x%02x endpoints=%u claimed=%s\n",
                intf.number,
                intf.alternate,
                intf.interfaceClass,
                className(intf.interfaceClass),
                intf.interfaceSubClass,
                intf.interfaceProtocol,
-               intf.endpointCount);
+               intf.endpointCount,
+               yesNo(intf.claimed));
   }
 
   for (size_t i = 0; i < endpointCount; i++)
@@ -3909,6 +3911,15 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       {
         device->interfaces[device->interfaceCount++] = currentInterfaceNumber_;
         device->endpointChannelCount = static_cast<uint8_t>(device->endpointChannelCount + intf->bNumEndpoints);
+        for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
+        {
+          EspUsbHostInterfaceInfo &info = device->interfaceInfos[i];
+          if (info.number == currentInterfaceNumber_ && info.alternate == currentInterfaceAlternate_)
+          {
+            info.claimed = true;
+            break;
+          }
+        }
         ESP_LOGI(TAG, "Interface %u claimed endpoints=%u endpoint_channels=%u/%u",
                  currentInterfaceNumber_,
                  intf->bNumEndpoints,

@@ -198,6 +198,7 @@ struct EspUsbHostInterfaceInfo
   uint8_t interfaceSubClass = 0;
   uint8_t interfaceProtocol = 0;
   uint8_t endpointCount = 0;
+  bool claimed = false;
 };
 
 struct EspUsbHostEndpointInfo
