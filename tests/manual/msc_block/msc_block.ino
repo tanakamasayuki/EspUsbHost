@@ -36,7 +36,7 @@ static void printPartitions(const uint8_t *block)
 void setup()
 {
     Serial.begin(115200);
-    delay(1000);
+    delay(5000);
 
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                           { Serial.printf("MSC_DEVICE addr=%u vid=%04x pid=%04x supported=%u product=%s\n",
