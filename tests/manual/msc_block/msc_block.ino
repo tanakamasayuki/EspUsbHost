@@ -91,6 +91,16 @@ void loop()
     const bool ready = usb.mscTestUnitReady();
     Serial.printf("MSC_TEST_UNIT_READY ok=%u\n", ready ? 1 : 0);
 
+    uint8_t maxLun = 0;
+    if (usb.mscMaxLun(maxLun))
+    {
+        Serial.printf("MSC_MAX_LUN max_lun=%u\n", maxLun);
+    }
+    if (usb.mscSelectLun(0))
+    {
+        Serial.println("MSC_SELECT_LUN lun=0 ok=1");
+    }
+
     uint32_t blockCount = 0;
     uint32_t blockSize = 0;
     if (!usb.mscCapacity(blockCount, blockSize))
@@ -102,6 +112,28 @@ void loop()
     Serial.printf("MSC_CAPACITY blocks=%lu block_size=%lu\n",
                   static_cast<unsigned long>(blockCount),
                   static_cast<unsigned long>(blockSize));
+
+    EspUsbHostMscBlockDeviceInfo blockInfo;
+    if (usb.mscGetBlockDeviceInfo(blockInfo))
+    {
+        Serial.printf("MSC_BLOCK_DEVICE addr=%u iface=%u lun=%u max_lun=%u blocks=%llu block_size=%lu bytes=%llu\n",
+                      blockInfo.address,
+                      blockInfo.interfaceNumber,
+                      blockInfo.lun,
+                      blockInfo.maxLun,
+                      static_cast<unsigned long long>(blockInfo.blockCount),
+                      static_cast<unsigned long>(blockInfo.blockSize),
+                      static_cast<unsigned long long>(blockInfo.capacityBytes));
+    }
+
+    uint64_t blockCount64 = 0;
+    uint32_t blockSize64 = 0;
+    if (usb.mscCapacity64(blockCount64, blockSize64))
+    {
+        Serial.printf("MSC_CAPACITY64 blocks=%llu block_size=%lu\n",
+                      static_cast<unsigned long long>(blockCount64),
+                      static_cast<unsigned long>(blockSize64));
+    }
 
     if (blockSize == 0 || blockSize > 512)
     {
@@ -117,6 +149,22 @@ void loop()
         delay(1000);
         return;
     }
+
+    uint8_t block64[512] = {};
+    if (!usb.mscReadBlocks64(0, block64, 1))
+    {
+        Serial.printf("MSC_READ64_FAIL %s\n", usb.lastErrorName());
+        delay(1000);
+        return;
+    }
+    Serial.printf("MSC_LBA0_64 b0=%02x b1=%02x b510=%02x b511=%02x\n",
+                  block64[0],
+                  block64[1],
+                  block64[510],
+                  block64[511]);
+
+    const bool syncOk = usb.mscSynchronizeCache();
+    Serial.printf("MSC_SYNC_CACHE ok=%u\n", syncOk ? 1 : 0);
 
     Serial.printf("MSC_LBA0 b0=%02x b1=%02x b510=%02x b511=%02x\n",
                   block[0],
