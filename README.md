@@ -448,6 +448,8 @@ bool mscInquiry(EspUsbHostMscInquiry &inquiry,
 bool mscRequestSense(EspUsbHostMscSense &sense,
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                      uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscLastSense(EspUsbHostMscSense &sense,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscCapacity64(uint64_t &blockCount, uint32_t &blockSize,

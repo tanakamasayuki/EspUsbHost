@@ -16,6 +16,8 @@ def test_usb_msc_inquiry(dut, peers):
 def test_usb_msc_request_sense(dut, peers):
     dut.write("s")
     dut.expect_exact("MSC_SENSE ok=1 response=0x70 key=0x00 asc=0x00 ascq=0x00")
+    dut.write("S")
+    dut.expect_exact("MSC_LAST_SENSE ok=1 response=0x70 key=0x00 asc=0x00 ascq=0x00")
 
 
 def test_usb_msc_test_unit_ready(dut, peers):

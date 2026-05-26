@@ -26,6 +26,9 @@ static constexpr uint8_t USB_MSC_PROTOCOL_BULK_ONLY = 0x50;
 static constexpr uint32_t USB_MSC_CBW_SIGNATURE = 0x43425355;
 static constexpr uint32_t USB_MSC_CSW_SIGNATURE = 0x53425355;
 static constexpr uint8_t USB_MSC_CSW_STATUS_PASSED = 0x00;
+static constexpr uint8_t USB_MSC_CSW_STATUS_PHASE_ERROR = 0x02;
+static constexpr uint8_t USB_MSC_RESET_REQUEST = 0xff;
+static constexpr uint8_t USB_MSC_RESET_REQUEST_TYPE = 0x21;
 static constexpr uint8_t SCSI_CMD_TEST_UNIT_READY = 0x00;
 static constexpr uint8_t SCSI_CMD_REQUEST_SENSE = 0x03;
 static constexpr uint8_t SCSI_CMD_INQUIRY = 0x12;
@@ -1932,6 +1935,17 @@ bool EspUsbHost::mscReady(uint8_t address) const
   return findMscDevice(address) != nullptr;
 }
 
+bool EspUsbHost::mscLastSense(EspUsbHostMscSense &sense, uint8_t address) const
+{
+  const DeviceState *device = findMscDevice(address);
+  if (!device || !device->hasMscLastSense)
+  {
+    return false;
+  }
+  sense = device->mscLastSense;
+  return true;
+}
+
 bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
 {
   if (sampleRate == 0 || sampleRate > 0x00ffffff)
@@ -2535,19 +2549,147 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   if (ok)
   {
     actual = 0;
-    ok = submitAndWait(device.mscInEndpointAddress,
-                       nullptr,
-                       reinterpret_cast<uint8_t *>(&csw),
-                       sizeof(csw),
-                       actual) &&
+    const bool cswTransferOk = submitAndWait(device.mscInEndpointAddress,
+                                             nullptr,
+                                             reinterpret_cast<uint8_t *>(&csw),
+                                             sizeof(csw),
+                                             actual);
+    ok = cswTransferOk &&
          actual == sizeof(csw) &&
          csw.signature == USB_MSC_CSW_SIGNATURE &&
-         csw.tag == tag &&
-         csw.status == USB_MSC_CSW_STATUS_PASSED;
+         csw.tag == tag;
+    if (!cswTransferOk)
+    {
+      mscResetRecovery(device, timeoutMs);
+    }
+    if (cswTransferOk && !ok)
+    {
+      ESP_LOGW(TAG, "MSC invalid CSW actual=%u signature=0x%08lx tag=0x%08lx expected=0x%08lx",
+               static_cast<unsigned>(actual),
+               static_cast<unsigned long>(csw.signature),
+               static_cast<unsigned long>(csw.tag),
+               static_cast<unsigned long>(tag));
+      setLastError(ESP_FAIL);
+      mscResetRecovery(device, timeoutMs);
+    }
+    if (ok && csw.status != USB_MSC_CSW_STATUS_PASSED)
+    {
+      ESP_LOGW(TAG, "MSC command failed status=%u residue=%lu",
+               csw.status,
+               static_cast<unsigned long>(csw.dataResidue));
+      setLastError(ESP_FAIL);
+      ok = false;
+      if (csw.status == USB_MSC_CSW_STATUS_PHASE_ERROR)
+      {
+        mscResetRecovery(device, timeoutMs);
+      }
+    }
+  }
+  else
+  {
+    mscResetRecovery(device, timeoutMs);
   }
 
   vSemaphoreDelete(context.done);
   return ok;
+}
+
+bool EspUsbHost::mscResetRecovery(DeviceState &device, uint32_t timeoutMs)
+{
+  if (!device.handle)
+  {
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "MSC reset recovery cannot run from USB client task");
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC reset) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_MSC_RESET_REQUEST_TYPE;
+  setup->bRequest = USB_MSC_RESET_REQUEST;
+  setup->wValue = 0;
+  setup->wIndex = device.mscInterfaceNumber;
+  setup->wLength = 0;
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC reset) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  const bool resetOk = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "MSC reset timeout");
+    setLastError(ESP_ERR_TIMEOUT);
+  }
+  else if (!resetOk)
+  {
+    ESP_LOGW(TAG, "MSC reset failed status=%d", context.status);
+    setLastError(ESP_FAIL);
+  }
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+
+  bool clearOk = resetOk;
+  if (device.hasMscInEndpoint)
+  {
+    err = usb_host_endpoint_clear(device.handle, device.mscInEndpointAddress);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_endpoint_clear(MSC IN 0x%02x) failed: %s",
+               device.mscInEndpointAddress,
+               esp_err_to_name(err));
+      setLastError(err);
+      clearOk = false;
+    }
+  }
+  if (device.hasMscOutEndpoint)
+  {
+    err = usb_host_endpoint_clear(device.handle, device.mscOutEndpointAddress);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_endpoint_clear(MSC OUT 0x%02x) failed: %s",
+               device.mscOutEndpointAddress,
+               esp_err_to_name(err));
+      setLastError(err);
+      clearOk = false;
+    }
+  }
+  return clearOk;
 }
 
 bool EspUsbHost::mscInquiry(EspUsbHostMscInquiry &inquiry, uint8_t address, uint32_t timeoutMs)
@@ -2603,6 +2745,8 @@ bool EspUsbHost::mscRequestSense(EspUsbHostMscSense &sense, uint8_t address, uin
   sense.senseKey = data[2] & 0x0f;
   sense.additionalSenseCode = data[12];
   sense.additionalSenseQualifier = data[13];
+  device->mscLastSense = sense;
+  device->hasMscLastSense = true;
   return true;
 }
 

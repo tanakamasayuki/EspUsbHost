@@ -21,6 +21,8 @@ EspUsbHostAudioData	KEYWORD1
 EspUsbHostAudioStreamInfo	KEYWORD1
 EspUsbHostAudioFeatureUnitInfo	KEYWORD1
 EspUsbHostAudioVolumeRange	KEYWORD1
+EspUsbHostMscInquiry	KEYWORD1
+EspUsbHostMscSense	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
 
 #######################################
@@ -57,6 +59,15 @@ audioSetVolumeDbClamped	KEYWORD2
 audioConfigureVolume	KEYWORD2
 audioSetVolumePercent	KEYWORD2
 audioConfigureVolumePercent	KEYWORD2
+mscReady	KEYWORD2
+mscInquiry	KEYWORD2
+mscRequestSense	KEYWORD2
+mscLastSense	KEYWORD2
+mscTestUnitReady	KEYWORD2
+mscCapacity64	KEYWORD2
+mscCapacity	KEYWORD2
+mscReadBlocks	KEYWORD2
+mscWriteBlocks	KEYWORD2
 espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 espUsbHostAudioStreamPreferredSampleRate	KEYWORD2
 espUsbHostAudioStreamMatchesPcm	KEYWORD2

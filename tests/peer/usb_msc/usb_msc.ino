@@ -81,6 +81,17 @@ void loop()
                       sense.additionalSenseCode,
                       sense.additionalSenseQualifier);
     }
+    else if (command == 'S')
+    {
+        EspUsbHostMscSense sense;
+        const bool ok = usb.mscLastSense(sense);
+        Serial.printf("MSC_LAST_SENSE ok=%u response=0x%02x key=0x%02x asc=0x%02x ascq=0x%02x\n",
+                      ok ? 1 : 0,
+                      sense.responseCode,
+                      sense.senseKey,
+                      sense.additionalSenseCode,
+                      sense.additionalSenseQualifier);
+    }
     else if (command == 't')
     {
         const bool ok = usb.mscTestUnitReady();
