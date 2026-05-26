@@ -879,6 +879,9 @@ public:
                        uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscLastSense(EspUsbHostMscSense &sense,
                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool mscMaxLun(uint8_t &maxLun,
+                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                         uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity64(uint64_t &blockCount,
@@ -1067,6 +1070,8 @@ private:
     uint32_t mscBlockSize = 0;
     EspUsbHostMscSense mscLastSense = {};
     bool hasMscLastSense = false;
+    uint8_t mscMaxLun = 0;
+    bool hasMscMaxLun = false;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};

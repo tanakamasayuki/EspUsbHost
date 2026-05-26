@@ -70,6 +70,14 @@ void loop()
                       inquiry.product,
                       inquiry.revision);
     }
+    else if (command == 'l')
+    {
+        uint8_t maxLun = 0xff;
+        const bool ok = usb.mscMaxLun(maxLun);
+        Serial.printf("MSC_MAX_LUN ok=%u max_lun=%u\n",
+                      ok ? 1 : 0,
+                      maxLun);
+    }
     else if (command == 's')
     {
         EspUsbHostMscSense sense;
