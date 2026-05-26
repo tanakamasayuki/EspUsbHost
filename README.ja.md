@@ -467,6 +467,12 @@ bool mscReadBlocks(uint32_t lba, uint8_t *data, uint32_t blockCount,
 bool mscWriteBlocks(uint32_t lba, const uint8_t *data, uint32_t blockCount,
                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                     uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscReadBlocks64(uint64_t lba, uint8_t *data, uint32_t blockCount,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscWriteBlocks64(uint64_t lba, const uint8_t *data, uint32_t blockCount,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 ```
 
 現時点のMSC対応はブロックI/Oのみです。SCSI transparent / Bulk-Only Transportデバイスの容量取得とブロックread/writeに対応し、FATのマウントやArduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。

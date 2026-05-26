@@ -35,12 +35,25 @@ def test_usb_msc_read_boot_block(dut, peers):
     dut.expect_exact("MSC_READ ok=1 b0=eb b1=3c b510=55 b511=aa")
 
 
+def test_usb_msc_read64_boot_block(dut, peers):
+    dut.write("R")
+    dut.expect_exact("MSC_READ64 ok=1 b0=eb b1=3c b510=55 b511=aa")
+
+
 def test_usb_msc_write_read_block(dut, peers):
     device = peers["device"]
 
     dut.write("w")
     device.expect_exact("DEVICE_WRITE lba=4 offset=0 size=512")
     dut.expect_exact("MSC_WRITE_READ write=1 read=1 b0=a5 b1=a4 b255=5a b511=5a")
+
+
+def test_usb_msc_write_read64_block(dut, peers):
+    device = peers["device"]
+
+    dut.write("W")
+    device.expect_exact("DEVICE_WRITE lba=5 offset=0 size=512")
+    dut.expect_exact("MSC_WRITE_READ64 write=1 read=1 b0=5a b1=5b b255=a5 b511=a5")
 
 
 def test_usb_msc_multi_block_write_read(dut, peers):

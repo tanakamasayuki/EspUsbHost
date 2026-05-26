@@ -902,6 +902,16 @@ public:
                       uint32_t blockCount,
                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscReadBlocks64(uint64_t lba,
+                       uint8_t *data,
+                       uint32_t blockCount,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscWriteBlocks64(uint64_t lba,
+                        const uint8_t *data,
+                        uint32_t blockCount,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -1067,6 +1077,7 @@ private:
     uint16_t mscOutPacketSize = 0;
     uint32_t mscTag = 1;
     uint32_t mscBlockCount = 0;
+    uint64_t mscBlockCount64 = 0;
     uint32_t mscBlockSize = 0;
     EspUsbHostMscSense mscLastSense = {};
     bool hasMscLastSense = false;
