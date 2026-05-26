@@ -2697,6 +2697,8 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     return ok;
   };
 
+  const uint8_t commandOpcode = command[0];
+  bool requestSenseAfterCommand = false;
   const uint32_t tag = device.mscTag++;
   EspUsbHostMscCbw cbw = {};
   cbw.signature = USB_MSC_CBW_SIGNATURE;
@@ -2762,6 +2764,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       {
         mscResetRecovery(device, timeoutMs);
       }
+      else if (commandOpcode != SCSI_CMD_REQUEST_SENSE)
+      {
+        requestSenseAfterCommand = true;
+      }
     }
   }
   else
@@ -2770,6 +2776,11 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   }
 
   vSemaphoreDelete(context.done);
+  if (requestSenseAfterCommand)
+  {
+    EspUsbHostMscSense sense;
+    mscRequestSense(sense, device.info.address, timeoutMs);
+  }
   return ok;
 }
 
