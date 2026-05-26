@@ -124,6 +124,11 @@ void loop()
         const bool ok = usb.mscTestUnitReady();
         Serial.printf("MSC_TEST_UNIT_READY ok=%u\n", ok ? 1 : 0);
     }
+    else if (command == 'T')
+    {
+        const bool ok = usb.mscWaitReady(ESP_USB_HOST_ANY_ADDRESS, 1000, 1000);
+        Serial.printf("MSC_WAIT_READY ok=%u\n", ok ? 1 : 0);
+    }
     else if (command == 'y')
     {
         const bool ok = usb.mscSynchronizeCache();
