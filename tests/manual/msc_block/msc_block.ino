@@ -1,6 +1,8 @@
 #include "EspUsbHost.h"
 
 #include <dirent.h>
+#include <stdio.h>
+#include <sys/stat.h>
 
 EspUsbHost usb;
 
@@ -202,6 +204,7 @@ void loop()
     }
     Serial.println("MSC_OPENDIR ok=1 path=/usb");
     uint8_t entryCount = 0;
+    char firstFilePath[128] = {};
     while (entryCount < 5)
     {
         dirent *entry = readdir(root);
@@ -210,9 +213,101 @@ void loop()
             break;
         }
         Serial.printf("MSC_ROOT_ENTRY name=%s type=%u\n", entry->d_name, entry->d_type);
+        if (firstFilePath[0] == '\0' &&
+            strcmp(entry->d_name, ".") != 0 &&
+            strcmp(entry->d_name, "..") != 0)
+        {
+            char candidate[128] = {};
+            snprintf(candidate, sizeof(candidate), "/usb/%s", entry->d_name);
+            struct stat st = {};
+            if (stat(candidate, &st) == 0 && S_ISREG(st.st_mode))
+            {
+                strncpy(firstFilePath, candidate, sizeof(firstFilePath) - 1);
+            }
+        }
         entryCount++;
     }
     closedir(root);
+    Serial.printf("MSC_ROOT_ENTRY_COUNT count=%u\n", entryCount);
+
+    if (firstFilePath[0] != '\0')
+    {
+        FILE *file = fopen(firstFilePath, "rb");
+        if (!file)
+        {
+            Serial.printf("MSC_FILE_READ ok=0 path=%s\n", firstFilePath);
+            usb.mscUnmount("/usb");
+            tested = true;
+            return;
+        }
+        uint8_t bytes[16] = {};
+        const size_t readBytes = fread(bytes, 1, sizeof(bytes), file);
+        fclose(file);
+        Serial.printf("MSC_FILE_READ ok=1 path=%s bytes=%u b0=%02x\n",
+                      firstFilePath,
+                      static_cast<unsigned>(readBytes),
+                      readBytes > 0 ? bytes[0] : 0);
+    }
+    else
+    {
+        Serial.println("MSC_FILE_READ skipped=no_regular_file");
+    }
+
+    const char *writePath = "/usb/ESPUSBHT.TST";
+    const uint8_t writeData[] = "EspUsbHost MSC write test\n";
+    FILE *writeFile = fopen(writePath, "wb");
+    if (!writeFile)
+    {
+        Serial.printf("MSC_FILE_WRITE ok=0 path=%s\n", writePath);
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
+    const size_t written = fwrite(writeData, 1, sizeof(writeData) - 1, writeFile);
+    const int closeWrite = fclose(writeFile);
+    Serial.printf("MSC_FILE_WRITE ok=%u path=%s bytes=%u\n",
+                  (written == sizeof(writeData) - 1 && closeWrite == 0) ? 1 : 0,
+                  writePath,
+                  static_cast<unsigned>(written));
+    if (written != sizeof(writeData) - 1 || closeWrite != 0)
+    {
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
+
+    FILE *readBackFile = fopen(writePath, "rb");
+    if (!readBackFile)
+    {
+        Serial.printf("MSC_FILE_READBACK ok=0 path=%s\n", writePath);
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
+    uint8_t readBack[sizeof(writeData)] = {};
+    const size_t readBackBytes = fread(readBack, 1, sizeof(readBack), readBackFile);
+    fclose(readBackFile);
+    const bool readBackOk = readBackBytes == sizeof(writeData) - 1 &&
+                            memcmp(readBack, writeData, sizeof(writeData) - 1) == 0;
+    Serial.printf("MSC_FILE_READBACK ok=%u path=%s bytes=%u\n",
+                  readBackOk ? 1 : 0,
+                  writePath,
+                  static_cast<unsigned>(readBackBytes));
+    if (!readBackOk)
+    {
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
+
+    const int removeResult = remove(writePath);
+    Serial.printf("MSC_FILE_REMOVE ok=%u path=%s\n", removeResult == 0 ? 1 : 0, writePath);
+    if (removeResult != 0)
+    {
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
 
     const bool duplicateMountOk = usb.mscMount("/usb");
     Serial.printf("MSC_MOUNT_DUPLICATE ok=%u path=/usb\n", duplicateMountOk ? 1 : 0);
