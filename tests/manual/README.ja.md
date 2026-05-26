@@ -46,7 +46,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`hotplug/`](hotplug/) | 接続・切断イベントの正常発火と繰り返しサイクルでクラッシュしないこと | 任意のUSBデバイス | ✅ |
 | [`hub_info/`](hub_info/) | USBハブ経由で接続されたデバイスのトポロジー情報を表示すること | USBハブ＋USBデバイス2台 | ✅ |
 | [`hub_power/`](hub_power/) | ポート単位の電源制御 — ハブのポートをOFF/ONしてデバイスの切断・再接続を確認 | ポート単位の電源制御対応USBハブ＋任意のUSBデバイス | ✅ |
-| [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得とLBA 0読み取り。デバイスへは書き込まない | USBメモリ | ✅ |
+| [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得、LBA 0読み取り、FatFs/VFS mount、一時ファイルのwrite/read/deleteを確認 | USBメモリ | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 
