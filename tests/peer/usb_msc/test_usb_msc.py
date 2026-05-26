@@ -40,6 +40,11 @@ def test_usb_msc_test_unit_ready(dut, peers):
     dut.expect_exact("MSC_TEST_UNIT_READY ok=1")
 
 
+def test_usb_msc_wait_ready(dut, peers):
+    dut.write("T")
+    dut.expect_exact("MSC_WAIT_READY ok=1")
+
+
 def test_usb_msc_synchronize_cache(dut, peers):
     dut.write("y")
     dut.expect_exact("MSC_SYNC_CACHE ok=1")

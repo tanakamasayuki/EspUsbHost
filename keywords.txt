@@ -68,6 +68,7 @@ mscMaxLun	KEYWORD2
 mscSelectLun	KEYWORD2
 mscGetBlockDeviceInfo	KEYWORD2
 mscTestUnitReady	KEYWORD2
+mscWaitReady	KEYWORD2
 mscCapacity64	KEYWORD2
 mscCapacity	KEYWORD2
 mscReadBlocks	KEYWORD2

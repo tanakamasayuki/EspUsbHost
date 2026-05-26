@@ -90,6 +90,8 @@ void loop()
     }
     const bool ready = usb.mscTestUnitReady();
     Serial.printf("MSC_TEST_UNIT_READY ok=%u\n", ready ? 1 : 0);
+    const bool waitReady = usb.mscWaitReady(ESP_USB_HOST_ANY_ADDRESS, 5000, 1000);
+    Serial.printf("MSC_WAIT_READY ok=%u\n", waitReady ? 1 : 0);
 
     uint8_t maxLun = 0;
     if (usb.mscMaxLun(maxLun))

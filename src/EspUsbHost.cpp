@@ -2954,6 +2954,35 @@ bool EspUsbHost::mscTestUnitReady(uint8_t address, uint32_t timeoutMs)
   return mscCommand(*device, command, sizeof(command), nullptr, 0, true, timeoutMs);
 }
 
+bool EspUsbHost::mscWaitReady(uint8_t address, uint32_t readyTimeoutMs, uint32_t commandTimeoutMs)
+{
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "mscWaitReady() cannot run from USB client task");
+    return false;
+  }
+
+  const uint32_t started = millis();
+  while (true)
+  {
+    DeviceState *device = findMscDevice(address);
+    if (device && mscTestUnitReady(device->info.address, commandTimeoutMs))
+    {
+      return true;
+    }
+    if (device)
+    {
+      EspUsbHostMscSense sense;
+      mscRequestSense(sense, device->info.address, commandTimeoutMs);
+    }
+    if (millis() - started >= readyTimeoutMs)
+    {
+      return false;
+    }
+    delay(50);
+  }
+}
+
 bool EspUsbHost::mscCapacity64(uint64_t &blockCount, uint32_t &blockSize, uint8_t address, uint32_t timeoutMs)
 {
   DeviceState *device = findMscDevice(address);
