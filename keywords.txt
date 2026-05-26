@@ -64,6 +64,7 @@ mscInquiry	KEYWORD2
 mscRequestSense	KEYWORD2
 mscLastSense	KEYWORD2
 mscMaxLun	KEYWORD2
+mscSelectLun	KEYWORD2
 mscTestUnitReady	KEYWORD2
 mscCapacity64	KEYWORD2
 mscCapacity	KEYWORD2

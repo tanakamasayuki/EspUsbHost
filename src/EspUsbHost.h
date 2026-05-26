@@ -882,6 +882,9 @@ public:
   bool mscMaxLun(uint8_t &maxLun,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                  uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscSelectLun(uint8_t lun,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                         uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity64(uint64_t &blockCount,
@@ -1085,6 +1088,7 @@ private:
     bool hasMscLastSense = false;
     uint8_t mscMaxLun = 0;
     bool hasMscMaxLun = false;
+    uint8_t mscLun = 0;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
