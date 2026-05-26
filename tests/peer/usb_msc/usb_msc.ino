@@ -49,6 +49,20 @@ void loop()
                       static_cast<unsigned long>(blocks),
                       static_cast<unsigned long>(blockSize));
     }
+    else if (command == 'd')
+    {
+        EspUsbHostMscBlockDeviceInfo info;
+        const bool ok = usb.mscGetBlockDeviceInfo(info);
+        Serial.printf("MSC_BLOCK_DEVICE ok=%u addr=%u iface=%u lun=%u max_lun=%u blocks=%llu block_size=%lu bytes=%llu\n",
+                      ok ? 1 : 0,
+                      info.address,
+                      info.interfaceNumber,
+                      info.lun,
+                      info.maxLun,
+                      static_cast<unsigned long long>(info.blockCount),
+                      static_cast<unsigned long>(info.blockSize),
+                      static_cast<unsigned long long>(info.capacityBytes));
+    }
     else if (command == 'C')
     {
         uint64_t blocks = 0;

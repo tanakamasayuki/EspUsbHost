@@ -2089,6 +2089,42 @@ bool EspUsbHost::mscSelectLun(uint8_t lun, uint8_t address, uint32_t timeoutMs)
   return true;
 }
 
+bool EspUsbHost::mscGetBlockDeviceInfo(EspUsbHostMscBlockDeviceInfo &info, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscGetBlockDeviceInfo() called before a USB MSC device is ready");
+    return false;
+  }
+
+  uint8_t maxLun = 0;
+  if (!mscMaxLun(maxLun, device->info.address, timeoutMs))
+  {
+    return false;
+  }
+
+  uint64_t blockCount = device->mscBlockCount64;
+  uint32_t blockSize = device->mscBlockSize;
+  if (blockCount == 0 || blockSize == 0)
+  {
+    if (!mscCapacity64(blockCount, blockSize, device->info.address, timeoutMs))
+    {
+      return false;
+    }
+  }
+
+  info = EspUsbHostMscBlockDeviceInfo();
+  info.address = device->info.address;
+  info.interfaceNumber = device->mscInterfaceNumber;
+  info.lun = device->mscLun;
+  info.maxLun = maxLun;
+  info.blockCount = blockCount;
+  info.blockSize = blockSize;
+  info.capacityBytes = blockCount * static_cast<uint64_t>(blockSize);
+  return true;
+}
+
 bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
 {
   if (sampleRate == 0 || sampleRate > 0x00ffffff)

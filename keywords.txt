@@ -23,6 +23,7 @@ EspUsbHostAudioFeatureUnitInfo	KEYWORD1
 EspUsbHostAudioVolumeRange	KEYWORD1
 EspUsbHostMscInquiry	KEYWORD1
 EspUsbHostMscSense	KEYWORD1
+EspUsbHostMscBlockDeviceInfo	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
 
 #######################################
@@ -65,6 +66,7 @@ mscRequestSense	KEYWORD2
 mscLastSense	KEYWORD2
 mscMaxLun	KEYWORD2
 mscSelectLun	KEYWORD2
+mscGetBlockDeviceInfo	KEYWORD2
 mscTestUnitReady	KEYWORD2
 mscCapacity64	KEYWORD2
 mscCapacity	KEYWORD2
