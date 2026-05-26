@@ -18,6 +18,11 @@ def test_usb_msc_max_lun(dut, peers):
     dut.expect_exact("MSC_MAX_LUN ok=1 max_lun=0")
 
 
+def test_usb_msc_select_lun(dut, peers):
+    dut.write("L")
+    dut.expect_exact("MSC_SELECT_LUN ok=1")
+
+
 def test_usb_msc_request_sense(dut, peers):
     dut.write("s")
     dut.expect_exact("MSC_SENSE ok=1 response=0x70 key=0x00 asc=0x00 ascq=0x00")

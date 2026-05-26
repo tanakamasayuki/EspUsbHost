@@ -453,6 +453,9 @@ bool mscLastSense(EspUsbHostMscSense &sense,
 bool mscMaxLun(uint8_t &maxLun,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscSelectLun(uint8_t lun,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscCapacity64(uint64_t &blockCount, uint32_t &blockSize,

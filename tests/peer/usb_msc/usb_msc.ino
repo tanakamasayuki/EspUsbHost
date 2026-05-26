@@ -78,6 +78,11 @@ void loop()
                       ok ? 1 : 0,
                       maxLun);
     }
+    else if (command == 'L')
+    {
+        const bool ok = usb.mscSelectLun(0);
+        Serial.printf("MSC_SELECT_LUN ok=%u\n", ok ? 1 : 0);
+    }
     else if (command == 's')
     {
         EspUsbHostMscSense sense;

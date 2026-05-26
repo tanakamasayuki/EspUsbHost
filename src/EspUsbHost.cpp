@@ -2057,6 +2057,38 @@ bool EspUsbHost::mscMaxLun(uint8_t &maxLun, uint8_t address, uint32_t timeoutMs)
   return ok;
 }
 
+bool EspUsbHost::mscSelectLun(uint8_t lun, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscSelectLun() called before a USB MSC device is ready");
+    return false;
+  }
+
+  uint8_t maxLun = 0;
+  if (!mscMaxLun(maxLun, device->info.address, timeoutMs))
+  {
+    return false;
+  }
+  if (lun > maxLun)
+  {
+    ESP_LOGW(TAG, "mscSelectLun() invalid LUN %u max=%u", lun, maxLun);
+    return false;
+  }
+  if (device->mscLun == lun)
+  {
+    return true;
+  }
+
+  device->mscLun = lun;
+  device->mscBlockCount = 0;
+  device->mscBlockCount64 = 0;
+  device->mscBlockSize = 0;
+  device->hasMscLastSense = false;
+  return true;
+}
+
 bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
 {
   if (sampleRate == 0 || sampleRate > 0x00ffffff)
@@ -2635,7 +2667,7 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   cbw.tag = tag;
   cbw.dataTransferLength = dataLength;
   cbw.flags = dataIn ? 0x80 : 0x00;
-  cbw.lun = 0;
+  cbw.lun = device.mscLun;
   cbw.commandBlockLength = commandLength;
   memcpy(cbw.commandBlock, command, commandLength);
 
