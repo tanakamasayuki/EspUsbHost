@@ -37,6 +37,7 @@ static constexpr uint8_t SCSI_CMD_INQUIRY = 0x12;
 static constexpr uint8_t SCSI_CMD_READ_CAPACITY_10 = 0x25;
 static constexpr uint8_t SCSI_CMD_READ_10 = 0x28;
 static constexpr uint8_t SCSI_CMD_WRITE_10 = 0x2a;
+static constexpr uint8_t SCSI_CMD_SYNCHRONIZE_CACHE_10 = 0x35;
 static constexpr uint8_t SCSI_CMD_READ_16 = 0x88;
 static constexpr uint8_t SCSI_CMD_WRITE_16 = 0x8a;
 static constexpr uint8_t SCSI_CMD_SERVICE_ACTION_IN_16 = 0x9e;
@@ -3087,6 +3088,20 @@ bool EspUsbHost::mscWriteBlocks64(uint64_t lba, const uint8_t *data, uint32_t bl
     currentData += static_cast<size_t>(chunkBlocks) * device->mscBlockSize;
   }
   return true;
+}
+
+bool EspUsbHost::mscSynchronizeCache(uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscSynchronizeCache() called before a USB MSC device is ready");
+    return false;
+  }
+
+  uint8_t command[10] = {};
+  command[0] = SCSI_CMD_SYNCHRONIZE_CACHE_10;
+  return mscCommand(*device, command, sizeof(command), nullptr, 0, false, timeoutMs);
 }
 
 bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)
