@@ -484,9 +484,15 @@ bool mscWriteBlocks64(uint64_t lba, const uint8_t *data, uint32_t blockCount,
                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscSynchronizeCache(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                          uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscMount(const char *basePath = "/usb",
+              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+              uint8_t lun = 0,
+              uint8_t maxFiles = 4,
+              uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscUnmount(const char *basePath = "/usb");
 ```
 
-MSC support is currently block-level only. It supports SCSI transparent / Bulk-Only Transport devices and does not mount FAT or expose an Arduino `FS` object yet. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
+MSC support covers SCSI transparent / Bulk-Only Transport block I/O and minimal ESP-IDF FatFs/VFS mounting. Arduino `FS` object integration is not provided yet. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
 
 ### Device discovery
 

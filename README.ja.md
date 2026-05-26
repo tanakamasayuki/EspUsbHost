@@ -484,9 +484,15 @@ bool mscWriteBlocks64(uint64_t lba, const uint8_t *data, uint32_t blockCount,
                       uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscSynchronizeCache(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                          uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscMount(const char *basePath = "/usb",
+              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+              uint8_t lun = 0,
+              uint8_t maxFiles = 4,
+              uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+bool mscUnmount(const char *basePath = "/usb");
 ```
 
-現時点のMSC対応はブロックI/Oのみです。SCSI transparent / Bulk-Only Transportデバイスの容量取得とブロックread/writeに対応し、FATのマウントやArduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
+現時点のMSC対応はSCSI transparent / Bulk-Only TransportのブロックI/Oと、ESP-IDF FatFs/VFSへの最小マウントに対応しています。Arduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
 
 ### デバイス探索
 
