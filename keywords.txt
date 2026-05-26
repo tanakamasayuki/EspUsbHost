@@ -76,6 +76,8 @@ mscWriteBlocks	KEYWORD2
 mscReadBlocks64	KEYWORD2
 mscWriteBlocks64	KEYWORD2
 mscSynchronizeCache	KEYWORD2
+mscMount	KEYWORD2
+mscUnmount	KEYWORD2
 espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 espUsbHostAudioStreamPreferredSampleRate	KEYWORD2
 espUsbHostAudioStreamMatchesPcm	KEYWORD2

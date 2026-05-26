@@ -1,6 +1,10 @@
 #include "EspUsbHost.h"
 #include "EspUsbHostHid.h"
 
+#include "diskio_impl.h"
+#include "esp_vfs_fat.h"
+
+#include <string.h>
 #include <math.h>
 
 #if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
@@ -107,6 +111,22 @@ struct EspUsbHostSyncTransferContext
   size_t actualLength = 0;
 };
 
+struct EspUsbHostMscFatMount
+{
+  bool inUse = false;
+  EspUsbHost *host = nullptr;
+  uint8_t address = 0;
+  uint8_t lun = 0;
+  uint8_t pdrv = FF_DRV_NOT_USED;
+  char basePath[16] = {};
+  char fatDrive[4] = {};
+  FATFS *fs = nullptr;
+  uint64_t blockCount = 0;
+  uint32_t blockSize = 0;
+};
+
+static EspUsbHostMscFatMount mscFatMounts[FF_VOLUMES] = {};
+
 struct HIDReportDescriptorTransferContext
 {
   EspUsbHost *host = nullptr;
@@ -206,6 +226,114 @@ static void writeBe64(uint8_t *data, uint64_t value)
   data[6] = (value >> 8) & 0xff;
   data[7] = value & 0xff;
 }
+
+static EspUsbHostMscFatMount *findMscFatMountByDrive(uint8_t pdrv)
+{
+  for (EspUsbHostMscFatMount &mount : mscFatMounts)
+  {
+    if (mount.inUse && mount.pdrv == pdrv)
+    {
+      return &mount;
+    }
+  }
+  return nullptr;
+}
+
+static EspUsbHostMscFatMount *findMscFatMountByPath(const char *basePath)
+{
+  if (!basePath)
+  {
+    return nullptr;
+  }
+  for (EspUsbHostMscFatMount &mount : mscFatMounts)
+  {
+    if (mount.inUse && strcmp(mount.basePath, basePath) == 0)
+    {
+      return &mount;
+    }
+  }
+  return nullptr;
+}
+
+static DSTATUS mscFatDiskInitialize(BYTE pdrv)
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByDrive(pdrv);
+  return mount ? 0 : STA_NOINIT;
+}
+
+static DSTATUS mscFatDiskStatus(BYTE pdrv)
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByDrive(pdrv);
+  return mount && mount->host && mount->host->mscReady(mount->address) ? 0 : STA_NOINIT;
+}
+
+static DRESULT mscFatDiskRead(BYTE pdrv, BYTE *buff, uint32_t sector, unsigned count)
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByDrive(pdrv);
+  if (!mount || !mount->host || !buff || count == 0)
+  {
+    return RES_PARERR;
+  }
+  mount->host->mscSelectLun(mount->lun, mount->address);
+  return mount->host->mscReadBlocks64(sector, buff, count, mount->address) ? RES_OK : RES_ERROR;
+}
+
+static DRESULT mscFatDiskWrite(BYTE pdrv, const BYTE *buff, uint32_t sector, unsigned count)
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByDrive(pdrv);
+  if (!mount || !mount->host || !buff || count == 0)
+  {
+    return RES_PARERR;
+  }
+  mount->host->mscSelectLun(mount->lun, mount->address);
+  return mount->host->mscWriteBlocks64(sector, buff, count, mount->address) ? RES_OK : RES_ERROR;
+}
+
+static DRESULT mscFatDiskIoctl(BYTE pdrv, BYTE cmd, void *buff)
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByDrive(pdrv);
+  if (!mount || !mount->host)
+  {
+    return RES_NOTRDY;
+  }
+
+  switch (cmd)
+  {
+  case CTRL_SYNC:
+    return mount->host->mscSynchronizeCache(mount->address) ? RES_OK : RES_ERROR;
+  case GET_SECTOR_COUNT:
+    if (!buff)
+    {
+      return RES_PARERR;
+    }
+    *static_cast<LBA_t *>(buff) = static_cast<LBA_t>(mount->blockCount);
+    return RES_OK;
+  case GET_SECTOR_SIZE:
+    if (!buff)
+    {
+      return RES_PARERR;
+    }
+    *static_cast<WORD *>(buff) = static_cast<WORD>(mount->blockSize);
+    return RES_OK;
+  case GET_BLOCK_SIZE:
+    if (!buff)
+    {
+      return RES_PARERR;
+    }
+    *static_cast<DWORD *>(buff) = 1;
+    return RES_OK;
+  default:
+    return RES_PARERR;
+  }
+}
+
+static const ff_diskio_impl_t MSC_FAT_DISKIO = {
+    .init = &mscFatDiskInitialize,
+    .status = &mscFatDiskStatus,
+    .read = &mscFatDiskRead,
+    .write = &mscFatDiskWrite,
+    .ioctl = &mscFatDiskIoctl,
+};
 
 static unsigned hostPeripheralMap(EspUsbHostPort port)
 {
@@ -3210,6 +3338,127 @@ bool EspUsbHost::mscSynchronizeCache(uint8_t address, uint32_t timeoutMs)
   uint8_t command[10] = {};
   command[0] = SCSI_CMD_SYNCHRONIZE_CACHE_10;
   return mscCommand(*device, command, sizeof(command), nullptr, 0, false, timeoutMs);
+}
+
+bool EspUsbHost::mscMount(const char *basePath, uint8_t address, uint8_t lun, uint8_t maxFiles, uint32_t timeoutMs)
+{
+  if (!basePath || basePath[0] != '/' || strlen(basePath) >= sizeof(mscFatMounts[0].basePath))
+  {
+    ESP_LOGW(TAG, "mscMount() invalid basePath");
+    return false;
+  }
+  if (findMscFatMountByPath(basePath))
+  {
+    ESP_LOGW(TAG, "mscMount() basePath already mounted: %s", basePath);
+    return false;
+  }
+  if (!mscWaitReady(address, timeoutMs, timeoutMs))
+  {
+    return false;
+  }
+
+  DeviceState *device = findMscDevice(address);
+  if (!device || !mscSelectLun(lun, device->info.address, timeoutMs))
+  {
+    return false;
+  }
+
+  EspUsbHostMscBlockDeviceInfo blockInfo;
+  if (!mscGetBlockDeviceInfo(blockInfo, device->info.address, timeoutMs))
+  {
+    return false;
+  }
+  if (blockInfo.blockCount == 0 || blockInfo.blockSize == 0)
+  {
+    ESP_LOGW(TAG, "mscMount() invalid block device info");
+    return false;
+  }
+
+  EspUsbHostMscFatMount *mount = nullptr;
+  for (EspUsbHostMscFatMount &candidate : mscFatMounts)
+  {
+    if (!candidate.inUse)
+    {
+      mount = &candidate;
+      break;
+    }
+  }
+  if (!mount)
+  {
+    ESP_LOGW(TAG, "mscMount() no mount slots available");
+    return false;
+  }
+
+  BYTE pdrv = FF_DRV_NOT_USED;
+  esp_err_t err = ff_diskio_get_drive(&pdrv);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "ff_diskio_get_drive() failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  *mount = EspUsbHostMscFatMount();
+  mount->inUse = true;
+  mount->host = this;
+  mount->address = device->info.address;
+  mount->lun = lun;
+  mount->pdrv = pdrv;
+  mount->blockCount = blockInfo.blockCount;
+  mount->blockSize = blockInfo.blockSize;
+  strncpy(mount->basePath, basePath, sizeof(mount->basePath) - 1);
+  snprintf(mount->fatDrive, sizeof(mount->fatDrive), "%u:", static_cast<unsigned>(pdrv));
+
+  ff_diskio_register(pdrv, &MSC_FAT_DISKIO);
+
+  const esp_vfs_fat_conf_t conf = {
+      .base_path = mount->basePath,
+      .fat_drive = mount->fatDrive,
+      .max_files = maxFiles,
+  };
+  err = esp_vfs_fat_register_cfg(&conf, &mount->fs);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "esp_vfs_fat_register_cfg(%s) failed: %s", basePath, esp_err_to_name(err));
+    ff_diskio_unregister(pdrv);
+    *mount = EspUsbHostMscFatMount();
+    setLastError(err);
+    return false;
+  }
+
+  const FRESULT mountResult = f_mount(mount->fs, mount->fatDrive, 1);
+  if (mountResult != FR_OK)
+  {
+    ESP_LOGW(TAG, "f_mount(%s) failed: %d", mount->fatDrive, mountResult);
+    esp_vfs_fat_unregister_path(mount->basePath);
+    ff_diskio_unregister(pdrv);
+    *mount = EspUsbHostMscFatMount();
+    setLastError(ESP_FAIL);
+    return false;
+  }
+
+  return true;
+}
+
+bool EspUsbHost::mscUnmount(const char *basePath)
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByPath(basePath);
+  if (!mount)
+  {
+    return false;
+  }
+
+  mscSynchronizeCache(mount->address);
+  f_mount(nullptr, mount->fatDrive, 0);
+  esp_err_t err = esp_vfs_fat_unregister_path(mount->basePath);
+  ff_diskio_unregister(mount->pdrv);
+  *mount = EspUsbHostMscFatMount();
+  if (err != ESP_OK)
+  {
+    setLastError(err);
+    return false;
+  }
+  return true;
 }
 
 bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)

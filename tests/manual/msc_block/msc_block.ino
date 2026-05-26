@@ -1,5 +1,7 @@
 #include "EspUsbHost.h"
 
+#include <dirent.h>
+
 EspUsbHost usb;
 
 static bool tested = false;
@@ -181,6 +183,45 @@ void loop()
     }
 
     printPartitions(block);
+
+    if (!usb.mscMount("/usb"))
+    {
+        Serial.printf("MSC_MOUNT ok=0 err=%s\n", usb.lastErrorName());
+        tested = true;
+        return;
+    }
+    Serial.println("MSC_MOUNT ok=1 path=/usb");
+
+    DIR *root = opendir("/usb");
+    if (!root)
+    {
+        Serial.println("MSC_OPENDIR ok=0 path=/usb");
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
+    Serial.println("MSC_OPENDIR ok=1 path=/usb");
+    uint8_t entryCount = 0;
+    while (entryCount < 5)
+    {
+        dirent *entry = readdir(root);
+        if (!entry)
+        {
+            break;
+        }
+        Serial.printf("MSC_ROOT_ENTRY name=%s type=%u\n", entry->d_name, entry->d_type);
+        entryCount++;
+    }
+    closedir(root);
+
+    const bool unmountOk = usb.mscUnmount("/usb");
+    Serial.printf("MSC_UNMOUNT ok=%u path=/usb\n", unmountOk ? 1 : 0);
+    if (!unmountOk)
+    {
+        tested = true;
+        return;
+    }
+
     Serial.println("[PASS]");
     tested = true;
 }
