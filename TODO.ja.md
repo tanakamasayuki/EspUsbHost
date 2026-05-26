@@ -53,7 +53,7 @@ MBR/FATパーティションはFatFs側に任せる方針で、実USBメモリma
 (4) mount/unmount APIを追加する
 `mscMount("/usb")`, `mscUnmount("/usb")` の最小APIを追加済み
 内部では `esp_vfs_fat_register_cfg()` と `f_mount()` を使う
-hotplug/disconnect時に安全にunmountする
+disconnect時にFatFs/VFS登録を自動解除する処理を追加済み。mount中に抜いた場合のmanual確認を追加する
 open中ファイルやwrite cacheがある状態で抜かれた場合の挙動を明記する
 format/mkfsは最初は入れず、必要になったら別APIとして検討する
 

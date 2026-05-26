@@ -3468,6 +3468,28 @@ bool EspUsbHost::mscUnmount(const char *basePath)
   return true;
 }
 
+void EspUsbHost::mscUnmountAddress(uint8_t address)
+{
+  for (EspUsbHostMscFatMount &mount : mscFatMounts)
+  {
+    if (!mount.inUse || mount.host != this || mount.address != address)
+    {
+      continue;
+    }
+    f_mount(nullptr, mount.fatDrive, 0);
+    esp_err_t err = esp_vfs_fat_unregister_path(mount.basePath);
+    ff_diskio_unregister(mount.pdrv);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "esp_vfs_fat_unregister_path(%s) after MSC disconnect failed: %s",
+               mount.basePath,
+               esp_err_to_name(err));
+      setLastError(err);
+    }
+    mount = EspUsbHostMscFatMount();
+  }
+}
+
 bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)
 {
   const size_t packetSize = device.audioOutPacketSize;
@@ -4322,6 +4344,10 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   }
 
   EspUsbHostDeviceInfo info = device->info;
+  if (device->hasMscInterface)
+  {
+    mscUnmountAddress(device->info.address);
+  }
   releaseEndpoints(*device, false);
   releaseInterfaces(*device);
   if (device->handle)
