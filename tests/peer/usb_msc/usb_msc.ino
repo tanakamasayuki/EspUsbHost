@@ -116,6 +116,17 @@ void loop()
                       block[510],
                       block[511]);
     }
+    else if (command == 'R')
+    {
+        uint8_t block[512] = {};
+        const bool ok = usb.mscReadBlocks64(0, block, 1);
+        Serial.printf("MSC_READ64 ok=%u b0=%02x b1=%02x b510=%02x b511=%02x\n",
+                      ok ? 1 : 0,
+                      block[0],
+                      block[1],
+                      block[510],
+                      block[511]);
+    }
     else if (command == 'w')
     {
         uint8_t block[512] = {};
@@ -127,6 +138,24 @@ void loop()
         memset(block, 0, sizeof(block));
         const bool readOk = usb.mscReadBlocks(4, block, 1);
         Serial.printf("MSC_WRITE_READ write=%u read=%u b0=%02x b1=%02x b255=%02x b511=%02x\n",
+                      writeOk ? 1 : 0,
+                      readOk ? 1 : 0,
+                      block[0],
+                      block[1],
+                      block[255],
+                      block[511]);
+    }
+    else if (command == 'W')
+    {
+        uint8_t block[512] = {};
+        for (size_t i = 0; i < sizeof(block); i++)
+        {
+            block[i] = static_cast<uint8_t>(0x5a ^ i);
+        }
+        const bool writeOk = usb.mscWriteBlocks64(5, block, 1);
+        memset(block, 0, sizeof(block));
+        const bool readOk = usb.mscReadBlocks64(5, block, 1);
+        Serial.printf("MSC_WRITE_READ64 write=%u read=%u b0=%02x b1=%02x b255=%02x b511=%02x\n",
                       writeOk ? 1 : 0,
                       readOk ? 1 : 0,
                       block[0],
