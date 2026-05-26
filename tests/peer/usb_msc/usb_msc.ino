@@ -105,6 +105,11 @@ void loop()
         const bool ok = usb.mscTestUnitReady();
         Serial.printf("MSC_TEST_UNIT_READY ok=%u\n", ok ? 1 : 0);
     }
+    else if (command == 'y')
+    {
+        const bool ok = usb.mscSynchronizeCache();
+        Serial.printf("MSC_SYNC_CACHE ok=%u\n", ok ? 1 : 0);
+    }
     else if (command == 'r')
     {
         uint8_t block[512] = {};
