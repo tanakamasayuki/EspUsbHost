@@ -29,6 +29,8 @@ static constexpr uint8_t USB_MSC_CSW_STATUS_PASSED = 0x00;
 static constexpr uint8_t USB_MSC_CSW_STATUS_PHASE_ERROR = 0x02;
 static constexpr uint8_t USB_MSC_RESET_REQUEST = 0xff;
 static constexpr uint8_t USB_MSC_RESET_REQUEST_TYPE = 0x21;
+static constexpr uint8_t USB_MSC_GET_MAX_LUN_REQUEST = 0xfe;
+static constexpr uint8_t USB_MSC_GET_MAX_LUN_REQUEST_TYPE = 0xa1;
 static constexpr uint8_t SCSI_CMD_TEST_UNIT_READY = 0x00;
 static constexpr uint8_t SCSI_CMD_REQUEST_SENSE = 0x03;
 static constexpr uint8_t SCSI_CMD_INQUIRY = 0x12;
@@ -1944,6 +1946,100 @@ bool EspUsbHost::mscLastSense(EspUsbHostMscSense &sense, uint8_t address) const
   }
   sense = device->mscLastSense;
   return true;
+}
+
+bool EspUsbHost::mscMaxLun(uint8_t &maxLun, uint8_t address, uint32_t timeoutMs)
+{
+  DeviceState *device = findMscDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "mscMaxLun() called before a USB MSC device is ready");
+    return false;
+  }
+  if (device->hasMscMaxLun)
+  {
+    maxLun = device->mscMaxLun;
+    return true;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "mscMaxLun() cannot run from USB client task");
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + 1, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC Get Max LUN) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_MSC_GET_MAX_LUN_REQUEST_TYPE;
+  setup->bRequest = USB_MSC_GET_MAX_LUN_REQUEST;
+  setup->wValue = 0;
+  setup->wIndex = device->mscInterfaceNumber;
+  setup->wLength = 1;
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + 1;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC Get Max LUN) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  bool ok = done &&
+            context.status == USB_TRANSFER_STATUS_COMPLETED &&
+            context.actualLength >= USB_SETUP_PACKET_SIZE + 1;
+  if (ok)
+  {
+    maxLun = transfer->data_buffer[USB_SETUP_PACKET_SIZE];
+  }
+  else
+  {
+    if (!done)
+    {
+      ESP_LOGW(TAG, "MSC Get Max LUN timeout");
+      setLastError(ESP_ERR_TIMEOUT);
+      usb_host_transfer_free(transfer);
+      vSemaphoreDelete(context.done);
+      return false;
+    }
+    ESP_LOGW(TAG, "MSC Get Max LUN failed status=%d actual=%u, assuming LUN 0",
+             context.status,
+             static_cast<unsigned>(context.actualLength));
+    maxLun = 0;
+    ok = true;
+  }
+
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  device->mscMaxLun = maxLun;
+  device->hasMscMaxLun = true;
+  return ok;
 }
 
 bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
