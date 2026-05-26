@@ -161,6 +161,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | Print MSC capacity and dump the first block |
+| [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | Mount MSC through FatFs/VFS, list files, and run a small write/read/delete probe |
 
 ## API reference
 

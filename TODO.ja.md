@@ -33,26 +33,26 @@ Espressifの `usb_host_msc` コンポーネントは、BOT/SCSI復旧処理とVF
 (1) block I/Oの信頼性を先に固める
 CSW failed / phase error の扱いを整理する
 Bulk-Only Mass Storage Reset と bulk endpoint clear halt の復旧経路を追加する
-`REQUEST SENSE` の結果をユーザーが参照できるAPIを検討する
+`REQUEST SENSE` の結果をユーザーが参照できるAPIを追加済み。エラー復旧時の使い方を詰める
 timeout、短い転送、CSW tag mismatch、disconnect中のread/writeをテストする
-write系は実USBメモリ破壊を避けるため、peerテストと専用メディアのmanualテストに分ける
+write系はpeerテストと専用メディアのmanualテストで確認済み。破壊的なテストは引き続き専用メディアに限定する
 
 (2) LUNと容量周りを拡張する
-`GET_MAX_LUN` control requestを追加する
-LUN指定つきのcapacity/read/write APIを検討する
-64bit LBA向けに `READ(16)` / `WRITE(16)` を追加する
+`GET_MAX_LUN` control requestを追加済み
+LUN指定つきのcapacity/read/write APIを追加済み。複数LUN実デバイスでのmanual確認は未実施
+64bit LBA向けに `READ(16)` / `WRITE(16)` を追加済み
 512 bytes以外のblock sizeでread/writeできるか確認する
 
 (3) FatFs disk I/O adapterを作る
-FatFsのdrive番号とMSCデバイス/address/LUNを対応付ける管理テーブルを作る
-disk read/writeを `mscReadBlocks()` / `mscWriteBlocks()` へ接続する
-disk ioctlでsector count、sector size、syncを返す
-MBR/GPTのpartition offsetをFatFs側に任せられるか、こちらで扱う必要があるか確認する
-複数MSCデバイス同時接続時のdrive割り当てを決める
+FatFsのdrive番号とMSCデバイス/address/LUNを対応付ける管理テーブルを追加済み
+disk read/writeを `mscReadBlocks64()` / `mscWriteBlocks64()` へ接続済み
+disk ioctlでsector count、sector size、syncを返す実装を追加済み
+MBR/FATパーティションはFatFs側に任せる方針で、実USBメモリmanualテスト済み
+複数MSCデバイス同時接続時のdrive割り当てを実機確認する
 
 (4) mount/unmount APIを追加する
-例: `mscMount("/usb")`, `mscUnmount("/usb")` のような最小APIから始める
-内部では `esp_vfs_fat_register()` と `f_mount()` を使う
+`mscMount("/usb")`, `mscUnmount("/usb")` の最小APIを追加済み
+内部では `esp_vfs_fat_register_cfg()` と `f_mount()` を使う
 hotplug/disconnect時に安全にunmountする
 open中ファイルやwrite cacheがある状態で抜かれた場合の挙動を明記する
 format/mkfsは最初は入れず、必要になったら別APIとして検討する
@@ -63,11 +63,11 @@ format/mkfsは最初は入れず、必要になったら別APIとして検討す
 既存のSDライブラリをそのまま流用するのではなく、内部をFatFs/VFSに接続する薄いwrapperにする
 
 (6) サンプルとテスト
-read-onlyのファイル一覧サンプルを追加する
-専用USBメモリ向けのファイルwrite/read manualテストを追加する
+ファイル一覧と一時ファイルwrite/read/deleteのサンプルを追加済み
+専用USBメモリ向けのファイルwrite/read/delete manualテストを追加済み
 peerテストではFATイメージを持つMSCデバイスを用意できるか検討する
-TEST_PLANにFS統合後のカバレッジを追加する
-READMEに「block I/Oのみ」と「FAT/VFS対応」の境界を更新する
+TEST_PLANにFS統合後のカバレッジを反映済み
+READMEに「block I/O」と「FAT/VFS対応」の境界を反映済み
 
 # USB Audio
 

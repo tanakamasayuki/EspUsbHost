@@ -161,6 +161,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | MSCの容量情報を表示し、先頭ブロックをダンプ |
+| [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | MSCをFatFs/VFSでマウントし、ファイル一覧と小さなwrite/read/delete確認を行う |
 
 ## APIリファレンス
 

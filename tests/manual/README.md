@@ -46,7 +46,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`hotplug/`](hotplug/) | Connect/disconnect events and no crash after repeated cycles | Any USB device | ✅ |
 | [`hub_info/`](hub_info/) | Displays hub topology info for devices connected through a USB hub | USB hub + two USB devices | ✅ |
 | [`hub_power/`](hub_power/) | Per-port power control — turn a hub port off/on and verify device disconnect/reconnect | USB hub with per-port power switching + any USB device | ✅ |
-| [`msc_block/`](msc_block/) | Query real USB flash-drive MSC capacity and read LBA 0. Does not write to the device | USB flash drive | ✅ |
+| [`msc_block/`](msc_block/) | Query real USB flash-drive MSC capacity, read LBA 0, mount FatFs/VFS, and write/read/delete a temporary probe file | USB flash drive | ✅ |
 
 ## ESP32-S3 HCD Channel Limits
 
