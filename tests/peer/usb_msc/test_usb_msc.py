@@ -3,6 +3,11 @@ def test_usb_msc_capacity(dut, peers):
     dut.expect_exact("MSC_CAPACITY ok=1 blocks=16 block_size=512")
 
 
+def test_usb_msc_block_device_info(dut, peers):
+    dut.write("d")
+    dut.expect("MSC_BLOCK_DEVICE ok=1 addr=\\d+ iface=\\d+ lun=0 max_lun=0 blocks=16 block_size=512 bytes=8192")
+
+
 def test_usb_msc_capacity64(dut, peers):
     dut.write("C")
     dut.expect_exact("MSC_CAPACITY64 ok=1 blocks=16 block_size=512")

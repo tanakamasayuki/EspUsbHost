@@ -353,6 +353,17 @@ struct EspUsbHostMscSense
   uint8_t additionalSenseQualifier = 0;
 };
 
+struct EspUsbHostMscBlockDeviceInfo
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t lun = 0;
+  uint8_t maxLun = 0;
+  uint64_t blockCount = 0;
+  uint32_t blockSize = 0;
+  uint64_t capacityBytes = 0;
+};
+
 struct EspUsbHostAudioStreamInfo
 {
   uint8_t address = 0;
@@ -885,6 +896,9 @@ public:
   bool mscSelectLun(uint8_t lun,
                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                     uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscGetBlockDeviceInfo(EspUsbHostMscBlockDeviceInfo &info,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                         uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity64(uint64_t &blockCount,
