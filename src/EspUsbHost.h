@@ -877,6 +877,8 @@ public:
   bool mscRequestSense(EspUsbHostMscSense &sense,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                        uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  bool mscLastSense(EspUsbHostMscSense &sense,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool mscTestUnitReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                         uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscCapacity64(uint64_t &blockCount,
@@ -1063,6 +1065,8 @@ private:
     uint32_t mscTag = 1;
     uint32_t mscBlockCount = 0;
     uint32_t mscBlockSize = 0;
+    EspUsbHostMscSense mscLastSense = {};
+    bool hasMscLastSense = false;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
@@ -1179,6 +1183,7 @@ private:
                   size_t dataLength,
                   bool dataIn,
                   uint32_t timeoutMs);
+  bool mscResetRecovery(DeviceState &device, uint32_t timeoutMs);
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
