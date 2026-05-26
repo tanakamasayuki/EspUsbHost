@@ -492,7 +492,7 @@ bool mscMount(const char *basePath = "/usb",
 bool mscUnmount(const char *basePath = "/usb");
 ```
 
-現時点のMSC対応はSCSI transparent / Bulk-Only TransportのブロックI/Oと、ESP-IDF FatFs/VFSへの最小マウントに対応しています。Arduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
+現時点のMSC対応はSCSI transparent / Bulk-Only TransportのブロックI/Oと、ESP-IDF FatFs/VFSへの最小マウントに対応しています。ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。Arduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
 
 ### デバイス探索
 

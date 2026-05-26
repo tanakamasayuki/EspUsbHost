@@ -492,7 +492,7 @@ bool mscMount(const char *basePath = "/usb",
 bool mscUnmount(const char *basePath = "/usb");
 ```
 
-MSC support covers SCSI transparent / Bulk-Only Transport block I/O and minimal ESP-IDF FatFs/VFS mounting. Arduino `FS` object integration is not provided yet. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
+MSC support covers SCSI transparent / Bulk-Only Transport block I/O and minimal ESP-IDF FatFs/VFS mounting. The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Arduino `FS` object integration is not provided yet. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
 
 ### Device discovery
 

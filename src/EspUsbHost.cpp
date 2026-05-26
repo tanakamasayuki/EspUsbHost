@@ -3124,6 +3124,7 @@ bool EspUsbHost::mscCapacity64(uint64_t &blockCount, uint32_t &blockSize, uint8_
   {
     EspUsbHostMscSense sense;
     mscRequestSense(sense, device->info.address, timeoutMs);
+    return false;
   }
 
   uint8_t command[10] = {};
@@ -3371,6 +3372,12 @@ bool EspUsbHost::mscMount(const char *basePath, uint8_t address, uint8_t lun, ui
   if (blockInfo.blockCount == 0 || blockInfo.blockSize == 0)
   {
     ESP_LOGW(TAG, "mscMount() invalid block device info");
+    return false;
+  }
+  if (blockInfo.blockCount > 0xffffffffULL)
+  {
+    ESP_LOGW(TAG, "mscMount() block count exceeds FatFs 32-bit LBA limit: %llu",
+             static_cast<unsigned long long>(blockInfo.blockCount));
     return false;
   }
 

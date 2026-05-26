@@ -214,9 +214,33 @@ void loop()
     }
     closedir(root);
 
+    const bool duplicateMountOk = usb.mscMount("/usb");
+    Serial.printf("MSC_MOUNT_DUPLICATE ok=%u path=/usb\n", duplicateMountOk ? 1 : 0);
+    if (duplicateMountOk)
+    {
+        usb.mscUnmount("/usb");
+        tested = true;
+        return;
+    }
+
     const bool unmountOk = usb.mscUnmount("/usb");
     Serial.printf("MSC_UNMOUNT ok=%u path=/usb\n", unmountOk ? 1 : 0);
     if (!unmountOk)
+    {
+        tested = true;
+        return;
+    }
+
+    if (!usb.mscMount("/usb"))
+    {
+        Serial.printf("MSC_REMOUNT ok=0 err=%s\n", usb.lastErrorName());
+        tested = true;
+        return;
+    }
+    Serial.println("MSC_REMOUNT ok=1 path=/usb");
+    const bool finalUnmountOk = usb.mscUnmount("/usb");
+    Serial.printf("MSC_FINAL_UNMOUNT ok=%u path=/usb\n", finalUnmountOk ? 1 : 0);
+    if (!finalUnmountOk)
     {
         tested = true;
         return;
