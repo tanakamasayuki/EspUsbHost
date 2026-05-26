@@ -42,5 +42,8 @@ def test_msc_block_read(dut):
     dut.expect("MSC_LBA0")
     dut.expect("MSC_MOUNT ok=1 path=/usb", timeout=30)
     dut.expect("MSC_OPENDIR ok=1 path=/usb")
+    dut.expect("MSC_MOUNT_DUPLICATE ok=0 path=/usb")
     dut.expect("MSC_UNMOUNT ok=1 path=/usb")
+    dut.expect("MSC_REMOUNT ok=1 path=/usb")
+    dut.expect("MSC_FINAL_UNMOUNT ok=1 path=/usb")
     dut.expect(r"\[PASS\]", timeout=30)
