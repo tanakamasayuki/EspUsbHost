@@ -39,6 +39,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | USB serial — VCP (FTDI/CP210x/CH34x) | | ✅ manual, serial format configs | |
 | USB MIDI | ✅ peer | | |
 | USB audio input/output | ✅ peer (output), partial input | | |
+| USB Mass Storage — block I/O | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection) | ✅ manual (real USB flash capacity, LBA0 read) | ⬜ FS integration, BOT error recovery, multiple LUNs, real-device write |
 | Multiple devices | | ✅ manual | |
 | Device hot-plug | | ✅ manual | |
 | HUB detection | | | ⬜ (not yet implemented) |
