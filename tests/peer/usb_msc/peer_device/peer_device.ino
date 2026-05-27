@@ -13,6 +13,7 @@ USBMSC MSC;
 static constexpr uint32_t BLOCK_COUNT = 16;
 static constexpr uint16_t BLOCK_SIZE = 512;
 static uint8_t disk[BLOCK_COUNT][BLOCK_SIZE];
+static volatile bool failNextWrite = false;
 
 static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize)
 {
@@ -42,6 +43,15 @@ static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufs
 
 static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize)
 {
+    if (failNextWrite)
+    {
+        failNextWrite = false;
+        Serial.printf("DEVICE_WRITE_FAIL lba=%lu offset=%lu size=%lu\n",
+                      static_cast<unsigned long>(lba),
+                      static_cast<unsigned long>(offset),
+                      static_cast<unsigned long>(bufsize));
+        return -1;
+    }
     if (lba >= BLOCK_COUNT || offset >= BLOCK_SIZE)
     {
         return -1;
@@ -102,6 +112,15 @@ void setup()
 
 void loop()
 {
+    if (Serial.available() > 0)
+    {
+        const char command = Serial.read();
+        if (command == 'F')
+        {
+            failNextWrite = true;
+            Serial.println("DEVICE_FAIL_NEXT_WRITE armed=1");
+        }
+    }
     delay(1);
 }
 
