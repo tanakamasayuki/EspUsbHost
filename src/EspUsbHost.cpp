@@ -119,7 +119,7 @@ struct EspUsbHostMscFatMount
   uint8_t lun = 0;
   uint8_t pdrv = FF_DRV_NOT_USED;
   char basePath[16] = {};
-  char fatDrive[4] = {};
+  char fatDrive[8] = {};
   FATFS *fs = nullptr;
   uint64_t blockCount = 0;
   uint32_t blockSize = 0;
