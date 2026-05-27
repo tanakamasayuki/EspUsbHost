@@ -1,12 +1,12 @@
 #include "EspUsbHost.h"
 
-#include <string.h>
-
 EspUsbHost usb;
 EspUsbHostMscFS usbMassStorage;
 
-static bool listed = false;
+static uint32_t lastMountAttemptMs = 0;
 
+// en: List files through the Arduino fs::FS API, not through low-level MSC blocks.
+// ja: 低レベルMSCブロックではなく、Arduinoのfs::FS APIでファイル一覧を読みます。
 static void printRootEntries(fs::FS &fs)
 {
     File root = fs.open("/");
@@ -34,6 +34,8 @@ static void printRootEntries(fs::FS &fs)
     root.close();
 }
 
+// en: Write, read back, and remove a small probe file to confirm basic file access.
+// ja: 小さな確認用ファイルを書き込み、読み戻し、削除して基本的なファイルアクセスを確認します。
 static void writeReadDeleteProbe(fs::FS &fs)
 {
     const char *filePath = "/ESPUSBHT.TST";
@@ -75,6 +77,8 @@ void setup()
     Serial.begin(115200);
     delay(5000);
 
+    // en: Device callbacks are only for logging; MSC mounting is handled in loop().
+    // ja: デバイスコールバックはログ表示だけに使い、MSCのマウントはloop()側で行います。
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                           {
                               Serial.print("connected: ");
@@ -83,9 +87,7 @@ void setup()
     usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                              {
                                  Serial.print("disconnected: ");
-                                 espUsbHostPrint(device);
-                                 usbMassStorage.end();
-                                 listed = false; });
+                                 espUsbHostPrint(device); });
 
     if (!usb.begin())
     {
@@ -95,42 +97,29 @@ void setup()
 
 void loop()
 {
-    if (listed || !usb.mscReady())
+    // en: Mount once, then keep the filesystem available for other fs::FS users.
+    // ja: 一度だけマウントし、その後は他のfs::FS利用コードから使えるように保持します。
+    if (!usbMassStorage.mounted())
     {
-        delay(10);
-        return;
+        const uint32_t now = millis();
+
+        // en: Retry mounting at a low rate so other loop work can continue.
+        // ja: 他のloop処理を止めないよう、マウント再試行は低頻度にします。
+        if (now - lastMountAttemptMs >= 1000)
+        {
+            lastMountAttemptMs = now;
+
+            if (usbMassStorage.begin(usb, "/usb"))
+            {
+                printRootEntries(usbMassStorage);
+                writeReadDeleteProbe(usbMassStorage);
+            }
+            else
+            {
+                Serial.printf("USB MSC FS mount failed: %s\n", usb.lastErrorName());
+            }
+        }
     }
 
-    if (!usb.mscWaitReady())
-    {
-        Serial.println("MSC media is not ready yet.");
-        delay(1000);
-        return;
-    }
-
-    EspUsbHostMscBlockDeviceInfo info;
-    if (usb.mscGetBlockDeviceInfo(info))
-    {
-        Serial.printf("MSC block device: address=%u lun=%u/%u blocks=%llu block_size=%lu bytes=%llu\n",
-                      info.address,
-                      info.lun,
-                      info.maxLun,
-                      static_cast<unsigned long long>(info.blockCount),
-                      static_cast<unsigned long>(info.blockSize),
-                      static_cast<unsigned long long>(info.capacityBytes));
-    }
-
-    if (!usbMassStorage.begin(usb, "/usb"))
-    {
-        Serial.printf("USB MSC FS mount failed: %s\n", usb.lastErrorName());
-        delay(1000);
-        return;
-    }
-
-    printRootEntries(usbMassStorage);
-    writeReadDeleteProbe(usbMassStorage);
-
-    usbMassStorage.end();
-
-    listed = true;
+    delay(10);
 }
