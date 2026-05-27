@@ -19,6 +19,16 @@ For this example, a USB 2.0 hub is recommended. A self-powered hub is preferable
 - Turns the selected port power off or on with `usb.setHubPortPower()`
 - Prints connect/disconnect callbacks so the effect is visible
 
+## PPPS and Ganged Mode
+
+A hub reports its power-switching mode through `wHubCharacteristics` in the hub descriptor. This example prints the decoded result as `ppps`, `ganged_power`, and `no_power_switch`.
+
+- `ppps=1` means PPPS (per-port power switching). Each port can be powered on or off independently. This is the main target for the example.
+- `ganged_power=1` means ganged power switching. Power is controlled for the whole hub, or for a group of ports. Selecting one port does not guarantee that only that port will turn off.
+- `no_power_switch=1` means software-controlled port power switching is not available, or is not reported.
+
+If you call `usb.setHubPortPower(hubAddress, port, false)` on a ganged-power hub, the hub implementation may turn off all ports, reject the request, or only change reported status. This example can still be used to observe that behavior, but use a PPPS-capable hub when you need to safely turn off only the selected port.
+
 ## Serial commands
 
 | Command | Action |
