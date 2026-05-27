@@ -28,7 +28,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | USB MIDI | ✅ 実装済み |
 | UAC — USBオーディオ入出力 | 🔲 実験的 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | 🔲 部分実装。手動テストの`hub_info`と`hub_power`はPASS |
-| MSC — USBストレージのブロックI/O | 🔲 実験的 |
+| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的 |
 | UVC — USBカメラ | 💭 検討中 |
 
 ### その他の予定機能
@@ -161,7 +161,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | MSCの容量情報を表示し、先頭ブロックをダンプ |
-| [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | MSCをFatFs/VFSでマウントし、ファイル一覧と小さなwrite/read/delete確認を行う |
+| [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | MSCをArduino `fs::FS`としてマウントし、ファイル一覧と小さなwrite/read/delete確認を行う |
 
 ## APIリファレンス
 
@@ -491,9 +491,23 @@ bool mscMount(const char *basePath = "/usb",
               uint8_t maxFiles = 4,
               uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscUnmount(const char *basePath = "/usb");
+bool mscMounted(const char *basePath = "/usb") const;
+
+class EspUsbHostMscFS : public fs::FS {
+public:
+  bool begin(EspUsbHost &host,
+             const char *basePath = "/usb",
+             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+             uint8_t lun = 0,
+             uint8_t maxFiles = 4,
+             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  void end();
+  bool mounted() const;
+  const char *basePath() const;
+};
 ```
 
-現時点のMSC対応はSCSI transparent / Bulk-Only TransportのブロックI/Oと、ESP-IDF FatFs/VFSへの最小マウントに対応しています。ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。Arduino `FS`オブジェクト化はまだ行いません。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
+現時点のMSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF FatFs/VFSへのマウント、Arduino `fs::FS` / `File`互換ラッパーに対応しています。`EspUsbHostMscFS`は`fs::FS`を継承しているため、`fs::FS &`を受け取るWebServerやUpdateなどのArduinoライブラリへ渡せます。ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
 
 ### デバイス探索
 

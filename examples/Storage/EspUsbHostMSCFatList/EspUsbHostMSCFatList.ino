@@ -1,79 +1,66 @@
 #include "EspUsbHost.h"
 
-#include <dirent.h>
-#include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 
 EspUsbHost usb;
+EspUsbHostMscFS usbMassStorage;
 
 static bool listed = false;
 
-static void printRootEntries(const char *path)
+static void printRootEntries(fs::FS &fs)
 {
-    DIR *dir = opendir(path);
-    if (!dir)
+    File root = fs.open("/");
+    if (!root || !root.isDirectory())
     {
-        Serial.printf("opendir(%s) failed\n", path);
+        Serial.println("open(/) failed");
         return;
     }
 
-    Serial.printf("Root entries at %s:\n", path);
+    Serial.println("Root entries:");
     while (true)
     {
-        dirent *entry = readdir(dir);
+        File entry = root.openNextFile();
         if (!entry)
         {
             break;
         }
 
-        char fullPath[128] = {};
-        snprintf(fullPath, sizeof(fullPath), "%s/%s", path, entry->d_name);
-
-        struct stat st = {};
-        if (stat(fullPath, &st) == 0)
-        {
-            Serial.printf("  %s %s size=%llu\n",
-                          S_ISDIR(st.st_mode) ? "DIR " : "FILE",
-                          entry->d_name,
-                          static_cast<unsigned long long>(st.st_size));
-        }
-        else
-        {
-            Serial.printf("  ???? %s\n", entry->d_name);
-        }
+        Serial.printf("  %s %s size=%u\n",
+                      entry.isDirectory() ? "DIR " : "FILE",
+                      entry.name(),
+                      static_cast<unsigned>(entry.size()));
+        entry.close();
     }
-    closedir(dir);
+    root.close();
 }
 
-static void writeReadDeleteProbe(const char *path)
+static void writeReadDeleteProbe(fs::FS &fs)
 {
-    char filePath[128] = {};
-    snprintf(filePath, sizeof(filePath), "%s/ESPUSBHT.TST", path);
+    const char *filePath = "/ESPUSBHT.TST";
 
     const char *message = "EspUsbHost MSC FAT write probe\n";
-    FILE *file = fopen(filePath, "wb");
+    File file = fs.open(filePath, FILE_WRITE);
     if (!file)
     {
-        Serial.printf("fopen(%s, wb) failed\n", filePath);
+        Serial.printf("open(%s, FILE_WRITE) failed\n", filePath);
         return;
     }
-    const size_t written = fwrite(message, 1, strlen(message), file);
-    fclose(file);
+    const size_t written = file.print(message);
+    file.close();
     Serial.printf("Wrote %u bytes to %s\n", static_cast<unsigned>(written), filePath);
 
-    file = fopen(filePath, "rb");
+    file = fs.open(filePath, FILE_READ);
     if (!file)
     {
-        Serial.printf("fopen(%s, rb) failed\n", filePath);
+        Serial.printf("open(%s, FILE_READ) failed\n", filePath);
         return;
     }
     char buffer[64] = {};
-    const size_t readBytes = fread(buffer, 1, sizeof(buffer) - 1, file);
-    fclose(file);
+    const size_t readBytes = file.readBytes(buffer, sizeof(buffer) - 1);
+    file.close();
     Serial.printf("Read back %u bytes: %s", static_cast<unsigned>(readBytes), buffer);
 
-    if (remove(filePath) == 0)
+    if (fs.remove(filePath))
     {
         Serial.printf("Removed %s\n", filePath);
     }
@@ -97,6 +84,7 @@ void setup()
                              {
                                  Serial.print("disconnected: ");
                                  espUsbHostPrint(device);
+                                 usbMassStorage.end();
                                  listed = false; });
 
     if (!usb.begin())
@@ -132,20 +120,17 @@ void loop()
                       static_cast<unsigned long long>(info.capacityBytes));
     }
 
-    if (!usb.mscMount("/usb"))
+    if (!usbMassStorage.begin(usb, "/usb"))
     {
-        Serial.printf("mscMount failed: %s\n", usb.lastErrorName());
+        Serial.printf("USB MSC FS mount failed: %s\n", usb.lastErrorName());
         delay(1000);
         return;
     }
 
-    printRootEntries("/usb");
-    writeReadDeleteProbe("/usb");
+    printRootEntries(usbMassStorage);
+    writeReadDeleteProbe(usbMassStorage);
 
-    if (!usb.mscUnmount("/usb"))
-    {
-        Serial.printf("mscUnmount failed: %s\n", usb.lastErrorName());
-    }
+    usbMassStorage.end();
 
     listed = true;
 }
