@@ -237,4 +237,14 @@ void loop()
                       readOk ? 1 : 0,
                       writeOk ? 1 : 0);
     }
+    else if (command == 'e')
+    {
+        uint8_t block[512] = {};
+        for (size_t i = 0; i < sizeof(block); i++)
+        {
+            block[i] = static_cast<uint8_t>(0xe0 | (i & 0x0f));
+        }
+        const bool writeOk = usb.mscWriteBlocks(10, block, 1);
+        Serial.printf("MSC_FAILED_WRITE write=%u\n", writeOk ? 1 : 0);
+    }
 }

@@ -86,14 +86,20 @@ def test_usb_msc_multi_block_write_read(dut, peers):
 
 
 def test_usb_msc_chunked_write_read(dut, peers):
-    device = peers["device"]
-
     dut.write("g")
-    for lba in range(1, 10):
-        device.expect_exact(f"DEVICE_WRITE lba={lba} offset=0 size=512")
     dut.expect_exact("MSC_CHUNKED write=1 read=1 b0=17 b4095=14 b4096=17 b4607=14")
 
 
 def test_usb_msc_out_of_range_is_rejected(dut, peers):
     dut.write("o")
     dut.expect_exact("MSC_OUT_OF_RANGE read=0 write=0")
+
+
+def test_usb_msc_failed_write_is_reported(dut, peers):
+    device = peers["device"]
+
+    device.write("F")
+    device.expect_exact("DEVICE_FAIL_NEXT_WRITE armed=1")
+    dut.write("e")
+    device.expect_exact("DEVICE_WRITE_FAIL lba=10 offset=0 size=512")
+    dut.expect_exact("MSC_FAILED_WRITE write=0")

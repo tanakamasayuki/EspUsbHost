@@ -39,7 +39,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | USB serial — VCP (FTDI/CP210x/CH34x) | | ✅ manual, serial format configs | |
 | USB MIDI | ✅ peer | | |
 | USB audio input/output | ✅ peer (output), partial input | | |
-| USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, file write/read/delete, mounted disconnect/remount) | ⬜ BOT error recovery, multiple LUNs, Arduino `FS` wrapper, >32-bit-sector FatFs mount |
+| USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, Arduino `FS` wrapper, >32-bit-sector FatFs mount |
 | Multiple devices | | ✅ manual | |
 | Device hot-plug | | ✅ manual | |
 | HUB detection | | | ⬜ (not yet implemented) |
