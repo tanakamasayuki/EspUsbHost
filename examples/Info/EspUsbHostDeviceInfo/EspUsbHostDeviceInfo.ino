@@ -10,7 +10,7 @@ static constexpr uint32_t PRINT_INTERVAL_MS = 10000;
 void setup()
 {
   Serial.begin(115200);
-  delay(500);
+  delay(5000);
   Serial.println("EspUsbHostDeviceInfo start");
   Serial.println("Printing connected devices and endpoint channel estimates every 10 seconds.");
 
@@ -37,11 +37,6 @@ void setup()
 
 void loop()
 {
-  while (Serial.available() > 0)
-  {
-    Serial.read();
-  }
-
   const uint32_t now = millis();
   if (now - lastPrintMs >= PRINT_INTERVAL_MS && now - lastDeviceEventMs > 500)
   {
