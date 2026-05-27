@@ -17,6 +17,7 @@ cd tests
 uv run --env-file .env pytest manual/smoke/smoke.py -v -s
 uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
+uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
 ```
 
 手動テストは常に `-s` を付けて実行します。シリアル出力とオペレーターへのプロンプトが端末に表示されます。
@@ -47,6 +48,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`hub_info/`](hub_info/) | USBハブ経由で接続されたデバイスのトポロジー情報を表示すること | USBハブ＋USBデバイス2台 | ✅ |
 | [`hub_power/`](hub_power/) | ポート単位の電源制御 — ハブのポートをOFF/ONしてデバイスの切断・再接続を確認 | ポート単位の電源制御対応USBハブ＋任意のUSBデバイス | ✅ |
 | [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得、LBA 0読み取り、FatFs/VFS mount、一時ファイルのwrite/read/deleteを確認 | USBメモリ | ✅ |
+| [`msc_hotplug_mount/`](msc_hotplug_mount/) | mount中のUSBメモリを抜き、再接続後に同じFatFs/VFS pathへ再mountできることを確認 | USBメモリ | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 

@@ -17,6 +17,7 @@ cd tests
 uv run --env-file .env pytest manual/smoke/smoke.py -v -s
 uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
+uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
 ```
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
@@ -47,6 +48,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`hub_info/`](hub_info/) | Displays hub topology info for devices connected through a USB hub | USB hub + two USB devices | ✅ |
 | [`hub_power/`](hub_power/) | Per-port power control — turn a hub port off/on and verify device disconnect/reconnect | USB hub with per-port power switching + any USB device | ✅ |
 | [`msc_block/`](msc_block/) | Query real USB flash-drive MSC capacity, read LBA 0, mount FatFs/VFS, and write/read/delete a temporary probe file | USB flash drive | ✅ |
+| [`msc_hotplug_mount/`](msc_hotplug_mount/) | Unplug a USB flash drive while mounted and verify the same FatFs/VFS path can mount again after reconnect | USB flash drive | ✅ |
 
 ## ESP32-S3 HCD Channel Limits
 

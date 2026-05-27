@@ -40,7 +40,7 @@ tests/
 | USBシリアル — VCP（FTDI・CP210x・CH34x） | | ✅ manual、シリアル形式設定 | |
 | USB MIDI | ✅ peer | | |
 | USBオーディオ入出力 | ✅ peer（出力）、入力は一部 | | |
-| USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、ファイルwrite/read/delete） | ⬜ BOTエラー復旧、複数LUN、Arduino `FS`ラッパー、32-bit sector超のFatFs mount |
+| USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ BOTエラー復旧、複数LUN、Arduino `FS`ラッパー、32-bit sector超のFatFs mount |
 | 複数デバイス同時接続 | | ✅ manual | |
 | デバイス活線挿抜 | | ✅ manual | |
 | HUB検出 | | | ⬜（未実装） |
