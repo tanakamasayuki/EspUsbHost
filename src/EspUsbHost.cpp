@@ -3,6 +3,7 @@
 
 #include "diskio_impl.h"
 #include "esp_vfs_fat.h"
+#include "vfs_api.h"
 
 #include <string.h>
 #include <math.h>
@@ -3466,6 +3467,74 @@ bool EspUsbHost::mscUnmount(const char *basePath)
     return false;
   }
   return true;
+}
+
+bool EspUsbHost::mscMounted(const char *basePath) const
+{
+  EspUsbHostMscFatMount *mount = findMscFatMountByPath(basePath);
+  return mount && mount->host == this;
+}
+
+EspUsbHostMscFS::EspUsbHostMscFS() : fs::FS(fs::FSImplPtr(new VFSImpl()))
+{
+}
+
+EspUsbHostMscFS::~EspUsbHostMscFS()
+{
+  end();
+}
+
+bool EspUsbHostMscFS::begin(EspUsbHost &host,
+                            const char *basePath,
+                            uint8_t address,
+                            uint8_t lun,
+                            uint8_t maxFiles,
+                            uint32_t timeoutMs)
+{
+  if (!basePath || basePath[0] != '/' || strlen(basePath) >= sizeof(basePath_))
+  {
+    return false;
+  }
+  if (host_)
+  {
+    if (strcmp(basePath_, basePath) == 0 && host_->mscMounted(basePath_))
+    {
+      return true;
+    }
+    _impl->mountpoint(nullptr);
+    host_ = nullptr;
+    basePath_[0] = '\0';
+  }
+  if (!host.mscMount(basePath, address, lun, maxFiles, timeoutMs))
+  {
+    return false;
+  }
+  strncpy(basePath_, basePath, sizeof(basePath_) - 1);
+  host_ = &host;
+  _impl->mountpoint(basePath_);
+  return true;
+}
+
+void EspUsbHostMscFS::end()
+{
+  if (!host_)
+  {
+    return;
+  }
+  _impl->mountpoint(nullptr);
+  host_->mscUnmount(basePath_);
+  host_ = nullptr;
+  basePath_[0] = '\0';
+}
+
+bool EspUsbHostMscFS::mounted() const
+{
+  return host_ && host_->mscMounted(basePath_);
+}
+
+const char *EspUsbHostMscFS::basePath() const
+{
+  return basePath_;
 }
 
 void EspUsbHost::mscUnmountAddress(uint8_t address)

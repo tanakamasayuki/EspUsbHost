@@ -24,6 +24,7 @@ EspUsbHostAudioVolumeRange	KEYWORD1
 EspUsbHostMscInquiry	KEYWORD1
 EspUsbHostMscSense	KEYWORD1
 EspUsbHostMscBlockDeviceInfo	KEYWORD1
+EspUsbHostMscFS	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
 
 #######################################
@@ -78,6 +79,9 @@ mscWriteBlocks64	KEYWORD2
 mscSynchronizeCache	KEYWORD2
 mscMount	KEYWORD2
 mscUnmount	KEYWORD2
+mscMounted	KEYWORD2
+mounted	KEYWORD2
+basePath	KEYWORD2
 espUsbHostAudioStreamSupportsSampleRate	KEYWORD2
 espUsbHostAudioStreamPreferredSampleRate	KEYWORD2
 espUsbHostAudioStreamMatchesPcm	KEYWORD2

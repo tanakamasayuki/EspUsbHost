@@ -28,7 +28,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental |
 | HUB — hub detection, topology info, and port power control | 🔲 Partial; `hub_info` and `hub_power` manual tests pass |
-| MSC — USB storage block I/O | 🔲 Experimental |
+| MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
@@ -161,7 +161,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | Print MSC capacity and dump the first block |
-| [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | Mount MSC through FatFs/VFS, list files, and run a small write/read/delete probe |
+| [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | Mount MSC as Arduino `fs::FS`, list files, and run a small write/read/delete probe |
 
 ## API reference
 
@@ -491,9 +491,23 @@ bool mscMount(const char *basePath = "/usb",
               uint8_t maxFiles = 4,
               uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
 bool mscUnmount(const char *basePath = "/usb");
+bool mscMounted(const char *basePath = "/usb") const;
+
+class EspUsbHostMscFS : public fs::FS {
+public:
+  bool begin(EspUsbHost &host,
+             const char *basePath = "/usb",
+             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+             uint8_t lun = 0,
+             uint8_t maxFiles = 4,
+             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  void end();
+  bool mounted() const;
+  const char *basePath() const;
+};
 ```
 
-MSC support covers SCSI transparent / Bulk-Only Transport block I/O and minimal ESP-IDF FatFs/VFS mounting. The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Arduino `FS` object integration is not provided yet. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
+MSC support covers SCSI transparent / Bulk-Only Transport block I/O, ESP-IDF FatFs/VFS mounting, and an Arduino `fs::FS` / `File` compatible wrapper. `EspUsbHostMscFS` derives from `fs::FS`, so it can be passed to Arduino libraries such as WebServer or Update that accept `fs::FS &`. The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
 
 ### Device discovery
 

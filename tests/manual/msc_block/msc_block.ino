@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 
 EspUsbHost usb;
+EspUsbHostMscFS usbMscFs;
 
 static bool tested = false;
 
@@ -336,6 +337,73 @@ void loop()
     const bool finalUnmountOk = usb.mscUnmount("/usb");
     Serial.printf("MSC_FINAL_UNMOUNT ok=%u path=/usb\n", finalUnmountOk ? 1 : 0);
     if (!finalUnmountOk)
+    {
+        tested = true;
+        return;
+    }
+
+    if (!usbMscFs.begin(usb, "/usbfs"))
+    {
+        Serial.printf("MSC_FS_BEGIN ok=0 err=%s\n", usb.lastErrorName());
+        tested = true;
+        return;
+    }
+    Serial.printf("MSC_FS_BEGIN ok=1 mounted=%u base=%s\n",
+                  usbMscFs.mounted() ? 1 : 0,
+                  usbMscFs.basePath());
+
+    const char *fsPath = "/ESPUSBFS.TST";
+    File fsWrite = usbMscFs.open(fsPath, FILE_WRITE);
+    if (!fsWrite)
+    {
+        Serial.printf("MSC_FS_WRITE ok=0 path=%s\n", fsPath);
+        usbMscFs.end();
+        tested = true;
+        return;
+    }
+    const char *fsMessage = "EspUsbHost MSC FS test\n";
+    const size_t fsWritten = fsWrite.print(fsMessage);
+    fsWrite.close();
+    Serial.printf("MSC_FS_WRITE ok=%u path=%s bytes=%u\n",
+                  fsWritten == strlen(fsMessage) ? 1 : 0,
+                  fsPath,
+                  static_cast<unsigned>(fsWritten));
+    if (fsWritten != strlen(fsMessage))
+    {
+        usbMscFs.end();
+        tested = true;
+        return;
+    }
+
+    File fsRead = usbMscFs.open(fsPath, FILE_READ);
+    if (!fsRead)
+    {
+        Serial.printf("MSC_FS_READ ok=0 path=%s\n", fsPath);
+        usbMscFs.end();
+        tested = true;
+        return;
+    }
+    char fsReadBack[32] = {};
+    const size_t fsReadBytes = fsRead.readBytes(fsReadBack, strlen(fsMessage));
+    fsRead.close();
+    const bool fsReadOk = fsReadBytes == strlen(fsMessage) &&
+                          memcmp(fsReadBack, fsMessage, strlen(fsMessage)) == 0;
+    Serial.printf("MSC_FS_READ ok=%u path=%s bytes=%u\n",
+                  fsReadOk ? 1 : 0,
+                  fsPath,
+                  static_cast<unsigned>(fsReadBytes));
+    if (!fsReadOk)
+    {
+        usbMscFs.end();
+        tested = true;
+        return;
+    }
+
+    const bool fsRemoveOk = usbMscFs.remove(fsPath);
+    Serial.printf("MSC_FS_REMOVE ok=%u path=%s\n", fsRemoveOk ? 1 : 0, fsPath);
+    usbMscFs.end();
+    Serial.printf("MSC_FS_END mounted=%u\n", usbMscFs.mounted() ? 1 : 0);
+    if (!fsRemoveOk || usbMscFs.mounted())
     {
         tested = true;
         return;

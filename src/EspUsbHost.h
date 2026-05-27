@@ -2,6 +2,7 @@
 #define ESP_USB_HOST_H
 
 #include <Arduino.h>
+#include <FS.h>
 #include <functional>
 #include <usb/usb_host.h>
 #include <class/hid/hid.h>
@@ -940,6 +941,7 @@ public:
                 uint8_t maxFiles = 4,
                 uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
   bool mscUnmount(const char *basePath = "/usb");
+  bool mscMounted(const char *basePath = "/usb") const;
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -1293,6 +1295,27 @@ private:
   GamepadCallback gamepadCallback_;
   VendorInputCallback vendorInputCallback_;
   SystemControlCallback systemControlCallback_;
+};
+
+class EspUsbHostMscFS : public fs::FS
+{
+public:
+  EspUsbHostMscFS();
+  ~EspUsbHostMscFS();
+
+  bool begin(EspUsbHost &host,
+             const char *basePath = "/usb",
+             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+             uint8_t lun = 0,
+             uint8_t maxFiles = 4,
+             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+  void end();
+  bool mounted() const;
+  const char *basePath() const;
+
+private:
+  EspUsbHost *host_ = nullptr;
+  char basePath_[16] = {};
 };
 
 class EspUsbHostCdcSerial : public Stream
