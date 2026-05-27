@@ -23,6 +23,18 @@ Audioのように遅延claimした方がよいものがあるか確認する
 必要なら onBeforeDeviceUse() / onBeforeInterfaceClaim() を追加する
 endpoint単位 callback は、実験結果を見て必要なら追加
 
+# USB Hub
+
+状態:
+基本実装済み。Hub検出、`device.isHub`、`parentAddress`/`portId`による簡易トポロジー、Hub descriptor取得、port status取得、PPPS対応Hubのポート電源ON/OFF、`hub_info`/`hub_power` manualテストまで完了。
+
+残作業:
+port change bitをclearするAPIまたは内部処理が必要か確認する
+ganged power Hubでの実機挙動を複数機種で確認する
+複数段HubとUSB 3.x Hubの互換性を確認する
+ESP32-P4のFS/HS OTGでHub可否を確認する
+チャンネル数・endpoint使用量の可視化と合わせて、Hub配下でどの構成まで動くか整理する
+
 # USB Mass Storage / FAT
 
 状態:

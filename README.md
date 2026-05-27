@@ -27,7 +27,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT is peer-tested; Audio IN APIs exist but real payload validation remains |
-| HUB — hub detection, topology info, and port power control | 🔲 Partial; `hub_info` and `hub_power` manual tests pass |
+| HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
 | UVC — USB camera | 💭 Under consideration |
 
@@ -519,6 +519,23 @@ The low-level APIs such as `mscReadBlocks64()`, `mscWriteBlocks64()`, `mscInquir
 The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Multiple MSC devices and multiple LUNs can be addressed by API parameters, but ESP32-S3 has tight HCD channel limits, so assume a single MSC device for practical use. Multiple MSC devices remain an ESP32-P4-oriented validation item.
 
 Do not call these MSC APIs from USB callbacks, because they wait for USB transfer completion. Removing a USB drive while files are open or writes are in progress may lose unwritten data. After reconnecting media, call `begin()` again.
+
+### USB Hub
+
+```cpp
+bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
+bool getHubPortStatus(uint8_t hubAddress, uint8_t port,
+                      uint16_t &status, uint16_t &change);
+bool setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable);
+```
+
+USB Hub support covers detection, simple topology reporting, hub descriptor queries, port status queries, and port power on/off for PPPS-capable hubs. Use `EspUsbHostDeviceInfo::isHub` to identify hub devices. For devices behind a hub, `parentAddress` and `portId` report the hub/port path used for display.
+
+`getHubInfo()` fetches the hub descriptor and fills `EspUsbHostHubInfo` with port count, PPPS/ganged/no power switching, over-current mode, power-on-to-power-good time, and related fields. `getHubPortStatus()` returns current status and change bits for a downstream port. `setHubPortPower()` sends the hub class request to enable or disable port power.
+
+Per-port power control is only safe when the hub reports PPPS (Per-Port Power Switching). On ganged-power hubs, a port power request may affect multiple ports or the whole hub. USB 3.x hubs and products implemented internally as cascaded hubs can be more complex, so a self-powered USB 2.0 hub is recommended for validation.
+
+This is not a complete hub class driver. It exposes user-facing information and explicit port power control. Clearing port change bits, cascaded hub behavior, USB 3.x hub compatibility, and ESP32-P4 FS/HS differences remain validation items. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
 
 ### Device discovery
 

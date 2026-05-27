@@ -27,7 +27,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | UAC — USBオーディオ入出力 | 🔲 実験的。Audio OUTはpeer確認済み、Audio INはAPIあり・実データ確認が残っています |
-| HUB — ハブ検出・トポロジー情報・ポート電源制御 | 🔲 部分実装。手動テストの`hub_info`と`hub_power`はPASS |
+| HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
 | UVC — USBカメラ | 💭 検討中 |
 
@@ -519,6 +519,23 @@ MSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF F
 ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。複数MSCデバイスや複数LUNはAPI上はaddress/LUN指定を持ちますが、ESP32-S3ではHCDチャネル数の制約が強いため、実運用では単一MSCデバイスを前提にしてください。複数MSCはESP32-P4などでの追加検証項目です。
 
 これらのMSC APIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。書き込み中やファイルを開いたままUSBメモリを抜いた場合、未反映データが失われる可能性があります。抜き差しを扱う場合は、再接続後に再度`begin()`してください。
+
+### USB Hub
+
+```cpp
+bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
+bool getHubPortStatus(uint8_t hubAddress, uint8_t port,
+                      uint16_t &status, uint16_t &change);
+bool setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable);
+```
+
+USB Hubは検出、簡易トポロジー表示、Hub descriptor取得、port status取得、PPPS対応ハブのポート電源ON/OFFに対応しています。`EspUsbHostDeviceInfo::isHub`でHubデバイスかどうかを確認できます。Hub配下のデバイスでは`parentAddress`と`portId`により、どのHub/ポート経由で接続されたかを表示できます。
+
+`getHubInfo()`はHub descriptorを取得し、ポート数、PPPS/ganged/no power switching、over-current方式、power-on-to-power-good時間などを`EspUsbHostHubInfo`へ格納します。`getHubPortStatus()`は各ポートのcurrent statusとchange bitを返します。`setHubPortPower()`はHub class requestでポート電源をON/OFFします。
+
+ポート単位で安全に電源制御するには、HubがPPPS（Per-Port Power Switching）対応として報告される必要があります。ganged powerのHubでは、指定ポートだけでなく複数ポートまたはHub全体に影響する場合があります。USB 3.x Hubや内部で多段Hubになっている製品は挙動が複雑なため、確認用途ではセルフパワーのUSB 2.0 Hubを推奨します。
+
+現状はHub class driverとしての完全な管理ではなく、利用者向けの情報取得と明示的なポート電源制御を提供する段階です。port change bitのclear、複数段Hub、USB 3.x Hub互換性、ESP32-P4のFS/HS差分は継続確認項目です。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
 
 ### デバイス探索
 
