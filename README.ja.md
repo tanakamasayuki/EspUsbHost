@@ -13,7 +13,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 - **USBシリアル** — CDC ACMおよび主要VCPデバイス（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応（Arduino `Stream`/`Print` 互換）
 - **MIDI** — USB MIDI入出力
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
-- **MSCブロックI/O** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write
+- **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
 
@@ -26,9 +26,9 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
-| UAC — USBオーディオ入出力 | 🔲 実験的 |
+| UAC — USBオーディオ入出力 | 🔲 実験的。Audio OUTはpeer確認済み、Audio INはAPIあり・実データ確認が残っています |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | 🔲 部分実装。手動テストの`hub_info`と`hub_power`はPASS |
-| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的 |
+| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
 | UVC — USBカメラ | 💭 検討中 |
 
 ### その他の予定機能
@@ -37,8 +37,11 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 |------|------|
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | ✅ 実装済み |
 | HIDゲームパッド入力 — ユーザー定義マッピング用のディスクリプタデコード済みフィールドとraw/reportバイト | ✅ マッピング前提のイベントAPI。マッピング補助は検討中 |
+| チャンネル数・endpoint使用量の可視化 | 🔲 次候補。複数デバイスやAudio/MSC/HUB併用時の上限把握に使う |
+| USB Audio INの実データ確認 | 🔲 次候補。実USBマイクまたはpeer側Audio IN生成の安定化が必要 |
+| ESP32-P4検証 | 🔲 継続。FS/HS OTG、HUB可否、ループバックテストを個別確認する |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 整備中 |
-| 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | 🔲 整備中 |
+| 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | ✅ 主要ケース確認済み。追加デバイス互換性は継続 |
 
 ## 必要環境
 
