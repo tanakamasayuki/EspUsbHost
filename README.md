@@ -507,7 +507,15 @@ public:
 };
 ```
 
-MSC support covers SCSI transparent / Bulk-Only Transport block I/O, ESP-IDF FatFs/VFS mounting, and an Arduino `fs::FS` / `File` compatible wrapper. `EspUsbHostMscFS` derives from `fs::FS`, so it can be passed to Arduino libraries such as WebServer or Update that accept `fs::FS &`. The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
+MSC support covers SCSI transparent / Bulk-Only Transport block I/O, ESP-IDF FatFs/VFS mounting, and an Arduino `fs::FS` / `File` compatible wrapper.
+
+For normal file access, use `EspUsbHostMscFS`. It derives from `fs::FS`, so it can be passed to Arduino libraries such as WebServer or Update that accept `fs::FS &`. `EspUsbHostMscFS::begin()` returns `false` while no MSC device is connected or the media is not ready, so retry it at a low rate from `loop()`. Use `mounted()` to check whether the filesystem is already mounted.
+
+The low-level APIs such as `mscReadBlocks64()`, `mscWriteBlocks64()`, `mscInquiry()`, and `mscRequestSense()` are intended for capacity reporting, block dumps, diagnostics, and custom filesystem implementations. For normal FAT file access, sketches do not need to call `mscReady()`, `mscWaitReady()`, or `mscGetBlockDeviceInfo()` directly.
+
+The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Multiple MSC devices and multiple LUNs can be addressed by API parameters, but ESP32-S3 has tight HCD channel limits, so assume a single MSC device for practical use. Multiple MSC devices remain an ESP32-P4-oriented validation item.
+
+Do not call these MSC APIs from USB callbacks, because they wait for USB transfer completion. Removing a USB drive while files are open or writes are in progress may lose unwritten data. After reconnecting media, call `begin()` again.
 
 ### Device discovery
 
