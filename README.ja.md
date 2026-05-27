@@ -507,7 +507,15 @@ public:
 };
 ```
 
-現時点のMSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF FatFs/VFSへのマウント、Arduino `fs::FS` / `File`互換ラッパーに対応しています。`EspUsbHostMscFS`は`fs::FS`を継承しているため、`fs::FS &`を受け取るWebServerやUpdateなどのArduinoライブラリへ渡せます。ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
+MSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF FatFs/VFSへのマウント、Arduino `fs::FS` / `File`互換ラッパーに対応しています。
+
+通常のファイル操作では`EspUsbHostMscFS`を使うのが推奨です。`EspUsbHostMscFS`は`fs::FS`を継承しているため、`fs::FS &`を受け取るWebServerやUpdateなどのArduinoライブラリへ渡せます。MSCデバイスがまだ接続されていない、またはメディアが準備できていない間は`EspUsbHostMscFS::begin()`が`false`を返すため、`loop()`内で低頻度に再試行してください。マウント済みかどうかは`mounted()`で確認できます。
+
+`mscReadBlocks64()`、`mscWriteBlocks64()`、`mscInquiry()`、`mscRequestSense()`などの低レベルAPIは、容量表示、ブロックダンプ、診断、独自ファイルシステム実装などで使います。通常のFATファイル操作では、スケッチ側で`mscReady()`、`mscWaitReady()`、`mscGetBlockDeviceInfo()`を直接呼ぶ必要はありません。
+
+ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。複数MSCデバイスや複数LUNはAPI上はaddress/LUN指定を持ちますが、ESP32-S3ではHCDチャネル数の制約が強いため、実運用では単一MSCデバイスを前提にしてください。複数MSCはESP32-P4などでの追加検証項目です。
+
+これらのMSC APIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。書き込み中やファイルを開いたままUSBメモリを抜いた場合、未反映データが失われる可能性があります。抜き差しを扱う場合は、再接続後に再度`begin()`してください。
 
 ### デバイス探索
 
