@@ -13,7 +13,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 - **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
 - **MIDI** — USB MIDI input and output
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
-- **MSC block I/O** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access
+- **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
@@ -26,9 +26,9 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
-| UAC — USB audio input/output | 🔲 Experimental |
+| UAC — USB audio input/output | 🔲 Experimental. Audio OUT is peer-tested; Audio IN APIs exist but real payload validation remains |
 | HUB — hub detection, topology info, and port power control | 🔲 Partial; `hub_info` and `hub_power` manual tests pass |
-| MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental |
+| MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
@@ -37,8 +37,11 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
 | HID gamepad input — descriptor-decoded fields plus raw/report bytes for user-defined mapping | ✅ Mappable event API; mapping helpers still under consideration |
+| Channel count and endpoint usage visibility | 🔲 Next candidate; useful for understanding limits with multi-device, Audio, MSC, and HUB combinations |
+| USB Audio IN real payload validation | 🔲 Next candidate; needs a real USB microphone or a stable peer-side Audio IN generator |
+| ESP32-P4 validation | 🔲 Ongoing; verify FS/HS OTG, hub behavior, and loopback tests separately |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
-| Manual tests — VCP serial, multi-device, hot-plug | 🔲 In progress |
+| Manual tests — VCP serial, multi-device, hot-plug | ✅ Main cases confirmed; additional device compatibility remains ongoing |
 
 ## Requirements
 
