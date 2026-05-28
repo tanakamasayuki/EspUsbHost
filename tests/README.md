@@ -33,6 +33,8 @@ TEST_SERIAL_PORT_S3_HUB_HOST=/dev/ttyACM1
 
 Set each `TEST_SERIAL_PORT_*` variable to the actual serial port for the corresponding board.
 
+Profile names describe the connection role. `peer/` and `loopback/` use always-connected dedicated boards, so they use dedicated profiles such as `s3_peer_host`, `s3_peer_device`, and `p4_loopback`. `examples/`, `manual/`, and `probe/` are intended for individually run generic boards, so they use `esp32s3` and `esp32p4`.
+
 ## Running tests
 
 From the `tests/` directory:
@@ -73,6 +75,10 @@ See [peer/README.md](peer/README.md) for hardware wiring and coverage details.
 
 Uses an ESP32-P4 that runs both USB host and USB device on the same chip. No second board is needed. This directory is currently being organized.
 
+### `probe/` — Bring-up probes
+
+Sketches for ESP32-P4 USB port identification, HS/FS Host checks, HS Device checks, and Hardware CDC/JTAG checks. They depend on board wiring and host-PC enumeration, so they are not formal regression tests. See [probe/README.md](probe/README.md) for details.
+
 ## pytest-embedded-arduino-cli
 
 [pytest-embedded-arduino-cli](https://github.com/tanakamasayuki/pytest-embedded-arduino-cli) is the plugin that connects pytest-embedded with Arduino CLI. It builds and flashes sketches automatically before each test run.
@@ -86,6 +92,8 @@ The plugin resolves the serial port for each board in this order:
 3. `TEST_SERIAL_PORT` environment variable (fallback for any profile)
 
 For example, a profile named `s3_peer_host` in `sketch.yaml` maps to `TEST_SERIAL_PORT_S3_PEER_HOST` in `.env`.
+
+For always-connected test setups, configure dedicated ports such as `TEST_SERIAL_PORT_S3_PEER_HOST`, `TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE`, and `TEST_SERIAL_PORT_P4_LOOPBACK`. For individually run examples, manual tests, and probes, use `TEST_SERIAL_PORT_ESP32S3` and `TEST_SERIAL_PORT_ESP32P4`.
 
 ### sketch.yaml and profiles
 
