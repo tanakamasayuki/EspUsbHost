@@ -27,8 +27,8 @@
   - `input.interfaceNumber` — HIDインターフェース番号
   - `input.rawData`, `input.rawLength` — 生のHID入力レポートバイト
   - `input.reportData`, `input.reportLength` — Report IDがある場合はそれを除いたレポートバイト
-- `usb.sendVendorOutput(data, length)` — HID出力レポートを送信
-- `usb.sendVendorFeature(data, length)` — HIDフィーチャーレポートを送信
+- `usb.sendVendorOutput(data, length)` — interrupt OUT endpointでHID出力レポートを送信
+- `usb.sendVendorFeature(data, length)` — EP0の`SET_REPORT`でHIDフィーチャーレポートを送信
 
 ## シリアル出力例
 

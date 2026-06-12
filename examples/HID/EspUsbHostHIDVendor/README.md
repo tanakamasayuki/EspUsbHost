@@ -27,8 +27,8 @@ Demonstrates vendor-class HID communication: receiving input reports and sending
   - `input.interfaceNumber` — HID interface number
   - `input.rawData`, `input.rawLength` — raw HID input report bytes
   - `input.reportData`, `input.reportLength` — report bytes after removing the Report ID when one is present
-- `usb.sendVendorOutput(data, length)` — sends an HID output report
-- `usb.sendVendorFeature(data, length)` — sends an HID feature report
+- `usb.sendVendorOutput(data, length)` — sends an HID output report through the interrupt OUT endpoint
+- `usb.sendVendorFeature(data, length)` — sends an HID feature report through EP0 `SET_REPORT`
 
 ## Expected Serial output
 
