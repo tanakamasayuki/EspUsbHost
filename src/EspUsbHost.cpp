@@ -1807,24 +1807,48 @@ bool EspUsbHost::sendVendorOutput(const uint8_t *data, size_t length, uint8_t ad
     ESP_LOGW(TAG, "sendVendorOutput() called before a vendor HID interface is ready");
     return false;
   }
-  if (length > 63)
+  if (!device->hasVendorOutEndpoint)
   {
-    ESP_LOGW(TAG, "sendVendorOutput() length too large: %u", static_cast<unsigned>(length));
+    ESP_LOGW(TAG, "sendVendorOutput() no interrupt OUT endpoint");
     return false;
   }
-  uint8_t report[64] = {};
-  report[0] = ESP_USB_HOST_HID_REPORT_ID_VENDOR;
-  if (length > 0)
+  if (length > 0 && !data)
   {
-    memcpy(report + 1, data, length);
+    ESP_LOGW(TAG, "sendVendorOutput() called with null data");
+    return false;
   }
 
-  return sendHIDReport(device->vendorInterfaceNumber,
-                       ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
-                       0,
-                       report,
-                       length + 1,
-                       device->info.address);
+  const size_t packetSize = length > device->vendorOutPacketSize ? length : device->vendorOutPacketSize;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(packetSize, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  if (length > 0)
+  {
+    memcpy(transfer->data_buffer, data, length);
+  }
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = device->vendorOutEndpointAddress;
+  transfer->callback = outputTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = length;
+
+  err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(vendor OUT ep=0x%02x) failed: %s",
+             device->vendorOutEndpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+  return true;
 }
 
 bool EspUsbHost::sendVendorFeature(const uint8_t *data, size_t length, uint8_t address)
