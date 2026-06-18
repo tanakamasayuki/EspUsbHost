@@ -6,6 +6,14 @@ Arduino library for using USB Host on ESP32-S3 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
+## Version 2 status
+
+Version 2 is a ground-up redesign and is **not compatible with the 1.x API**. The old inheritance/virtual-method style is no longer the primary interface; use the callback-based APIs such as `onKeyboard()`, `onMouse()`, `onDeviceConnected()`, and class-specific send/start APIs.
+
+This release has substantially broader USB class support than 1.x, but it is still a practical Arduino USB Host library under active development, not a fully validated replacement for every ESP-IDF USB class driver. APIs may still change incompatibly in later 2.x releases when that makes the API simpler, safer, or more consistent.
+
+Test coverage is better than the 1.x series and includes example build checks plus peer/manual tests for major paths, but many combinations still depend on real hardware. Treat USB Audio, USB Hub edge cases, multi-device setups, and unusual/non-compliant USB devices as areas that need device-specific verification.
+
 ## Features
 
 - **HID input** — keyboard, mouse, consumer control (media keys), system control (power/standby), gamepad
@@ -42,6 +50,17 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | ESP32-P4 validation | 🔲 Ongoing; verify FS/HS OTG, hub behavior, and loopback tests separately |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
 | Manual tests — VCP serial, multi-device, hot-plug | ✅ Main cases confirmed; additional device compatibility remains ongoing |
+
+## Current limits and cautions
+
+- **Version compatibility:** 2.x is not source-compatible with 1.x. Existing 1.x sketches should be ported to the callback-based API and the new class-specific APIs.
+- **Future breaking changes:** more incompatible API changes may still happen in 2.x while the API is being shaped around real devices and examples.
+- **USB host resources:** ESP32-S3 has a small number of USB host channels. Composite devices, hubs, audio, MSC, and multiple serial devices can exhaust channels quickly. Use `printDeviceInfo()` / `printAllDeviceInfo()` and the endpoint/channel diagnostic APIs to inspect resource use.
+- **Hubs:** use a self-powered USB 2.0 hub for multi-device tests. USB 3.x hubs and internally cascaded hubs may behave differently and are not fully validated.
+- **USB Audio:** output is more tested than input. Audio IN payload reception exists, but real microphone/device validation is still incomplete. UAC2 clock/selector behavior and advanced Audio Control units are limited.
+- **Mass Storage:** FAT access is intended for a single practical MSC device. Multiple MSC devices, multiple LUN devices, unusual block sizes, and abnormal BOT recovery need more real-device validation. Non-compliant devices may require the `SYNCHRONIZE CACHE(10)` fallback described in the MSC section.
+- **Hot plug:** unplugging while files, serial transfers, audio streams, or class operations are active can still fail or lose data depending on device behavior.
+- **ESP32-P4:** FS/HS OTG selection is supported through `EspUsbHostConfig::port`, but P4 validation is still ongoing. HS OTG has practical limitations, especially with hubs.
 
 ## Requirements
 
@@ -587,7 +606,7 @@ const char *lastErrorName() const;
 
 **Callbacks over inheritance.** Register lambdas or functions with `onKeyboard()`, `onMouse()`, etc. The old pattern of subclassing `EspUsbHost` and overriding virtual methods is not the primary API.
 
-**Breaking changes are accepted.** The library prioritises a clean Arduino-oriented API over backwards compatibility with its earlier inheritance-based interface.
+**Breaking changes are accepted in 2.x.** The library prioritises a clean Arduino-oriented API over backwards compatibility with its earlier inheritance-based interface. Even within the 2.x series, APIs may change when examples or real devices show a better shape.
 
 **HID gamepad reports are exposed as mappable data.** `onGamepad()` reports descriptor-decoded fields plus raw/report bytes. It does not assign semantic names such as left stick X/Y or right stick X/Y because those fields vary by device and may be 8-bit, 12-bit, 16-bit, or packed. Use `vid` / `pid`, `fields`, `rawData`, and `reportData` to build the mapping that matches your controller.
 
