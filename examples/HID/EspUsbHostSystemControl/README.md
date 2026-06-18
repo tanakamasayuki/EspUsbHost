@@ -18,9 +18,9 @@ Supported usage codes (defined in `EspUsbHost.h`):
 
 | Constant | Value | Name |
 |----------|-------|------|
-| `ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF` | `0x81` | Power Off |
-| `ESP_USB_HOST_SYSTEM_CONTROL_STANDBY` | `0x82` | Standby |
-| `ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST` | `0x83` | Wake Host |
+| `ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF` | `0x01` | Power Off |
+| `ESP_USB_HOST_SYSTEM_CONTROL_STANDBY` | `0x02` | Standby |
+| `ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST` | `0x03` | Wake Host |
 
 ## Key APIs
 
@@ -29,6 +29,7 @@ Supported usage codes (defined in `EspUsbHost.h`):
   - `event.usage` — HID usage code (8-bit)
   - `event.rawData`, `event.rawLength` — raw HID input report bytes
   - `event.reportData`, `event.reportLength` — system control report bytes after removing the Report ID when one is present
+- `espUsbHostSystemControlUsageName(event.usage)` — returns a readable name for common system usages
 
 ## Expected Serial output
 

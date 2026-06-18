@@ -216,6 +216,8 @@ void onHIDInput(HIDInputCallback callback);    // raw — fires for all HID inte
 void onVendorInput(VendorInputCallback callback);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
+const char *espUsbHostConsumerControlUsageName(uint16_t usage);
+const char *espUsbHostSystemControlUsageName(uint8_t usage);
 ```
 
 Notable event fields:
@@ -230,6 +232,8 @@ Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemCon
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
 | `onGamepad` | `fields`, `fieldCount`, `rawData`, `reportData`, `vid`, `pid`, `address` |
 | `onHIDInput` | `address`, `vid`, `pid`, `interfaceNumber`, `subclass`, `protocol`, `data`, `length` |
+
+Common Consumer Control constants include `ESP_USB_HOST_CONSUMER_CONTROL_PLAY_PAUSE`, `ESP_USB_HOST_CONSUMER_CONTROL_MUTE`, `ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP`, `ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN`, `ESP_USB_HOST_CONSUMER_CONTROL_NEXT_TRACK`, and `ESP_USB_HOST_CONSUMER_CONTROL_PREVIOUS_TRACK`.
 
 ### HID output
 

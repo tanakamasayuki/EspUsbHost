@@ -18,12 +18,12 @@ Common consumer control usage codes handled:
 
 | Usage | Name |
 |-------|------|
-| `0x00e2` | Mute |
-| `0x00e9` | Volume Up |
-| `0x00ea` | Volume Down |
-| `0x00cd` | Play/Pause |
-| `0x00b5` | Next Track |
-| `0x00b6` | Previous Track |
+| `ESP_USB_HOST_CONSUMER_CONTROL_MUTE` | Mute |
+| `ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP` | Volume Up |
+| `ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN` | Volume Down |
+| `ESP_USB_HOST_CONSUMER_CONTROL_PLAY_PAUSE` | Play/Pause |
+| `ESP_USB_HOST_CONSUMER_CONTROL_NEXT_TRACK` | Next Track |
+| `ESP_USB_HOST_CONSUMER_CONTROL_PREVIOUS_TRACK` | Previous Track |
 
 ## Key APIs
 
@@ -32,6 +32,7 @@ Common consumer control usage codes handled:
   - `event.usage` — HID usage code (16-bit)
   - `event.rawData`, `event.rawLength` — raw HID input report bytes
   - `event.reportData`, `event.reportLength` — consumer control report bytes after removing the Report ID when one is present
+- `espUsbHostConsumerControlUsageName(event.usage)` — returns a readable name for common consumer usages
 
 ## Expected Serial output
 
