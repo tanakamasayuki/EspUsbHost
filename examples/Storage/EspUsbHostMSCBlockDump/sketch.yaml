@@ -5,6 +5,6 @@ profiles:
       - platform: esp32:esp32 (3.3.8)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.0.0)
 
 default_profile: esp32s3
