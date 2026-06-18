@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.0.0
 - (EN) Prepare the version 2 series as a ground-up redesign. Version 2 is not source-compatible with the 1.x API; sketches should migrate from inheritance/virtual overrides to the callback-based and class-specific APIs.
 - (JA) バージョン2系に向けて全面的に再設計。2系は1系APIとソース互換ではありません。継承・仮想関数オーバーライド中心の使い方から、コールバック登録APIとUSBクラス別APIへ移行してください。
 - (EN) Expand USB class support and examples, including HID keyboard/mouse/consumer/system/gamepad input, HID output helpers, CDC-ACM, vendor serial, USB Audio, Mass Storage, and Hub-oriented examples.
