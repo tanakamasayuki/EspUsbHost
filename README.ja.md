@@ -492,7 +492,8 @@ bool mscMount(const char *basePath = "/usb",
               uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
               uint8_t lun = 0,
               uint8_t maxFiles = 4,
-              uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+              uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS,
+              bool skipSyncCache = false);
 bool mscUnmount(const char *basePath = "/usb");
 bool mscMounted(const char *basePath = "/usb") const;
 
@@ -503,10 +504,13 @@ public:
              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
              uint8_t lun = 0,
              uint8_t maxFiles = 4,
-             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS,
+             bool skipSyncCache = false);
   void end();
   bool mounted() const;
   const char *basePath() const;
+  void setSkipSyncCache(bool skip);
+  bool skipSyncCache() const;
 };
 ```
 
@@ -519,6 +523,8 @@ MSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF F
 ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。複数MSCデバイスや複数LUNはAPI上はaddress/LUN指定を持ちますが、ESP32-S3ではHCDチャネル数の制約が強いため、実運用では単一MSCデバイスを前提にしてください。複数MSCはESP32-P4などでの追加検証項目です。
 
 これらのMSC APIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。書き込み中やファイルを開いたままUSBメモリを抜いた場合、未反映データが失われる可能性があります。抜き差しを扱う場合は、再接続後に再度`begin()`してください。
+
+一部の非準拠MSCデバイスは、FatFs同期時のSCSI `SYNCHRONIZE CACHE(10)`でSTALLまたは切断することがあります。FatFsの`CTRL_SYNC`中にこのコマンドが失敗した場合、そのmountでは以後このコマンドを自動的にスキップします。問題が分かっているデバイスでは、`begin()`前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶか、`begin()` / `mscMount()`へ`skipSyncCache = true`を渡すと最初からスキップできます。互換性は上がりますが、明示的なメディアflushではなく通常のwrite完了に依存します。
 
 ### USB Hub
 

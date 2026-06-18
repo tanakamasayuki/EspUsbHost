@@ -15,4 +15,6 @@ USB Mass Storageデバイスを`EspUsbHostMscFS`で`/usb`へマウントし、Ar
 
 `EspUsbHostMscFS`は`fs::FS`を継承しているため、`fs::FS &`を受け取るWebServerやUpdateなどのArduinoライブラリへ渡せます。USBコールバック内からは呼ばず、`loop()`から使ってください。書き込み中やファイルを開いたままUSBメモリを抜いた場合、未反映データが失われる可能性があります。
 
+FatFs同期時にSCSI `SYNCHRONIZE CACHE(10)`が失敗した場合、そのmountでは以後このコマンドを自動的にスキップします。問題が分かっている非準拠デバイスでは、`usbMassStorage.begin(...)`の前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶと最初からスキップできます。互換性は上がりますが、明示的なflush動作は弱くなります。
+
 現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定に依存し、32-bit sectorまでです。複数MSCデバイス同時接続はESP32-S3ではHCDチャネル数の制約が強いため、実用上は単一MSCデバイスを前提にしてください。
