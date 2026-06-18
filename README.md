@@ -492,7 +492,8 @@ bool mscMount(const char *basePath = "/usb",
               uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
               uint8_t lun = 0,
               uint8_t maxFiles = 4,
-              uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+              uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS,
+              bool skipSyncCache = false);
 bool mscUnmount(const char *basePath = "/usb");
 bool mscMounted(const char *basePath = "/usb") const;
 
@@ -503,10 +504,13 @@ public:
              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
              uint8_t lun = 0,
              uint8_t maxFiles = 4,
-             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS,
+             bool skipSyncCache = false);
   void end();
   bool mounted() const;
   const char *basePath() const;
+  void setSkipSyncCache(bool skip);
+  bool skipSyncCache() const;
 };
 ```
 
@@ -519,6 +523,8 @@ The low-level APIs such as `mscReadBlocks64()`, `mscWriteBlocks64()`, `mscInquir
 The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Multiple MSC devices and multiple LUNs can be addressed by API parameters, but ESP32-S3 has tight HCD channel limits, so assume a single MSC device for practical use. Multiple MSC devices remain an ESP32-P4-oriented validation item.
 
 Do not call these MSC APIs from USB callbacks, because they wait for USB transfer completion. Removing a USB drive while files are open or writes are in progress may lose unwritten data. After reconnecting media, call `begin()` again.
+
+Some non-compliant MSC devices stall or disconnect when they receive SCSI `SYNCHRONIZE CACHE(10)` during FatFs sync. If that command fails during FatFs `CTRL_SYNC`, the mount automatically falls back to skipping it for the rest of that mount. For known-problem devices, call `usbMassStorage.setSkipSyncCache(true)` before `begin()`, or pass `skipSyncCache = true` to `begin()` / `mscMount()` to skip it from the start. This improves compatibility but relies on normal write completion instead of an explicit media flush.
 
 ### USB Hub
 

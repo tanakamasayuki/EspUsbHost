@@ -124,6 +124,7 @@ struct EspUsbHostMscFatMount
   FATFS *fs = nullptr;
   uint64_t blockCount = 0;
   uint32_t blockSize = 0;
+  bool skipSyncCache = false;
 };
 
 static EspUsbHostMscFatMount mscFatMounts[FF_VOLUMES] = {};
@@ -301,7 +302,17 @@ static DRESULT mscFatDiskIoctl(BYTE pdrv, BYTE cmd, void *buff)
   switch (cmd)
   {
   case CTRL_SYNC:
-    return mount->host->mscSynchronizeCache(mount->address) ? RES_OK : RES_ERROR;
+    if (mount->skipSyncCache)
+    {
+      return RES_OK;
+    }
+    if (mount->host->mscSynchronizeCache(mount->address))
+    {
+      return RES_OK;
+    }
+    mount->skipSyncCache = true;
+    ESP_LOGW(TAG, "MSC SYNCHRONIZE CACHE failed on %s, skipping it for this mount", mount->basePath);
+    return RES_OK;
   case GET_SECTOR_COUNT:
     if (!buff)
     {
@@ -3366,7 +3377,12 @@ bool EspUsbHost::mscSynchronizeCache(uint8_t address, uint32_t timeoutMs)
   return mscCommand(*device, command, sizeof(command), nullptr, 0, false, timeoutMs);
 }
 
-bool EspUsbHost::mscMount(const char *basePath, uint8_t address, uint8_t lun, uint8_t maxFiles, uint32_t timeoutMs)
+bool EspUsbHost::mscMount(const char *basePath,
+                          uint8_t address,
+                          uint8_t lun,
+                          uint8_t maxFiles,
+                          uint32_t timeoutMs,
+                          bool skipSyncCache)
 {
   if (!basePath || basePath[0] != '/' || strlen(basePath) >= sizeof(mscFatMounts[0].basePath))
   {
@@ -3438,6 +3454,7 @@ bool EspUsbHost::mscMount(const char *basePath, uint8_t address, uint8_t lun, ui
   mount->pdrv = pdrv;
   mount->blockCount = blockInfo.blockCount;
   mount->blockSize = blockInfo.blockSize;
+  mount->skipSyncCache = skipSyncCache;
   strncpy(mount->basePath, basePath, sizeof(mount->basePath) - 1);
   snprintf(mount->fatDrive, sizeof(mount->fatDrive), "%u:", static_cast<unsigned>(pdrv));
 
@@ -3480,7 +3497,10 @@ bool EspUsbHost::mscUnmount(const char *basePath)
     return false;
   }
 
-  mscSynchronizeCache(mount->address);
+  if (!mount->skipSyncCache)
+  {
+    mscSynchronizeCache(mount->address);
+  }
   f_mount(nullptr, mount->fatDrive, 0);
   esp_err_t err = esp_vfs_fat_unregister_path(mount->basePath);
   ff_diskio_unregister(mount->pdrv);
@@ -3513,7 +3533,8 @@ bool EspUsbHostMscFS::begin(EspUsbHost &host,
                             uint8_t address,
                             uint8_t lun,
                             uint8_t maxFiles,
-                            uint32_t timeoutMs)
+                            uint32_t timeoutMs,
+                            bool skipSyncCache)
 {
   if (!basePath || basePath[0] != '/' || strlen(basePath) >= sizeof(basePath_))
   {
@@ -3529,7 +3550,7 @@ bool EspUsbHostMscFS::begin(EspUsbHost &host,
     host_ = nullptr;
     basePath_[0] = '\0';
   }
-  if (!host.mscMount(basePath, address, lun, maxFiles, timeoutMs))
+  if (!host.mscMount(basePath, address, lun, maxFiles, timeoutMs, skipSyncCache || skipSyncCache_))
   {
     return false;
   }
@@ -3559,6 +3580,16 @@ bool EspUsbHostMscFS::mounted() const
 const char *EspUsbHostMscFS::basePath() const
 {
   return basePath_;
+}
+
+void EspUsbHostMscFS::setSkipSyncCache(bool skip)
+{
+  skipSyncCache_ = skip;
+}
+
+bool EspUsbHostMscFS::skipSyncCache() const
+{
+  return skipSyncCache_;
 }
 
 void EspUsbHost::mscUnmountAddress(uint8_t address)

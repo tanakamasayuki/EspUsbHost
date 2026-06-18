@@ -15,4 +15,6 @@ For basic `fs::FS` use, sketches do not need to call `mscReady()`, `mscWaitReady
 
 `EspUsbHostMscFS` derives from `fs::FS`, so it can be passed to Arduino libraries such as WebServer or Update that accept `fs::FS &`. Use it from `loop()`, not from USB callbacks. Removing a USB drive while files are open or writes are in progress may lose unwritten data.
 
+If SCSI `SYNCHRONIZE CACHE(10)` fails during FatFs sync, this mount automatically falls back to skipping it. For known non-compliant devices, call `usbMassStorage.setSkipSyncCache(true)` before `usbMassStorage.begin(...)` to skip it from the start. This improves compatibility with some devices but weakens explicit flush behavior.
+
 The current FatFs/VFS mount path depends on the ESP-IDF FatFs build and is limited to 32-bit sectors. Multiple MSC devices are constrained by HCD channel limits on ESP32-S3, so assume a single MSC device for practical use.

@@ -939,7 +939,8 @@ public:
                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                 uint8_t lun = 0,
                 uint8_t maxFiles = 4,
-                uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+                uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS,
+                bool skipSyncCache = false);
   bool mscUnmount(const char *basePath = "/usb");
   bool mscMounted(const char *basePath = "/usb") const;
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -1308,14 +1309,18 @@ public:
              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
              uint8_t lun = 0,
              uint8_t maxFiles = 4,
-             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS);
+             uint32_t timeoutMs = ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS,
+             bool skipSyncCache = false);
   void end();
   bool mounted() const;
   const char *basePath() const;
+  void setSkipSyncCache(bool skip);
+  bool skipSyncCache() const;
 
 private:
   EspUsbHost *host_ = nullptr;
   char basePath_[16] = {};
+  bool skipSyncCache_ = false;
 };
 
 class EspUsbHostCdcSerial : public Stream
