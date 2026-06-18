@@ -2,7 +2,7 @@
 
 > English: [README.md](README.md)
 
-ESP32-S3でUSB Hostを使うためのArduinoライブラリです。
+ESP32-S3 / ESP32-P4でUSB Hostを使うためのArduinoライブラリです。
 
 USB処理はバックグラウンドのFreeRTOSタスクで行われるため、`loop()`でUSBポーリング関数を呼ぶ必要はありません。`setup()`でコールバックを登録して`begin()`を呼ぶだけで動作します。
 
@@ -28,7 +28,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | USB MIDI | ✅ 実装済み |
 | UAC — USBオーディオ入出力 | 🔲 実験的。Audio OUTはpeer確認済み、Audio INはAPIあり・実データ確認が残っています |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
-| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
+| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。非準拠デバイス向けの`SYNCHRONIZE CACHE(10)`フォールバックあり。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
 | UVC — USBカメラ | 💭 検討中 |
 
 ### その他の予定機能
@@ -37,7 +37,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 |------|------|
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | ✅ 実装済み |
 | HIDゲームパッド入力 — ユーザー定義マッピング用のディスクリプタデコード済みフィールドとraw/reportバイト | ✅ マッピング前提のイベントAPI。マッピング補助は検討中 |
-| チャンネル数・endpoint使用量の可視化 | 🔲 次候補。複数デバイスやAudio/MSC/HUB併用時の上限把握に使う |
+| チャンネル数・endpoint使用量の可視化 | ✅ 実験的な診断APIとして実装済み。複数デバイスやAudio/MSC/HUB併用時の上限把握に使う |
 | USB Audio INの実データ確認 | 🔲 次候補。実USBマイクまたはpeer側Audio IN生成の安定化が必要 |
 | ESP32-P4検証 | 🔲 継続。FS/HS OTG、HUB可否、ループバックテストを個別確認する |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 整備中 |
@@ -121,6 +121,7 @@ void loop() {
 | [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | キーボード入力を受け取り、入力文字をシリアルに出力 |
 | [EspUsbHostKeyboardDump](examples/HID/EspUsbHostKeyboardDump/) | パース済みキーボードイベントを表示し、`onKeyboard` の自前処理を示す |
 | [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | マウスの移動量とボタン操作を取得 |
+| [EspUsbHostCompositeHID](examples/HID/EspUsbHostCompositeHID/) | キーボード+マウスなどの複合HIDデバイスを扱う |
 | [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | メディアキー（音量・再生/一時停止など）を検出 |
 | [EspUsbHostSystemControl](examples/HID/EspUsbHostSystemControl/) | システムキー（電源・スタンバイ・ウェイクアップ）を検出 |
 | [EspUsbHostGamepad](examples/HID/EspUsbHostGamepad/) | ゲームパッドのスティック・十字キー・ボタンを取得 |

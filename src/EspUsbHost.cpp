@@ -302,6 +302,10 @@ static DRESULT mscFatDiskIoctl(BYTE pdrv, BYTE cmd, void *buff)
   switch (cmd)
   {
   case CTRL_SYNC:
+    if (!mount->host->mscReady(mount->address))
+    {
+      return RES_NOTRDY;
+    }
     if (mount->skipSyncCache)
     {
       return RES_OK;
