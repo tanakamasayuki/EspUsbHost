@@ -79,6 +79,12 @@ static constexpr size_t ESP_USB_HOST_MAX_HID_EVENT_FIELDS = 64;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF = 0x01;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_STANDBY = 0x02;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST = 0x03;
+static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_NEXT_TRACK = 0x00b5;
+static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_PREVIOUS_TRACK = 0x00b6;
+static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_PLAY_PAUSE = 0x00cd;
+static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_MUTE = 0x00e2;
+static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP = 0x00e9;
+static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN = 0x00ea;
 static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
 static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
 static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
@@ -704,6 +710,8 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out = Serial);
 void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Print &out = Serial);
+const char *espUsbHostConsumerControlUsageName(uint16_t usage);
+const char *espUsbHostSystemControlUsageName(uint8_t usage);
 
 struct EspUsbHostConsumerControlEvent : EspUsbHostHIDReportData
 {

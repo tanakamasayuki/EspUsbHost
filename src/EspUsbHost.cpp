@@ -565,6 +565,42 @@ void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out)
              endpoint.attributes);
 }
 
+const char *espUsbHostConsumerControlUsageName(uint16_t usage)
+{
+  switch (usage)
+  {
+  case ESP_USB_HOST_CONSUMER_CONTROL_NEXT_TRACK:
+    return "Next";
+  case ESP_USB_HOST_CONSUMER_CONTROL_PREVIOUS_TRACK:
+    return "Previous";
+  case ESP_USB_HOST_CONSUMER_CONTROL_PLAY_PAUSE:
+    return "Play/Pause";
+  case ESP_USB_HOST_CONSUMER_CONTROL_MUTE:
+    return "Mute";
+  case ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP:
+    return "Volume Up";
+  case ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN:
+    return "Volume Down";
+  default:
+    return "";
+  }
+}
+
+const char *espUsbHostSystemControlUsageName(uint8_t usage)
+{
+  switch (usage)
+  {
+  case ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF:
+    return "Power Off";
+  case ESP_USB_HOST_SYSTEM_CONTROL_STANDBY:
+    return "Standby";
+  case ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST:
+    return "Wake Host";
+  default:
+    return "";
+  }
+}
+
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out)
 {
   out.printf("audio stream: addr=%u iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max_packet=%u interval=%u\n",

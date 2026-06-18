@@ -5,46 +5,6 @@ EspUsbHost usb;
 static int32_t posX = 0;
 static int32_t posY = 0;
 
-static const char *consumerUsageName(uint16_t usage)
-{
-  // en: Map a few common Consumer Page usages to readable names.
-  // ja: Consumer Pageの代表的なusageを読みやすい名前に変換します。
-  switch (usage)
-  {
-  case 0x00e2:
-    return "Mute";
-  case 0x00e9:
-    return "Volume Up";
-  case 0x00ea:
-    return "Volume Down";
-  case 0x00cd:
-    return "Play/Pause";
-  case 0x00b5:
-    return "Next";
-  case 0x00b6:
-    return "Previous";
-  default:
-    return "";
-  }
-}
-
-static const char *systemUsageName(uint8_t usage)
-{
-  // en: Map System Control usages to readable names for Serial output.
-  // ja: System Controlのusageを、シリアル出力用の読みやすい名前に変換します。
-  switch (usage)
-  {
-  case ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF:
-    return "Power Off";
-  case ESP_USB_HOST_SYSTEM_CONTROL_STANDBY:
-    return "Standby";
-  case ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST:
-    return "Wake Host";
-  default:
-    return "";
-  }
-}
-
 static void onKeyboard(const EspUsbHostKeyboardEvent &event)
 {
   if (!event.pressed)
@@ -75,17 +35,17 @@ static void onMouse(const EspUsbHostMouseEvent &event)
   {
     uint8_t pressed = event.buttons & ~event.previousButtons;
     uint8_t released = event.previousButtons & ~event.buttons;
-    if (pressed & 0x01)
+    if (pressed & ESP_USB_HOST_MOUSE_LEFT)
       Serial.printf("mouse: address=%u iface=%u left press\n", event.address, event.interfaceNumber);
-    if (released & 0x01)
+    if (released & ESP_USB_HOST_MOUSE_LEFT)
       Serial.printf("mouse: address=%u iface=%u left release\n", event.address, event.interfaceNumber);
-    if (pressed & 0x02)
+    if (pressed & ESP_USB_HOST_MOUSE_RIGHT)
       Serial.printf("mouse: address=%u iface=%u right press\n", event.address, event.interfaceNumber);
-    if (released & 0x02)
+    if (released & ESP_USB_HOST_MOUSE_RIGHT)
       Serial.printf("mouse: address=%u iface=%u right release\n", event.address, event.interfaceNumber);
-    if (pressed & 0x04)
+    if (pressed & ESP_USB_HOST_MOUSE_MIDDLE)
       Serial.printf("mouse: address=%u iface=%u middle press\n", event.address, event.interfaceNumber);
-    if (released & 0x04)
+    if (released & ESP_USB_HOST_MOUSE_MIDDLE)
       Serial.printf("mouse: address=%u iface=%u middle release\n", event.address, event.interfaceNumber);
   }
 
@@ -111,7 +71,7 @@ static void onConsumerControl(const EspUsbHostConsumerControlEvent &event)
                 event.interfaceNumber,
                 event.pressed ? "press" : "release",
                 event.usage,
-                consumerUsageName(event.usage));
+                espUsbHostConsumerControlUsageName(event.usage));
 }
 
 static void onSystemControl(const EspUsbHostSystemControlEvent &event)
@@ -121,7 +81,7 @@ static void onSystemControl(const EspUsbHostSystemControlEvent &event)
                 event.interfaceNumber,
                 event.pressed ? "press" : "release",
                 event.usage,
-                systemUsageName(event.usage));
+                espUsbHostSystemControlUsageName(event.usage));
 }
 
 void setup()
