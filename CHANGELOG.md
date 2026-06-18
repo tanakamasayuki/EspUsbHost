@@ -1,6 +1,14 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Prepare the version 2 series as a ground-up redesign. Version 2 is not source-compatible with the 1.x API; sketches should migrate from inheritance/virtual overrides to the callback-based and class-specific APIs.
+- (JA) バージョン2系に向けて全面的に再設計。2系は1系APIとソース互換ではありません。継承・仮想関数オーバーライド中心の使い方から、コールバック登録APIとUSBクラス別APIへ移行してください。
+- (EN) Expand USB class support and examples, including HID keyboard/mouse/consumer/system/gamepad input, HID output helpers, CDC-ACM, vendor serial, USB Audio, Mass Storage, and Hub-oriented examples.
+- (JA) HIDキーボード/マウス/コンシューマー/システム/ゲームパッド入力、HID出力ヘルパー、CDC-ACM、vendor serial、USB Audio、Mass Storage、Hub向けexamplesなど、USBクラス対応とサンプルを拡充。
+- (EN) Add practical compatibility handling for non-compliant MSC devices, including fallback behavior around `SYNCHRONIZE CACHE(10)`.
+- (JA) `SYNCHRONIZE CACHE(10)` 周辺のフォールバックを含む、非準拠MSCデバイス向けの実用的な互換性対応を追加。
+- (EN) Document current v2 limitations and cautions: APIs may still change incompatibly during the 2.x series, real-device validation is still ongoing for USB Audio input, Hub edge cases, multi-device setups, unusual MSC devices, hot-plug behavior, and ESP32-P4 FS/HS OTG combinations.
+- (JA) 現状のv2制限と注意点を明記。2系の間でも破壊的変更が入る可能性があり、USB Audio入力、Hubの細かい挙動、複数デバイス構成、特殊なMSCデバイス、活線挿抜、ESP32-P4 FS/HS OTG構成は実機検証を継続中です。
 
 ## 1.0.1
 - (EN) Fix library.properties
