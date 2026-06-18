@@ -2,7 +2,7 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Arduino library for using USB Host on ESP32-S3.
+Arduino library for using USB Host on ESP32-S3 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
@@ -28,7 +28,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 | USB MIDI | ✅ Done |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT is peer-tested; Audio IN APIs exist but real payload validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
-| MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
+| MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; includes `SYNCHRONIZE CACHE(10)` fallback for non-compliant devices. Multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
@@ -37,7 +37,7 @@ USB events are processed in a background FreeRTOS task, so `loop()` does not nee
 |---------|--------|
 | `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
 | HID gamepad input — descriptor-decoded fields plus raw/report bytes for user-defined mapping | ✅ Mappable event API; mapping helpers still under consideration |
-| Channel count and endpoint usage visibility | 🔲 Next candidate; useful for understanding limits with multi-device, Audio, MSC, and HUB combinations |
+| Channel count and endpoint usage visibility | ✅ Implemented as experimental diagnostics; useful for understanding limits with multi-device, Audio, MSC, and HUB combinations |
 | USB Audio IN real payload validation | 🔲 Next candidate; needs a real USB microphone or a stable peer-side Audio IN generator |
 | ESP32-P4 validation | 🔲 Ongoing; verify FS/HS OTG, hub behavior, and loopback tests separately |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
@@ -121,6 +121,7 @@ void loop() {
 | [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | Read keyboard input and print typed characters to Serial |
 | [EspUsbHostKeyboardDump](examples/HID/EspUsbHostKeyboardDump/) | Dump parsed keyboard events and show how to handle `onKeyboard` yourself |
 | [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | Read mouse movement and button events |
+| [EspUsbHostCompositeHID](examples/HID/EspUsbHostCompositeHID/) | Handle composite HID devices such as keyboard + mouse devices |
 | [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | Detect media keys (volume, play/pause, etc.) |
 | [EspUsbHostSystemControl](examples/HID/EspUsbHostSystemControl/) | Detect system keys (power, standby, wake) |
 | [EspUsbHostGamepad](examples/HID/EspUsbHostGamepad/) | Read gamepad axes, hat switch, and buttons |

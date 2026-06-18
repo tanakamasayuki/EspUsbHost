@@ -1,23 +1,21 @@
 # チャンネル数チェック
 
-(1)現状把握APIを追加する
-claim済みinterfaceの bNumEndpoints 合計を返すAPI
-ライブラリが実際にtransferを張っているendpoint数を返すAPI
-claim成功/失敗時のログに推定カウントを出す
-ここでは制御ロジックを入れない
+状態:
+現状把握APIは実装済み。`endpointChannelCount()`、`managedEndpointCount()`、`ep0ChannelCount()`、`hubEndpointChannelCount()`、`estimatedHcdChannelCount()`、`maxEndpointChannelCount()`を公開し、claim成功/失敗ログとdevice info表示にも反映済み。
 
-(2)実験してカウントの正確性を確認する
+残作業:
+実験してカウントの正確性を確認する
 Hubのみ、HID、CDC、MSC、MIDI、Audioなどを順に追加
 推定カウントとESP-IDFの失敗ログを比較
 8 に近いところで失敗するのか、もっと早いのかを見る
 
-(3)どのタイミングで制御すべきか検討する
+どのタイミングで制御すべきか検討する
 interface_claim 前で止めるべきか
 device単位で除外すべきか
 endpoint単位の抑制に意味があるか
 Audioのように遅延claimした方がよいものがあるか確認する
 
-(4)制御用コールバックを追加する
+制御用コールバックを追加する
 設定フラグは増やさない
 関連コールバック未登録なら自動で開かない方向にする
 必要なら onBeforeDeviceUse() / onBeforeInterfaceClaim() を追加する
