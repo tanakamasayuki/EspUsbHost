@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Fix HID boot mouse input routing so middle, back, and forward button reports are delivered to `onMouse()` instead of being misinterpreted as Report ID based HID reports.
+- (JA) HID boot mouse入力の振り分けを修正し、middle/back/forwardボタンのレポートがReport ID付きHIDレポートとして誤判定されず、`onMouse()`に届くようにしました。
 
 ## 2.0.0
 - (EN) Prepare the version 2 series as a ground-up redesign. Version 2 is not source-compatible with the 1.x API; sketches should migrate from inheritance/virtual overrides to the callback-based and class-specific APIs.
