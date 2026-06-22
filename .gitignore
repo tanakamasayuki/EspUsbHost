@@ -32,8 +32,5 @@ report.html
 .idea/
 .vscode/
 
-# Local dependency locks
-uv.lock
-
 # Arduino CLI build outputs inside sketch directories
 tests/**/build/
