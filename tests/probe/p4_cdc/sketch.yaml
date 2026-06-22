@@ -2,7 +2,7 @@ profiles:
   esp32p4:
     fqbn: esp32:esp32:esp32p4
     platforms:
-      - platform: esp32:esp32 (3.3.8)
+      - platform: esp32:esp32 (3.3.10)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
 default_profile: esp32p4
