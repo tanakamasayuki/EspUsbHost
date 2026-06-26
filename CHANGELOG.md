@@ -1,6 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Improve MSC compatibility with non-compliant devices such as DFMiniPlayer SD-card readers by avoiding BOT reset recovery after `SYNCHRONIZE CACHE(10)` failures, preventing EP0 STALL recovery loops before the existing skip-sync fallback can take effect.
+- (JA) DFMiniPlayer内蔵SDカードリーダーなどの非準拠MSCデバイス向けに、`SYNCHRONIZE CACHE(10)` 失敗後のBOT reset recoveryを避け、既存のskip-syncフォールバック前にEP0 STALLの回復ループへ入ることを抑制しました。
+- (EN) Document `usbMassStorage.setSkipSyncCache(true)` in the `EspUsbHostMSCFatList` example for devices that fail when FatFs requests `SYNCHRONIZE CACHE(10)`.
+- (JA) FatFsが`SYNCHRONIZE CACHE(10)`を要求すると失敗するデバイス向けに、`EspUsbHostMSCFatList`サンプルへ`usbMassStorage.setSkipSyncCache(true)`の案内を追加しました。
 
 ## 2.0.1
 - (EN) Fix HID boot mouse input routing so middle, back, and forward button reports are delivered to `onMouse()` instead of being misinterpreted as Report ID based HID reports.
