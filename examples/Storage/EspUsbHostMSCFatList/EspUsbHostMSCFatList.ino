@@ -93,6 +93,11 @@ void setup()
     {
         Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
     }
+
+    // Some non-compliant MSC devices, including DFMiniPlayer SD-card readers,
+    // stall or become unusable when FatFs asks for SCSI SYNCHRONIZE CACHE(10).
+    // Enable this before begin() mounts the device when using those readers.
+    // usbMassStorage.setSkipSyncCache(true);
 }
 
 void loop()
