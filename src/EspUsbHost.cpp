@@ -2902,6 +2902,7 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   };
 
   const uint8_t commandOpcode = command[0];
+  const bool allowResetRecovery = commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10;
   bool requestSenseAfterCommand = false;
   const uint32_t tag = device.mscTag++;
   EspUsbHostMscCbw cbw = {};
@@ -2945,7 +2946,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
          csw.tag == tag;
     if (!cswTransferOk)
     {
-      mscResetRecovery(device, timeoutMs);
+      if (allowResetRecovery)
+      {
+        mscResetRecovery(device, timeoutMs);
+      }
     }
     if (cswTransferOk && !ok)
     {
@@ -2955,7 +2959,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
                static_cast<unsigned long>(csw.tag),
                static_cast<unsigned long>(tag));
       setLastError(ESP_FAIL);
-      mscResetRecovery(device, timeoutMs);
+      if (allowResetRecovery)
+      {
+        mscResetRecovery(device, timeoutMs);
+      }
     }
     if (ok && csw.status != USB_MSC_CSW_STATUS_PASSED)
     {
@@ -2966,9 +2973,13 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       ok = false;
       if (csw.status == USB_MSC_CSW_STATUS_PHASE_ERROR)
       {
-        mscResetRecovery(device, timeoutMs);
+        if (allowResetRecovery)
+        {
+          mscResetRecovery(device, timeoutMs);
+        }
       }
-      else if (commandOpcode != SCSI_CMD_REQUEST_SENSE)
+      else if (commandOpcode != SCSI_CMD_REQUEST_SENSE &&
+               commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10)
       {
         requestSenseAfterCommand = true;
       }
@@ -2976,7 +2987,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   }
   else
   {
-    mscResetRecovery(device, timeoutMs);
+    if (allowResetRecovery)
+    {
+      mscResetRecovery(device, timeoutMs);
+    }
   }
 
   vSemaphoreDelete(context.done);
