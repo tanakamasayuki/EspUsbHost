@@ -2,7 +2,9 @@
 
 > English: [README.md](README.md)
 
-`tests/peer` には2台構成のテストが含まれています。1台目のESP32-S3がEspUsbHostスケッチをUSBホストとして実行し、もう1台のESP32-S3がArduino USBデバイスのスケッチをピアとして実行します。
+`tests/peer` には2台構成のテストが含まれています。1台目のESP32-S3がEspUsbHostスケッチをUSBホストとして実行し、もう1台のESP32-S3がArduino-ESP32標準 USB Device 実装を使ったスケッチをピアとして実行します。
+
+このリポジトリの peer テストは、Host 側が Arduino Core 標準 Device 実装とも相互運用できることを確認するための基準テストとして維持します。兄弟ライブラリ `EspUsbDevice` との詳細な組み合わせテスト、ESP32-P4 1台構成の loopback テスト、descriptor / report ID / output / feature report などの細かい制御が必要なテストは、`EspUsbDevice` リポジトリ側で整備します。
 
 `tests/` ディレクトリから実行：
 
@@ -41,18 +43,19 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 現在のカバレッジ：
 
 - `hid_logic`: ピアデバイスを必要としないHIDヘルパーロジックの検証
-- `custom_hid`: `USB/examples/CustomHIDDevice` とペアで動作
-- `hid_keyboard`: Arduino USBキーボードサンプルとペアで動作
-- `hid_mouse`: `USB/examples/Mouse/ButtonMouseControl` とペアで動作
-- `hid_keyboard_mouse`: `USB/examples/KeyboardAndMouseControl` とペアで動作
-- `hid_consumer_control`: `USB/examples/ConsumerControl` とペアで動作
-- `hid_system_control`: `USB/examples/SystemControl` とペアで動作
-- `hid_gamepad`: `USB/examples/Gamepad` とペアで動作
-- `hid_vendor`: `USB/examples/HIDVendor` とペアで動作
-- `usb_serial`: `USB/examples/USBSerial` とペアで動作
-- `usb_midi`: `USB/examples/MIDI` とペアで動作
-- `usb_audio`: `USBAudioCard` のスピーカー出力を使い、`USB/examples/AudioCard` 相当のUSB Audioデバイスとペアで動作
+- `custom_hid`: Arduino Core標準USB Device実装のCustom HID相当とペアで動作
+- `hid_keyboard`: Arduino Core標準USB keyboard実装とペアで動作
+- `hid_mouse`: Arduino Core標準USB mouse実装とペアで動作
+- `hid_keyboard_mouse`: Arduino Core標準keyboard + mouse composite実装とペアで動作
+- `hid_consumer_control`: Arduino Core標準consumer control実装とペアで動作
+- `hid_system_control`: Arduino Core標準system control実装とペアで動作
+- `hid_gamepad`: Arduino Core標準gamepad実装とペアで動作
+- `hid_vendor`: Arduino Core標準vendor HID実装とペアで動作
+- `usb_serial`: Arduino Core標準USB CDC実装とペアで動作
+- `usb_midi`: Arduino Core標準USB MIDI実装とペアで動作
+- `usb_audio`: `USBAudioCard` のスピーカー出力を使い、Arduino Core標準USB Audio device相当とペアで動作
 
 追加予定のカバレッジ：
 
-- HID出力レポートおよびフィーチャーレポート
+- Arduino Core標準Device実装で再現できるHost側回帰テスト
+- `EspUsbDevice` 側で見つかったHost側不具合の再現最小ケース

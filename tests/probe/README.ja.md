@@ -23,5 +23,5 @@ uv run --env-file .env pytest probe/p4_cdc/p4_cdc_probe.py
 `p4_hs_device` と `p4_cdc` は PC 側のデバイスマネージャやシリアルモニターでの確認が必要です。
 `p4_hs_host` と `p4_fs_host` は対象ポートに外部 USB デバイスを接続してから実行してください。
 
-`.env` では `TEST_SERIAL_PORT_ESP32P4` に、この確認で使う P4 ボードのシリアルポートを設定してください。常時接続の `loopback/` 用 P4 は `p4_loopback` として別プロファイルにしています。
+`.env` では `TEST_SERIAL_PORT_ESP32P4` に、この確認で使う P4 ボードのシリアルポートを設定してください。このリポジトリでは現在 `loopback/` の実行用 P4 プロファイルは使いません。
 `p4_cdc` は意図的に `USBMode=hwcdc,CDCOnBoot=cdc` を付けていません。この設定を付けると `Serial` が Hardware CDC/JTAG に割り当たるため、ポート配線の素の状態を確認する用途には向きません。

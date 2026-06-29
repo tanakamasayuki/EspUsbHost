@@ -14,6 +14,32 @@ This release has substantially broader USB class support than 1.x, but it is sti
 
 Test coverage is better than the 1.x series and includes example build checks plus peer/manual tests for major paths, but many combinations still depend on real hardware. Treat USB Audio, USB Hub edge cases, multi-device setups, and unusual/non-compliant USB devices as areas that need device-specific verification.
 
+## Sibling Library: EspUsbDevice
+
+The device-side sibling library is
+[`EspUsbDevice`](https://github.com/tanakamasayuki/EspUsbDevice).
+EspUsbDevice is a USB Device library expanded alongside EspUsbHost, and is used
+for Host/Device combination tests and ESP32-P4 single-board loopback validation.
+
+Arduino-ESP32's standard `USB`, `USBHIDKeyboard`, `USBHIDMouse`, `USBCDC`, and
+similar APIs are convenient for short, common USB Device sketches. EspUsbDevice
+instead focuses on explicit sketch-side control over port, speed, descriptors,
+endpoint packet sizes, HID report IDs, output/feature reports, and raw class
+reports.
+
+For keyboards, the standard `USBHIDKeyboard` API is useful for sending simple
+text, but it has limits when you need complete Japanese-layout coverage or exact
+HID usages for keys such as Muhenkan, Henkan, Kana, Hankaku/Zenkaku, and
+JIS-specific symbol keys. EspUsbDevice keeps raw HID usage/report control
+available alongside text helpers so EspUsbHost keyboard layout behavior can be
+tested precisely.
+
+Use the standard Arduino-ESP32 USB Device APIs first when you only need a normal
+keyboard, mouse, CDC, or similar device connected to a PC. Use EspUsbDevice when
+you need detailed EspUsbHost validation, descriptors or reports that the
+Arduino Core standard Device implementation cannot easily control, or ESP32-P4
+Host/Device loopback tests.
+
 ## Features
 
 - **HID input** — keyboard, mouse, consumer control (media keys), system control (power/standby), gamepad
@@ -48,7 +74,7 @@ Test coverage is better than the 1.x series and includes example build checks pl
 | Channel count and endpoint usage visibility | ✅ Implemented as experimental diagnostics; useful for understanding limits with multi-device, Audio, MSC, and HUB combinations |
 | USB Audio IN real payload validation | 🔲 Next candidate; needs a real USB microphone or a stable peer-side Audio IN generator |
 | ESP32-P4 validation | 🔲 Ongoing; verify FS/HS OTG, hub behavior, and loopback tests separately |
-| Loopback tests (ESP32-P4 single-board) | 🔲 In progress |
+| Loopback tests (ESP32-P4 single-board) | 🔲 In progress in `EspUsbDevice`; `tests/loopback` in this repository only contains README files |
 | Manual tests — VCP serial, multi-device, hot-plug | ✅ Main cases confirmed; additional device compatibility remains ongoing |
 
 ## Current limits and cautions
@@ -644,8 +670,8 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 ## Tests
 
-- [`tests/peer/`](tests/peer/) — two-board USB tests using an ESP32-S3 as the device peer
-- [`tests/loopback/`](tests/loopback/) — single-board loopback tests
+- [`tests/peer/`](tests/peer/) — two-board USB tests using an ESP32-S3 as the device peer. The peer side mainly uses the Arduino-ESP32 standard USB Device implementation to check basic Host interoperability
+- [`tests/loopback/`](tests/loopback/) — single-board loopback tests. Practical ESP32-P4 loopback coverage is currently being developed in the sibling `EspUsbDevice` library
 - [`tests/manual/`](tests/manual/) — manual tests for special hardware and human verification
 
 See [tests/README.md](tests/README.md) for setup instructions.

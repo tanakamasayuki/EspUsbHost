@@ -33,7 +33,12 @@ TEST_SERIAL_PORT_S3_HUB_HOST=/dev/ttyACM1
 
 Set each `TEST_SERIAL_PORT_*` variable to the actual serial port for the corresponding board.
 
-Profile names describe the connection role. `peer/` and `loopback/` use always-connected dedicated boards, so they use dedicated profiles such as `s3_peer_host`, `s3_peer_device`, and `p4_loopback`. `examples/`, `manual/`, and `probe/` are intended for individually run generic boards, so they use `esp32s3` and `esp32p4`.
+Profile names describe the connection role. `peer/` uses always-connected
+dedicated boards, so it uses dedicated profiles such as `s3_peer_host` and
+`s3_peer_device`. `examples/`, `manual/`, and `probe/` are intended for
+individually run generic boards, so they use `esp32s3` and `esp32p4`.
+`loopback/` currently only contains README files and has no runnable profile in
+this repository.
 
 ## Running tests
 
@@ -67,13 +72,22 @@ uv run --env-file .env pytest --html=report.html --self-contained-html
 
 ### `peer/` — Two-board tests
 
-Uses two ESP32-S3 boards: one runs EspUsbHost as the USB host, the other runs an Arduino USB device sketch as the peer. The boards communicate over USB.
+Uses two ESP32-S3 boards: one runs EspUsbHost as the USB host, the other runs a
+sketch based on the Arduino-ESP32 standard USB Device implementation. The boards
+communicate over USB.
+
+This directory mainly checks interoperability with the Arduino Core standard
+Device implementation. Detailed combination tests with the sibling
+`EspUsbDevice` library and ESP32-P4 loopback coverage are handled primarily in
+the EspUsbDevice repository.
 
 See [peer/README.md](peer/README.md) for hardware wiring and coverage details.
 
 ### `loopback/` — Single-board tests (work in progress)
 
-Uses an ESP32-P4 that runs both USB host and USB device on the same chip. No second board is needed. This directory is currently being organized.
+Reserved for tests that run both USB host and USB device on one ESP32-P4. There
+are currently no runnable loopback tests in this repository; practical loopback
+coverage is currently developed mainly in EspUsbDevice.
 
 ### `probe/` — Bring-up probes
 
@@ -93,7 +107,11 @@ The plugin resolves the serial port for each board in this order:
 
 For example, a profile named `s3_peer_host` in `sketch.yaml` maps to `TEST_SERIAL_PORT_S3_PEER_HOST` in `.env`.
 
-For always-connected test setups, configure dedicated ports such as `TEST_SERIAL_PORT_S3_PEER_HOST`, `TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE`, and `TEST_SERIAL_PORT_P4_LOOPBACK`. For individually run examples, manual tests, and probes, use `TEST_SERIAL_PORT_ESP32S3` and `TEST_SERIAL_PORT_ESP32P4`.
+For always-connected test setups, configure dedicated ports such as
+`TEST_SERIAL_PORT_S3_PEER_HOST` and
+`TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE`. For individually run examples,
+manual tests, and probes, use `TEST_SERIAL_PORT_ESP32S3` and
+`TEST_SERIAL_PORT_ESP32P4`.
 
 ### sketch.yaml and profiles
 
