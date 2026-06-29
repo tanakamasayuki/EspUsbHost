@@ -33,7 +33,7 @@ TEST_SERIAL_PORT_S3_HUB_HOST=/dev/ttyACM1
 
 各 `TEST_SERIAL_PORT_*` 変数を、接続しているボードの実際のシリアルポートに設定してください。
 
-プロファイル名は接続形態を表します。`peer/` と `loopback/` は常時接続された専用ボードを使うため、`s3_peer_host`、`s3_peer_device`、`p4_loopback` のような専用プロファイルを使います。`examples/`、`manual/`、`probe/` は個別実行用の汎用ボードを想定し、`esp32s3`、`esp32p4` を使います。
+プロファイル名は接続形態を表します。`peer/` は常時接続された専用ボードを使うため、`s3_peer_host`、`s3_peer_device` のような専用プロファイルを使います。`examples/`、`manual/`、`probe/` は個別実行用の汎用ボードを想定し、`esp32s3`、`esp32p4` を使います。`loopback/` は現在 README だけを残しており、このリポジトリ側に実行用プロファイルはありません。
 
 ## テストの実行
 
@@ -67,13 +67,15 @@ uv run --env-file .env pytest --html=report.html --self-contained-html
 
 ### `peer/` — 2台構成テスト
 
-ESP32-S3を2台使用します。1台はEspUsbHostをUSBホストとして実行し、もう1台はArduino USBデバイスのスケッチをピアとして実行します。2台はUSBで接続します。
+ESP32-S3を2台使用します。1台はEspUsbHostをUSBホストとして実行し、もう1台はArduino-ESP32標準 USB Device 実装のスケッチをピアとして実行します。2台はUSBで接続します。
+
+このディレクトリは Arduino Core 標準 Device 実装との相互運用性確認を主目的にします。兄弟ライブラリ `EspUsbDevice` との詳細な組み合わせテストと ESP32-P4 loopback は、主に `EspUsbDevice` リポジトリ側で扱います。
 
 ハードウェア接続の方法とテストカバレッジの詳細は [peer/README.ja.md](peer/README.ja.md) を参照してください。
 
 ### `loopback/` — 1台構成テスト（整備中）
 
-ESP32-P4を1台使い、同一チップ上でUSBホストとUSBデバイスの両方を実行します。2台目のボードは不要です。現在このディレクトリは整備中です。
+ESP32-P4を1台使い、同一チップ上でUSBホストとUSBデバイスの両方を実行するテスト用の予約ディレクトリです。現在このリポジトリには実行可能な loopback テストはなく、実運用上の主な loopback 整備は `EspUsbDevice` 側で進めています。
 
 ### `probe/` — 初期切り分け用プローブ
 
@@ -93,7 +95,7 @@ ESP32-P4のUSBポート識別、HS/FS Host、HS Device、Hardware CDC/JTAGの確
 
 たとえば、sketch.yaml の `s3_peer_host` というプロファイル名は `.env` の `TEST_SERIAL_PORT_S3_PEER_HOST` に対応します。
 
-常時接続するテスト設備では `TEST_SERIAL_PORT_S3_PEER_HOST`、`TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE`、`TEST_SERIAL_PORT_P4_LOOPBACK` のように専用ポートを設定します。`examples/`、手動テスト、プローブのような個別実行では `TEST_SERIAL_PORT_ESP32S3`、`TEST_SERIAL_PORT_ESP32P4` を使います。
+常時接続するテスト設備では `TEST_SERIAL_PORT_S3_PEER_HOST`、`TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE` のように専用ポートを設定します。`examples/`、手動テスト、プローブのような個別実行では `TEST_SERIAL_PORT_ESP32S3`、`TEST_SERIAL_PORT_ESP32P4` を使います。
 
 ### sketch.yaml とプロファイル
 

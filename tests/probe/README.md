@@ -23,5 +23,7 @@ uv run --env-file .env pytest probe/p4_cdc/p4_cdc_probe.py
 `p4_hs_device` and `p4_cdc` require checking Device Manager or a serial monitor on the PC side.
 Connect an external USB device to the target port before running `p4_hs_host` or `p4_fs_host`.
 
-Set `TEST_SERIAL_PORT_ESP32P4` in `.env` to the serial port of the P4 board used for these checks. The always-connected `loopback/` P4 uses a separate `p4_loopback` profile.
+Set `TEST_SERIAL_PORT_ESP32P4` in `.env` to the serial port of the P4 board used
+for these checks. This repository currently does not use a runnable P4 profile
+for `loopback/`.
 `p4_cdc` intentionally does not use `USBMode=hwcdc,CDCOnBoot=cdc`. That option maps `Serial` to Hardware CDC/JTAG, which is not suitable when the goal is to identify the board's default port wiring.

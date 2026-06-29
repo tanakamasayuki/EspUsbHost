@@ -14,6 +14,28 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 
 テストは1系より増えており、examplesのビルド確認、peer/manualテスト、主要パスの実機確認を進めています。それでもUSB Audio、USB Hubの細かい挙動、複数デバイス構成、非準拠または癖の強いUSBデバイスは、利用する実機ごとの確認が必要です。
 
+## 兄弟ライブラリ: EspUsbDevice
+
+USBデバイス側には、兄弟ライブラリ
+[`EspUsbDevice`](https://github.com/tanakamasayuki/EspUsbDevice) があります。
+`EspUsbDevice` はこの `EspUsbHost` に対応して拡張している USB Device ライブラリで、
+Host / Device の組み合わせテストや ESP32-P4 1台構成の loopback 検証に使います。
+
+Arduino-ESP32 標準の `USB`、`USBHIDKeyboard`、`USBHIDMouse`、`USBCDC` などは、
+一般的な USB Device sketch を短く書くには便利です。一方で `EspUsbDevice` は、
+port、speed、descriptor、endpoint packet size、HID report ID、output / feature report、
+raw class report をスケッチ側から明示的に制御する用途を重視します。
+
+キーボードについても、標準 `USBHIDKeyboard` は文字入力を簡単に送る用途には便利ですが、
+日本語配列のすべてのキーや `無変換`、`変換`、`かな`、`半角/全角`、JIS 固有の記号キーなどを
+HID usage として正確に扱う用途には限界があります。`EspUsbDevice` では、文字入力 helper だけでなく
+raw HID usage / report を直接扱えるようにし、`EspUsbHost` 側のキーボードレイアウト処理も検証します。
+
+通常のキーボード、マウス、CDC などを PC へつなぐだけなら標準ライブラリが第一候補です。
+`EspUsbHost` の挙動を詳しく検証したい場合、Arduino Core 標準 Device 実装では制御しづらい
+descriptor や report を使いたい場合、または ESP32-P4 で Host / Device loopback を行いたい場合は
+`EspUsbDevice` を使います。
+
 ## 機能
 
 - **HID入力** — キーボード・マウス・コンシューマーコントロール（メディアキー）・システムコントロール（電源/スタンバイ）・ゲームパッド
@@ -48,7 +70,7 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | チャンネル数・endpoint使用量の可視化 | ✅ 実験的な診断APIとして実装済み。複数デバイスやAudio/MSC/HUB併用時の上限把握に使う |
 | USB Audio INの実データ確認 | 🔲 次候補。実USBマイクまたはpeer側Audio IN生成の安定化が必要 |
 | ESP32-P4検証 | 🔲 継続。FS/HS OTG、HUB可否、ループバックテストを個別確認する |
-| ループバックテスト（ESP32-P4 1台構成） | 🔲 整備中 |
+| ループバックテスト（ESP32-P4 1台構成） | 🔲 `EspUsbDevice` 側で整備中。このリポジトリ側の `tests/loopback` はREADMEのみ |
 | 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | ✅ 主要ケース確認済み。追加デバイス互換性は継続 |
 
 ## 現状の制限と注意点
@@ -644,8 +666,8 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 ## テスト
 
-- [`tests/peer/`](tests/peer/) — ESP32-S3をデバイス側として使う2台構成のUSBテスト
-- [`tests/loopback/`](tests/loopback/) — 1台でのループバックテスト
+- [`tests/peer/`](tests/peer/) — ESP32-S3をデバイス側として使う2台構成のUSBテスト。ピア側は主にArduino-ESP32標準USB Device実装を使い、Hostの基本相互運用性を確認
+- [`tests/loopback/`](tests/loopback/) — 1台でのループバックテスト。ESP32-P4向けの実用的な整備は兄弟ライブラリ`EspUsbDevice`側で進行中
 - [`tests/manual/`](tests/manual/) — 特殊ハードウェアや人による確認が必要な手動テスト
 
 セットアップ方法は[tests/README.md](tests/README.md)を参照してください。

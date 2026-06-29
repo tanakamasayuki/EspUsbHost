@@ -3,7 +3,14 @@
 > 日本語版: [README.ja.md](README.ja.md)
 
 `tests/peer` contains two-board tests. One ESP32-S3 runs an EspUsbHost sketch as
-the USB host, and the peer ESP32-S3 runs an Arduino USB device sketch.
+the USB host, and the peer ESP32-S3 runs a sketch based on the Arduino-ESP32
+standard USB Device implementation.
+
+These tests are kept as the baseline that checks Host interoperability with the
+Arduino Core standard Device stack. Detailed combination tests with the sibling
+`EspUsbDevice` library, ESP32-P4 single-board loopback tests, and cases that need
+fine descriptor / report ID / output / feature report control are organized in
+the EspUsbDevice repository.
 
 Run from `tests`:
 
@@ -42,18 +49,19 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 Current coverage:
 
 - `hid_logic`: HID helper logic checks that do not require a peer device.
-- `custom_hid`: pairs with `USB/examples/CustomHIDDevice`.
-- `hid_keyboard`: pairs with the Arduino USB keyboard examples.
-- `hid_mouse`: pairs with `USB/examples/Mouse/ButtonMouseControl`.
-- `hid_keyboard_mouse`: pairs with `USB/examples/KeyboardAndMouseControl`.
-- `hid_consumer_control`: pairs with `USB/examples/ConsumerControl`.
-- `hid_system_control`: pairs with `USB/examples/SystemControl`.
-- `hid_gamepad`: pairs with `USB/examples/Gamepad`.
-- `hid_vendor`: pairs with `USB/examples/HIDVendor`.
-- `usb_serial`: pairs with `USB/examples/USBSerial`.
-- `usb_midi`: pairs with `USB/examples/MIDI`.
-- `usb_audio`: pairs with `USB/examples/AudioCard` via `USBAudioCard` speaker output.
+- `custom_hid`: pairs with an Arduino Core standard Custom HID-style device.
+- `hid_keyboard`: pairs with an Arduino Core standard USB keyboard device.
+- `hid_mouse`: pairs with an Arduino Core standard USB mouse device.
+- `hid_keyboard_mouse`: pairs with an Arduino Core standard keyboard + mouse composite device.
+- `hid_consumer_control`: pairs with an Arduino Core standard consumer control device.
+- `hid_system_control`: pairs with an Arduino Core standard system control device.
+- `hid_gamepad`: pairs with an Arduino Core standard gamepad device.
+- `hid_vendor`: pairs with an Arduino Core standard vendor HID device.
+- `usb_serial`: pairs with an Arduino Core standard USB CDC device.
+- `usb_midi`: pairs with an Arduino Core standard USB MIDI device.
+- `usb_audio`: pairs with an Arduino Core standard USB Audio device via `USBAudioCard` speaker output.
 
 Planned coverage:
 
-- HID output reports and feature reports.
+- Host-side regression tests that can be reproduced with the Arduino Core standard Device stack.
+- Minimal Host-side reproductions for issues first found in EspUsbDevice tests.

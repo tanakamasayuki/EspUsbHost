@@ -12,10 +12,31 @@
 **手動テスト**は環境をソフトウェアで完全に制御できない場合に使います。
 「自動化が面倒だから」ではなく、エミュレートできない物理ハードウェアが必須である、または人の判断（目視確認・触覚フィードバックなど）による検証が本質的に必要である場合に限ります。
 
+### EspUsbDevice とのテスト分担
+
+`EspUsbHost` 側の `peer/` テストは、原則として Arduino-ESP32 標準 USB Device 実装を使った
+現在の構成を維持します。Host ライブラリが兄弟ライブラリ `EspUsbDevice` だけに過適応することを避け、
+Arduino Core 標準 Device 実装との組み合わせで基本的な相互運用性を確認するためです。
+
+`EspUsbDevice` 側では、このリポジトリの released `EspUsbHost` と組み合わせて、descriptor、
+report ID、output / feature report、複合 HID、CDC、MIDI、MSC など、Arduino Core 標準 Device
+実装では制御しづらい項目を詳しく検証します。ESP32-P4 1台構成の loopback テストも、現在は
+`EspUsbDevice` 側を主な整備場所にします。
+
+ESP32-P4 loopback をこのリポジトリ側で維持しない理由は、Arduino-ESP32 標準 USB Device 実装が
+P4 では HS 側でのみ動作するためです。1台構成で直結すると Device が HS 側を使い、Host は FS 側に
+固定されますが、FS host では HS device を処理できず endpoint claim / allocation が失敗します。
+これは loopback 直結時だけの制約であり、USB Host または標準 USB Device 機能を個別に使う場合の
+一般的な問題ではありません。
+
+Host 側の未リリース修正を `EspUsbDevice` で先行確認する場合は、切り分け目的でローカル checkout
+を使ってよいですが、通常の合格条件は released `EspUsbHost` と Arduino Core 標準 Device 実装の
+組み合わせを基準にします。
+
 ```
 tests/
   peer/       自動 — ESP32-S3 2台構成（1台ホスト + 1台デバイス）
-  loopback/   自動 — ESP32-P4 1台でホストとデバイスを同時実行（整備中）
+  loopback/   予約 — ESP32-P4 1台構成用。現在このリポジトリには実行可能テストなし
   manual/     手動 — 特殊ハードウェアまたは人による操作が必要
 ```
 
