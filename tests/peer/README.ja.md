@@ -2,9 +2,9 @@
 
 > English: [README.md](README.md)
 
-`tests/peer` には2台構成のテストが含まれています。1台目のESP32-S3がEspUsbHostスケッチをUSBホストとして実行し、もう1台のESP32-S3がArduino-ESP32標準 USB Device 実装を使ったスケッチをピアとして実行します。
+`tests/peer` には2台構成のテストが含まれています。1台目のESP32-S3がEspUsbHostスケッチをUSBホストとして実行し、もう1台のESP32-S3が対応するUSB Deviceスケッチをピアとして実行します。
 
-このリポジトリの peer テストは、Host 側が Arduino Core 標準 Device 実装とも相互運用できることを確認するための基準テストとして維持します。兄弟ライブラリ `EspUsbDevice` との詳細な組み合わせテスト、ESP32-P4 1台構成の loopback テスト、descriptor / report ID / output / feature report などの細かい制御が必要なテストは、`EspUsbDevice` リポジトリ側で整備します。
+多くの peer テストは、Host 側が Arduino Core 標準 Device 実装とも相互運用できることを確認するための基準テストとして維持します。`usb_vendor` は例外で、Arduino Core に非HID vendor-specific bulk/control device API がないため、兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` と組み合わせます。
 
 `tests/` ディレクトリから実行：
 
@@ -54,6 +54,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `usb_serial`: Arduino Core標準USB CDC実装とペアで動作
 - `usb_midi`: Arduino Core標準USB MIDI実装とペアで動作
 - `usb_audio`: `USBAudioCard` のスピーカー出力を使い、Arduino Core標準USB Audio device相当とペアで動作
+- `usb_vendor`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` とペアで動作
 
 追加予定のカバレッジ：
 

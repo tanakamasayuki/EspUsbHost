@@ -3,14 +3,12 @@
 > 日本語版: [README.ja.md](README.ja.md)
 
 `tests/peer` contains two-board tests. One ESP32-S3 runs an EspUsbHost sketch as
-the USB host, and the peer ESP32-S3 runs a sketch based on the Arduino-ESP32
-standard USB Device implementation.
+the USB host, and the peer ESP32-S3 runs a matching USB Device sketch.
 
-These tests are kept as the baseline that checks Host interoperability with the
-Arduino Core standard Device stack. Detailed combination tests with the sibling
-`EspUsbDevice` library, ESP32-P4 single-board loopback tests, and cases that need
-fine descriptor / report ID / output / feature report control are organized in
-the EspUsbDevice repository.
+Most tests are kept as the baseline that checks Host interoperability with the
+Arduino Core standard Device stack. `usb_vendor` intentionally pairs with the
+sibling `EspUsbDevice` library because Arduino Core does not expose the needed
+non-HID vendor-specific bulk/control device API.
 
 Run from `tests`:
 
@@ -60,6 +58,7 @@ Current coverage:
 - `usb_serial`: pairs with an Arduino Core standard USB CDC device.
 - `usb_midi`: pairs with an Arduino Core standard USB MIDI device.
 - `usb_audio`: pairs with an Arduino Core standard USB Audio device via `USBAudioCard` speaker output.
+- `usb_vendor`: pairs with `EspUsbDeviceVendor` from the sibling `EspUsbDevice` library.
 
 Planned coverage:
 

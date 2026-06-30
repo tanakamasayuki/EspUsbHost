@@ -97,8 +97,10 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
+static constexpr size_t ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE = 512;
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
 static constexpr uint32_t ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
+static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 
 struct EspUsbHostConfig
 {
@@ -217,6 +219,25 @@ struct EspUsbHostEndpointInfo
   uint8_t attributes = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
+};
+
+struct EspUsbHostVendorInterface
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t inEndpoint = 0;
+  uint8_t outEndpoint = 0;
+  uint16_t inMaxPacketSize = 0;
+  uint16_t outMaxPacketSize = 0;
+};
+
+struct EspUsbHostVendorData
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t endpoint = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
 };
 
 struct EspUsbHostHIDReportDescriptor
@@ -737,7 +758,7 @@ struct EspUsbHostGamepadPrevState
   size_t reportLength = 0;
 };
 
-struct EspUsbHostVendorInput : EspUsbHostHIDReportData
+struct EspUsbHostHIDVendorInput : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
@@ -768,7 +789,8 @@ public:
   using AudioOutputCallback = std::function<void(EspUsbHostAudioOutputRequest &)>;
   using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
   using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
-  using VendorInputCallback = std::function<void(const EspUsbHostVendorInput &)>;
+  using HIDVendorInputCallback = std::function<void(const EspUsbHostHIDVendorInput &)>;
+  using VendorDataCallback = std::function<void(const EspUsbHostVendorData &)>;
   using SystemControlCallback = std::function<void(const EspUsbHostSystemControlEvent &)>;
 
   EspUsbHost();
@@ -791,7 +813,8 @@ public:
   void onAudioOutputRequest(AudioOutputCallback callback);
   void onConsumerControl(ConsumerControlCallback callback);
   void onGamepad(GamepadCallback callback);
-  void onVendorInput(VendorInputCallback callback);
+  void onHIDVendorInput(HIDVendorInputCallback callback);
+  void onVendorData(VendorDataCallback callback);
   void onSystemControl(SystemControlCallback callback);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
@@ -802,8 +825,26 @@ public:
                      const uint8_t *data,
                      size_t length,
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool sendVendorOutput(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool sendVendorFeature(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool sendHIDVendorOutput(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool sendHIDVendorFeature(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t interfaceNumber = 0xff);
+  bool vendorWrite(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  size_t vendorRead(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool vendorControlIn(uint8_t request,
+                       uint16_t value,
+                       uint16_t index,
+                       uint8_t *data,
+                       size_t length,
+                       size_t *actualLength = nullptr,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+  bool vendorControlOut(uint8_t request,
+                        uint16_t value,
+                        uint16_t index,
+                        const uint8_t *data = nullptr,
+                        size_t length = 0,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
   bool sendSerial(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -1076,6 +1117,18 @@ private:
     bool hasVendorSerialInterface = false;
     bool vendorSerialSupported = false;
     uint8_t vendorSerialInterfaceNumber = 0;
+    bool hasUsbVendorInterface = false;
+    uint8_t usbVendorInterfaceNumber = 0xff;
+    bool hasUsbVendorInEndpoint = false;
+    uint8_t usbVendorInEndpointAddress = 0;
+    uint16_t usbVendorInPacketSize = 0;
+    bool hasUsbVendorOutEndpoint = false;
+    uint8_t usbVendorOutEndpointAddress = 0;
+    uint16_t usbVendorOutPacketSize = 0;
+    uint8_t usbVendorRxBuffer[ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE] = {};
+    size_t usbVendorRxHead = 0;
+    size_t usbVendorRxTail = 0;
+    size_t usbVendorRxCount = 0;
     bool hasMidiInterface = false;
     uint8_t midiInterfaceNumber = 0;
     bool hasMidiOutEndpoint = false;
@@ -1166,9 +1219,10 @@ private:
   void handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleAudio(EndpointState &endpoint, usb_transfer_t *transfer);
+  void handleUsbVendorData(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
-  void handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
+  void handleHIDVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void parseHIDReportDescriptor(DeviceState &device, const EspUsbHostHIDReportDescriptor &descriptor);
   size_t decodeHIDInputFields(const DeviceState &device,
@@ -1207,7 +1261,10 @@ private:
   const DeviceState *findMscDevice(uint8_t address) const;
   DeviceState *findKeyboardDevice(uint8_t address);
   const DeviceState *findKeyboardDevice(uint8_t address) const;
-  DeviceState *findVendorDevice(uint8_t address);
+  DeviceState *findHIDVendorDevice(uint8_t address);
+  DeviceState *findUsbVendorDevice(uint8_t address);
+  const DeviceState *findUsbVendorDevice(uint8_t address) const;
+  DeviceState *findUsbVendorCandidate(uint8_t address, uint8_t interfaceNumber);
   void releaseEndpoints(DeviceState &device, bool clearEndpoints);
   void releaseAllEndpoints(bool clearEndpoints);
   void releaseInterfaces(DeviceState &device);
@@ -1248,6 +1305,15 @@ private:
                                  const uint8_t *data = nullptr,
                                  size_t length = 0,
                                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool submitVendorControl(DeviceState &device,
+                           uint8_t requestType,
+                           uint8_t request,
+                           uint16_t value,
+                           uint16_t index,
+                           uint8_t *data,
+                           size_t length,
+                           size_t *actualLength,
+                           uint32_t timeoutMs);
   void attachCdcSerial(EspUsbHostCdcSerial *serial);
   void detachCdcSerial(EspUsbHostCdcSerial *serial);
   void setLastError(esp_err_t err);
@@ -1302,7 +1368,8 @@ private:
   AudioOutputCallback audioOutputCallback_;
   ConsumerControlCallback consumerControlCallback_;
   GamepadCallback gamepadCallback_;
-  VendorInputCallback vendorInputCallback_;
+  HIDVendorInputCallback hidVendorInputCallback_;
+  VendorDataCallback vendorDataCallback_;
   SystemControlCallback systemControlCallback_;
 };
 
