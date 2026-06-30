@@ -26,6 +26,9 @@ EspUsbHostMscSense	KEYWORD1
 EspUsbHostMscBlockDeviceInfo	KEYWORD1
 EspUsbHostMscFS	KEYWORD1
 EspUsbHostKeyboardLayout	KEYWORD1
+EspUsbHostHIDVendorInput	KEYWORD1
+EspUsbHostVendorInterface	KEYWORD1
+EspUsbHostVendorData	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -89,6 +92,15 @@ espUsbHostPrintHex	KEYWORD2
 espUsbHostPrint	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
+onHIDVendorInput	KEYWORD2
+sendHIDVendorOutput	KEYWORD2
+sendHIDVendorFeature	KEYWORD2
+onVendorData	KEYWORD2
+vendorOpen	KEYWORD2
+vendorWrite	KEYWORD2
+vendorRead	KEYWORD2
+vendorControlIn	KEYWORD2
+vendorControlOut	KEYWORD2
 setKeyboardLeds	KEYWORD2
 getKeyboardNumLock	KEYWORD2
 getKeyboardCapsLock	KEYWORD2
@@ -130,3 +142,5 @@ ESP_USB_HOST_MOUSE_RIGHT	LITERAL1
 ESP_USB_HOST_MOUSE_MIDDLE	LITERAL1
 ESP_USB_HOST_MOUSE_BACK	LITERAL1
 ESP_USB_HOST_MOUSE_FORWARD	LITERAL1
+ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE	LITERAL1
+ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS	LITERAL1

@@ -1434,9 +1434,14 @@ void EspUsbHost::onGamepad(GamepadCallback callback)
   gamepadCallback_ = callback;
 }
 
-void EspUsbHost::onVendorInput(VendorInputCallback callback)
+void EspUsbHost::onHIDVendorInput(HIDVendorInputCallback callback)
 {
-  vendorInputCallback_ = callback;
+  hidVendorInputCallback_ = callback;
+}
+
+void EspUsbHost::onVendorData(VendorDataCallback callback)
+{
+  vendorDataCallback_ = callback;
 }
 
 void EspUsbHost::onSystemControl(SystemControlCallback callback)
@@ -1850,22 +1855,22 @@ bool EspUsbHost::sendKeyboardLedReport(DeviceState &device, uint8_t leds)
   return false;
 }
 
-bool EspUsbHost::sendVendorOutput(const uint8_t *data, size_t length, uint8_t address)
+bool EspUsbHost::sendHIDVendorOutput(const uint8_t *data, size_t length, uint8_t address)
 {
-  DeviceState *device = findVendorDevice(address);
+  DeviceState *device = findHIDVendorDevice(address);
   if (!device)
   {
-    ESP_LOGW(TAG, "sendVendorOutput() called before a vendor HID interface is ready");
+    ESP_LOGW(TAG, "sendHIDVendorOutput() called before a vendor HID interface is ready");
     return false;
   }
   if (!device->hasVendorOutEndpoint)
   {
-    ESP_LOGW(TAG, "sendVendorOutput() no interrupt OUT endpoint");
+    ESP_LOGW(TAG, "sendHIDVendorOutput() no interrupt OUT endpoint");
     return false;
   }
   if (length > 0 && !data)
   {
-    ESP_LOGW(TAG, "sendVendorOutput() called with null data");
+    ESP_LOGW(TAG, "sendHIDVendorOutput() called with null data");
     return false;
   }
 
@@ -1902,12 +1907,12 @@ bool EspUsbHost::sendVendorOutput(const uint8_t *data, size_t length, uint8_t ad
   return true;
 }
 
-bool EspUsbHost::sendVendorFeature(const uint8_t *data, size_t length, uint8_t address)
+bool EspUsbHost::sendHIDVendorFeature(const uint8_t *data, size_t length, uint8_t address)
 {
-  DeviceState *device = findVendorDevice(address);
+  DeviceState *device = findHIDVendorDevice(address);
   if (!device)
   {
-    ESP_LOGW(TAG, "sendVendorFeature() called before a vendor HID interface is ready");
+    ESP_LOGW(TAG, "sendHIDVendorFeature() called before a vendor HID interface is ready");
     return false;
   }
   return sendHIDReport(device->vendorInterfaceNumber,
@@ -1916,6 +1921,295 @@ bool EspUsbHost::sendVendorFeature(const uint8_t *data, size_t length, uint8_t a
                        data,
                        length,
                        device->info.address);
+}
+
+bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
+{
+  DeviceState *device = findUsbVendorCandidate(address, interfaceNumber);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "vendorOpen() no vendor-specific bulk interface");
+    return false;
+  }
+
+  uint8_t selectedInterface = interfaceNumber;
+  EspUsbHostEndpointInfo inEndpoint;
+  EspUsbHostEndpointInfo outEndpoint;
+  bool found = false;
+
+  for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
+  {
+    const EspUsbHostInterfaceInfo &intf = device->interfaceInfos[i];
+    if (intf.interfaceClass != USB_CLASS_VENDOR_VALUE)
+    {
+      continue;
+    }
+    if (interfaceNumber != 0xff && intf.number != interfaceNumber)
+    {
+      continue;
+    }
+
+    bool hasIn = false;
+    bool hasOut = false;
+    EspUsbHostEndpointInfo candidateIn;
+    EspUsbHostEndpointInfo candidateOut;
+    for (uint8_t e = 0; e < device->endpointInfoCount; e++)
+    {
+      const EspUsbHostEndpointInfo &ep = device->endpointInfos[e];
+      const bool isBulk = (ep.attributes & 0x03) == 0x02;
+      if (ep.interfaceNumber != intf.number || !isBulk)
+      {
+        continue;
+      }
+      if (ep.address & 0x80)
+      {
+        candidateIn = ep;
+        hasIn = true;
+      }
+      else
+      {
+        candidateOut = ep;
+        hasOut = true;
+      }
+    }
+
+    if (hasIn && hasOut)
+    {
+      selectedInterface = intf.number;
+      inEndpoint = candidateIn;
+      outEndpoint = candidateOut;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found)
+  {
+    ESP_LOGW(TAG, "vendorOpen() no bulk IN/OUT pair");
+    return false;
+  }
+
+  if (!device->hasUsbVendorInterface)
+  {
+    esp_err_t err = usb_host_interface_claim(clientHandle_, device->handle, selectedInterface, 0);
+    for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
+    {
+      EspUsbHostInterfaceInfo &info = device->interfaceInfos[i];
+      if (info.number == selectedInterface)
+      {
+        info.claimAttempted = true;
+        info.claimResult = err;
+        if (err == ESP_OK)
+        {
+          info.claimed = true;
+        }
+        break;
+      }
+    }
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_interface_claim(vendor iface=%u) failed: %s",
+               selectedInterface,
+               esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
+    if (device->interfaceCount < sizeof(device->interfaces))
+    {
+      device->interfaces[device->interfaceCount++] = selectedInterface;
+    }
+    device->endpointChannelCount = static_cast<uint8_t>(device->endpointChannelCount + 2);
+  }
+  else if (device->usbVendorInterfaceNumber != selectedInterface)
+  {
+    ESP_LOGW(TAG, "vendorOpen() another vendor interface is already open");
+    return false;
+  }
+
+  device->hasUsbVendorInterface = true;
+  device->usbVendorInterfaceNumber = selectedInterface;
+  device->hasUsbVendorInEndpoint = true;
+  device->usbVendorInEndpointAddress = inEndpoint.address;
+  device->usbVendorInPacketSize = inEndpoint.maxPacketSize;
+  device->hasUsbVendorOutEndpoint = true;
+  device->usbVendorOutEndpointAddress = outEndpoint.address;
+  device->usbVendorOutPacketSize = outEndpoint.maxPacketSize;
+
+  EndpointState *existingEndpoint = findEndpoint(device->handle, inEndpoint.address);
+  if (!existingEndpoint)
+  {
+    EndpointState *endpoint = allocateEndpoint(*device);
+    if (!endpoint)
+    {
+      ESP_LOGW(TAG, "No endpoint slots available for vendor IN");
+      setLastError(ESP_ERR_NO_MEM);
+      return false;
+    }
+
+    esp_err_t err = usb_host_transfer_alloc(inEndpoint.maxPacketSize, 0, &endpoint->transfer);
+    if (err != ESP_OK)
+    {
+      endpoint->inUse = false;
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor IN) failed: %s", esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
+
+    endpoint->address = inEndpoint.address;
+    endpoint->interfaceNumber = selectedInterface;
+    endpoint->alternate = 0;
+    endpoint->interfaceClass = USB_CLASS_VENDOR_VALUE;
+    endpoint->interfaceSubClass = 0;
+    endpoint->interfaceProtocol = 0;
+    endpoint->transfer->device_handle = device->handle;
+    endpoint->transfer->bEndpointAddress = inEndpoint.address;
+    endpoint->transfer->callback = transferCallback;
+    endpoint->transfer->context = this;
+    endpoint->transfer->num_bytes = inEndpoint.maxPacketSize;
+
+    if (!submitInputTransfer(*endpoint))
+    {
+      return false;
+    }
+  }
+
+  ESP_LOGI(TAG, "USB vendor bulk interface ready: address=%u iface=%u in=0x%02x out=0x%02x",
+           device->info.address,
+           selectedInterface,
+           inEndpoint.address,
+           outEndpoint.address);
+  return true;
+}
+
+bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "vendorWrite() called before vendorOpen()");
+    return false;
+  }
+  if (!device->hasUsbVendorOutEndpoint)
+  {
+    ESP_LOGW(TAG, "vendorWrite() no bulk OUT endpoint");
+    return false;
+  }
+  if (length > 0 && !data)
+  {
+    ESP_LOGW(TAG, "vendorWrite() called with null data");
+    return false;
+  }
+
+  const size_t packetSize = length > device->usbVendorOutPacketSize ? length : device->usbVendorOutPacketSize;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(packetSize, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor bulk OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  if (length > 0)
+  {
+    memcpy(transfer->data_buffer, data, length);
+  }
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = device->usbVendorOutEndpointAddress;
+  transfer->callback = outputTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = length;
+
+  err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(vendor bulk OUT ep=0x%02x) failed: %s",
+             device->usbVendorOutEndpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+  return true;
+}
+
+size_t EspUsbHost::vendorRead(uint8_t *buffer, size_t length, uint8_t address)
+{
+  if (!buffer || length == 0)
+  {
+    return 0;
+  }
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+
+  size_t copied = 0;
+  while (copied < length && device->usbVendorRxCount > 0)
+  {
+    buffer[copied++] = device->usbVendorRxBuffer[device->usbVendorRxTail];
+    device->usbVendorRxTail = (device->usbVendorRxTail + 1) % ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE;
+    device->usbVendorRxCount--;
+  }
+  return copied;
+}
+
+bool EspUsbHost::vendorControlIn(uint8_t request,
+                                 uint16_t value,
+                                 uint16_t index,
+                                 uint8_t *data,
+                                 size_t length,
+                                 size_t *actualLength,
+                                 uint8_t address,
+                                 uint32_t timeoutMs)
+{
+  if (length > 0 && !data)
+  {
+    return false;
+  }
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    device = findDevice(address);
+  }
+  if (!device || !device->handle)
+  {
+    return false;
+  }
+  return submitVendorControl(*device, VENDOR_IN_REQUEST_TYPE, request, value, index, data, length, actualLength, timeoutMs);
+}
+
+bool EspUsbHost::vendorControlOut(uint8_t request,
+                                  uint16_t value,
+                                  uint16_t index,
+                                  const uint8_t *data,
+                                  size_t length,
+                                  uint8_t address,
+                                  uint32_t timeoutMs)
+{
+  if (length > 0 && !data)
+  {
+    return false;
+  }
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    device = findDevice(address);
+  }
+  if (!device || !device->handle)
+  {
+    return false;
+  }
+  return submitVendorControl(*device,
+                             VENDOR_OUT_REQUEST_TYPE,
+                             request,
+                             value,
+                             index,
+                             const_cast<uint8_t *>(data),
+                             length,
+                             nullptr,
+                             timeoutMs);
 }
 
 bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
@@ -5963,13 +6257,17 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
       }
       else if (transfer->actual_num_bytes >= 2 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_VENDOR)
       {
-        handleVendorInput(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
+        handleHIDVendorInput(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
       }
     }
     else if (endpoint->interfaceClass == USB_CLASS_CDC_DATA_VALUE ||
              (device && device->vendorSerialSupported && endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE))
     {
       handleSerial(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
+    }
+    else if (endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE)
+    {
+      handleUsbVendorData(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
     }
     else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
              endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_MIDI_STREAMING)
@@ -6391,7 +6689,7 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
   memcpy(endpoint.lastGamepadState.reportData, event.reportData, endpoint.lastGamepadState.reportLength);
 }
 
-void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
+void EspUsbHost::handleHIDVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
 {
   DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
   if (device && !device->hasVendorInterface)
@@ -6401,12 +6699,12 @@ void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data,
     ESP_LOGI(TAG, "Vendor HID interface ready: address=%u iface=%u", device->info.address, device->vendorInterfaceNumber);
   }
 
-  if (!vendorInputCallback_)
+  if (!hidVendorInputCallback_)
   {
     return;
   }
 
-  EspUsbHostVendorInput input;
+  EspUsbHostHIDVendorInput input;
   input.address = endpoint.deviceAddress;
   input.interfaceNumber = endpoint.interfaceNumber;
   if (device)
@@ -6425,7 +6723,40 @@ void EspUsbHost::handleVendorInput(EndpointState &endpoint, const uint8_t *data,
   ESP_LOGD(TAG, "VendorInput iface=%u length=%u",
            input.interfaceNumber,
            static_cast<unsigned>(input.reportLength));
-  vendorInputCallback_(input);
+  hidVendorInputCallback_(input);
+}
+
+void EspUsbHost::handleUsbVendorData(EndpointState &endpoint, const uint8_t *data, size_t length)
+{
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  if (!device || !device->hasUsbVendorInterface ||
+      endpoint.interfaceNumber != device->usbVendorInterfaceNumber)
+  {
+    return;
+  }
+
+  for (size_t i = 0; i < length; i++)
+  {
+    if (device->usbVendorRxCount == ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE)
+    {
+      device->usbVendorRxTail = (device->usbVendorRxTail + 1) % ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE;
+      device->usbVendorRxCount--;
+    }
+    device->usbVendorRxBuffer[device->usbVendorRxHead] = data[i];
+    device->usbVendorRxHead = (device->usbVendorRxHead + 1) % ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE;
+    device->usbVendorRxCount++;
+  }
+
+  if (vendorDataCallback_)
+  {
+    EspUsbHostVendorData event;
+    event.address = endpoint.deviceAddress;
+    event.interfaceNumber = endpoint.interfaceNumber;
+    event.endpoint = endpoint.address;
+    event.data = data;
+    event.length = length;
+    vendorDataCallback_(event);
+  }
 }
 
 void EspUsbHost::handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
@@ -6792,7 +7123,7 @@ const EspUsbHost::DeviceState *EspUsbHost::findKeyboardDevice(uint8_t address) c
   return nullptr;
 }
 
-EspUsbHost::DeviceState *EspUsbHost::findVendorDevice(uint8_t address)
+EspUsbHost::DeviceState *EspUsbHost::findHIDVendorDevice(uint8_t address)
 {
   for (DeviceState &device : devices_)
   {
@@ -6802,6 +7133,57 @@ EspUsbHost::DeviceState *EspUsbHost::findVendorDevice(uint8_t address)
     }
     if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
     {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::DeviceState *EspUsbHost::findUsbVendorDevice(uint8_t address)
+{
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findUsbVendorDevice(address));
+}
+
+const EspUsbHost::DeviceState *EspUsbHost::findUsbVendorDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || !device.hasUsbVendorInterface)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::DeviceState *EspUsbHost::findUsbVendorCandidate(uint8_t address, uint8_t interfaceNumber)
+{
+  for (DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle)
+    {
+      continue;
+    }
+    if (address != ESP_USB_HOST_ANY_ADDRESS && device.info.address != address)
+    {
+      continue;
+    }
+
+    for (uint8_t i = 0; i < device.interfaceInfoCount; i++)
+    {
+      const EspUsbHostInterfaceInfo &intf = device.interfaceInfos[i];
+      if (intf.interfaceClass != USB_CLASS_VENDOR_VALUE)
+      {
+        continue;
+      }
+      if (interfaceNumber != 0xff && intf.number != interfaceNumber)
+      {
+        continue;
+      }
       return &device;
     }
   }
@@ -7709,6 +8091,118 @@ bool EspUsbHost::submitVendorSerialControl(uint8_t requestType,
     return false;
   }
   return true;
+}
+
+bool EspUsbHost::submitVendorControl(DeviceState &device,
+                                     uint8_t requestType,
+                                     uint8_t request,
+                                     uint16_t value,
+                                     uint16_t index,
+                                     uint8_t *data,
+                                     size_t length,
+                                     size_t *actualLength,
+                                     uint32_t timeoutMs)
+{
+  if (!device.handle)
+  {
+    return false;
+  }
+  if (length > 0 && !data)
+  {
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + length, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor control) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool dataIn = (requestType & 0x80) != 0;
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = requestType;
+  setup->bRequest = request;
+  setup->wValue = value;
+  setup->wIndex = index;
+  setup->wLength = length;
+  if (!dataIn && length > 0)
+  {
+    memcpy(transfer->data_buffer + USB_SETUP_PACKET_SIZE, data, length);
+  }
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + length;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(vendor request=0x%02x) failed: %s",
+             request,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "USB vendor control timeout request=0x%02x", request);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+
+  size_t payloadLength = 0;
+  if (context.actualLength > USB_SETUP_PACKET_SIZE)
+  {
+    payloadLength = context.actualLength - USB_SETUP_PACKET_SIZE;
+  }
+  if (payloadLength > length)
+  {
+    payloadLength = length;
+  }
+  if (actualLength)
+  {
+    *actualLength = dataIn ? payloadLength : 0;
+  }
+
+  const bool ok = context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (ok && dataIn && payloadLength > 0)
+  {
+    memcpy(data, transfer->data_buffer + USB_SETUP_PACKET_SIZE, payloadLength);
+  }
+  if (!ok)
+  {
+    ESP_LOGW(TAG, "USB vendor control failed request=0x%02x status=%d actual=%u",
+             request,
+             context.status,
+             static_cast<unsigned>(context.actualLength));
+    setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  return ok;
 }
 
 void EspUsbHost::setLastError(esp_err_t err)

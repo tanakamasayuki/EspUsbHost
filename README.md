@@ -48,6 +48,7 @@ Host/Device loopback tests.
 - **MIDI** — USB MIDI input and output
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
+- **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT and EP0 vendor requests
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
@@ -60,6 +61,7 @@ Host/Device loopback tests.
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
+| Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT, and EP0 vendor IN/OUT requests |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT is peer-tested; Audio IN APIs exist but real payload validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; includes `SYNCHRONIZE CACHE(10)` fallback for non-compliant devices. Multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
@@ -258,7 +260,7 @@ void onConsumerControl(ConsumerControlCallback callback);
 void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // raw — fires for all HID interfaces
-void onVendorInput(VendorInputCallback callback);
+void onHIDVendorInput(HIDVendorInputCallback callback);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
@@ -267,7 +269,7 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage);
 
 Notable event fields:
 
-Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemControl`, `onGamepad`, `onVendorInput`) all include `vid`, `pid`, `manufacturer`, `product`, `serial`, `rawData` / `rawLength` for the full input report, and `reportData` / `reportLength` for the report bytes after removing the Report ID when one is present.
+Parsed HID callbacks (`onKeyboard`, `onMouse`, `onConsumerControl`, `onSystemControl`, `onGamepad`, `onHIDVendorInput`) all include `vid`, `pid`, `manufacturer`, `product`, `serial`, `rawData` / `rawLength` for the full input report, and `reportData` / `reportLength` for the report bytes after removing the Report ID when one is present.
 
 | Callback | Key fields |
 |----------|-----------|
@@ -289,11 +291,13 @@ bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock,
 bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId,
                    const uint8_t *data, size_t length,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool sendVendorOutput(const uint8_t *data, size_t length,
+bool sendHIDVendorOutput(const uint8_t *data, size_t length,
                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool sendVendorFeature(const uint8_t *data, size_t length,
+bool sendHIDVendorFeature(const uint8_t *data, size_t length,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
+
+`sendHIDVendorOutput()` and `sendHIDVendorFeature()` are HID vendor-report helpers. For non-HID vendor-specific interfaces, use the Vendor bulk/control APIs below.
 
 The default layout is `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US`. Pass any of the following constants to `setKeyboardLayout()`:
 
@@ -363,6 +367,35 @@ void    clearAddress();
 `EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`.
 
 Use `setAddress()` inside `onDeviceConnected` to bind a specific device when multiple USB serial devices are connected.
+
+### Vendor bulk/control
+
+For non-HID vendor-specific interfaces (`bInterfaceClass == 0xff`) with bulk IN / bulk OUT endpoints:
+
+```cpp
+void onVendorData(VendorDataCallback callback);
+
+bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t interfaceNumber = 0xff);
+bool vendorWrite(const uint8_t *data, size_t length,
+                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t vendorRead(uint8_t *buffer, size_t length,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+bool vendorControlIn(uint8_t request, uint16_t value, uint16_t index,
+                     uint8_t *data, size_t length,
+                     size_t *actualLength = nullptr,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
+                      const uint8_t *data = nullptr, size_t length = 0,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+```
+
+`vendorOpen()` explicitly claims the vendor-specific interface and starts bulk IN reception. `vendorRead()` is non-blocking and reads from a 512-byte per-device receive buffer. `onVendorData()` receives the same bulk IN payload as a callback; its data pointer is valid only during the callback.
+
+`vendorControlIn()` uses `bmRequestType = 0xc0`; `vendorControlOut()` uses `bmRequestType = 0x40`.
 
 ### MIDI
 

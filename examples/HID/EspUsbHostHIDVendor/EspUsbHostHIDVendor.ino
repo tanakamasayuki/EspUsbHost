@@ -24,7 +24,7 @@ void setup()
                              Serial.print("disconnected: ");
                              espUsbHostPrint(device); });
 
-  usb.onVendorInput([](const EspUsbHostVendorInput &input)
+  usb.onHIDVendorInput([](const EspUsbHostHIDVendorInput &input)
                     {
     Serial.printf("vendor iface=%u len=%u data=", input.interfaceNumber, (unsigned)input.reportLength);
     // en: This peer sends a NUL-terminated text payload inside a fixed-size report.
@@ -50,11 +50,11 @@ void loop()
     char command = Serial.read();
     if (command == 'o')
     {
-      Serial.printf("send output: %s\n", usb.sendVendorOutput(OUTPUT_REPORT, sizeof(OUTPUT_REPORT)) ? "ok" : "failed");
+      Serial.printf("send output: %s\n", usb.sendHIDVendorOutput(OUTPUT_REPORT, sizeof(OUTPUT_REPORT)) ? "ok" : "failed");
     }
     else if (command == 'f')
     {
-      Serial.printf("send feature: %s\n", usb.sendVendorFeature(FEATURE_REPORT, sizeof(FEATURE_REPORT)) ? "ok" : "failed");
+      Serial.printf("send feature: %s\n", usb.sendHIDVendorFeature(FEATURE_REPORT, sizeof(FEATURE_REPORT)) ? "ok" : "failed");
     }
   }
   delay(1);

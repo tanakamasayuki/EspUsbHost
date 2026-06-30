@@ -44,6 +44,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **MIDI** — USB MIDI入出力
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
+- **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUTとEP0 vendor request
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
 
@@ -56,6 +57,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
+| Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT、EP0 vendor IN/OUT requestに対応 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。Audio OUTはpeer確認済み、Audio INはAPIあり・実データ確認が残っています |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。非準拠デバイス向けの`SYNCHRONIZE CACHE(10)`フォールバックあり。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
@@ -254,7 +256,7 @@ void onConsumerControl(ConsumerControlCallback callback);
 void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // 生データ — 全HIDインターフェースで発火
-void onVendorInput(VendorInputCallback callback);
+void onHIDVendorInput(HIDVendorInputCallback callback);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
@@ -263,7 +265,7 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage);
 
 主なイベントフィールド：
 
-パース済みHIDコールバック（`onKeyboard`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onVendorInput`）はすべて、`vid`、`pid`、`manufacturer`、`product`、`serial`、入力レポート全体を指す`rawData` / `rawLength`、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
+パース済みHIDコールバック（`onKeyboard`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onHIDVendorInput`）はすべて、`vid`、`pid`、`manufacturer`、`product`、`serial`、入力レポート全体を指す`rawData` / `rawLength`、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
 
 | コールバック | 主要フィールド |
 |-------------|--------------|
@@ -285,11 +287,13 @@ bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock,
 bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId,
                    const uint8_t *data, size_t length,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool sendVendorOutput(const uint8_t *data, size_t length,
+bool sendHIDVendorOutput(const uint8_t *data, size_t length,
                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool sendVendorFeature(const uint8_t *data, size_t length,
+bool sendHIDVendorFeature(const uint8_t *data, size_t length,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
+
+`sendHIDVendorOutput()` と `sendHIDVendorFeature()` は HID vendor report 用です。HIDではない vendor-specific interface には次の Vendor bulk/control API を使います。
 
 デフォルトは`ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US`です。以下のいずれかの定数を`setKeyboardLayout()`に渡します：
 
@@ -359,6 +363,35 @@ void    clearAddress();
 `EspUsbHostSerialConfig`のデフォルトは115200 8N1です。`dataBits`は5〜8ビット、`parity`は`ESP_USB_HOST_SERIAL_PARITY_NONE`、`ODD`、`EVEN`、`MARK`、`SPACE`、`stopBits`は`ESP_USB_HOST_SERIAL_STOP_BITS_1`、`1_5`、`2`を指定できます。
 
 複数のUSBシリアルデバイスが接続されている場合は、`onDeviceConnected`内で`setAddress()`を呼び特定デバイスにバインドします。
+
+### Vendor bulk/control
+
+HIDではないvendor-specific interface（`bInterfaceClass == 0xff`）で、bulk IN / bulk OUT endpointを持つデバイス向けのAPIです。
+
+```cpp
+void onVendorData(VendorDataCallback callback);
+
+bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t interfaceNumber = 0xff);
+bool vendorWrite(const uint8_t *data, size_t length,
+                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t vendorRead(uint8_t *buffer, size_t length,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+bool vendorControlIn(uint8_t request, uint16_t value, uint16_t index,
+                     uint8_t *data, size_t length,
+                     size_t *actualLength = nullptr,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
+                      const uint8_t *data = nullptr, size_t length = 0,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+```
+
+`vendorOpen()` は vendor-specific interface を明示的に claim し、bulk IN 受信を開始します。`vendorRead()` はノンブロッキングで、deviceごとの512 byte受信バッファから読み出します。`onVendorData()` の `data` ポインタはcallback中だけ有効です。
+
+`vendorControlIn()` は `bmRequestType = 0xc0`、`vendorControlOut()` は `bmRequestType = 0x40` を使います。
 
 ### MIDI
 
