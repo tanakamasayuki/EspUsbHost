@@ -5960,6 +5960,19 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
   delete[] bitOffsets;
 }
 
+bool EspUsbHost::hasHIDReportId(const DeviceState &device, uint8_t interfaceNumber, uint8_t reportId) const
+{
+  for (size_t i = 0; i < device.hidInputFieldCount; i++)
+  {
+    const HIDInputFieldState &inputField = device.hidInputFields[i];
+    if (inputField.interfaceNumber == interfaceNumber && inputField.reportId == reportId)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 size_t EspUsbHost::decodeHIDInputFields(const DeviceState &device,
                                         uint8_t interfaceNumber,
                                         uint8_t reportId,
@@ -6254,9 +6267,11 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
 
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE)
     {
-      if (endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
+      if (device &&
+          endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
           transfer->actual_num_bytes >= 5 &&
-          transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE)
+          transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE &&
+          hasHIDReportId(*device, endpoint->interfaceNumber, ESP_USB_HOST_HID_REPORT_ID_MOUSE))
       {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
       }
