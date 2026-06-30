@@ -1,6 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add generic non-HID vendor-specific bulk/control Host APIs: `vendorOpen()`, `vendorWrite()`, `vendorRead()`, `onVendorData()`, `vendorControlIn()`, and `vendorControlOut()`, with peer coverage using `EspUsbDeviceVendor`.
+- (JA) HIDではないvendor-specific interface向けの汎用Host APIとして、`vendorOpen()`、`vendorWrite()`、`vendorRead()`、`onVendorData()`、`vendorControlIn()`、`vendorControlOut()`を追加し、`EspUsbDeviceVendor`とのpeerテストを追加しました。
+- (EN) Rename HID vendor-report APIs to make the distinction explicit: `onVendorInput()` / `sendVendorOutput()` / `sendVendorFeature()` are now `onHIDVendorInput()` / `sendHIDVendorOutput()` / `sendHIDVendorFeature()`.
+- (JA) HID vendor report用APIであることを明確にするため、`onVendorInput()` / `sendVendorOutput()` / `sendVendorFeature()`を`onHIDVendorInput()` / `sendHIDVendorOutput()` / `sendHIDVendorFeature()`へリネームしました。
 - (EN) Improve MSC compatibility with non-compliant devices such as DFMiniPlayer SD-card readers by avoiding BOT reset recovery after `SYNCHRONIZE CACHE(10)` failures, preventing EP0 STALL recovery loops before the existing skip-sync fallback can take effect.
 - (JA) DFMiniPlayer内蔵SDカードリーダーなどの非準拠MSCデバイス向けに、`SYNCHRONIZE CACHE(10)` 失敗後のBOT reset recoveryを避け、既存のskip-syncフォールバック前にEP0 STALLの回復ループへ入ることを抑制しました。
 - (EN) Document `usbMassStorage.setSkipSyncCache(true)` in the `EspUsbHostMSCFatList` example for devices that fail when FatFs requests `SYNCHRONIZE CACHE(10)`.
