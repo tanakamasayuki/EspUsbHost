@@ -10,3 +10,11 @@ def test_hid_keyboard_mouse_composite(dut, peers):
     device.write("m")
     dut.expect_exact("buttons=1 previous=0 moved=0 changed=1")
     dut.expect_exact("buttons=0 previous=1 moved=0 changed=1")
+
+    device.write("b")
+    dut.expect_exact("buttons=8 previous=0 moved=0 changed=1")
+    dut.expect_exact("buttons=0 previous=8 moved=0 changed=1")
+
+    device.write("f")
+    dut.expect_exact("buttons=16 previous=0 moved=0 changed=1")
+    dut.expect_exact("buttons=0 previous=16 moved=0 changed=1")

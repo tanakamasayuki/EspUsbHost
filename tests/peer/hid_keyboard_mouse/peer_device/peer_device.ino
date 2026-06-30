@@ -29,6 +29,12 @@ void loop()
         case 'm':
             Mouse.click(MOUSE_LEFT);
             break;
+        case 'b':
+            Mouse.click(MOUSE_BACKWARD);
+            break;
+        case 'f':
+            Mouse.click(MOUSE_FORWARD);
+            break;
         }
     }
     delay(1);
