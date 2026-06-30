@@ -7,6 +7,8 @@
 - (JA) HID vendor report用APIであることを明確にするため、`onVendorInput()` / `sendVendorOutput()` / `sendVendorFeature()`を`onHIDVendorInput()` / `sendHIDVendorOutput()` / `sendHIDVendorFeature()`へリネームしました。
 - (EN) Fix composite HID keyboard+mouse routing so Report ID based mouse reports on a keyboard-protocol HID interface are delivered to `onMouse()`.
 - (JA) 複合HID keyboard+mouseで、keyboard protocolのHID interface上に届くReport ID付きmouse reportを`onMouse()`へ振り分けるよう修正しました。
+- (EN) Fix boot keyboard reports with Shift modifiers being misdetected as Report ID based mouse reports when the interface does not actually define that Report ID.
+- (JA) interfaceが該当Report IDを定義していない場合に、Shift modifier付きboot keyboard reportがReport ID付きmouse reportとして誤判定される問題を修正しました。
 - (EN) Improve MSC compatibility with non-compliant devices such as DFMiniPlayer SD-card readers by avoiding BOT reset recovery after `SYNCHRONIZE CACHE(10)` failures, preventing EP0 STALL recovery loops before the existing skip-sync fallback can take effect.
 - (JA) DFMiniPlayer内蔵SDカードリーダーなどの非準拠MSCデバイス向けに、`SYNCHRONIZE CACHE(10)` 失敗後のBOT reset recoveryを避け、既存のskip-syncフォールバック前にEP0 STALLの回復ループへ入ることを抑制しました。
 - (EN) Document `usbMassStorage.setSkipSyncCache(true)` in the `EspUsbHostMSCFatList` example for devices that fail when FatFs requests `SYNCHRONIZE CACHE(10)`.

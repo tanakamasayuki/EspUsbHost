@@ -1225,6 +1225,7 @@ private:
   void handleHIDVendorInput(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void parseHIDReportDescriptor(DeviceState &device, const EspUsbHostHIDReportDescriptor &descriptor);
+  bool hasHIDReportId(const DeviceState &device, uint8_t interfaceNumber, uint8_t reportId) const;
   size_t decodeHIDInputFields(const DeviceState &device,
                               uint8_t interfaceNumber,
                               uint8_t reportId,
