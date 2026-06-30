@@ -111,6 +111,10 @@ void loop()
             audioReported = false;
             Serial.println("AUDIO_RESET");
         }
+        else if (command == 'a')
+        {
+            Serial.printf("AUDIO_START %u\n", usb.audioOutputStart(1, 16, 48000, audioAddress) ? 1 : 0);
+        }
         else if (command == 's')
         {
             uint32_t sent = 0;

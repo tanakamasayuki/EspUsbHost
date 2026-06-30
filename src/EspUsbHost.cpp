@@ -2100,6 +2100,14 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
     return false;
   }
 
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
   const size_t packetSize = length > device->usbVendorOutPacketSize ? length : device->usbVendorOutPacketSize;
   usb_transfer_t *transfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(packetSize, 0, &transfer);
@@ -2107,6 +2115,7 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
   {
     ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor bulk OUT) failed: %s", esp_err_to_name(err));
     setLastError(err);
+    vSemaphoreDelete(context.done);
     return false;
   }
 
@@ -2116,8 +2125,8 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
   }
   transfer->device_handle = device->handle;
   transfer->bEndpointAddress = device->usbVendorOutEndpointAddress;
-  transfer->callback = outputTransferCallback;
-  transfer->context = this;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
   transfer->num_bytes = length;
 
   err = usb_host_transfer_submit(transfer);
@@ -2128,9 +2137,29 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
              esp_err_to_name(err));
     setLastError(err);
     usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
     return false;
   }
-  return true;
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(1000)) == pdTRUE;
+  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "USB vendor bulk OUT timeout ep=0x%02x", device->usbVendorOutEndpointAddress);
+    setLastError(ESP_ERR_TIMEOUT);
+  }
+  else if (!ok)
+  {
+    ESP_LOGW(TAG, "USB vendor bulk OUT failed ep=0x%02x status=%d actual=%u",
+             device->usbVendorOutEndpointAddress,
+             context.status,
+             static_cast<unsigned>(context.actualLength));
+    setLastError(ESP_FAIL);
+  }
+
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  return ok;
 }
 
 size_t EspUsbHost::vendorRead(uint8_t *buffer, size_t length, uint8_t address)
@@ -6225,7 +6254,9 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
 
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE)
     {
-      if (transfer->actual_num_bytes == 5 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE)
+      if (endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
+          transfer->actual_num_bytes >= 5 &&
+          transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE)
       {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
       }
