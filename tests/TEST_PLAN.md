@@ -53,8 +53,8 @@ See each subdirectory's README for hardware setup and individual test details.
 
 | Feature | Automated | Manual | Not covered |
 |---------|-----------|--------|-------------|
-| HID keyboard input | ✅ peer | | |
-| HID keyboard layout (JP) | | | ⬜ |
+| HID keyboard input | ✅ peer (plain text, Shift-modified boot reports) | | |
+| HID keyboard layout (JP) | ✅ peer (`Shift+International3`), ✅ hid_logic | | |
 | HID mouse input | ✅ peer | | |
 | HID consumer control | ✅ peer | | |
 | HID system control | ✅ peer | | |

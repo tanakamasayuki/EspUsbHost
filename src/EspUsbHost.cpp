@@ -6275,6 +6275,10 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
       {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
       }
+      else if (transfer->actual_num_bytes >= 9 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_KEYBOARD)
+      {
+        handleKeyboard(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
+      }
       else if (endpoint->interfaceSubClass == HID_SUBCLASS_BOOT_VALUE &&
           endpoint->interfaceProtocol == HID_PROTOCOL_KEYBOARD_VALUE)
       {
@@ -6284,10 +6288,6 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
                endpoint->interfaceProtocol == HID_PROTOCOL_MOUSE_VALUE)
       {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
-      }
-      else if (transfer->actual_num_bytes >= 9 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_KEYBOARD)
-      {
-        handleKeyboard(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
       }
       else if (transfer->actual_num_bytes >= 3 && transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_CONSUMER_CONTROL)
       {

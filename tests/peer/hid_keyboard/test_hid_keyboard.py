@@ -1,8 +1,30 @@
 def test_hid_keyboard(dut, peers):
     str = "hello, keyboard"
     device = peers["device"]
+    dut.write("q")
+    dut.expect_exact("VERBOSE 0")
     device.write(str)
     dut.expect_exact(str)
+
+
+def test_hid_keyboard_shift_boot_reports(dut, peers):
+    device = peers["device"]
+
+    dut.write("e")
+    dut.expect_exact("LAYOUT EN_US")
+    device.write("@")
+    device.expect_exact("SEND @ 1")
+    dut.expect_exact("HID_INPUT modifier=0x02 reserved=0x00 key0=0x1f len=8")
+    dut.expect_exact("RAW_KEY keycode=0x1f ascii=0x40 modifiers=0x02")
+    dut.expect_exact("KEY @")
+
+    dut.write("j")
+    dut.expect_exact("LAYOUT JA_JP")
+    device.write("_")
+    device.expect_exact("SEND _ 1")
+    dut.expect_exact("HID_INPUT modifier=0x02 reserved=0x00 key0=0x87 len=8")
+    dut.expect_exact("RAW_KEY keycode=0x87 ascii=0x5f modifiers=0x02")
+    dut.expect_exact("KEY _")
 
 
 # arduino-esp32 の USBHID.cpp (tinyusb_get_device_by_report_id) は reports_num==0 の

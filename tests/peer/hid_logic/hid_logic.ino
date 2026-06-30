@@ -41,6 +41,7 @@ static void testKeycodeToAscii()
   check(espUsbHostKeycodeToAscii(0x04, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, false, true) == 'A', "key_us_shift_a");
   check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, false, true) == '@', "key_us_shift_2");
   check(espUsbHostKeycodeToAscii(0x1f, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP, false, true) == '"', "key_jp_shift_2");
+  check(espUsbHostKeycodeToAscii(0x87, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP, false, true) == '_', "key_jp_shift_international3");
   check(espUsbHostKeycodeToAscii(0x59, 0x02, ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP, false, true) == '1', "keypad_1_shift_ignored");
   check(espUsbHostKeycodeToAscii(0x63, 0x00, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, false, true) == '.', "keypad_dot");
 }
@@ -48,9 +49,13 @@ static void testKeycodeToAscii()
 static void testKeyboardReportValidation()
 {
   const uint8_t valid[8] = {0x00, 0x00, 0x04, 0, 0, 0, 0, 0};
+  const uint8_t validShiftMouseReportIdCollision[8] = {0x02, 0x00, 0x1f, 0, 0, 0, 0, 0};
+  const uint8_t validShiftInternational3[8] = {0x02, 0x00, 0x87, 0, 0, 0, 0, 0};
   const uint8_t invalidReserved[8] = {0x00, 0x01, 0x04, 0, 0, 0, 0, 0};
   const uint8_t invalidKeycode[8] = {0x00, 0x00, 0xe0, 0, 0, 0, 0, 0};
   check(espUsbHostIsBootKeyboardReportValid(valid, sizeof(valid)), "keyboard_report_valid");
+  check(espUsbHostIsBootKeyboardReportValid(validShiftMouseReportIdCollision, sizeof(validShiftMouseReportIdCollision)), "keyboard_report_shift_2_valid");
+  check(espUsbHostIsBootKeyboardReportValid(validShiftInternational3, sizeof(validShiftInternational3)), "keyboard_report_shift_international3_valid");
   check(!espUsbHostIsBootKeyboardReportValid(invalidReserved, sizeof(invalidReserved)), "keyboard_report_reserved_invalid");
   check(!espUsbHostIsBootKeyboardReportValid(invalidKeycode, sizeof(invalidKeycode)), "keyboard_report_keycode_invalid");
   check(!espUsbHostIsBootKeyboardReportValid(valid, 7), "keyboard_report_short_invalid");
@@ -72,6 +77,14 @@ static void testKeyboardDiff()
   EspUsbHostKeyboardReport shiftA = report(0x02, 0x04);
   count = espUsbHostBuildKeyboardEvents(1, empty, shiftA, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, false, true, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
   check(count == 1 && events[0].pressed && events[0].ascii == 'A' && events[0].modifiers == 0x02, "keyboard_shift_a");
+
+  EspUsbHostKeyboardReport shift2 = report(0x02, 0x1f);
+  count = espUsbHostBuildKeyboardEvents(1, empty, shift2, ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US, false, true, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  check(count == 1 && events[0].pressed && events[0].ascii == '@' && events[0].modifiers == 0x02, "keyboard_shift_2");
+
+  EspUsbHostKeyboardReport shiftInternational3 = report(0x02, 0x87);
+  count = espUsbHostBuildKeyboardEvents(1, empty, shiftInternational3, ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP, false, true, events, ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS);
+  check(count == 1 && events[0].pressed && events[0].ascii == '_' && events[0].modifiers == 0x02, "keyboard_shift_international3");
 }
 
 static void testMouseReportEdges()
