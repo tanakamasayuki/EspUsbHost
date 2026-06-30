@@ -141,6 +141,15 @@ void loop()
     {
       Serial.printf("VENDOR_DATA seen=%u data=%s\n", vendorDataSeen ? 1 : 0, vendorData);
     }
+    else if (command == 'p')
+    {
+      const uint32_t start = millis();
+      while (!vendorDataSeen && millis() - start < 1000)
+      {
+        delay(1);
+      }
+      Serial.printf("VENDOR_DATA seen=%u data=%s\n", vendorDataSeen ? 1 : 0, vendorData);
+    }
     else if (command == 'c')
     {
       uint8_t buffer[32] = {};
