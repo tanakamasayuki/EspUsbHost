@@ -1,8 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
-- (EN) Add generic non-HID vendor-specific bulk/control Host APIs: `vendorOpen()`, `vendorWrite()`, `vendorRead()`, `onVendorData()`, `vendorControlIn()`, and `vendorControlOut()`, with peer coverage using `EspUsbDeviceVendor`.
-- (JA) HIDではないvendor-specific interface向けの汎用Host APIとして、`vendorOpen()`、`vendorWrite()`、`vendorRead()`、`onVendorData()`、`vendorControlIn()`、`vendorControlOut()`を追加し、`EspUsbDeviceVendor`とのpeerテストを追加しました。
+- (EN) Add generic non-HID vendor-specific bulk/control Host APIs: `vendorOpen()`, `vendorWrite()`, `vendorRead()`, `onVendorData()`, `vendorControlIn()`, and `vendorControlOut()`, with peer coverage for bulk echo, application vendor control requests, and WebUSB landing URL reads using `EspUsbDeviceVendor`.
+- (JA) HIDではないvendor-specific interface向けの汎用Host APIとして、`vendorOpen()`、`vendorWrite()`、`vendorRead()`、`onVendorData()`、`vendorControlIn()`、`vendorControlOut()`を追加し、`EspUsbDeviceVendor`とのpeerテストでbulk echo、アプリ用vendor control request、WebUSB landing URL読み出しを確認するようにしました。
 - (EN) Rename HID vendor-report APIs to make the distinction explicit: `onVendorInput()` / `sendVendorOutput()` / `sendVendorFeature()` are now `onHIDVendorInput()` / `sendHIDVendorOutput()` / `sendHIDVendorFeature()`.
 - (JA) HID vendor report用APIであることを明確にするため、`onVendorInput()` / `sendVendorOutput()` / `sendVendorFeature()`を`onHIDVendorInput()` / `sendHIDVendorOutput()` / `sendHIDVendorFeature()`へリネームしました。
 - (EN) Fix composite HID keyboard+mouse routing so Report ID based mouse reports on a keyboard-protocol HID interface are delivered to `onMouse()`.
