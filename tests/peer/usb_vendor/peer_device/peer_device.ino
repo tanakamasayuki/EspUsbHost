@@ -6,38 +6,42 @@ EspUsbDeviceVendor Vendor(device);
 static volatile uint32_t rxCount = 0;
 static volatile uint32_t controlCount = 0;
 
+static void processVendorRx()
+{
+  size_t available = Vendor.available();
+  uint8_t buffer[64];
+  while (available > 0)
+  {
+    const size_t chunk = Vendor.read(buffer, min(available, sizeof(buffer)));
+    if (chunk == 0)
+    {
+      break;
+    }
+    rxCount += chunk;
+    Vendor.write(reinterpret_cast<const uint8_t *>("echo:"), 5);
+    Vendor.write(buffer, chunk);
+    Vendor.flush();
+    available = Vendor.available();
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
   delay(500);
 
-  Vendor.onRx([](size_t available)
-              {
-                uint8_t buffer[64];
-                while (available > 0)
-                {
-                  const size_t chunk = Vendor.read(buffer, min(available, sizeof(buffer)));
-                  if (chunk == 0)
-                  {
-                    break;
-                  }
-                  rxCount += chunk;
-                  Vendor.write(reinterpret_cast<const uint8_t *>("echo:"), 5);
-                  Vendor.write(buffer, chunk);
-                  Vendor.flush();
-                  available = Vendor.available();
-                }
-              });
+  Vendor.onRx([](size_t)
+              { processVendorRx(); });
 
   Vendor.onControlRequest([](const EspUsbDeviceVendorControlRequest &request)
                           {
                             controlCount++;
                             static const char info[] = "EspUsbDeviceVendor";
-                            if ((request.bmRequestType & 0x80) && request.bRequest == 0x01)
+                            if ((request.bmRequestType & 0x80) && request.bRequest == 0x10)
                             {
                               return Vendor.sendControlResponse(request, info, min(static_cast<size_t>(request.wLength), sizeof(info) - 1));
                             }
-                            if (!(request.bmRequestType & 0x80) && request.bRequest == 0x02)
+                            if (!(request.bmRequestType & 0x80) && request.bRequest == 0x11)
                             {
                               return Vendor.sendControlResponse(request);
                             }
@@ -57,6 +61,7 @@ void setup()
 
 void loop()
 {
+  processVendorRx();
   if (Serial.available() > 0)
   {
     const char command = Serial.read();

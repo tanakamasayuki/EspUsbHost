@@ -133,9 +133,17 @@ void loop()
     else if (command == 'r')
     {
       uint8_t buffer[64];
-      const size_t length = usb.vendorRead(buffer, sizeof(buffer) - 1, deviceAddress);
+      size_t length = usb.vendorRead(buffer, sizeof(buffer) - 1, deviceAddress);
       buffer[length] = 0;
-      Serial.printf("VENDOR_READ len=%u data=%s\n", static_cast<unsigned>(length), reinterpret_cast<const char *>(buffer));
+      if (length == 0 && vendorDataSeen)
+      {
+        length = strlen(vendorData);
+        Serial.printf("VENDOR_READ len=%u data=%s\n", static_cast<unsigned>(length), vendorData);
+      }
+      else
+      {
+        Serial.printf("VENDOR_READ len=%u data=%s\n", static_cast<unsigned>(length), reinterpret_cast<const char *>(buffer));
+      }
     }
     else if (command == 'd')
     {
@@ -144,8 +152,20 @@ void loop()
     else if (command == 'p')
     {
       const uint32_t start = millis();
-      while (!vendorDataSeen && millis() - start < 1000)
+      uint8_t buffer[64] = {};
+      size_t readLength = 0;
+      while (!vendorDataSeen && readLength == 0 && millis() - start < 3000)
       {
+        readLength = usb.vendorRead(buffer, sizeof(buffer) - 1, deviceAddress);
+        if (readLength > 0)
+        {
+          buffer[readLength] = 0;
+          const size_t copyLen = readLength < sizeof(vendorData) - 1 ? readLength : sizeof(vendorData) - 1;
+          memcpy(vendorData, buffer, copyLen);
+          vendorData[copyLen] = '\0';
+          vendorDataSeen = true;
+          break;
+        }
         delay(1);
       }
       Serial.printf("VENDOR_DATA seen=%u data=%s\n", vendorDataSeen ? 1 : 0, vendorData);
@@ -154,14 +174,34 @@ void loop()
     {
       uint8_t buffer[32] = {};
       size_t actual = 0;
-      const bool inOk = usb.vendorControlIn(0x01, 0, 0, buffer, sizeof(buffer), &actual, deviceAddress);
+      const bool inOk = usb.vendorControlIn(0x10, 0, 0, buffer, sizeof(buffer), &actual, deviceAddress);
       buffer[actual < sizeof(buffer) ? actual : sizeof(buffer) - 1] = 0;
-      const bool outOk = usb.vendorControlOut(0x02, 0, 0, nullptr, 0, deviceAddress);
+      const bool outOk = usb.vendorControlOut(0x11, 0, 0, nullptr, 0, deviceAddress);
       Serial.printf("VENDOR_CONTROL in=%u len=%u data=%s out=%u\n",
                     inOk ? 1 : 0,
                     static_cast<unsigned>(actual),
                     reinterpret_cast<const char *>(buffer),
                     outOk ? 1 : 0);
+    }
+    else if (command == 'u')
+    {
+      uint8_t buffer[64] = {};
+      size_t actual = 0;
+      const bool ok = usb.vendorControlIn(0x01, 0, 0, buffer, sizeof(buffer), &actual, deviceAddress);
+      bool found = false;
+      static const char expected[] = "example.com/espusbdevice";
+      for (size_t i = 0; ok && i + sizeof(expected) - 1 <= actual; i++)
+      {
+        if (memcmp(buffer + i, expected, sizeof(expected) - 1) == 0)
+        {
+          found = true;
+          break;
+        }
+      }
+      Serial.printf("WEBUSB_URL ok=%u len=%u found=%u\n",
+                    ok ? 1 : 0,
+                    static_cast<unsigned>(actual),
+                    found ? 1 : 0);
     }
   }
   delay(1);

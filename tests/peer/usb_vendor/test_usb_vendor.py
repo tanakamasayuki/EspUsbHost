@@ -16,3 +16,5 @@ def test_usb_vendor_bulk_and_control(dut, peers):
     dut.expect_exact("VENDOR_READ len=9 data=echo:ping")
     dut.write("c")
     dut.expect_exact("VENDOR_CONTROL in=1 len=18 data=EspUsbDeviceVendor out=1")
+    dut.write("u")
+    dut.expect("WEBUSB_URL ok=1 len=[1-9][0-9]* found=1")
