@@ -22,6 +22,17 @@ public:
 };
 KeyboardWithLed Keyboard;
 
+static void sendRawKey(uint8_t modifier, uint8_t keycode)
+{
+    KeyReport report = {};
+    report.modifiers = modifier;
+    report.keys[0] = keycode;
+    Keyboard.sendReport(&report);
+    delay(20);
+    report = {};
+    Keyboard.sendReport(&report);
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -40,7 +51,21 @@ void loop()
     }
     if (Serial.available() > 0)
     {
-        Keyboard.write(Serial.read());
+        const char command = Serial.read();
+        if (command == '@')
+        {
+            sendRawKey(0x02, 0x1f);
+            Serial.println("SEND @ 1");
+        }
+        else if (command == '_')
+        {
+            sendRawKey(0x02, 0x87);
+            Serial.println("SEND _ 1");
+        }
+        else if (command >= 0x20 && command <= 0x7e)
+        {
+            Keyboard.write(command);
+        }
     }
     delay(1);
 }

@@ -48,8 +48,8 @@ tests/
 
 | 機能 | 自動 | 手動 | 未カバー |
 |------|------|------|---------|
-| HIDキーボード入力 | ✅ peer | | |
-| HIDキーボードレイアウト（JP） | | | ⬜ |
+| HIDキーボード入力 | ✅ peer（通常文字列、Shift modifier付きboot report） | | |
+| HIDキーボードレイアウト（JP） | ✅ peer（`Shift+International3`）、✅ hid_logic | | |
 | HIDマウス入力 | ✅ peer | | |
 | HIDコンシューマーコントロール | ✅ peer | | |
 | HIDシステムコントロール | ✅ peer | | |
