@@ -109,7 +109,7 @@ size_t getNetworkInterfaces(uint8_t address,
 
 ### network open
 
-追加予定:
+一部実装済み:
 
 ```cpp
 bool networkOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -122,14 +122,21 @@ bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 `networkOpen(info)` は明示的に選んだ configuration / interface を開く。
 
+現在の実装は、candidate の `configurationValue` が現在 active な configuration と一致する場合だけ open する。active ではないconfigurationへの切り替えは行わない。
+
 open 時の処理:
 
-1. 対象configurationがactiveになるようにenumeration時選択または再enumerationする
+1. candidate が active configuration 内にあることを確認
 2. control interface と data interface を claim
 3. data interface の alternate setting を有効化
-4. notification interrupt IN を必要なら開始
-5. bulk IN transfer を開始
-6. protocol ごとの初期化 control request を実行
+4. endpoint と channel 使用量を記録
+
+未実装:
+
+- 対象configurationがactiveになるようにenumeration時選択または再enumerationする
+- notification interrupt IN transfer
+- bulk IN transfer
+- protocol ごとの初期化 control request
 
 既存の CDC ACM serial とは分離する。CDC control class でも subclass が ECM/NCM のものは ACM として扱わない。
 
@@ -340,15 +347,19 @@ CDC-ECM/NCM の peer device を Arduino Core 標準機能だけで用意する�
 
 ### Phase 1: configuration selection / open
 
-次に実装する。
+一部実装済み。
 
 - `networkOpen()`
 - `networkClose()`
-- `SET_CONFIGURATION`
 - interface claim / release
 - data alternate setting
-- notification endpoint
 - endpoint channel 使用量のログ
+
+未実装:
+
+- activeではないconfigurationの選択
+- notification endpoint transfer
+- bulk IN/OUT transfer
 
 この段階では Ethernet frame はまだ lwIP に渡さない。
 
@@ -361,6 +372,16 @@ ESP-IDFには `usb_host_config_t::enum_filter_cb` があり、enumeration開始�
 - ユーザーが事前にVID/PIDやconfiguration値を指定し、enum filterでそのconfigurationを選ぶ
 
 AX88179A専用のVID/PID分岐にはしない。汎用実装としては、調査結果を保存して再enumerationする方式を優先検討する。
+
+追加確認:
+Arduino-ESP32 3.3.10 の ESP32-S3 build では `sdkconfig` に `# CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set` があり、`usb_host_config_t::enum_filter_cb` は有効にならない。実機AX88179AでVID/PID指定によるconfiguration 2選択を試したが、deviceはconfig 1のまま列挙された。
+
+したがって、標準Arduino core上では、現時点で「activeではないconfigurationへ切り替えて、そのinterfaceをESP-IDF USB Host APIでclaimする」経路が見つかっていない。USB NIC対応は次のどちらかに分岐する。
+
+- Arduino core側のUSB Host enum filter callbackを有効化できるbuild環境を前提にする
+- 標準Arduino coreで対応するため、active configurationがCDC-ECM/NCMのUSB NICから対応する
+
+AX88179Aの標準CDC-NCM/ECM configurationを開くには、Arduino core側のKconfig変更またはUSB Host stack側のconfiguration選択対応が必要になる。
 
 ### Phase 2: CDC-ECM raw frame
 

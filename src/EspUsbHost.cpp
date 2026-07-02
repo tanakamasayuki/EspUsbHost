@@ -1833,6 +1833,105 @@ bool EspUsbHost::getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &st
   return ok;
 }
 
+bool EspUsbHost::networkOpen(uint8_t address)
+{
+  DeviceState *device = findDevice(address);
+  if (!device || !device->handle)
+  {
+    ESP_LOGW(TAG, "networkOpen() device not found address=%u", address);
+    return false;
+  }
+
+  EspUsbHostNetworkInterfaceInfo networks[ESP_USB_HOST_MAX_NETWORK_INTERFACES];
+  const size_t count = getNetworkInterfaces(device->info.address, networks, ESP_USB_HOST_MAX_NETWORK_INTERFACES);
+  int selected = -1;
+  for (size_t i = 0; i < count; i++)
+  {
+    if (!networks[i].complete() || networks[i].configurationValue != device->info.configurationValue)
+    {
+      continue;
+    }
+    if (selected < 0 ||
+        (networks[i].protocol == ESP_USB_HOST_NETWORK_PROTOCOL_CDC_NCM &&
+         networks[selected].protocol != ESP_USB_HOST_NETWORK_PROTOCOL_CDC_NCM))
+    {
+      selected = static_cast<int>(i);
+    }
+  }
+
+  if (selected < 0)
+  {
+    ESP_LOGW(TAG, "networkOpen() no complete CDC-ECM/CDC-NCM candidate in active configuration %u",
+             device->info.configurationValue);
+    setLastError(ESP_ERR_NOT_SUPPORTED);
+    return false;
+  }
+
+  return networkOpen(networks[selected]);
+}
+
+bool EspUsbHost::networkOpen(const EspUsbHostNetworkInterfaceInfo &network)
+{
+  if (!running_ || !clientHandle_)
+  {
+    ESP_LOGW(TAG, "networkOpen() called before USB Host is ready");
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "networkOpen() cannot run from USB client task");
+    return false;
+  }
+  if (!network.complete())
+  {
+    ESP_LOGW(TAG, "networkOpen() incomplete network candidate");
+    return false;
+  }
+
+  DeviceState *device = findDevice(network.address);
+  if (!device || !device->handle)
+  {
+    ESP_LOGW(TAG, "networkOpen() device not found address=%u", network.address);
+    return false;
+  }
+  if (network.configurationValue != device->info.configurationValue)
+  {
+    ESP_LOGW(TAG, "networkOpen() candidate config=%u is not active config=%u",
+             network.configurationValue,
+             device->info.configurationValue);
+    setLastError(ESP_ERR_NOT_SUPPORTED);
+    return false;
+  }
+
+  if (device->hasNetworkInterface &&
+      device->networkInterface.configurationValue == network.configurationValue &&
+      device->networkInterface.controlInterfaceNumber == network.controlInterfaceNumber &&
+      device->networkInterface.dataInterfaceNumber == network.dataInterfaceNumber &&
+      device->networkInterface.dataInterfaceAlternate == network.dataInterfaceAlternate)
+  {
+    return true;
+  }
+
+  releaseNetworkInterface(*device);
+  return claimNetworkInterface(*device, network);
+}
+
+void EspUsbHost::networkClose(uint8_t address)
+{
+  DeviceState *device = findDevice(address);
+  if (!device)
+  {
+    return;
+  }
+  releaseNetworkInterface(*device);
+}
+
+bool EspUsbHost::networkReady(uint8_t address) const
+{
+  const DeviceState *device = findDevice(address);
+  return device && device->hasNetworkInterface && device->networkInterface.complete();
+}
+
 bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
 {
   DeviceState *device = findDevice(address);
@@ -7997,11 +8096,146 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.hasMscInterface = false;
   device.hasMscInEndpoint = false;
   device.hasMscOutEndpoint = false;
+  device.hasNetworkInterface = false;
+  device.networkInterface = EspUsbHostNetworkInterfaceInfo();
   device.audioStreamInfoCount = 0;
   device.interfaceInfoCount = 0;
   device.endpointInfoCount = 0;
   device.hidReportDescriptorCount = 0;
   device.hidInputFieldCount = 0;
+}
+
+void EspUsbHost::releaseNetworkInterface(DeviceState &device)
+{
+  if (!device.hasNetworkInterface || !clientHandle_ || !device.handle)
+  {
+    device.hasNetworkInterface = false;
+    device.networkInterface = EspUsbHostNetworkInterfaceInfo();
+    return;
+  }
+
+  const uint8_t controlInterface = device.networkInterface.controlInterfaceNumber;
+  const uint8_t dataInterface = device.networkInterface.dataInterfaceNumber;
+  for (uint8_t i = 0; i < device.interfaceCount;)
+  {
+    const uint8_t interfaceNumber = device.interfaces[i];
+    if (interfaceNumber == controlInterface || interfaceNumber == dataInterface)
+    {
+      usb_host_interface_release(clientHandle_, device.handle, interfaceNumber);
+      for (uint8_t j = i; j + 1 < device.interfaceCount; j++)
+      {
+        device.interfaces[j] = device.interfaces[j + 1];
+      }
+      device.interfaces[device.interfaceCount - 1] = 0;
+      device.interfaceCount--;
+      continue;
+    }
+    i++;
+  }
+
+  for (uint8_t i = 0; i < device.interfaceInfoCount; i++)
+  {
+    EspUsbHostInterfaceInfo &info = device.interfaceInfos[i];
+    if (info.number == controlInterface || info.number == dataInterface)
+    {
+      info.claimed = false;
+    }
+  }
+
+  uint8_t channelCount = 2;
+  if (device.networkInterface.notificationEndpoint)
+  {
+    channelCount++;
+  }
+  device.endpointChannelCount = device.endpointChannelCount >= channelCount
+                                  ? static_cast<uint8_t>(device.endpointChannelCount - channelCount)
+                                  : 0;
+  device.hasNetworkInterface = false;
+  device.networkInterface = EspUsbHostNetworkInterfaceInfo();
+}
+
+bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network)
+{
+  if (!clientHandle_ || !device.handle || !network.complete())
+  {
+    return false;
+  }
+
+  auto markClaim = [&](uint8_t interfaceNumber, uint8_t alternate, esp_err_t result, bool claimed)
+  {
+    for (uint8_t i = 0; i < device.interfaceInfoCount; i++)
+    {
+      EspUsbHostInterfaceInfo &info = device.interfaceInfos[i];
+      if (info.number == interfaceNumber && info.alternate == alternate)
+      {
+        info.claimAttempted = true;
+        info.claimResult = result;
+        info.claimed = claimed;
+      }
+    }
+  };
+
+  esp_err_t err = usb_host_interface_claim(clientHandle_,
+                                           device.handle,
+                                           network.controlInterfaceNumber,
+                                           network.controlInterfaceAlternate);
+  markClaim(network.controlInterfaceNumber, network.controlInterfaceAlternate, err, err == ESP_OK);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_interface_claim(network control iface=%u alt=%u) failed: %s",
+             network.controlInterfaceNumber,
+             network.controlInterfaceAlternate,
+             esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  err = usb_host_interface_claim(clientHandle_,
+                                 device.handle,
+                                 network.dataInterfaceNumber,
+                                 network.dataInterfaceAlternate);
+  markClaim(network.dataInterfaceNumber, network.dataInterfaceAlternate, err, err == ESP_OK);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_interface_claim(network data iface=%u alt=%u) failed: %s",
+             network.dataInterfaceNumber,
+             network.dataInterfaceAlternate,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_interface_release(clientHandle_, device.handle, network.controlInterfaceNumber);
+    markClaim(network.controlInterfaceNumber, network.controlInterfaceAlternate, ESP_OK, false);
+    return false;
+  }
+
+  if (network.dataInterfaceAlternate > 0)
+  {
+    submitSetInterface(device, network.dataInterfaceNumber, network.dataInterfaceAlternate);
+  }
+
+  if (device.interfaceCount + 2 <= sizeof(device.interfaces))
+  {
+    device.interfaces[device.interfaceCount++] = network.controlInterfaceNumber;
+    device.interfaces[device.interfaceCount++] = network.dataInterfaceNumber;
+  }
+
+  uint8_t channelCount = 2;
+  if (network.notificationEndpoint)
+  {
+    channelCount++;
+  }
+  device.endpointChannelCount = static_cast<uint8_t>(device.endpointChannelCount + channelCount);
+  device.networkInterface = network;
+  device.hasNetworkInterface = true;
+
+  ESP_LOGI(TAG, "USB Network ready: address=%u config=%u protocol=%s control_iface=%u data_iface=%u alt=%u endpoints=%u",
+           device.info.address,
+           network.configurationValue,
+           espUsbHostNetworkProtocolName(network.protocol),
+           network.controlInterfaceNumber,
+           network.dataInterfaceNumber,
+           network.dataInterfaceAlternate,
+           channelCount);
+  return true;
 }
 
 void EspUsbHost::configureCdcAcm(DeviceState &device)

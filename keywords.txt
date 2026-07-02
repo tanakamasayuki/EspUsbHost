@@ -94,6 +94,9 @@ espUsbHostPrintHex	KEYWORD2
 espUsbHostPrint	KEYWORD2
 espUsbHostNetworkProtocolName	KEYWORD2
 getNetworkInterfaces	KEYWORD2
+networkOpen	KEYWORD2
+networkClose	KEYWORD2
+networkReady	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 onHIDVendorInput	KEYWORD2
