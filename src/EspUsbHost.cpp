@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <new>
 
 #if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
@@ -4629,7 +4630,7 @@ void EspUsbHost::taskLoop()
     {
       usb_host_device_close(clientHandle_, device.handle);
     }
-    device = DeviceState();
+    resetDeviceState(device);
   }
   if (clientHandle_)
   {
@@ -4743,7 +4744,7 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   {
     ESP_LOGE(TAG, "usb_host_device_open() failed: %s", esp_err_to_name(err));
     setLastError(err);
-    *device = DeviceState();
+    resetDeviceState(*device);
     return;
   }
 
@@ -4817,7 +4818,7 @@ void EspUsbHost::handleNewDevice(uint8_t address)
     ESP_LOGE(TAG, "usb_host_get_active_config_descriptor() failed: %s", esp_err_to_name(err));
     setLastError(err);
     usb_host_device_close(clientHandle_, device->handle);
-    *device = DeviceState();
+    resetDeviceState(*device);
     return;
   }
   device->info.configurationValue = configDesc->bConfigurationValue;
@@ -4898,7 +4899,7 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   {
     deviceDisconnectedCallback_(info);
   }
-  *device = DeviceState();
+  resetDeviceState(*device);
 }
 
 void EspUsbHost::refreshDeviceTopology(DeviceState &device)
@@ -7068,7 +7069,7 @@ EspUsbHost::EndpointState *EspUsbHost::allocateEndpoint(DeviceState &device)
   {
     if (!endpoint.inUse)
     {
-      endpoint = EndpointState();
+      resetEndpointState(endpoint);
       endpoint.inUse = true;
       endpoint.deviceIndex = static_cast<uint8_t>(&device - devices_);
       endpoint.deviceAddress = device.info.address;
@@ -7085,11 +7086,23 @@ EspUsbHost::DeviceState *EspUsbHost::allocateDevice()
   {
     if (!device.inUse)
     {
-      device = DeviceState();
+      resetDeviceState(device);
       return &device;
     }
   }
   return nullptr;
+}
+
+void EspUsbHost::resetDeviceState(DeviceState &device)
+{
+  device.~DeviceState();
+  new (&device) DeviceState();
+}
+
+void EspUsbHost::resetEndpointState(EndpointState &endpoint)
+{
+  endpoint.~EndpointState();
+  new (&endpoint) EndpointState();
 }
 
 EspUsbHost::DeviceState *EspUsbHost::findDevice(uint8_t address)
@@ -7935,7 +7948,7 @@ void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)
       }
       usb_host_transfer_free(endpoint.transfer);
     }
-    endpoint = EndpointState();
+    resetEndpointState(endpoint);
   }
 }
 
@@ -7959,6 +7972,36 @@ void EspUsbHost::releaseInterfaces(DeviceState &device)
   }
   device.interfaceCount = 0;
   device.endpointChannelCount = 0;
+}
+
+void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
+{
+  device.hasKeyboardInterface = false;
+  device.hasVendorInterface = false;
+  device.hasVendorOutEndpoint = false;
+  device.hasCdcControlInterface = false;
+  device.hasCdcDataInterface = false;
+  device.cdcConfigured = false;
+  device.hasSerialOutEndpoint = false;
+  device.hasVendorSerialInterface = false;
+  device.hasUsbVendorInterface = false;
+  device.hasUsbVendorInEndpoint = false;
+  device.hasUsbVendorOutEndpoint = false;
+  device.hasMidiInterface = false;
+  device.hasMidiOutEndpoint = false;
+  device.hasAudioInterface = false;
+  device.hasAudioInEndpoint = false;
+  device.hasAudioOutEndpoint = false;
+  device.audioOutRunning = false;
+  device.audioFeatureUnitCount = 0;
+  device.hasMscInterface = false;
+  device.hasMscInEndpoint = false;
+  device.hasMscOutEndpoint = false;
+  device.audioStreamInfoCount = 0;
+  device.interfaceInfoCount = 0;
+  device.endpointInfoCount = 0;
+  device.hidReportDescriptorCount = 0;
+  device.hidInputFieldCount = 0;
 }
 
 void EspUsbHost::configureCdcAcm(DeviceState &device)

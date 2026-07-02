@@ -1282,6 +1282,8 @@ private:
   EndpointState *findEndpoint(usb_device_handle_t deviceHandle, uint8_t endpointAddress);
   EndpointState *allocateEndpoint(DeviceState &device);
   DeviceState *allocateDevice();
+  void resetDeviceState(DeviceState &device);
+  void resetEndpointState(EndpointState &endpoint);
   DeviceState *findDevice(uint8_t address);
   const DeviceState *findDevice(uint8_t address) const;
   DeviceState *findDeviceByHandle(usb_device_handle_t handle);
@@ -1320,6 +1322,7 @@ private:
   bool submitHIDReportDescriptorRequest(const HIDReportDescriptorState &descriptor);
   void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
+  void clearParsedDescriptorState(DeviceState &device);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
   bool audioFeatureControl(DeviceState &device,
                            uint8_t request,

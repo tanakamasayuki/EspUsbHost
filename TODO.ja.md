@@ -33,6 +33,32 @@ ganged power Hubでの実機挙動を複数機種で確認する
 ESP32-P4のFS/HS OTGでHub可否を確認する
 チャンネル数・endpoint使用量の可視化と合わせて、Hub配下でどの構成まで動くか整理する
 
+# USB Network
+
+状態:
+事前調査と仕様案作成を開始。`docs/usb-network-spec.ja.md` に設計方針をまとめた。
+`getNetworkInterfaces()` と `tests/manual/usb_network_descriptor` で、全configurationを横断したCDC-ECM / CDC-NCM候補検出まで実装済み。
+AX88179A (`VID=0b95 PID=1790`) では active config 1 が vendor-specific、config 2 が CDC-NCM、config 3 が CDC-ECM として検出できることを確認済み。
+手動 `SET_CONFIGURATION` 後のinterface claimはESP-IDF Host側のactive descriptor cache制約で失敗したため、configuration選択はenumeration時filterまたは再enumeration設計が必要。
+
+方針:
+特定VID/PID専用ではなく、CDC-NCM、CDC-ECMの順に標準クラスを優先する。
+vendor-specific Ethernet protocolは標準クラスで不足が出た場合に検討する。
+lwIP統合までを見据え、USB class driver層、raw Ethernet frame層、lwIP netif層、routing/NAT層を分ける。
+
+残作業:
+configuration選択方式を決める。ESP-IDFの `enum_filter_cb` はdevice descriptorだけで選択するため、汎用自動選択には追加設計が必要
+`networkOpen()` / `networkClose()` を追加する
+CDC-NCM / CDC-ECM候補の優先選択を実装する
+control/data interface claim、alternate setting、notification endpoint、bulk IN/OUT開始を実装する
+CDC-ECM raw Ethernet frame RX/TXを実装する
+CDC-NCM NTH/NDP parse/buildを実装する。初期は1 NTB 1 frameでよい
+raw frame callback / read APIを追加する
+lwIP `netif` へのattach/detachを設計・実装する
+DHCP client、static IP、gateway、DNS設定を追加する
+NAT/NAPT有効buildでのAPIと、非対応buildでの明確な失敗扱いを設計する
+Wi-Fi STA/APとUSB NICの組み合わせ例とmanual testを追加する
+
 # USB Mass Storage / FAT
 
 状態:
