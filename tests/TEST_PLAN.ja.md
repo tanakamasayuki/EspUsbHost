@@ -63,6 +63,7 @@ tests/
 | Vendor-specific bulk/control | ✅ peer（usb_vendor） | | |
 | USBオーディオ入出力 | ✅ peer（出力）、入力は一部 | | |
 | USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否、write失敗検出） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、`fs::FS` wrapper、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ data phase失敗後の完全なBOT復旧、複数LUN、32-bit sector超のFatFs mount |
+| USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual（configuration横断の汎用descriptor候補検出） | ⬜ frame RX/TX、configuration選択、lwIP統合 |
 | 複数デバイス同時接続 | | ✅ manual | |
 | デバイス活線挿抜 | | ✅ manual | |
 | HUB検出・トポロジー・ポート電源制御 | | ✅ manual（`hub_info`、`hub_power`） | ⬜ change bit clear、複数段Hub、USB 3.x Hub互換性 |
