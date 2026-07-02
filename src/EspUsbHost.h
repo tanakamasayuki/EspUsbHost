@@ -1043,6 +1043,10 @@ public:
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable);
   bool getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &status, uint16_t &change);
+  bool networkOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool networkOpen(const EspUsbHostNetworkInterfaceInfo &network);
+  void networkClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -1217,6 +1221,8 @@ private:
     uint8_t mscMaxLun = 0;
     bool hasMscMaxLun = false;
     uint8_t mscLun = 0;
+    bool hasNetworkInterface = false;
+    EspUsbHostNetworkInterfaceInfo networkInterface;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
@@ -1322,6 +1328,8 @@ private:
   bool submitHIDReportDescriptorRequest(const HIDReportDescriptorState &descriptor);
   void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
+  bool claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network);
+  void releaseNetworkInterface(DeviceState &device);
   void clearParsedDescriptorState(DeviceState &device);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
   bool audioFeatureControl(DeviceState &device,
