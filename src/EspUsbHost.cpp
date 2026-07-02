@@ -20,6 +20,11 @@ static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
 static constexpr uint8_t USB_CLASS_MASS_STORAGE_VALUE = 0x08;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
 static constexpr uint8_t USB_CS_INTERFACE_DESC = 0x24;
+static constexpr uint8_t USB_CDC_SUBCLASS_ECM = 0x06;
+static constexpr uint8_t USB_CDC_SUBCLASS_NCM = 0x0d;
+static constexpr uint8_t USB_CDC_SUBCLASS_ACM = 0x02;
+static constexpr uint8_t USB_CDC_CS_UNION = 0x06;
+static constexpr uint8_t USB_CDC_CS_ETHERNET = 0x0f;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_CONTROL = 0x01;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
@@ -563,6 +568,39 @@ void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out)
              endpoint.maxPacketSize,
              endpoint.interval,
              endpoint.attributes);
+}
+
+const char *espUsbHostNetworkProtocolName(EspUsbHostNetworkProtocol protocol)
+{
+  switch (protocol)
+  {
+  case ESP_USB_HOST_NETWORK_PROTOCOL_CDC_ECM:
+    return "CDC-ECM";
+  case ESP_USB_HOST_NETWORK_PROTOCOL_CDC_NCM:
+    return "CDC-NCM";
+  case ESP_USB_HOST_NETWORK_PROTOCOL_NONE:
+  default:
+    return "none";
+  }
+}
+
+void espUsbHostPrint(const EspUsbHostNetworkInterfaceInfo &network, Print &out)
+{
+  out.printf("network: address=%u config=%u protocol=%s control_iface=%u data_iface=%u data_alt=%u mac_str=%u max_segment=%u notify_ep=0x%02x in_ep=0x%02x out_ep=0x%02x in_max=%u out_max=%u complete=%s\n",
+             network.address,
+             network.configurationValue,
+             espUsbHostNetworkProtocolName(network.protocol),
+             network.controlInterfaceNumber,
+             network.dataInterfaceNumber,
+             network.dataInterfaceAlternate,
+             network.macAddressStringIndex,
+             network.maxSegmentSize,
+             network.notificationEndpoint,
+             network.inEndpoint,
+             network.outEndpoint,
+             network.inMaxPacketSize,
+             network.outMaxPacketSize,
+             yesNo(network.complete()));
 }
 
 const char *espUsbHostConsumerControlUsageName(uint16_t usage)
@@ -5032,6 +5070,169 @@ void EspUsbHost::parseConfigDescriptor(DeviceState &device, const usb_config_des
   currentDevice_ = nullptr;
 }
 
+size_t EspUsbHost::parseNetworkInterfaces(uint8_t address,
+                                          const usb_config_desc_t *configDesc,
+                                          EspUsbHostNetworkInterfaceInfo *interfaces,
+                                          size_t maxInterfaces) const
+{
+  if (!configDesc || !interfaces || maxInterfaces == 0)
+  {
+    return 0;
+  }
+
+  size_t count = 0;
+  uint8_t currentInterfaceNumber = 0xff;
+  uint8_t currentInterfaceAlternate = 0;
+  uint8_t currentInterfaceClass = 0;
+  uint8_t currentInterfaceSubClass = 0;
+  uint8_t currentControlIndex = 0xff;
+  int dataInterfaceIndex[256];
+  for (size_t i = 0; i < sizeof(dataInterfaceIndex) / sizeof(dataInterfaceIndex[0]); i++)
+  {
+    dataInterfaceIndex[i] = -1;
+  }
+
+  auto protocolForSubclass = [](uint8_t subclass) -> EspUsbHostNetworkProtocol
+  {
+    switch (subclass)
+    {
+    case USB_CDC_SUBCLASS_ECM:
+      return ESP_USB_HOST_NETWORK_PROTOCOL_CDC_ECM;
+    case USB_CDC_SUBCLASS_NCM:
+      return ESP_USB_HOST_NETWORK_PROTOCOL_CDC_NCM;
+    default:
+      return ESP_USB_HOST_NETWORK_PROTOCOL_NONE;
+    }
+  };
+
+  const uint8_t *p = reinterpret_cast<const uint8_t *>(configDesc);
+  for (int offset = 0; offset < configDesc->wTotalLength;)
+  {
+    const uint8_t length = p[offset];
+    if (length < 2 || offset + length > configDesc->wTotalLength)
+    {
+      break;
+    }
+
+    const uint8_t descriptorType = p[offset + 1];
+    if (descriptorType == USB_INTERFACE_DESC && length >= sizeof(usb_intf_desc_t))
+    {
+      const usb_intf_desc_t *intf = reinterpret_cast<const usb_intf_desc_t *>(&p[offset]);
+      currentInterfaceNumber = intf->bInterfaceNumber;
+      currentInterfaceAlternate = intf->bAlternateSetting;
+      currentInterfaceClass = intf->bInterfaceClass;
+      currentInterfaceSubClass = intf->bInterfaceSubClass;
+      currentControlIndex = 0xff;
+
+      const EspUsbHostNetworkProtocol protocol = protocolForSubclass(currentInterfaceSubClass);
+      if (currentInterfaceClass == USB_CLASS_CDC_CONTROL_VALUE &&
+          protocol != ESP_USB_HOST_NETWORK_PROTOCOL_NONE &&
+          count < maxInterfaces)
+      {
+        EspUsbHostNetworkInterfaceInfo &network = interfaces[count];
+        network = EspUsbHostNetworkInterfaceInfo();
+        network.address = address;
+        network.configurationValue = configDesc->bConfigurationValue;
+        network.protocol = protocol;
+        network.controlInterfaceNumber = currentInterfaceNumber;
+        network.controlInterfaceAlternate = currentInterfaceAlternate;
+        currentControlIndex = static_cast<uint8_t>(count);
+        count++;
+      }
+      else if (currentInterfaceClass == USB_CLASS_CDC_DATA_VALUE)
+      {
+        int existing = dataInterfaceIndex[currentInterfaceNumber];
+        if (existing < 0 && count < maxInterfaces)
+        {
+          EspUsbHostNetworkInterfaceInfo &network = interfaces[count];
+          network = EspUsbHostNetworkInterfaceInfo();
+          network.address = address;
+          network.configurationValue = configDesc->bConfigurationValue;
+          network.dataInterfaceNumber = currentInterfaceNumber;
+          network.dataInterfaceAlternate = currentInterfaceAlternate;
+          dataInterfaceIndex[currentInterfaceNumber] = static_cast<int>(count);
+          count++;
+        }
+        else if (existing >= 0)
+        {
+          EspUsbHostNetworkInterfaceInfo &network = interfaces[existing];
+          if (currentInterfaceAlternate > network.dataInterfaceAlternate)
+          {
+            network.dataInterfaceAlternate = currentInterfaceAlternate;
+          }
+        }
+      }
+    }
+    else if (descriptorType == USB_CS_INTERFACE_DESC && length >= 3)
+    {
+      const uint8_t descriptorSubType = p[offset + 2];
+      if (currentControlIndex != 0xff && currentControlIndex < count)
+      {
+        EspUsbHostNetworkInterfaceInfo &network = interfaces[currentControlIndex];
+        if (descriptorSubType == USB_CDC_CS_UNION && length >= 5)
+        {
+          network.controlInterfaceNumber = p[offset + 3];
+          network.dataInterfaceNumber = p[offset + 4];
+          network.dataInterfaceAlternate = 0;
+          dataInterfaceIndex[network.dataInterfaceNumber] = currentControlIndex;
+        }
+        else if (descriptorSubType == USB_CDC_CS_ETHERNET && length >= 7)
+        {
+          network.macAddressStringIndex = p[offset + 3];
+          network.maxSegmentSize = static_cast<uint16_t>(p[offset + 5]) |
+                                   (static_cast<uint16_t>(p[offset + 6]) << 8);
+        }
+      }
+    }
+    else if (descriptorType == USB_ENDPOINT_DESC && length >= sizeof(usb_ep_desc_t))
+    {
+      const usb_ep_desc_t *ep = reinterpret_cast<const usb_ep_desc_t *>(&p[offset]);
+      const bool isIn = (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0;
+      const bool isInterrupt = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_INT;
+      const bool isBulk = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK;
+
+      if (currentInterfaceClass == USB_CLASS_CDC_CONTROL_VALUE &&
+          currentControlIndex != 0xff &&
+          currentControlIndex < count &&
+          isInterrupt &&
+          isIn)
+      {
+        EspUsbHostNetworkInterfaceInfo &network = interfaces[currentControlIndex];
+        network.notificationEndpoint = ep->bEndpointAddress;
+        network.notificationMaxPacketSize = ep->wMaxPacketSize;
+      }
+      else if (currentInterfaceClass == USB_CLASS_CDC_DATA_VALUE && isBulk)
+      {
+        const int index = dataInterfaceIndex[currentInterfaceNumber];
+        if (index >= 0 && static_cast<size_t>(index) < count)
+        {
+          EspUsbHostNetworkInterfaceInfo &network = interfaces[index];
+          if (network.configurationValue == configDesc->bConfigurationValue &&
+              network.dataInterfaceNumber == currentInterfaceNumber &&
+              currentInterfaceAlternate >= network.dataInterfaceAlternate)
+          {
+            network.dataInterfaceAlternate = currentInterfaceAlternate;
+            if (isIn)
+            {
+              network.inEndpoint = ep->bEndpointAddress;
+              network.inMaxPacketSize = ep->wMaxPacketSize;
+            }
+            else
+            {
+              network.outEndpoint = ep->bEndpointAddress;
+              network.outMaxPacketSize = ep->wMaxPacketSize;
+            }
+          }
+        }
+      }
+    }
+
+    offset += length;
+  }
+
+  return count;
+}
+
 void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
 {
   DeviceState *device = currentDevice_;
@@ -5101,9 +5302,13 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                                   currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
                                   intf->bNumEndpoints > 0 &&
                                   !interfaceAlreadyClaimed;
+    const bool isCdcAcmControlInterface = currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE &&
+                                          currentInterfaceSubClass_ == USB_CDC_SUBCLASS_ACM;
+    const bool isCdcAcmDataInterface = currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
+                                       device->hasCdcControlInterface;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
-        currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE ||
-        currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
+        isCdcAcmControlInterface ||
+        isCdcAcmDataInterface ||
         isAudioControlInterface ||
         isAudioInterface ||
         isMidiInterface ||
@@ -5151,14 +5356,14 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
           device->keyboardInterfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "Keyboard interface ready: iface=%u", device->keyboardInterfaceNumber);
         }
-        if (currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE)
+        if (isCdcAcmControlInterface)
         {
           device->hasCdcControlInterface = true;
           device->cdcControlInterfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "CDC control interface ready: iface=%u", device->cdcControlInterfaceNumber);
           configureCdcAcm(*device);
         }
-        else if (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE)
+        else if (isCdcAcmDataInterface)
         {
           device->hasCdcDataInterface = true;
           device->cdcDataInterfaceNumber = currentInterfaceNumber_;
@@ -7540,6 +7745,56 @@ size_t EspUsbHost::getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoin
   {
     endpoints[i] = device->endpointInfos[i];
   }
+  return count;
+}
+
+size_t EspUsbHost::getNetworkInterfaces(uint8_t address,
+                                        EspUsbHostNetworkInterfaceInfo *interfaces,
+                                        size_t maxInterfaces)
+{
+  if (!interfaces || maxInterfaces == 0 || !running_ || !clientHandle_)
+  {
+    return 0;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "getNetworkInterfaces() cannot run from USB client task");
+    return 0;
+  }
+
+  DeviceState *device = findDevice(address);
+  if (!device || !device->handle)
+  {
+    return 0;
+  }
+
+  const usb_device_desc_t *devDesc = nullptr;
+  esp_err_t err = usb_host_get_device_descriptor(device->handle, &devDesc);
+  if (err != ESP_OK || !devDesc)
+  {
+    ESP_LOGW(TAG, "usb_host_get_device_descriptor(network scan) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return 0;
+  }
+
+  size_t count = 0;
+  for (uint8_t configValue = 1; configValue <= devDesc->bNumConfigurations && count < maxInterfaces; configValue++)
+  {
+    const usb_config_desc_t *configDesc = nullptr;
+    err = usb_host_get_config_desc(clientHandle_, device->handle, configValue, &configDesc);
+    if (err != ESP_OK || !configDesc)
+    {
+      ESP_LOGD(TAG, "usb_host_get_config_desc(config=%u) failed: %s", configValue, esp_err_to_name(err));
+      continue;
+    }
+
+    count += parseNetworkInterfaces(address,
+                                    configDesc,
+                                    &interfaces[count],
+                                    maxInterfaces - count);
+    usb_host_free_config_desc(configDesc);
+  }
+
   return count;
 }
 

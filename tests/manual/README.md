@@ -47,6 +47,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`hotplug/`](hotplug/) | Connect/disconnect events and no crash after repeated cycles | Any USB device | ✅ |
 | [`hub_info/`](hub_info/) | Displays hub topology info for devices connected through a USB hub | USB hub + two USB devices | ✅ |
 | [`hub_power/`](hub_power/) | Per-port power control — turn a hub port off/on and verify device disconnect/reconnect | USB hub with per-port power switching + any USB device | ✅ |
+| [`usb_network_descriptor/`](usb_network_descriptor/) | Detects generic CDC-ECM/CDC-NCM USB Ethernet descriptor candidates across configurations | USB Ethernet adapter with CDC-ECM or CDC-NCM support | ✅ |
 | [`msc_block/`](msc_block/) | Query real USB flash-drive MSC capacity, read LBA 0, mount FatFs/VFS, and write/read/delete temporary probe files through POSIX and `fs::FS` APIs | USB flash drive | ✅ |
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | Unplug a USB flash drive while mounted and verify the same FatFs/VFS path can mount again after reconnect | USB flash drive | ✅ |
 
@@ -85,6 +86,7 @@ Note that this file is local to the machine and not committed to the repository.
 | Device hot-plug stress | Requires a person to physically plug and unplug cables on a timing cue |
 | USB hub (info display, power management) | Requires a physical USB hub. While it is technically possible to route multiple devices through a hub in the automated test environment, doing so would mix hub behaviour into the test results and introduce noise. Automated tests therefore use direct 1-to-1 connections only |
 | USB Mass Storage | Requires real USB flash-drive descriptors, timing, and SCSI command behavior. Peer tests cover the protocol skeleton but cannot prove real-device compatibility |
+| USB Ethernet | Requires real USB NIC descriptors and configuration layouts. Peer tests cannot emulate the product-specific mix of vendor, CDC-ECM, CDC-NCM, and optional storage configurations |
 | Hub cascade (hub behind hub) | Requires two or more nested physical hubs; cannot be emulated in software |
 | Human-only observable output (audio, MIDI, etc.) | Involves physical output such as sound that cannot be observed directly from software. Automatable with audio loopback hardware, but typically requires human confirmation |
 

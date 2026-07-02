@@ -96,6 +96,7 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
+static constexpr size_t ESP_USB_HOST_MAX_NETWORK_INTERFACES = 4;
 static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
 static constexpr size_t ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE = 512;
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
@@ -219,6 +220,41 @@ struct EspUsbHostEndpointInfo
   uint8_t attributes = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
+};
+
+enum EspUsbHostNetworkProtocol : uint8_t
+{
+  ESP_USB_HOST_NETWORK_PROTOCOL_NONE = 0,
+  ESP_USB_HOST_NETWORK_PROTOCOL_CDC_ECM,
+  ESP_USB_HOST_NETWORK_PROTOCOL_CDC_NCM,
+};
+
+struct EspUsbHostNetworkInterfaceInfo
+{
+  uint8_t address = 0;
+  uint8_t configurationValue = 0;
+  EspUsbHostNetworkProtocol protocol = ESP_USB_HOST_NETWORK_PROTOCOL_NONE;
+  uint8_t controlInterfaceNumber = 0xff;
+  uint8_t controlInterfaceAlternate = 0;
+  uint8_t dataInterfaceNumber = 0xff;
+  uint8_t dataInterfaceAlternate = 0;
+  uint8_t macAddressStringIndex = 0;
+  uint16_t maxSegmentSize = 0;
+  uint8_t notificationEndpoint = 0;
+  uint16_t notificationMaxPacketSize = 0;
+  uint8_t inEndpoint = 0;
+  uint8_t outEndpoint = 0;
+  uint16_t inMaxPacketSize = 0;
+  uint16_t outMaxPacketSize = 0;
+
+  bool complete() const
+  {
+    return protocol != ESP_USB_HOST_NETWORK_PROTOCOL_NONE &&
+           controlInterfaceNumber != 0xff &&
+           dataInterfaceNumber != 0xff &&
+           inEndpoint != 0 &&
+           outEndpoint != 0;
+  }
 };
 
 struct EspUsbHostVendorInterface
@@ -726,6 +762,7 @@ void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out = Serial)
 void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostNetworkInterfaceInfo &network, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
@@ -733,6 +770,7 @@ void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out
 void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
+const char *espUsbHostNetworkProtocolName(EspUsbHostNetworkProtocol protocol);
 
 struct EspUsbHostConsumerControlEvent : EspUsbHostHIDReportData
 {
@@ -1016,6 +1054,9 @@ public:
   bool getHubInfo(uint8_t hubAddress, EspUsbHostHubInfo &hub);
   size_t getInterfaces(uint8_t address, EspUsbHostInterfaceInfo *interfaces, size_t maxInterfaces) const;
   size_t getEndpoints(uint8_t address, EspUsbHostEndpointInfo *endpoints, size_t maxEndpoints) const;
+  size_t getNetworkInterfaces(uint8_t address,
+                              EspUsbHostNetworkInterfaceInfo *interfaces,
+                              size_t maxInterfaces);
   size_t endpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t managedEndpointCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t ep0ChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -1210,6 +1251,10 @@ private:
   void scanHostDevices();
   void refreshDeviceTopology(DeviceState &device);
   void parseConfigDescriptor(DeviceState &device, const usb_config_desc_t *configDesc);
+  size_t parseNetworkInterfaces(uint8_t address,
+                                const usb_config_desc_t *configDesc,
+                                EspUsbHostNetworkInterfaceInfo *interfaces,
+                                size_t maxInterfaces) const;
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
   void parseAudioControlDescriptor(DeviceState &device, const uint8_t *data);
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);

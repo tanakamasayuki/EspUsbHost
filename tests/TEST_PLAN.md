@@ -68,6 +68,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | Vendor-specific bulk/control | ✅ peer (usb_vendor) | | |
 | USB audio input/output | ✅ peer (output), partial input | | |
 | USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, `fs::FS` wrapper, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, >32-bit-sector FatFs mount |
+| USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual (generic descriptor candidate detection across configurations) | ⬜ frame RX/TX, configuration selection, lwIP integration |
 | Multiple devices | | ✅ manual | |
 | Device hot-plug | | ✅ manual | |
 | HUB detection, topology, and port power control | | ✅ manual (`hub_info`, `hub_power`) | ⬜ change bit clear, cascaded hubs, USB 3.x hub compatibility |
