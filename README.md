@@ -62,7 +62,7 @@ Host/Device loopback tests.
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT, and EP0 vendor IN/OUT requests |
-| UAC — USB audio input/output | 🔲 Experimental. Audio OUT is peer-tested; Audio IN APIs exist but real payload validation remains |
+| UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; includes `SYNCHRONIZE CACHE(10)` fallback for non-compliant devices. Multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
 | UVC — USB camera | 💭 Under consideration |
@@ -74,7 +74,7 @@ Host/Device loopback tests.
 | `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
 | HID gamepad input — descriptor-decoded fields plus raw/report bytes for user-defined mapping | ✅ Mappable event API; mapping helpers still under consideration |
 | Channel count and endpoint usage visibility | ✅ Implemented as experimental diagnostics; useful for understanding limits with multi-device, Audio, MSC, and HUB combinations |
-| USB Audio IN real payload validation | 🔲 Next candidate; needs a real USB microphone or a stable peer-side Audio IN generator |
+| USB Audio IN real payload validation | ✅ Peer validation complete with standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | ESP32-P4 validation | 🔲 Ongoing; verify FS/HS OTG, hub behavior, and loopback tests separately |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress in `EspUsbDevice`; `tests/loopback` in this repository only contains README files |
 | Manual tests — VCP serial, multi-device, hot-plug | ✅ Main cases confirmed; additional device compatibility remains ongoing |
@@ -85,7 +85,7 @@ Host/Device loopback tests.
 - **Future breaking changes:** more incompatible API changes may still happen in 2.x while the API is being shaped around real devices and examples.
 - **USB host resources:** ESP32-S3 has a small number of USB host channels. Composite devices, hubs, audio, MSC, and multiple serial devices can exhaust channels quickly. Use `printDeviceInfo()` / `printAllDeviceInfo()` and the endpoint/channel diagnostic APIs to inspect resource use.
 - **Hubs:** use a self-powered USB 2.0 hub for multi-device tests. USB 3.x hubs and internally cascaded hubs may behave differently and are not fully validated.
-- **USB Audio:** output is more tested than input. Audio IN payload reception exists, but real microphone/device validation is still incomplete. UAC2 clock/selector behavior and advanced Audio Control units are limited.
+- **USB Audio:** input/output peer tests pass with the standard Arduino `USBAudioCard`. Real microphone/audio-interface validation is still limited. UAC2 clock/selector behavior and advanced Audio Control units are limited.
 - **Mass Storage:** FAT access is intended for a single practical MSC device. Multiple MSC devices, multiple LUN devices, unusual block sizes, and abnormal BOT recovery need more real-device validation. Non-compliant devices may require the `SYNCHRONIZE CACHE(10)` fallback described in the MSC section.
 - **Hot plug:** unplugging while files, serial transfers, audio streams, or class operations are active can still fail or lose data depending on device behavior.
 - **ESP32-P4:** FS/HS OTG selection is supported through `EspUsbHostConfig::port`, but P4 validation is still ongoing. HS OTG has practical limitations, especially with hubs.

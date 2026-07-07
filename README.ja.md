@@ -58,7 +58,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT、EP0 vendor IN/OUT requestに対応 |
-| UAC — USBオーディオ入出力 | 🔲 実験的。Audio OUTはpeer確認済み、Audio INはAPIあり・実データ確認が残っています |
+| UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。非準拠デバイス向けの`SYNCHRONIZE CACHE(10)`フォールバックあり。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
 | UVC — USBカメラ | 💭 検討中 |
@@ -70,7 +70,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | ✅ 実装済み |
 | HIDゲームパッド入力 — ユーザー定義マッピング用のディスクリプタデコード済みフィールドとraw/reportバイト | ✅ マッピング前提のイベントAPI。マッピング補助は検討中 |
 | チャンネル数・endpoint使用量の可視化 | ✅ 実験的な診断APIとして実装済み。複数デバイスやAudio/MSC/HUB併用時の上限把握に使う |
-| USB Audio INの実データ確認 | 🔲 次候補。実USBマイクまたはpeer側Audio IN生成の安定化が必要 |
+| USB Audio INの実データ確認 | ✅ 標準Arduino `USBAudioCard`でpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | ESP32-P4検証 | 🔲 継続。FS/HS OTG、HUB可否、ループバックテストを個別確認する |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 `EspUsbDevice` 側で整備中。このリポジトリ側の `tests/loopback` はREADMEのみ |
 | 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | ✅ 主要ケース確認済み。追加デバイス互換性は継続 |
@@ -81,7 +81,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **今後の破壊的変更:** 実機やサンプルからよりよいAPI形状が見えた場合、2系の間でも互換性を壊す変更が入る可能性があります。
 - **USB Hostリソース:** ESP32-S3のUSB host channel数は少ないです。複合デバイス、Hub、Audio、MSC、複数シリアルデバイスではすぐ上限に近づきます。`printDeviceInfo()` / `printAllDeviceInfo()` やendpoint/channel診断APIで使用量を確認してください。
 - **USB Hub:** 複数デバイスの確認にはセルフパワーのUSB 2.0 Hubを推奨します。USB 3.x Hubや内部多段Hubは挙動が複雑で、十分に検証できていません。
-- **USB Audio:** 出力の方が入力より確認が進んでいます。Audio INのペイロード受信APIはありますが、実USBマイクなどでの確認はまだ限定的です。UAC2のClock/Selectorや高度なAudio Control Unit対応も限定的です。
+- **USB Audio:** 標準Arduino `USBAudioCard`で入力・出力のpeerテストは通っています。実USBマイク・オーディオIFでの確認はまだ限定的です。UAC2のClock/Selectorや高度なAudio Control Unit対応も限定的です。
 - **Mass Storage:** FAT利用は実用上単一MSCデバイスを前提にしてください。複数MSC、複数LUN、特殊なblock size、異常系BOT復旧は追加検証が必要です。非準拠デバイスではMSC節の`SYNCHRONIZE CACHE(10)`フォールバックが必要になる場合があります。
 - **活線挿抜:** ファイル、シリアル転送、Audio stream、各クラス操作の途中で抜くと、デバイスによっては失敗やデータ喪失が起こります。
 - **ESP32-P4:** `EspUsbHostConfig::port`でFS/HS OTGを選べますが、P4向け検証は継続中です。特にHS OTGとHubの組み合わせには実用上の制限があります。
