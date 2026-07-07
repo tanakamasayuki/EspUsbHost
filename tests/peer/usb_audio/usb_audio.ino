@@ -4,7 +4,8 @@ EspUsbHost usb;
 
 static uint32_t audioBytes = 0;
 static bool audioReported = false;
-static uint8_t audioAddress = 0;
+static uint8_t audioInputAddress = 0;
+static uint8_t audioOutputAddress = 0;
 static int16_t outputSamples[480];
 
 void setup()
@@ -20,11 +21,12 @@ void setup()
                                             device.deviceClass);
                               if (usb.audioInputReady(device.address))
                               {
-                                  Serial.printf("AUDIO_READY addr=%u\n", device.address);
+                                  audioInputAddress = device.address;
+                                  Serial.printf("AUDIO_IN_READY addr=%u\n", device.address);
                               }
                               if (usb.audioOutputReady(device.address))
                               {
-                                  audioAddress = device.address;
+                                  audioOutputAddress = device.address;
                                   Serial.printf("AUDIO_OUT_READY addr=%u\n", device.address);
                               }
                               EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
@@ -113,13 +115,17 @@ void loop()
         }
         else if (command == 'a')
         {
-            Serial.printf("AUDIO_START %u\n", usb.audioOutputStart(1, 16, 48000, audioAddress) ? 1 : 0);
+            Serial.printf("AUDIO_OUT_START %u\n", usb.audioOutputStart(1, 16, 48000, audioOutputAddress) ? 1 : 0);
+        }
+        else if (command == 'i')
+        {
+            Serial.printf("AUDIO_IN_START %u\n", usb.audioInputStart(1, 16, 48000, audioInputAddress) ? 1 : 0);
         }
         else if (command == 's')
         {
             uint32_t sent = 0;
             fillOutputSamples();
-            if (usb.audioSend(reinterpret_cast<const uint8_t *>(outputSamples), sizeof(outputSamples), audioAddress))
+            if (usb.audioSend(reinterpret_cast<const uint8_t *>(outputSamples), sizeof(outputSamples), audioOutputAddress))
             {
                 sent = sizeof(outputSamples);
             }

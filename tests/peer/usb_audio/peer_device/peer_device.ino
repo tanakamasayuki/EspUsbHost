@@ -8,10 +8,12 @@ void loop() {}
 #include "USB.h"
 #include "USBAudioCard.h"
 
-USBAudioCard AudioCard(48000, UAC_BPS_16, UAC_SPK_MONO, UAC_MIC_NONE);
+USBAudioCard AudioCard(48000, UAC_BPS_16, UAC_SPK_MONO, UAC_MIC_MONO);
 
 static uint32_t receivedAudioBytes = 0;
 static bool receivedAudioReported = false;
+static int16_t micSamples[48];
+static int16_t micValue = 0;
 
 static void audioEventCallback(void *, esp_event_base_t eventBase, int32_t eventId, void *eventData)
 {
@@ -38,6 +40,15 @@ static void audioDataCallback(void *, uint16_t length)
     }
 }
 
+static void fillMicSamples()
+{
+    for (size_t i = 0; i < sizeof(micSamples) / sizeof(micSamples[0]); i++)
+    {
+        micSamples[i] = micValue;
+        micValue += 197;
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -59,6 +70,17 @@ void loop()
             receivedAudioBytes = 0;
             receivedAudioReported = false;
             Serial.println("DEVICE_AUDIO_RESET");
+        }
+        else if (command == 'm')
+        {
+            uint32_t total = 0;
+            for (uint8_t i = 0; i < 20; i++)
+            {
+                fillMicSamples();
+                total += AudioCard.write(micSamples, sizeof(micSamples));
+                delay(1);
+            }
+            Serial.printf("DEVICE_TX_AUDIO %lu\n", static_cast<unsigned long>(total));
         }
     }
     delay(1);

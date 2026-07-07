@@ -89,10 +89,8 @@ reset recovery中のEP0 STALLでHCD assertに落ちないよう、reset/clear ha
 主な残作業はこのあたりです。
 
 USB Audio IN の peer 実証
-→Arduinoのデバイス側マイクがおかしいかも。それの影響でPeerテストができていない可能性がある。
-
-onAudioData() の受信経路はありますが、Arduino 側 USBAudioCard.write() で peer から実データを流す確認がまだ安定していません。
-今 peer で確実に通っているのは Host → Device の Audio OUT です。
+→標準Arduino `USBAudioCard` をSPK+MIC構成にして、Host → Device のAudio OUTとDevice → HostのAudio INを同一peerテストで確認済み。
+単発の `USBAudioCard.write()` はisochronous INのタイミングと合わず取りこぼすことがあるため、テストでは1ms間隔の短いburst送信で確認している。
 Mixer / Selector / Processing Unit 制御
 
 UAC1 Feature Unit の Mute / Volume GET/SET は追加済みです。
@@ -113,8 +111,8 @@ Input サンプルはビルドと情報表示までは整えました。
 実USBマイクで audio: ... bytes_per_sec=... が継続して出るか確認したいです。
 ドキュメントの対応範囲明記
 
-OUT は peer で送信確認済み。
-IN は API あり、peer 実データは未確定。
+OUT/IN は標準Arduino `USBAudioCard` のpeerで送受信確認済み。
+実USBマイク・オーディオIFの確認は継続。
 UAC1中心、UAC2やFeature Unit以外のAudio Controlは限定的、という注意書きをもう少し明確にしてよさそうです。
 
 # P4対応
