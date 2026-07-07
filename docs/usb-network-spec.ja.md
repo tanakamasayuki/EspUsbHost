@@ -376,12 +376,11 @@ AX88179A専用のVID/PID分岐にはしない。汎用実装としては、調�
 追加確認:
 Arduino-ESP32 3.3.10 の ESP32-S3 build では `sdkconfig` に `# CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set` があり、`usb_host_config_t::enum_filter_cb` は有効にならない。実機AX88179AでVID/PID指定によるconfiguration 2選択を試したが、deviceはconfig 1のまま列挙された。
 
-したがって、標準Arduino core上では、現時点で「activeではないconfigurationへ切り替えて、そのinterfaceをESP-IDF USB Host APIでclaimする」経路が見つかっていない。USB NIC対応は次のどちらかに分岐する。
+その後、Arduino-ESP32側へ `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` を有効化するPRを出し、採用された。3.3.10の次回リリース以降では、標準Arduino coreでも `enum_filter_cb` を使ったconfiguration選択を実装できる見込み。
 
-- Arduino core側のUSB Host enum filter callbackを有効化できるbuild環境を前提にする
-- 標準Arduino coreで対応するため、active configurationがCDC-ECM/NCMのUSB NICから対応する
+したがって、3.3.10時点では「activeではないconfigurationへ切り替えて、そのinterfaceをESP-IDF USB Host APIでclaimする」経路は標準Arduino core上で使えない。configuration選択の実装は、次回リリース以降のArduino coreを前提に進める。
 
-AX88179Aの標準CDC-NCM/ECM configurationを開くには、Arduino core側のKconfig変更またはUSB Host stack側のconfiguration選択対応が必要になる。
+AX88179Aの標準CDC-NCM/ECM configurationを開くには、次回リリース以降で有効化される `enum_filter_cb` を使い、事前調査済みのconfiguration値をenumeration時に選択する必要がある。AX88179A専用のVID/PID分岐にはせず、汎用のconfiguration選択機構として実装する。
 
 ### Phase 2: CDC-ECM raw frame
 
