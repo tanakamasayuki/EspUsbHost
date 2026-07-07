@@ -55,6 +55,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `usb_midi`: Arduino Core標準USB MIDI実装とペアで動作
 - `usb_audio`: `USBAudioCard` のスピーカー出力を使い、Arduino Core標準USB Audio device相当とペアで動作
 - `usb_vendor`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` とペアで動作
+- `usb_ncm`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceNet`（CDC-NCM）device とペアで動作。Host は USB NIC を DHCP クライアントの lwIP netif として attach し、device の DHCP サーバから `192.168.7.x` のリースを取得して、固定ページを HTTP GET で取得する。
 
 追加予定のカバレッジ：
 

@@ -192,6 +192,95 @@ static int16_t audioDbToRaw(float db)
   return static_cast<int16_t>(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
 }
 
+// ---------------------------------------------------------------------------
+// CDC-NCM (USB network) helpers
+// ---------------------------------------------------------------------------
+
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+#include <esp_netif.h>
+#include <esp_netif_defaults.h>
+#include <esp_event.h>
+#endif
+
+// NCM 1.0, 16-bit NTB. Signatures are stored little-endian on the wire.
+static constexpr uint32_t ESP_USB_HOST_NCM_NTH16_SIG = 0x484D434E; // "NCMH"
+static constexpr uint32_t ESP_USB_HOST_NCM_NDP16_SIG = 0x304D434E; // "NCM0"
+static constexpr uint16_t ESP_USB_HOST_NCM_NTH16_LEN = 12;
+static constexpr uint16_t ESP_USB_HOST_NCM_NDP16_MIN_LEN = 16; // header(8) + one datagram entry + null entry
+// CDC notification codes (bNotificationCode) on the interrupt IN endpoint.
+static constexpr uint8_t ESP_USB_HOST_CDC_NOTIFY_NETWORK_CONNECTION = 0x00;
+static constexpr uint8_t ESP_USB_HOST_CDC_NOTIFY_SPEED_CHANGE = 0x2a;
+
+static inline uint16_t ncmRead16(const uint8_t *p)
+{
+  return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
+}
+
+static inline uint32_t ncmRead32(const uint8_t *p)
+{
+  return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
+         (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+}
+
+static inline void ncmWrite16(uint8_t *p, uint16_t v)
+{
+  p[0] = v & 0xff;
+  p[1] = (v >> 8) & 0xff;
+}
+
+static inline void ncmWrite32(uint8_t *p, uint32_t v)
+{
+  p[0] = v & 0xff;
+  p[1] = (v >> 8) & 0xff;
+  p[2] = (v >> 16) & 0xff;
+  p[3] = (v >> 24) & 0xff;
+}
+
+static inline size_t ncmAlign4(size_t v)
+{
+  return (v + 3u) & ~static_cast<size_t>(3u);
+}
+
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+// One driver context per attached USB network interface. Its first member is
+// the esp_netif driver base so esp_netif's handle == &ctx. The trampolines
+// recover the owning EspUsbHost + device address from it.
+struct EspUsbHostNetifDriver
+{
+  esp_netif_driver_base_t base;
+  EspUsbHost *host;
+  uint8_t address;
+};
+
+static esp_err_t espUsbHostNetifPostAttach(esp_netif_t *netif, esp_netif_iodriver_handle h)
+{
+  EspUsbHostNetifDriver *driver = static_cast<EspUsbHostNetifDriver *>(h);
+  driver->base.netif = netif;
+  return ESP_OK;
+}
+
+static void espUsbHostNetifFreeRx(void *h, void *buffer)
+{
+  (void)h;
+  free(buffer);
+}
+
+static esp_err_t espUsbHostNetifTransmit(void *h, void *buffer, size_t length)
+{
+  EspUsbHostNetifDriver *driver = static_cast<EspUsbHostNetifDriver *>(h);
+  if (!driver || !driver->host)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+  // esp_netif hands us a complete Ethernet frame; networkWriteFrame() wraps it
+  // in an NTB (copying into its own transfer buffer, so `buffer` need not
+  // outlive this call) and sends it synchronously over bulk OUT.
+  return driver->host->networkWriteFrame(static_cast<const uint8_t *>(buffer), length, driver->address)
+             ? ESP_OK
+             : ESP_FAIL;
+}
+#endif
+
 static int16_t audioClampVolumeRaw(int16_t volume, const EspUsbHostAudioVolumeRange &range)
 {
   int32_t raw = volume;
@@ -1486,6 +1575,11 @@ void EspUsbHost::onVendorData(VendorDataCallback callback)
 void EspUsbHost::onSystemControl(SystemControlCallback callback)
 {
   systemControlCallback_ = callback;
+}
+
+void EspUsbHost::onNetworkFrame(NetworkFrameCallback callback)
+{
+  networkFrameCallback_ = callback;
 }
 
 void EspUsbHost::setKeyboardLayout(EspUsbHostKeyboardLayout layout)
@@ -4987,6 +5081,14 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   {
     mscUnmountAddress(device->info.address);
   }
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  if (device->networkNetifAttached)
+  {
+    networkStopNetif(*device); // detach lwIP before the device handle goes away
+  }
+#endif
+  device->hasNetworkInterface = false;
+  device->networkLinkUp = false;
   releaseEndpoints(*device, false);
   releaseInterfaces(*device);
   if (device->handle)
@@ -6611,6 +6713,18 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
         handleHIDVendorInput(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
       }
     }
+    else if (device && device->hasNetworkInterface &&
+             endpoint->address == device->networkInterface.inEndpoint)
+    {
+      // NCM data interface is CDC-DATA class (0x0a) like CDC-ACM serial, so this
+      // must be checked before the serial branch below.
+      handleNetworkInput(*device, *endpoint, transfer->data_buffer, transfer->actual_num_bytes);
+    }
+    else if (device && device->hasNetworkInterface &&
+             endpoint->address == device->networkInterface.notificationEndpoint)
+    {
+      handleNetworkNotification(*device, transfer->data_buffer, transfer->actual_num_bytes);
+    }
     else if (endpoint->interfaceClass == USB_CLASS_CDC_DATA_VALUE ||
              (device && device->vendorSerialSupported && endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE))
     {
@@ -7523,6 +7637,27 @@ const EspUsbHost::DeviceState *EspUsbHost::findUsbVendorDevice(uint8_t address) 
   return nullptr;
 }
 
+EspUsbHost::DeviceState *EspUsbHost::findNetworkDevice(uint8_t address)
+{
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findNetworkDevice(address));
+}
+
+const EspUsbHost::DeviceState *EspUsbHost::findNetworkDevice(uint8_t address) const
+{
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || !device.hasNetworkInterface)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return &device;
+    }
+  }
+  return nullptr;
+}
+
 EspUsbHost::DeviceState *EspUsbHost::findUsbVendorCandidate(uint8_t address, uint8_t interfaceNumber)
 {
   for (DeviceState &device : devices_)
@@ -8107,11 +8242,34 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
 
 void EspUsbHost::releaseNetworkInterface(DeviceState &device)
 {
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  networkStopNetif(device);
+#endif
+
   if (!device.hasNetworkInterface || !clientHandle_ || !device.handle)
   {
     device.hasNetworkInterface = false;
     device.networkInterface = EspUsbHostNetworkInterfaceInfo();
+    device.networkLinkUp = false;
     return;
+  }
+
+  // Free the bulk IN / notification IN transfers this interface started.
+  const uint8_t inEndpoint = device.networkInterface.inEndpoint;
+  const uint8_t notifyEndpoint = device.networkInterface.notificationEndpoint;
+  for (EndpointState &endpoint : endpoints_)
+  {
+    if (!endpoint.inUse || endpoint.deviceHandle != device.handle ||
+        (endpoint.address != inEndpoint && endpoint.address != notifyEndpoint))
+    {
+      continue;
+    }
+    if (endpoint.transfer)
+    {
+      usb_host_endpoint_clear(device.handle, endpoint.address); // halt + flush queued transfer
+      usb_host_transfer_free(endpoint.transfer);
+    }
+    resetEndpointState(endpoint);
   }
 
   const uint8_t controlInterface = device.networkInterface.controlInterfaceNumber;
@@ -8152,6 +8310,7 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
                                   : 0;
   device.hasNetworkInterface = false;
   device.networkInterface = EspUsbHostNetworkInterfaceInfo();
+  device.networkLinkUp = false;
 }
 
 bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network)
@@ -8226,6 +8385,15 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
   device.endpointChannelCount = static_cast<uint8_t>(device.endpointChannelCount + channelCount);
   device.networkInterface = network;
   device.hasNetworkInterface = true;
+  device.networkRxHead = 0;
+  device.networkRxTail = 0;
+  device.networkTxSequence = 0;
+  device.networkLinkUp = false;
+
+  // Start the bulk IN (NTB receive) and, if present, the interrupt IN
+  // (link-status notification) transfers. Failure here is not fatal to the
+  // claim itself; frames just will not flow until it succeeds.
+  startNetworkEndpoints(device);
 
   ESP_LOGI(TAG, "USB Network ready: address=%u config=%u protocol=%s control_iface=%u data_iface=%u alt=%u endpoints=%u",
            device.info.address,
@@ -8237,6 +8405,588 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
            channelCount);
   return true;
 }
+
+bool EspUsbHost::startNetworkEndpoints(DeviceState &device)
+{
+  if (!clientHandle_ || !device.handle || !device.hasNetworkInterface)
+  {
+    return false;
+  }
+  const EspUsbHostNetworkInterfaceInfo &network = device.networkInterface;
+  bool ok = true;
+
+  // Bulk IN: one transfer sized for a whole device->host NTB. At full speed the
+  // NTB spans many max-packet reads, but a single submit of NTB_IN_MAX bytes
+  // completes on the terminating short packet, so one completion == one NTB.
+  if (network.inEndpoint && !findEndpoint(device.handle, network.inEndpoint))
+  {
+    EndpointState *endpoint = allocateEndpoint(device);
+    if (endpoint)
+    {
+      esp_err_t err = usb_host_transfer_alloc(ESP_USB_HOST_NETWORK_NTB_IN_MAX, 0, &endpoint->transfer);
+      if (err == ESP_OK)
+      {
+        endpoint->address = network.inEndpoint;
+        endpoint->interfaceNumber = network.dataInterfaceNumber;
+        endpoint->alternate = network.dataInterfaceAlternate;
+        endpoint->interfaceClass = USB_CLASS_CDC_DATA_VALUE;
+        endpoint->transfer->device_handle = device.handle;
+        endpoint->transfer->bEndpointAddress = network.inEndpoint;
+        endpoint->transfer->callback = transferCallback;
+        endpoint->transfer->context = this;
+        endpoint->transfer->num_bytes = ESP_USB_HOST_NETWORK_NTB_IN_MAX;
+        if (!submitInputTransfer(*endpoint))
+        {
+          ok = false;
+        }
+      }
+      else
+      {
+        endpoint->inUse = false;
+        ESP_LOGW(TAG, "usb_host_transfer_alloc(network IN) failed: %s", esp_err_to_name(err));
+        setLastError(err);
+        ok = false;
+      }
+    }
+    else
+    {
+      ESP_LOGW(TAG, "No endpoint slots available for network IN");
+      ok = false;
+    }
+  }
+
+  // Interrupt IN: link-status notifications (NETWORK_CONNECTION / SPEED_CHANGE).
+  if (network.notificationEndpoint && network.notificationMaxPacketSize &&
+      !findEndpoint(device.handle, network.notificationEndpoint))
+  {
+    EndpointState *endpoint = allocateEndpoint(device);
+    if (endpoint)
+    {
+      esp_err_t err = usb_host_transfer_alloc(network.notificationMaxPacketSize, 0, &endpoint->transfer);
+      if (err == ESP_OK)
+      {
+        endpoint->address = network.notificationEndpoint;
+        endpoint->interfaceNumber = network.controlInterfaceNumber;
+        endpoint->alternate = network.controlInterfaceAlternate;
+        endpoint->interfaceClass = USB_CLASS_CDC_CONTROL_VALUE;
+        endpoint->transfer->device_handle = device.handle;
+        endpoint->transfer->bEndpointAddress = network.notificationEndpoint;
+        endpoint->transfer->callback = transferCallback;
+        endpoint->transfer->context = this;
+        endpoint->transfer->num_bytes = network.notificationMaxPacketSize;
+        submitInputTransfer(*endpoint); // notifications are optional; ignore failure
+      }
+      else
+      {
+        endpoint->inUse = false;
+        ESP_LOGD(TAG, "usb_host_transfer_alloc(network notify) failed: %s", esp_err_to_name(err));
+      }
+    }
+  }
+
+  return ok;
+}
+
+// Parse one received NCM NTB (device->host) and deliver each contained Ethernet
+// datagram. NCM 1.0, 16-bit format: NTH16 header, then one or more NDP16 tables
+// chained by wNextNdpIndex, each listing (offset,length) datagram entries.
+void EspUsbHost::handleNetworkInput(DeviceState &device, EndpointState &endpoint, const uint8_t *data, size_t length)
+{
+  (void)endpoint;
+  if (!data || length < ESP_USB_HOST_NCM_NTH16_LEN)
+  {
+    return;
+  }
+  if (ncmRead32(data) != ESP_USB_HOST_NCM_NTH16_SIG)
+  {
+    ESP_LOGD(TAG, "network RX: bad NTH16 signature");
+    return;
+  }
+  // NTH16: dwSignature(0..4) wHeaderLength(4..6) wSequence(6..8)
+  //        wBlockLength(8..10) wNdpIndex(10..12)
+  const uint16_t headerLength = ncmRead16(data + 4);
+  uint16_t blockLength = ncmRead16(data + 8);
+  uint16_t ndpIndex = ncmRead16(data + 10);
+  if (headerLength < ESP_USB_HOST_NCM_NTH16_LEN)
+  {
+    return;
+  }
+  // blockLength should equal the NTB size; clamp to what we actually received.
+  if (blockLength == 0 || blockLength > length)
+  {
+    blockLength = static_cast<uint16_t>(length);
+  }
+
+  uint8_t ndpVisits = 0;
+  while (ndpIndex != 0 && ndpVisits < 8)
+  {
+    ndpVisits++;
+    if (ndpIndex + 8 > blockLength)
+    {
+      break;
+    }
+    const uint8_t *ndp = data + ndpIndex;
+    if (ncmRead32(ndp) != ESP_USB_HOST_NCM_NDP16_SIG)
+    {
+      // Some devices use "NCM1" for the second NDP; accept any 0x314D434E too.
+      if (ncmRead32(ndp) != 0x314D434E)
+      {
+        break;
+      }
+    }
+    const uint16_t ndpLength = ncmRead16(ndp + 4);
+    const uint16_t nextNdpIndex = ncmRead16(ndp + 6);
+    if (ndpLength < 8 || ndpIndex + ndpLength > blockLength)
+    {
+      break;
+    }
+    // Datagram pointer table: pairs of (wDatagramIndex, wDatagramLength) at
+    // offset 8, terminated by a (0,0) entry.
+    for (uint16_t off = 8; off + 4 <= ndpLength; off += 4)
+    {
+      const uint16_t dgIndex = ncmRead16(ndp + off);
+      const uint16_t dgLength = ncmRead16(ndp + off + 2);
+      if (dgIndex == 0 || dgLength == 0)
+      {
+        break;
+      }
+      if (dgIndex + dgLength > blockLength)
+      {
+        continue;
+      }
+      deliverNetworkFrame(device, data + dgIndex, dgLength);
+    }
+    ndpIndex = nextNdpIndex;
+  }
+}
+
+// Deliver one Ethernet frame extracted from an NTB: into lwIP if a netif is
+// attached, otherwise to the raw callback and the poll ring.
+void EspUsbHost::deliverNetworkFrame(DeviceState &device, const uint8_t *frame, size_t length)
+{
+  if (!frame || length == 0 || length > ESP_USB_HOST_NETWORK_MAX_FRAME)
+  {
+    return;
+  }
+
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  if (device.networkNetifAttached && device.networkNetif)
+  {
+    // esp_netif owns the buffer until it calls the free hook; hand it a copy.
+    uint8_t *buf = static_cast<uint8_t *>(malloc(length));
+    if (buf)
+    {
+      memcpy(buf, frame, length);
+      if (esp_netif_receive(static_cast<esp_netif_t *>(device.networkNetif), buf, length, buf) != ESP_OK)
+      {
+        free(buf);
+      }
+    }
+    return;
+  }
+#endif
+
+  if (networkFrameCallback_)
+  {
+    EspUsbHostNetworkFrame event;
+    event.address = device.info.address;
+    event.protocol = device.networkInterface.protocol;
+    event.data = frame;
+    event.length = length;
+    networkFrameCallback_(event);
+  }
+
+  // Push into the poll ring as [uint16 len][payload]. This is the producer side
+  // of a single-producer (USB task) / single-consumer (networkReadFrame caller)
+  // ring: only the consumer moves the tail, so on overflow we drop the *new*
+  // frame rather than touch the tail here.
+  const size_t needed = 2 + length;
+  const size_t tail = device.networkRxTail;
+  const size_t free = (tail + ESP_USB_HOST_NETWORK_RX_RING_SIZE - 1 - device.networkRxHead) % ESP_USB_HOST_NETWORK_RX_RING_SIZE;
+  if (needed > free)
+  {
+    ESP_LOGD(TAG, "network RX ring full, dropping frame (%u bytes)", static_cast<unsigned>(length));
+    return;
+  }
+  uint8_t lenBytes[2];
+  ncmWrite16(lenBytes, static_cast<uint16_t>(length));
+  device.networkRxRing[device.networkRxHead] = lenBytes[0];
+  device.networkRxRing[(device.networkRxHead + 1) % ESP_USB_HOST_NETWORK_RX_RING_SIZE] = lenBytes[1];
+  for (size_t i = 0; i < length; i++)
+  {
+    device.networkRxRing[(device.networkRxHead + 2 + i) % ESP_USB_HOST_NETWORK_RX_RING_SIZE] = frame[i];
+  }
+  device.networkRxHead = static_cast<uint16_t>((device.networkRxHead + needed) % ESP_USB_HOST_NETWORK_RX_RING_SIZE);
+}
+
+// CDC notification (interrupt IN): track link up/down for networkLinkUp().
+void EspUsbHost::handleNetworkNotification(DeviceState &device, const uint8_t *data, size_t length)
+{
+  if (!data || length < 8)
+  {
+    return;
+  }
+  const uint8_t bNotification = data[1];
+  const uint16_t wValue = ncmRead16(data + 2);
+  if (bNotification == ESP_USB_HOST_CDC_NOTIFY_NETWORK_CONNECTION)
+  {
+    device.networkLinkUp = (wValue != 0);
+    ESP_LOGI(TAG, "network link %s (address=%u)", device.networkLinkUp ? "up" : "down", device.info.address);
+  }
+  else if (bNotification == ESP_USB_HOST_CDC_NOTIFY_SPEED_CHANGE)
+  {
+    ESP_LOGD(TAG, "network connection speed change (address=%u)", device.info.address);
+  }
+}
+
+// Build a single-datagram NCM NTB (16-bit) around one Ethernet frame.
+// Layout: NTH16(12) | NDP16(16: 8 header + 2 datagram-table entries) | frame,
+// all 4-byte aligned. Returns the total NTB length, or 0 on overflow.
+size_t EspUsbHost::buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t *frame, size_t length, uint16_t sequence)
+{
+  const size_t ndpOffset = ESP_USB_HOST_NCM_NTH16_LEN;      // 12
+  const size_t ndpLength = ESP_USB_HOST_NCM_NDP16_MIN_LEN;  // 16
+  const size_t dgOffset = ncmAlign4(ndpOffset + ndpLength);  // 28
+  const size_t total = dgOffset + length;
+  if (!out || !frame || length == 0 || total > outCapacity || total > 0xffff)
+  {
+    return 0;
+  }
+  memset(out, 0, dgOffset);
+
+  // NTH16
+  ncmWrite32(out + 0, ESP_USB_HOST_NCM_NTH16_SIG);
+  ncmWrite16(out + 4, ESP_USB_HOST_NCM_NTH16_LEN);
+  ncmWrite16(out + 6, sequence);
+  ncmWrite16(out + 8, static_cast<uint16_t>(total)); // wBlockLength
+  ncmWrite16(out + 10, static_cast<uint16_t>(ndpOffset));
+
+  // NDP16: dwSignature(4) | wLength(2) | wNextNdpIndex(2) | datagram entries
+  ncmWrite32(out + ndpOffset + 0, ESP_USB_HOST_NCM_NDP16_SIG);
+  ncmWrite16(out + ndpOffset + 4, static_cast<uint16_t>(ndpLength));
+  ncmWrite16(out + ndpOffset + 6, 0); // wNextNdpIndex (0 = last NDP)
+  ncmWrite16(out + ndpOffset + 8, static_cast<uint16_t>(dgOffset));  // datagram[0].index
+  ncmWrite16(out + ndpOffset + 10, static_cast<uint16_t>(length));   // datagram[0].length
+  // datagram[1] entry at [12..16) stays zero -> null terminator
+
+  memcpy(out + dgOffset, frame, length);
+  return total;
+}
+
+// Synchronously send one Ethernet frame as an NTB over the network bulk OUT.
+bool EspUsbHost::networkSendFrameInternal(DeviceState &device, const uint8_t *frame, size_t length)
+{
+  if (!device.hasNetworkInterface || !device.handle || !clientHandle_)
+  {
+    return false;
+  }
+  const EspUsbHostNetworkInterfaceInfo &network = device.networkInterface;
+  if (!network.outEndpoint)
+  {
+    return false;
+  }
+  if (!frame || length == 0 || length > ESP_USB_HOST_NETWORK_MAX_FRAME)
+  {
+    return false;
+  }
+
+  const size_t ntbCapacity = ncmAlign4(ESP_USB_HOST_NCM_NTH16_LEN + ESP_USB_HOST_NCM_NDP16_MIN_LEN) + ESP_USB_HOST_NETWORK_MAX_FRAME;
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(ntbCapacity, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(network OUT) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  const size_t ntbLength = buildNcmFrame(transfer->data_buffer, ntbCapacity, frame, length, device.networkTxSequence++);
+  if (ntbLength == 0)
+  {
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    usb_host_transfer_free(transfer);
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = network.outEndpoint;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = ntbLength;
+
+  err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(network OUT ep=0x%02x) failed: %s", network.outEndpoint, esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(1000)) == pdTRUE;
+  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "network bulk OUT timeout ep=0x%02x", network.outEndpoint);
+    setLastError(ESP_ERR_TIMEOUT);
+  }
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  return ok;
+}
+
+bool EspUsbHost::networkWriteFrame(const uint8_t *frame, size_t length, uint8_t address)
+{
+  DeviceState *device = findNetworkDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "networkWriteFrame() no open network interface");
+    return false;
+  }
+  return networkSendFrameInternal(*device, frame, length);
+}
+
+size_t EspUsbHost::networkReadFrame(uint8_t *buffer, size_t length, uint8_t address)
+{
+  if (!buffer || length == 0)
+  {
+    return 0;
+  }
+  DeviceState *device = findNetworkDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+  if (device->networkRxHead == device->networkRxTail)
+  {
+    return 0; // empty
+  }
+  uint8_t lenBytes[2];
+  lenBytes[0] = device->networkRxRing[device->networkRxTail];
+  lenBytes[1] = device->networkRxRing[(device->networkRxTail + 1) % ESP_USB_HOST_NETWORK_RX_RING_SIZE];
+  const uint16_t frameLen = ncmRead16(lenBytes);
+  const size_t copyLen = frameLen < length ? frameLen : length;
+  for (size_t i = 0; i < copyLen; i++)
+  {
+    buffer[i] = device->networkRxRing[(device->networkRxTail + 2 + i) % ESP_USB_HOST_NETWORK_RX_RING_SIZE];
+  }
+  device->networkRxTail = static_cast<uint16_t>((device->networkRxTail + 2 + frameLen) % ESP_USB_HOST_NETWORK_RX_RING_SIZE);
+  return copyLen;
+}
+
+bool EspUsbHost::networkLinkUp(uint8_t address) const
+{
+  const DeviceState *device = findNetworkDevice(address);
+  return device && device->networkLinkUp;
+}
+
+bool EspUsbHost::networkAttachNetif(const EspUsbHostNetworkConfig &config, uint8_t address)
+{
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "networkAttachNetif() cannot run from USB client task");
+    return false;
+  }
+  DeviceState *device = findNetworkDevice(address);
+  if (!device)
+  {
+    // Not opened yet: open the first matching candidate on the target device.
+    if (!networkOpen(address))
+    {
+      return false;
+    }
+    device = findNetworkDevice(address);
+  }
+  if (!device)
+  {
+    return false;
+  }
+  return networkStartNetif(*device, config);
+#else
+  (void)config;
+  (void)address;
+  ESP_LOGW(TAG, "networkAttachNetif() requires esp_netif (not available in this build)");
+  setLastError(ESP_ERR_NOT_SUPPORTED);
+  return false;
+#endif
+}
+
+bool EspUsbHost::networkDetachNetif(uint8_t address)
+{
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  DeviceState *device = findNetworkDevice(address);
+  if (!device)
+  {
+    return false;
+  }
+  networkStopNetif(*device);
+  return true;
+#else
+  (void)address;
+  return false;
+#endif
+}
+
+IPAddress EspUsbHost::networkLocalIP(uint8_t address) const
+{
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  const DeviceState *device = findNetworkDevice(address);
+  if (device && device->networkNetifAttached && device->networkNetif)
+  {
+    esp_netif_ip_info_t info = {};
+    if (esp_netif_get_ip_info(static_cast<esp_netif_t *>(device->networkNetif), &info) == ESP_OK)
+    {
+      return IPAddress(info.ip.addr);
+    }
+  }
+#else
+  (void)address;
+#endif
+  return IPAddress(static_cast<uint32_t>(0));
+}
+
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+bool EspUsbHost::networkStartNetif(DeviceState &device, const EspUsbHostNetworkConfig &config)
+{
+  if (device.networkNetifAttached)
+  {
+    return true;
+  }
+  if (!device.hasNetworkInterface)
+  {
+    return false;
+  }
+
+  // The lwIP stack and default event loop are process-wide; both are idempotent.
+  esp_netif_init();
+  esp_err_t evt = esp_event_loop_create_default();
+  if (evt != ESP_OK && evt != ESP_ERR_INVALID_STATE)
+  {
+    ESP_LOGW(TAG, "esp_event_loop_create_default() failed: %s", esp_err_to_name(evt));
+    setLastError(evt);
+    return false;
+  }
+
+  EspUsbHostNetifDriver *driver = static_cast<EspUsbHostNetifDriver *>(calloc(1, sizeof(EspUsbHostNetifDriver)));
+  if (!driver)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+  driver->host = this;
+  driver->address = device.info.address;
+  driver->base.post_attach = espUsbHostNetifPostAttach;
+
+  esp_netif_inherent_config_t base = {};
+  uint32_t flags = ESP_NETIF_FLAG_AUTOUP;
+  esp_netif_ip_info_t ipInfo = {};
+  if (config.dhcpClient)
+  {
+    flags |= ESP_NETIF_DHCP_CLIENT;
+  }
+  else
+  {
+    ipInfo.ip.addr = static_cast<uint32_t>(config.ip);
+    ipInfo.gw.addr = static_cast<uint32_t>(config.gateway);
+    ipInfo.netmask.addr = static_cast<uint32_t>(config.subnet);
+    base.ip_info = &ipInfo;
+  }
+  base.flags = static_cast<esp_netif_flags_t>(flags);
+  base.if_key = "USB_NCM";
+  base.if_desc = "usbncm";
+  base.route_prio = 15;
+
+  esp_netif_driver_ifconfig_t driverCfg = {};
+  driverCfg.handle = driver;
+  driverCfg.transmit = espUsbHostNetifTransmit;
+  driverCfg.driver_free_rx_buffer = espUsbHostNetifFreeRx;
+
+  esp_netif_config_t cfg = {};
+  cfg.base = &base;
+  cfg.driver = &driverCfg;
+  cfg.stack = ESP_NETIF_NETSTACK_DEFAULT_ETH;
+
+  esp_netif_t *netif = esp_netif_new(&cfg);
+  if (!netif)
+  {
+    ESP_LOGW(TAG, "esp_netif_new(USB_NCM) failed");
+    free(driver);
+    setLastError(ESP_FAIL);
+    return false;
+  }
+
+  if (esp_netif_attach(netif, driver) != ESP_OK)
+  {
+    ESP_LOGW(TAG, "esp_netif_attach(USB_NCM) failed");
+    esp_netif_destroy(netif); // A5 fix: no leak / key stays reusable
+    free(driver);
+    setLastError(ESP_FAIL);
+    return false;
+  }
+
+  // Host interface MAC: a locally-administered address derived from the device
+  // USB address. It only needs to be a valid unicast MAC distinct from the
+  // adapter's own MAC; ARP resolves the peer. (Reading iMACAddress is a TODO.)
+  uint8_t mac[6] = {0x02, 0x55, 0x53, 0x42, device.info.address, 0x01};
+  esp_netif_set_mac(netif, mac);
+
+  esp_netif_action_start(netif, nullptr, 0, nullptr);
+  if (config.dhcpClient)
+  {
+    esp_netif_dhcpc_start(netif);
+  }
+  else
+  {
+    esp_netif_dhcps_stop(netif);
+    esp_netif_set_ip_info(netif, &ipInfo);
+    if (static_cast<uint32_t>(config.dns1) != 0)
+    {
+      esp_netif_dns_info_t dns = {};
+      dns.ip.type = ESP_IPADDR_TYPE_V4;
+      dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(config.dns1);
+      esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns);
+    }
+  }
+  esp_netif_action_connected(netif, nullptr, 0, nullptr);
+
+  device.networkNetif = netif;
+  device.networkNetifAttached = true;
+  ESP_LOGI(TAG, "USB network netif attached (address=%u dhcp=%u)", device.info.address, config.dhcpClient ? 1 : 0);
+  return true;
+}
+
+void EspUsbHost::networkStopNetif(DeviceState &device)
+{
+  if (!device.networkNetifAttached || !device.networkNetif)
+  {
+    device.networkNetifAttached = false;
+    device.networkNetif = nullptr;
+    return;
+  }
+  esp_netif_t *netif = static_cast<esp_netif_t *>(device.networkNetif);
+  EspUsbHostNetifDriver *driver = static_cast<EspUsbHostNetifDriver *>(esp_netif_get_io_driver(netif));
+  esp_netif_action_disconnected(netif, nullptr, 0, nullptr);
+  esp_netif_action_stop(netif, nullptr, 0, nullptr);
+  esp_netif_destroy(netif);
+  if (driver)
+  {
+    free(driver);
+  }
+  device.networkNetif = nullptr;
+  device.networkNetifAttached = false;
+  ESP_LOGI(TAG, "USB network netif detached (address=%u)", device.info.address);
+}
+#endif // ESP_USB_HOST_HAS_ESP_NETIF
 
 void EspUsbHost::configureCdcAcm(DeviceState &device)
 {

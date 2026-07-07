@@ -7,6 +7,12 @@
 #include <usb/usb_host.h>
 #include <class/hid/hid.h>
 
+// lwIP / esp_netif integration for networkAttachNetif() is optional and only
+// compiled when the esp_netif headers are available in the build.
+#if __has_include(<esp_netif.h>)
+#define ESP_USB_HOST_HAS_ESP_NETIF 1
+#endif
+
 #if __has_include(<rom/usb/usb_common.h>)
 #include <rom/usb/usb_common.h>
 #else
@@ -97,6 +103,13 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_NETWORK_INTERFACES = 4;
+// Bulk-IN NTB receive buffer. Matches TinyUSB's default CFG_TUD_NCM_IN_NTB_MAX_SIZE
+// (3200) so a whole device->host NTB fits in one transfer.
+static constexpr size_t ESP_USB_HOST_NETWORK_NTB_IN_MAX = 3200;
+// Per-device raw RX ring for networkReadFrame() (frames stored as [uint16 len][payload]).
+static constexpr size_t ESP_USB_HOST_NETWORK_RX_RING_SIZE = 4096;
+// Largest Ethernet frame we accept/transmit (CDC ECM/NCM wMaxSegmentSize default).
+static constexpr size_t ESP_USB_HOST_NETWORK_MAX_FRAME = 1514;
 static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
 static constexpr size_t ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE = 512;
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
@@ -255,6 +268,31 @@ struct EspUsbHostNetworkInterfaceInfo
            inEndpoint != 0 &&
            outEndpoint != 0;
   }
+};
+
+// Raw Ethernet frame delivered from / accepted by an opened USB network
+// interface. `data` points at the bare Ethernet frame (dst/src MAC + ethertype
+// + payload); the NCM NTB / ECM framing is added and stripped by the library.
+struct EspUsbHostNetworkFrame
+{
+  uint8_t address = 0;
+  EspUsbHostNetworkProtocol protocol = ESP_USB_HOST_NETWORK_PROTOCOL_NONE;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
+// lwIP (esp_netif) attach configuration for a USB network interface. The
+// default is a DHCP client so the USB NIC (or the peer's DHCP server) hands the
+// host an address. Set dhcpClient=false and fill ip/gateway/subnet for a static
+// address.
+struct EspUsbHostNetworkConfig
+{
+  bool dhcpClient = true;
+  IPAddress ip;
+  IPAddress gateway;
+  IPAddress subnet;
+  IPAddress dns1;
+  IPAddress dns2;
 };
 
 struct EspUsbHostVendorInterface
@@ -830,6 +868,7 @@ public:
   using HIDVendorInputCallback = std::function<void(const EspUsbHostHIDVendorInput &)>;
   using VendorDataCallback = std::function<void(const EspUsbHostVendorData &)>;
   using SystemControlCallback = std::function<void(const EspUsbHostSystemControlEvent &)>;
+  using NetworkFrameCallback = std::function<void(const EspUsbHostNetworkFrame &)>;
 
   EspUsbHost();
   ~EspUsbHost();
@@ -854,6 +893,7 @@ public:
   void onHIDVendorInput(HIDVendorInputCallback callback);
   void onVendorData(VendorDataCallback callback);
   void onSystemControl(SystemControlCallback callback);
+  void onNetworkFrame(NetworkFrameCallback callback);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
   bool sendSetProtocol(uint8_t interfaceNumber, uint8_t address);
@@ -1047,6 +1087,20 @@ public:
   bool networkOpen(const EspUsbHostNetworkInterfaceInfo &network);
   void networkClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Raw Ethernet frame transport over an opened USB network interface. Received
+  // frames are delivered to onNetworkFrame() (USB task context; keep it light)
+  // and also buffered for polling with networkReadFrame(). networkWriteFrame()
+  // wraps one Ethernet frame in a single-datagram NCM NTB and sends it.
+  bool networkWriteFrame(const uint8_t *frame, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  size_t networkReadFrame(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool networkLinkUp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // lwIP (esp_netif) integration: register the opened USB network interface as
+  // a netif so standard Arduino networking (NetworkClient/HTTPClient/ping) runs
+  // over the USB NIC. networkAttachNetif() also opens the interface if needed.
+  bool networkAttachNetif(const EspUsbHostNetworkConfig &config = EspUsbHostNetworkConfig(),
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool networkDetachNetif(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  IPAddress networkLocalIP(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -1223,6 +1277,13 @@ private:
     uint8_t mscLun = 0;
     bool hasNetworkInterface = false;
     EspUsbHostNetworkInterfaceInfo networkInterface;
+    bool networkLinkUp = false;
+    uint16_t networkTxSequence = 0;
+    uint8_t networkRxRing[ESP_USB_HOST_NETWORK_RX_RING_SIZE] = {};
+    volatile uint16_t networkRxHead = 0;
+    volatile uint16_t networkRxTail = 0;
+    void *networkNetif = nullptr; // esp_netif_t* (opaque here to keep esp_netif out of the header)
+    bool networkNetifAttached = false;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
@@ -1319,6 +1380,8 @@ private:
   DeviceState *findUsbVendorDevice(uint8_t address);
   const DeviceState *findUsbVendorDevice(uint8_t address) const;
   DeviceState *findUsbVendorCandidate(uint8_t address, uint8_t interfaceNumber);
+  DeviceState *findNetworkDevice(uint8_t address);
+  const DeviceState *findNetworkDevice(uint8_t address) const;
   void releaseEndpoints(DeviceState &device, bool clearEndpoints);
   void releaseAllEndpoints(bool clearEndpoints);
   void releaseInterfaces(DeviceState &device);
@@ -1330,6 +1393,18 @@ private:
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network);
   void releaseNetworkInterface(DeviceState &device);
+  bool startNetworkEndpoints(DeviceState &device);
+  void handleNetworkInput(DeviceState &device, EndpointState &endpoint, const uint8_t *data, size_t length);
+  void handleNetworkNotification(DeviceState &device, const uint8_t *data, size_t length);
+  void deliverNetworkFrame(DeviceState &device, const uint8_t *frame, size_t length);
+  size_t buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t *frame, size_t length, uint16_t sequence);
+  bool networkSendFrameInternal(DeviceState &device, const uint8_t *frame, size_t length);
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  // esp_netif (lwIP) attach/detach. The netif transmit hook reuses the public
+  // networkWriteFrame(); esp_netif headers are only pulled into the .cpp.
+  bool networkStartNetif(DeviceState &device, const EspUsbHostNetworkConfig &config);
+  void networkStopNetif(DeviceState &device);
+#endif
   void clearParsedDescriptorState(DeviceState &device);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
   bool audioFeatureControl(DeviceState &device,
@@ -1428,6 +1503,7 @@ private:
   HIDVendorInputCallback hidVendorInputCallback_;
   VendorDataCallback vendorDataCallback_;
   SystemControlCallback systemControlCallback_;
+  NetworkFrameCallback networkFrameCallback_;
 };
 
 class EspUsbHostMscFS : public fs::FS

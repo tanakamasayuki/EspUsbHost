@@ -31,6 +31,8 @@ EspUsbHostVendorInterface	KEYWORD1
 EspUsbHostVendorData	KEYWORD1
 EspUsbHostNetworkProtocol	KEYWORD1
 EspUsbHostNetworkInterfaceInfo	KEYWORD1
+EspUsbHostNetworkFrame	KEYWORD1
+EspUsbHostNetworkConfig	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -97,6 +99,13 @@ getNetworkInterfaces	KEYWORD2
 networkOpen	KEYWORD2
 networkClose	KEYWORD2
 networkReady	KEYWORD2
+networkWriteFrame	KEYWORD2
+networkReadFrame	KEYWORD2
+networkLinkUp	KEYWORD2
+networkAttachNetif	KEYWORD2
+networkDetachNetif	KEYWORD2
+networkLocalIP	KEYWORD2
+onNetworkFrame	KEYWORD2
 setKeyboardLayout	KEYWORD2
 sendHIDReport	KEYWORD2
 onHIDVendorInput	KEYWORD2
