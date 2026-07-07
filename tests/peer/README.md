@@ -59,6 +59,7 @@ Current coverage:
 - `usb_midi`: pairs with an Arduino Core standard USB MIDI device.
 - `usb_audio`: pairs with an Arduino Core standard USB Audio device via `USBAudioCard` speaker output.
 - `usb_vendor`: pairs with `EspUsbDeviceVendor` from the sibling `EspUsbDevice` library.
+- `usb_ncm`: pairs with an `EspUsbDeviceNet` (CDC-NCM) device from the sibling `EspUsbDevice` library. The host attaches the USB NIC as a DHCP-client lwIP netif, gets a `192.168.7.x` lease from the device's DHCP server, and fetches a fixed page over HTTP.
 
 Planned coverage:
 

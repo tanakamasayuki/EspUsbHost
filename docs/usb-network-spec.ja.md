@@ -330,9 +330,15 @@ ESP32-S3 は USB host channel が少ない。USB NIC は最低でも EP0、bulk 
 
 ### peer
 
-CDC-ECM/NCM の peer device を Arduino Core 標準機能だけで用意するのは難しい。自動 peer test は、兄弟 device library で ECM/NCM device を実装できる場合に検討する。
+CDC-ECM/NCM の peer device を Arduino Core 標準機能だけで用意するのは難しい。兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceNet`（TinyUSB CDC-NCM ベース）が NCM device を提供するため、これと組み合わせた自動 peer test を用意する。
 
-当面は manual test を主軸にする。
+実装済み:
+
+- `tests/peer/usb_ncm`
+  - Host が CDC-NCM interface を列挙・open し、DHCP クライアントの lwIP netif として attach
+  - peer device (`EspUsbDeviceNet`) は DHCP サーバ（`192.168.7.1`）と固定ページを提供
+  - Host が `192.168.7.x` リースを取得し、`http://192.168.7.1/` を HTTP GET して固定 body を検証
+  - device 自身の IP への on-link 通信なので、device 側 DHCP のデフォルト GW / DNS 設定の不足には依存しない
 
 ## 実装段階
 
@@ -384,28 +390,34 @@ AX88179Aの標準CDC-NCM/ECM configurationを開くには、次回リリース�
 
 ### Phase 2: CDC-ECM raw frame
 
-- ECM frame RX/TX
-- raw frame callback / read API
-- link status notification
+- raw frame callback / read API（`onNetworkFrame` / `networkReadFrame` / `networkWriteFrame`）実装済み。frame RX/TX 経路と RX ring は ECM/NCM 共通。
+- ECM 固有の frame 境界（bulk short packet 単位）と link status notification は今後の実機確認対象。
 
-ECM は NCM より実装が単純なので、raw frame API の検証に使う。
+raw frame API は NCM 経路で先に実装した（peer device が NCM のため）。
 
 ### Phase 3: CDC-NCM raw frame
 
-- NCM parameter 取得
-- NTH/NDP parse
-- 1 NTB 1 frame の送受信
-- aggregation は後回し
+実装済み。
 
-AX88179A の本命経路は NCM として扱う。
+- NTH16 / NDP16 の parse（`handleNetworkInput`）と 1 NTB 1 frame の build（`buildNcmFrame`）
+- bulk IN（NTB 受信、`ESP_USB_HOST_NETWORK_NTB_IN_MAX=3200`）/ bulk OUT（同期送信）/ interrupt IN 通知
+- 通知（NETWORK_CONNECTION / SPEED_CHANGE）による link 状態更新（`networkLinkUp`）
+- 複数 datagram aggregation の受信は NDP chain / datagram table を辿って対応。送信は 1 datagram 固定。
+- GET_NTB_PARAMETERS / SET_NTB_INPUT_SIZE の明示 control request は未送信（TinyUSB 既定の NTB≤3200 前提）。
+
+data interface は CDC-DATA class（0x0a）で CDC-ACM serial と同一のため、`handleTransfer` で network data endpoint を serial より先に分岐する。
 
 ### Phase 4: lwIP netif
 
-- Ethernet netif 登録
-- pbuf RX/TX
-- DHCP client
-- static IP
-- link up/down
+実装済み。
+
+- `esp_netif` に ETH netstack で netif 登録（`networkAttachNetif` / `networkDetachNetif` / `networkLocalIP`）
+- transmit hook は `networkWriteFrame`（NTB 化して bulk OUT、transfer buffer にコピーするので呼び出し元 buffer の寿命に非依存）
+- RX は `handleNetworkInput` → `esp_netif_receive`
+- DHCP client / static IP（+ DNS）/ link up/down
+- device 切断時に netif を detach（`handleDeviceGone`）
+- EspUsbDevice レビュー由来の対策: attach 失敗時に `esp_netif_destroy`（リーク/キー再利用対策）、host netif は device MAC と別のローカル管理 MAC を使用
+- 今後: `iMACAddress` の読み取り、非 active configuration の選択（enum_filter_cb）、複数 NIC 同時対応
 
 ### Phase 5: routing / NAT / DHCP server
 
