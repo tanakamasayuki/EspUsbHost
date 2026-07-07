@@ -40,7 +40,7 @@ ESP32-P4のFS/HS OTGでHub可否を確認する
 `getNetworkInterfaces()` と `tests/manual/usb_network_descriptor` で、全configurationを横断したCDC-ECM / CDC-NCM候補検出まで実装済み。
 AX88179A (`VID=0b95 PID=1790`) では active config 1 が vendor-specific、config 2 が CDC-NCM、config 3 が CDC-ECM として検出できることを確認済み。
 手動 `SET_CONFIGURATION` 後のinterface claimはESP-IDF Host側のactive descriptor cache制約で失敗したため、configuration選択はenumeration時filterまたは再enumeration設計が必要。
-Arduino-ESP32 3.3.10 のESP32-S3 buildでは `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` が無効で、`enum_filter_cb` によるconfiguration選択も効かないことを確認済み。
+Arduino-ESP32 3.3.10 のESP32-S3 buildでは `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` が無効で、`enum_filter_cb` によるconfiguration選択も効かないことを確認済み。その後、このKconfigを有効化するPRは採用済みで、次回リリース以降にconfiguration選択を実装する方針。
 `networkOpen()` / `networkClose()` はactive configuration内のCDC-ECM/NCM候補に限定して実装済み。AX88179Aのようにdefault active configがvendor-specificの場合は、標準Arduino coreではまだ開けない。
 
 方針:
@@ -49,7 +49,7 @@ vendor-specific Ethernet protocolは標準クラスで不足が出た場合に�
 lwIP統合までを見据え、USB class driver層、raw Ethernet frame層、lwIP netif層、routing/NAT層を分ける。
 
 残作業:
-configuration選択方式を決める。標準Arduino coreでは現状AX88179Aのconfig 2/3をclaimできないため、core側Kconfig変更を前提にするか、active CDC-ECM/NCMデバイスから対応するか判断する
+Arduino-ESP32次回リリース以降の `enum_filter_cb` 有効環境で、汎用configuration選択を実装する
 notification endpoint、bulk IN/OUT開始を実装する
 CDC-ECM raw Ethernet frame RX/TXを実装する
 CDC-NCM NTH/NDP parse/buildを実装する。初期は1 NTB 1 frameでよい
