@@ -1,0 +1,45 @@
+# EspUsbHost KeyboardNKRO
+
+> English: [README.md](README.md)
+
+N-key rollover (NKRO) の USB キーボードをホストし、同時に押されているキー数を表示します。
+boot キーボードは同時 6 キーまでですが、NKRO キーボードはキーの **ビットマップ** を送るため
+この制限がありません。
+
+EspUsbHost は両方のフォーマットを自動でデコードします。HID report descriptor から
+レポートレイアウトを学習するため、boot(6KRO)でも NKRO でも `onKeyboard()` は同じ
+press/release イベントを返します。設定は不要です。
+
+## ハードウェア
+
+- ホスト用の ESP32-S3(または USB ホスト対応の Arduino-ESP32 ボード)
+- NKRO 対応 USB キーボード、または兄弟ライブラリの
+  [EspUsbDevice `KeyboardNKRO`](../../../../EspUsbDevice/examples/KeyboardNKRO/) スケッチを
+  動かした 2 枚目の ESP32-S3
+- ログ用の別 Serial モニタ接続
+
+## 動作
+
+- 各キーの press/release と、同時に押されているキー数を表示する
+- 同時押しの最大数を記録する(6 を超えれば NKRO が効いている証拠)
+- 接続時に NKRO ビットマップレポートを検出したかを表示する
+
+## 主な API
+
+- `usb.onKeyboard(cb)`: `EspUsbHostKeyboardEvent` の press/release を通知。`keycode`、
+  `ascii`、`modifiers` を持ち、boot / NKRO で同じ。
+- `usb.keyboardUsesBitmapReport(address)`: キーボードが NKRO ビットマップ(report
+  protocol)を送るか、6 キーの boot レポートかを返す。診断用(デコード自体は自動)。
+- `usb.setKeyboardLayout(layout)`: `ascii` に使うレイアウトを選ぶ。
+
+## 注意
+
+- NKRO キーボードは既定で report protocol になり、ビットマップを送ります。ホストは boot
+  protocol を強制しないため、NKRO が有効なままになります。
+- International1-9 と LANG1-9 の usage はビットマップ範囲に含まれるので、JIS など
+  非 US 配列のキーも通知されます。
+
+## 関連
+
+- [EspUsbHostKeyboard](../EspUsbHostKeyboard/) - 標準の boot キーボード例
+- [EspUsbDevice KeyboardNKRO](../../../../EspUsbDevice/examples/KeyboardNKRO/) - 対になる NKRO デバイス

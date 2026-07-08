@@ -123,6 +123,7 @@ setKeyboardLeds	KEYWORD2
 getKeyboardNumLock	KEYWORD2
 getKeyboardCapsLock	KEYWORD2
 getKeyboardScrollLock	KEYWORD2
+keyboardUsesBitmapReport	KEYWORD2
 printDeviceInfo	KEYWORD2
 printAllDeviceInfo	KEYWORD2
 lastError	KEYWORD2

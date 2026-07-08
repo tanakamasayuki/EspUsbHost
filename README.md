@@ -167,6 +167,7 @@ void loop() {
 |--------|-------------|
 | [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | Read keyboard input and print typed characters to Serial |
 | [EspUsbHostKeyboardDump](examples/HID/EspUsbHostKeyboardDump/) | Dump parsed keyboard events and show how to handle `onKeyboard` yourself |
+| [EspUsbHostKeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) | Host an N-key rollover keyboard and count simultaneously-held keys |
 | [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | Read mouse movement and button events |
 | [EspUsbHostCompositeHID](examples/HID/EspUsbHostCompositeHID/) | Handle composite HID devices such as keyboard + mouse devices |
 | [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | Detect media keys (volume, play/pause, etc.) |
@@ -266,6 +267,13 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
 ```
+
+Both 6-key boot keyboards and N-key rollover (NKRO) keyboards are supported. NKRO
+keyboards report keys as a bitmap (report protocol) so any number of keys can be
+held at once; the host learns the report layout from the HID report descriptor and
+decodes it automatically, so `onKeyboard` delivers the same press/release events
+either way. `keyboardUsesBitmapReport(address)` reports which format was detected
+(diagnostic only). See the [KeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) example.
 
 Notable event fields:
 
