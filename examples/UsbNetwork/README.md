@@ -2,6 +2,16 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
+> ⚠️ **Experimental — not usable with real USB NICs yet.** Real USB Ethernet
+> adapters (AX88179A, RTL815x, …) present their CDC-NCM/ECM interface in a
+> *non-active* USB configuration, and selecting a non-active configuration is
+> not possible on the current Arduino-ESP32 core (3.3.10): the
+> `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` Kconfig is off. The PR enabling
+> it has been merged, so this is planned for **after the next Arduino-ESP32
+> release**. Until then this example only works against a second ESP32-S3 board
+> running the sibling **EspUsbDevice** `UsbNetwork` sketch (which presents
+> CDC-NCM as its active configuration). It is not yet a general USB-NIC feature.
+
 Turns the board into a USB *host* for a USB Ethernet adapter (CDC-NCM / CDC-ECM)
 and brings it up as an lwIP network interface. Plug in a USB NIC — or a second
 board running the sibling
@@ -16,7 +26,8 @@ the network *host* that receives a `192.168.7.x` lease and can reach it.
 ## Hardware
 
 - ESP32-S3 (or another Arduino-ESP32 board with USB host support) as the host
-- A USB network adapter, or a second board running EspUsbDevice `UsbNetwork`
+- A second ESP32-S3 board running the EspUsbDevice `UsbNetwork` sketch (a real
+  USB Ethernet adapter does **not** work yet — see the note above)
 - A separate Serial monitor connection for logs
 
 ## What It Does
@@ -41,6 +52,8 @@ the network *host* that receives a `192.168.7.x` lease and can reach it.
 
 ## Notes
 
+- **Real USB NICs are not supported yet** (non-active configuration selection
+  awaits the next Arduino-ESP32 release; see the note at the top).
 - CDC-NCM is preferred over CDC-ECM when a device offers both.
 - The interface is opened only from `loop()` context, never from the USB device
   callback (enumeration descriptor access is not allowed on the client task).

@@ -36,12 +36,17 @@ ESP32-P4のFS/HS OTGでHub可否を確認する
 # USB Network
 
 状態:
-事前調査と仕様案作成を開始。`docs/usb-network-spec.ja.md` に設計方針をまとめた。
-`getNetworkInterfaces()` と `tests/manual/usb_network_descriptor` で、全configurationを横断したCDC-ECM / CDC-NCM候補検出まで実装済み。
-AX88179A (`VID=0b95 PID=1790`) では active config 1 が vendor-specific、config 2 が CDC-NCM、config 3 が CDC-ECM として検出できることを確認済み。
-手動 `SET_CONFIGURATION` 後のinterface claimはESP-IDF Host側のactive descriptor cache制約で失敗したため、configuration選択はenumeration時filterまたは再enumeration設計が必要。
-Arduino-ESP32 3.3.10 のESP32-S3 buildでは `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` が無効で、`enum_filter_cb` によるconfiguration選択も効かないことを確認済み。その後、このKconfigを有効化するPRは採用済みで、次回リリース以降にconfiguration選択を実装する方針。
-`networkOpen()` / `networkClose()` はactive configuration内のCDC-ECM/NCM候補に限定して実装済み。AX88179Aのようにdefault active configがvendor-specificの場合は、標準Arduino coreではまだ開けない。
+⚠️ **本物のUSB NICではまだ使えない**。実機NIC (AX88179A 等) は CDC-NCM/ECM を active でない configuration に持ち、その選択が現行 Arduino-ESP32 core (3.3.10) では不可 (`CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` が無効) なため。有効化PRはマージ済みで、**次回 Arduino-ESP32 リリース以降に実機NIC対応予定**。それまでは、兄弟ライブラリ EspUsbDevice の NCM device (active config が CDC-NCM) に対してのみ動作する。
+
+実装済み (EspUsbDevice NCM device 相手に実機検証済み):
+- `getNetworkInterfaces()`／`tests/manual/usb_network_descriptor`: 全configuration横断のCDC-ECM/NCM候補検出。AX88179A で config1=vendor / config2=NCM / config3=ECM を確認。
+- `networkOpen()`／`networkClose()`／`networkReady()`: active configuration 内の CDC-ECM/NCM 候補に限定して claim。
+- notification (interrupt IN) / bulk IN・OUT の開始。
+- CDC-NCM の NTH16/NDP16 parse・build（複数 bulk-IN 完了にまたがる NTB 再アセンブル込み、1 NTB 1 datagram 送信）。
+- raw frame API: `onNetworkFrame()` / `networkWriteFrame()` / `networkReadFrame()` / `networkLinkUp()`。
+- lwIP (`esp_netif`) 統合: `networkAttachNetif()` / `networkDetachNetif()` / `networkLocalIP()`、DHCP client / static IP(+DNS)、切断時 detach。
+- host netif MAC は CDC `iMACAddress` を読んでそのまま採用（未提供時はローカル管理MACにフォールバック）。
+- 診断: `networkStats()`。peer test `tests/peer/usb_ncm`（DHCP + HTTP GET）。
 
 方針:
 特定VID/PID専用ではなく、CDC-NCM、CDC-ECMの順に標準クラスを優先する。
@@ -49,15 +54,11 @@ vendor-specific Ethernet protocolは標準クラスで不足が出た場合に�
 lwIP統合までを見据え、USB class driver層、raw Ethernet frame層、lwIP netif層、routing/NAT層を分ける。
 
 残作業:
-Arduino-ESP32次回リリース以降の `enum_filter_cb` 有効環境で、汎用configuration選択を実装する
-notification endpoint、bulk IN/OUT開始を実装する
-CDC-ECM raw Ethernet frame RX/TXを実装する
-CDC-NCM NTH/NDP parse/buildを実装する。初期は1 NTB 1 frameでよい
-raw frame callback / read APIを追加する
-lwIP `netif` へのattach/detachを設計・実装する
-DHCP client、static IP、gateway、DNS設定を追加する
+Arduino-ESP32次回リリース以降の `enum_filter_cb` 有効環境で、汎用configuration選択（active でない configuration の CDC-NCM/ECM を開く）を実装する ← 実機NIC対応の本丸
+CDC-ECM raw Ethernet frame RX/TX を実機で確認する（実装は NCM と共通経路、ECM 実機は未検証）
 NAT/NAPT有効buildでのAPIと、非対応buildでの明確な失敗扱いを設計する
 Wi-Fi STA/APとUSB NICの組み合わせ例とmanual testを追加する
+複数 USB NIC 同時の lwIP 統合
 
 # USB Mass Storage / FAT
 
