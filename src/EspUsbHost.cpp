@@ -1689,6 +1689,12 @@ bool EspUsbHost::getKeyboardScrollLock(uint8_t address) const
   return device ? device->keyboardScrollLock : false;
 }
 
+bool EspUsbHost::keyboardUsesBitmapReport(uint8_t address) const
+{
+  const DeviceState *device = findKeyboardDevice(address);
+  return device && device->keyboardBitmapReport;
+}
+
 bool EspUsbHost::setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable)
 {
   if (!running_ || !clientHandle_)
@@ -6226,6 +6232,20 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
   }
   device.hidInputFieldCount = writeIndex;
 
+  // Clear any keyboard input-report layout previously learned from this
+  // interface, so a re-parse starts fresh.
+  if (device.keyboardLayoutInterface == descriptor.interfaceNumber)
+  {
+    device.keyboardBitmapReport = false;
+    device.keyboardHasModifierField = false;
+    device.keyboardLayoutReportId = 0;
+    device.keyboardModifierBitOffset = 0;
+    device.keyboardBitmapBitOffset = 0;
+    device.keyboardBitmapBitCount = 0;
+    device.keyboardBitmapUsageMin = 0;
+    device.keyboardLayoutInterface = 0xff;
+  }
+
   struct GlobalState
   {
     uint16_t usagePage = 0;
@@ -6325,6 +6345,7 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
       const uint8_t reportCount = global.reportCount == 0 ? 1 : global.reportCount;
       const uint8_t reportSize = global.reportSize;
       uint16_t &bitOffset = bitOffsets[global.reportId];
+      const uint16_t fieldStartBit = bitOffset;
 
       for (uint8_t field = 0; field < reportCount; field++)
       {
@@ -6350,6 +6371,34 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
           inputField.flags = flags;
         }
         bitOffset += reportSize;
+      }
+
+      // Learn the keyboard input-report layout so NKRO bitmap reports can be
+      // decoded. Keyboard usage page, 1-bit variable fields: a run at 0xE0-0xE7
+      // is the modifier byte; a large run starting near usage 0 is the NKRO key
+      // bitmap (one bit per usage, no 6-key rollover limit).
+      if (global.usagePage == ESP_USB_HOST_HID_USAGE_PAGE_KEYBOARD && !constant &&
+          reportSize == 1 && (flags & 0x02) != 0)
+      {
+        const uint16_t uMin = hasUsageRange ? usageMinimum : (usageCount > 0 ? usages[0] : 0);
+        const uint16_t uMax = hasUsageRange ? usageMaximum
+                                            : (usageCount > 0 ? usages[usageCount - 1] : 0);
+        if (uMin >= 0xE0 && uMax <= 0xE7)
+        {
+          device.keyboardHasModifierField = true;
+          device.keyboardModifierBitOffset = fieldStartBit;
+          device.keyboardLayoutInterface = descriptor.interfaceNumber;
+          device.keyboardLayoutReportId = global.reportId;
+        }
+        else if (reportCount >= 16 && uMin <= 0x04)
+        {
+          device.keyboardBitmapReport = true;
+          device.keyboardBitmapBitOffset = fieldStartBit;
+          device.keyboardBitmapBitCount = reportCount;
+          device.keyboardBitmapUsageMin = uMin;
+          device.keyboardLayoutInterface = descriptor.interfaceNumber;
+          device.keyboardLayoutReportId = global.reportId;
+        }
       }
 
       usageCount = 0;
@@ -6675,7 +6724,13 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
 
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE)
     {
-      if (device &&
+      if (device && device->keyboardBitmapReport &&
+          endpoint->interfaceNumber == device->keyboardLayoutInterface)
+      {
+        // NKRO keyboard: keys arrive as a bitmap, not the 8-byte boot report.
+        handleKeyboardBitmap(*endpoint, *device, transfer->data_buffer, transfer->actual_num_bytes);
+      }
+      else if (device &&
           endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
           transfer->actual_num_bytes >= 5 &&
           transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE &&
@@ -6909,6 +6964,158 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
   }
 
   memcpy(endpoint.lastKeyboardReport, data, ESP_USB_HOST_BOOT_KEYBOARD_REPORT_SIZE);
+}
+
+// Decode an NKRO keyboard input report (report protocol): a modifier byte plus a
+// key bitmap (one bit per usage, no 6-key rollover limit). The bit offsets and
+// range were learned from the HID report descriptor in parseHIDReportDescriptor.
+// Press/release events are emitted by diffing against the previous bitmap.
+void EspUsbHost::handleKeyboardBitmap(EndpointState &endpoint, DeviceState &device, const uint8_t *data, size_t length)
+{
+  if (!data || length == 0)
+  {
+    return;
+  }
+
+  // Strip a report-ID prefix if the descriptor declared one; bit offsets are
+  // relative to the report body after that byte.
+  const uint8_t *body = data;
+  size_t bodyLen = length;
+  if (device.keyboardLayoutReportId != 0)
+  {
+    if (length < 2 || data[0] != device.keyboardLayoutReportId)
+    {
+      return;
+    }
+    body = data + 1;
+    bodyLen = length - 1;
+  }
+
+  const uint16_t bitStart = device.keyboardBitmapBitOffset;
+  const uint16_t bitCount = device.keyboardBitmapBitCount;
+  if (bitCount == 0 || ((bitCount + 7) / 8) > ESP_USB_HOST_NKRO_BITMAP_MAX_BYTES)
+  {
+    return;
+  }
+  if (static_cast<size_t>(bitStart) + bitCount > bodyLen * 8)
+  {
+    return; // report shorter than the declared bitmap
+  }
+
+  auto readBit = [](const uint8_t *buf, size_t bit) -> bool
+  {
+    return (buf[bit >> 3] >> (bit & 7)) & 0x01;
+  };
+
+  // Modifier byte: 8 contiguous 1-bit fields (usages 0xE0-0xE7 -> bits 0-7).
+  uint8_t modifiers = 0;
+  if (device.keyboardHasModifierField &&
+      static_cast<size_t>(device.keyboardModifierBitOffset) + 8 <= bodyLen * 8)
+  {
+    for (int b = 0; b < 8; b++)
+    {
+      if (readBit(body, device.keyboardModifierBitOffset + b))
+      {
+        modifiers |= static_cast<uint8_t>(1u << b);
+      }
+    }
+  }
+
+  const bool hadPrev = endpoint.keyboardBitmapReady;
+  const uint8_t prevModifiers = endpoint.lastKeyboardBitmapModifiers;
+  auto prevBit = [&](uint16_t i) -> bool
+  {
+    return hadPrev && ((endpoint.lastKeyboardBitmap[i >> 3] >> (i & 7)) & 0x01);
+  };
+
+  // Toggle lock LEDs on newly-pressed lock keys (same as the boot path).
+  bool ledChanged = false;
+  for (uint16_t i = 0; i < bitCount; i++)
+  {
+    if (!readBit(body, bitStart + i) || prevBit(i))
+    {
+      continue; // not a fresh press
+    }
+    const uint8_t usage = static_cast<uint8_t>(device.keyboardBitmapUsageMin + i);
+    if (usage == HID_KEY_NUM_LOCK)
+    {
+      device.keyboardNumLock = !device.keyboardNumLock;
+      ledChanged = true;
+    }
+    else if (usage == HID_KEY_CAPS_LOCK)
+    {
+      device.keyboardCapsLock = !device.keyboardCapsLock;
+      ledChanged = true;
+    }
+    else if (usage == HID_KEY_SCROLL_LOCK)
+    {
+      device.keyboardScrollLock = !device.keyboardScrollLock;
+      ledChanged = true;
+    }
+  }
+  if (ledChanged)
+  {
+    device.keyboardLedDirty = true;
+    device.keyboardLedDirtyTimeMs = millis();
+  }
+
+  const bool capsLock = device.keyboardCapsLock;
+  const bool numLock = device.keyboardNumLock;
+  const bool scrollLock = device.keyboardScrollLock;
+
+  // Emit a press/release event for every changed key bit (no 6-key cap).
+  for (uint16_t i = 0; i < bitCount; i++)
+  {
+    const bool now = readBit(body, bitStart + i);
+    if (now == prevBit(i))
+    {
+      continue;
+    }
+    const uint8_t usage = static_cast<uint8_t>(device.keyboardBitmapUsageMin + i);
+    if (usage == 0)
+    {
+      continue;
+    }
+    EspUsbHostKeyboardEvent event;
+    event.interfaceNumber = endpoint.interfaceNumber;
+    event.address = endpoint.deviceAddress;
+    event.vid = device.info.vid;
+    event.pid = device.info.pid;
+    event.manufacturer = device.info.manufacturer;
+    event.product = device.info.product;
+    event.serial = device.info.serial;
+    event.pressed = now;
+    event.released = !now;
+    event.keycode = usage;
+    event.ascii = espUsbHostKeycodeToAscii(usage, now ? modifiers : prevModifiers, keyboardLayout_, capsLock, numLock);
+    event.modifiers = now ? modifiers : prevModifiers;
+    event.numLock = numLock;
+    event.capsLock = capsLock;
+    event.scrollLock = scrollLock;
+    event.rawData = data;
+    event.rawLength = length;
+    event.reportData = body;
+    event.reportLength = bodyLen;
+    ESP_LOGD(TAG, "Keyboard(NKRO) %s iface=%u keycode=0x%02x ascii=0x%02x modifiers=0x%02x caps=%d num=%d scroll=%d",
+             now ? "press" : "release", event.interfaceNumber, event.keycode, event.ascii,
+             event.modifiers, capsLock, numLock, scrollLock);
+    if (keyboardCallback_)
+    {
+      keyboardCallback_(event);
+    }
+  }
+
+  // Save the current bitmap (densely, bit i -> our bit i) and modifiers.
+  memset(endpoint.lastKeyboardBitmap, 0, sizeof(endpoint.lastKeyboardBitmap));
+  for (uint16_t i = 0; i < bitCount; i++)
+  {
+    if (readBit(body, bitStart + i))
+    {
+      endpoint.lastKeyboardBitmap[i >> 3] |= static_cast<uint8_t>(1u << (i & 7));
+    }
+  }
+  endpoint.lastKeyboardBitmapModifiers = modifiers;
+  endpoint.keyboardBitmapReady = true;
 }
 
 void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length)

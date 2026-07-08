@@ -163,6 +163,7 @@ void loop() {
 |----------|------|
 | [EspUsbHostKeyboard](examples/HID/EspUsbHostKeyboard/) | キーボード入力を受け取り、入力文字をシリアルに出力 |
 | [EspUsbHostKeyboardDump](examples/HID/EspUsbHostKeyboardDump/) | パース済みキーボードイベントを表示し、`onKeyboard` の自前処理を示す |
+| [EspUsbHostKeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) | N-key rollover キーボードをホストし、同時押し数をカウント |
 | [EspUsbHostMouse](examples/HID/EspUsbHostMouse/) | マウスの移動量とボタン操作を取得 |
 | [EspUsbHostCompositeHID](examples/HID/EspUsbHostCompositeHID/) | キーボード+マウスなどの複合HIDデバイスを扱う |
 | [EspUsbHostConsumerControl](examples/HID/EspUsbHostConsumerControl/) | メディアキー（音量・再生/一時停止など）を検出 |
@@ -262,6 +263,12 @@ void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
 ```
+
+6キーの boot キーボードと N-key rollover（NKRO）キーボードの両方に対応します。NKRO
+キーボードはキーをビットマップ（report protocol）で送るため同時押し数に制限がありません。
+ホストは HID report descriptor からレポートレイアウトを学習して自動でデコードするので、
+`onKeyboard` はどちらでも同じ press/release イベントを返します。`keyboardUsesBitmapReport(address)`
+で検出したフォーマット（診断用）を確認できます。[KeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) 例を参照。
 
 主なイベントフィールド：
 

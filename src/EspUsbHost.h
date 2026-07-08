@@ -81,6 +81,10 @@ static constexpr uint8_t ESP_USB_HOST_HID_REPORT_ID_VENDOR = 0x06;
 static constexpr size_t ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES = 64;
 static constexpr size_t ESP_USB_HOST_MAX_HID_INPUT_FIELDS = 96;
 static constexpr size_t ESP_USB_HOST_MAX_HID_EVENT_FIELDS = 64;
+// HID Usage Page for Keyboard/Keypad, and the widest NKRO key bitmap we decode
+// (256 usages = 32 bytes; NKRO keyboards typically expose 0x00-0xDF = 28 bytes).
+static constexpr uint16_t ESP_USB_HOST_HID_USAGE_PAGE_KEYBOARD = 0x0007;
+static constexpr size_t ESP_USB_HOST_NKRO_BITMAP_MAX_BYTES = 32;
 
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF = 0x01;
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_STANDBY = 0x02;
@@ -1117,6 +1121,10 @@ public:
   bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // True when the attached keyboard reports keys as an NKRO bitmap (report
+  // protocol) rather than the 6-key boot report. Detected from the HID report
+  // descriptor; decoding is automatic, this is a diagnostic.
+  bool keyboardUsesBitmapReport(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t deviceCount() const;
   size_t getDevices(EspUsbHostDeviceInfo *devices, size_t maxDevices) const;
   bool getDevice(uint8_t address, EspUsbHostDeviceInfo &device) const;
@@ -1162,6 +1170,10 @@ private:
     bool resubmitAfterLed = false;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
+    // Previous NKRO bitmap report state, for press/release diffing.
+    uint8_t lastKeyboardBitmap[ESP_USB_HOST_NKRO_BITMAP_MAX_BYTES] = {};
+    uint8_t lastKeyboardBitmapModifiers = 0;
+    bool keyboardBitmapReady = false;
     uint8_t lastMouseButtons = 0;
     uint16_t lastConsumerUsage = 0;
     EspUsbHostGamepadPrevState lastGamepadState;
@@ -1203,6 +1215,18 @@ private:
     String serial;
     bool hasKeyboardInterface = false;
     uint8_t keyboardInterfaceNumber = 0;
+    // Keyboard input-report layout learned from the HID report descriptor. When a
+    // device reports keys as an NKRO bitmap (report protocol) instead of the 8-byte
+    // boot report, keyboardBitmapReport is true and the offsets below locate the
+    // modifier byte and the key bitmap within the report body.
+    bool keyboardBitmapReport = false;
+    uint8_t keyboardLayoutInterface = 0xff; // interface the layout below describes
+    uint8_t keyboardLayoutReportId = 0;     // report ID prefix (0 = none)
+    bool keyboardHasModifierField = false;
+    uint16_t keyboardModifierBitOffset = 0;
+    uint16_t keyboardBitmapBitOffset = 0;
+    uint16_t keyboardBitmapBitCount = 0;
+    uint16_t keyboardBitmapUsageMin = 0;
     bool keyboardNumLock = true;
     bool keyboardCapsLock = false;
     bool keyboardScrollLock = false;
@@ -1359,6 +1383,7 @@ private:
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
   void handleTransfer(usb_transfer_t *transfer);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
+  void handleKeyboardBitmap(EndpointState &endpoint, DeviceState &device, const uint8_t *data, size_t length);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length);
   void handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length);
