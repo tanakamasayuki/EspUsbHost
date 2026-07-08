@@ -1,5 +1,12 @@
 # EspUsbHost USB Network API 仕様案
 
+> ⚠️ **現状: 本物のUSB NICではまだ使えない実験的機能。** CDC-NCM のフレーム送受信・
+> lwIP 統合・`iMACAddress` 採用まで実装・実機検証済みだが、それは兄弟ライブラリ
+> EspUsbDevice の NCM device（CDC-NCM が active configuration）相手に限る。実機NIC
+> (AX88179A 等) は CDC-NCM/ECM を active でない configuration に持ち、その選択が現行
+> Arduino-ESP32 core では不可（`CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` 無効）。
+> 有効化PRはマージ済みで、**次回 Arduino-ESP32 リリース以降に実機NIC対応予定**。
+
 ## 目的
 
 `EspUsbHost` に、USB Ethernet adapter を扱うための汎用 API を追加する。

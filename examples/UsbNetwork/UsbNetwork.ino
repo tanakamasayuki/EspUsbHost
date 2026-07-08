@@ -2,14 +2,17 @@
 #include <HTTPClient.h>
 
 // USB host that brings up a USB Ethernet adapter (CDC-NCM / CDC-ECM) as an lwIP
-// network interface. Plug a USB NIC — or a second board running the sibling
-// EspUsbDevice "UsbNetwork" sketch — into this host board and it appears as a
-// netif. With a DHCP server on the other end (or a DHCP client here), standard
-// Arduino networking (NetworkClient / HTTPClient) then runs over USB, no Wi-Fi.
+// network interface, so standard Arduino networking (NetworkClient / HTTPClient)
+// runs over USB with no Wi-Fi.
 //
-// This is the counterpart to EspUsbDevice/examples/UsbNetwork: that sketch is
-// the network *device* (with its own DHCP server at 192.168.7.1); this sketch
-// is the network *host* that gets a 192.168.7.x lease and can reach it.
+// EXPERIMENTAL — NOT usable with real USB NICs yet. Real adapters expose their
+// CDC-NCM/ECM interface in a NON-active USB configuration, and selecting a
+// non-active configuration is not possible on the current Arduino-ESP32 core
+// (CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is off). That is planned for
+// after the next Arduino-ESP32 release. For now this sketch only works against a
+// second ESP32-S3 board running the sibling EspUsbDevice "UsbNetwork" sketch,
+// which presents CDC-NCM as its active configuration (a DHCP server at
+// 192.168.7.1); this host gets a 192.168.7.x lease and reaches it.
 
 EspUsbHost usb;
 
