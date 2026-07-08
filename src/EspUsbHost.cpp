@@ -8934,6 +8934,55 @@ IPAddress EspUsbHost::networkLocalIP(uint8_t address) const
 }
 
 #if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+bool EspUsbHost::readNetworkMac(DeviceState &device, uint8_t mac[6])
+{
+  const uint8_t strIndex = device.networkInterface.macAddressStringIndex;
+  if (strIndex == 0 || !device.handle)
+  {
+    return false;
+  }
+
+  // GET_DESCRIPTOR(STRING, iMACAddress). String descriptors take a LANGID in
+  // wIndex; try US English then 0 as a fallback.
+  const uint16_t wValue = static_cast<uint16_t>((0x03 << 8) | strIndex);
+  uint8_t buf[64] = {};
+  size_t actual = 0;
+  bool ok = submitVendorControl(device, 0x80, USB_REQUEST_GET_DESCRIPTOR, wValue, 0x0409,
+                                buf, sizeof(buf), &actual, 1000);
+  if (!ok || actual < 26 || buf[1] != 0x03)
+  {
+    memset(buf, 0, sizeof(buf));
+    actual = 0;
+    ok = submitVendorControl(device, 0x80, USB_REQUEST_GET_DESCRIPTOR, wValue, 0x0000,
+                             buf, sizeof(buf), &actual, 1000);
+  }
+  // String descriptor: [bLength][bDescriptorType=0x03][UTF-16LE...]. The MAC is
+  // 12 ASCII hex chars, so the low byte of each 16-bit unit is the character.
+  if (!ok || actual < 26 || buf[1] != 0x03)
+  {
+    return false;
+  }
+
+  auto hexVal = [](uint8_t c) -> int
+  {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+  };
+  for (int i = 0; i < 6; i++)
+  {
+    const int hi = hexVal(buf[2 + 4 * i]);      // char (2i)   low byte
+    const int lo = hexVal(buf[2 + 4 * i + 2]);  // char (2i+1) low byte
+    if (hi < 0 || lo < 0)
+    {
+      return false;
+    }
+    mac[i] = static_cast<uint8_t>((hi << 4) | lo);
+  }
+  return true;
+}
+
 bool EspUsbHost::networkStartNetif(DeviceState &device, const EspUsbHostNetworkConfig &config)
 {
   if (device.networkNetifAttached)
@@ -9012,10 +9061,21 @@ bool EspUsbHost::networkStartNetif(DeviceState &device, const EspUsbHostNetworkC
     return false;
   }
 
-  // Host interface MAC: a locally-administered address derived from the device
-  // USB address. It only needs to be a valid unicast MAC distinct from the
-  // adapter's own MAC; ARP resolves the peer. (Reading iMACAddress is a TODO.)
-  uint8_t mac[6] = {0x02, 0x55, 0x53, 0x42, device.info.address, 0x01};
+  // Host interface MAC: use the adapter's advertised iMACAddress (what a real
+  // USB NIC expects on the wire and what OS drivers use). Fall back to a
+  // locally-administered address derived from the USB device address when the
+  // device provides no MAC string.
+  uint8_t mac[6];
+  if (!readNetworkMac(device, mac))
+  {
+    mac[0] = 0x02;
+    mac[1] = 0x55;
+    mac[2] = 0x53;
+    mac[3] = 0x42;
+    mac[4] = device.info.address;
+    mac[5] = 0x01;
+    ESP_LOGW(TAG, "network: no iMACAddress string; using derived MAC");
+  }
   esp_netif_set_mac(netif, mac);
 
   esp_netif_action_start(netif, nullptr, 0, nullptr);
