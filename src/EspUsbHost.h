@@ -1427,6 +1427,9 @@ private:
   // networkWriteFrame(); esp_netif headers are only pulled into the .cpp.
   bool networkStartNetif(DeviceState &device, const EspUsbHostNetworkConfig &config);
   void networkStopNetif(DeviceState &device);
+  // Reads the CDC iMACAddress string descriptor into mac[6] (12 hex chars).
+  // Returns false when the device advertises no MAC string (index 0) or on error.
+  bool readNetworkMac(DeviceState &device, uint8_t mac[6]);
 #endif
   void clearParsedDescriptorState(DeviceState &device);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);

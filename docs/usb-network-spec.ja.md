@@ -420,8 +420,10 @@ DHCP client 起動順序: netif は `action_start` → `action_connected`（リ�
 - RX は `handleNetworkInput` → `esp_netif_receive`
 - DHCP client / static IP（+ DNS）/ link up/down
 - device 切断時に netif を detach（`handleDeviceGone`）
-- EspUsbDevice レビュー由来の対策: attach 失敗時に `esp_netif_destroy`（リーク/キー再利用対策）、host netif は device MAC と別のローカル管理 MAC を使用
-- 今後: `iMACAddress` の読み取り、非 active configuration の選択（enum_filter_cb）、複数 NIC 同時対応
+- EspUsbDevice レビュー由来の対策: attach 失敗時に `esp_netif_destroy`（リーク/キー再利用対策）
+- host netif MAC は CDC Ethernet FD の `iMACAddress`（GET_DESCRIPTOR STRING → 12桁hex）をそのまま採用。実 USB NIC の標準動作に合わせる。`iMACAddress` 未提供時のみローカル管理 MAC にフォールバック。
+  - デバイス自身が同じ MAC で IP スタックを動かすと point-to-point で衝突するため、デバイス側は自 netif MAC を広告値と別（1ビット反転）にする必要がある。EspUsbDevice は対応済み。
+- 今後: 非 active configuration の選択（enum_filter_cb）、複数 NIC 同時対応
 
 ### Phase 5: routing / NAT / DHCP server
 
