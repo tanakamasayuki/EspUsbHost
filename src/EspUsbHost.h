@@ -1292,6 +1292,16 @@ private:
     EspUsbHostNetworkInterfaceInfo networkInterface;
     bool networkLinkUp = false;
     uint16_t networkTxSequence = 0;
+    // Reusable bulk-OUT transfer + its completion semaphore, so networkWriteFrame()
+    // does not alloc/free a transfer and a semaphore on every frame. networkTxLock
+    // serializes concurrent senders (a user thread and the lwIP transmit hook) so
+    // they cannot corrupt the shared transfer / sequence counter, and lets teardown
+    // drain an in-flight send before freeing. The lock and completion semaphore are
+    // created once per device slot and preserved across resetDeviceState() (never
+    // deleted) so a concurrent sender can never block on or signal a freed handle.
+    usb_transfer_t *networkOutTransfer = nullptr;
+    SemaphoreHandle_t networkOutDone = nullptr;
+    SemaphoreHandle_t networkTxLock = nullptr;
     uint8_t networkRxRing[ESP_USB_HOST_NETWORK_RX_RING_SIZE] = {};
     volatile uint16_t networkRxHead = 0;
     volatile uint16_t networkRxTail = 0;
@@ -1422,6 +1432,8 @@ private:
   void deliverNetworkFrame(DeviceState &device, const uint8_t *frame, size_t length);
   size_t buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t *frame, size_t length, uint16_t sequence);
   bool networkSendFrameInternal(DeviceState &device, const uint8_t *frame, size_t length);
+  bool networkSendLocked(DeviceState &device, const uint8_t *frame, size_t length);
+  void networkDrainTx(DeviceState &device);
 #if defined(ESP_USB_HOST_HAS_ESP_NETIF)
   // esp_netif (lwIP) attach/detach. The netif transmit hook reuses the public
   // networkWriteFrame(); esp_netif headers are only pulled into the .cpp.
