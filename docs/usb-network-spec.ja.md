@@ -407,6 +407,10 @@ raw frame API は NCM 経路で先に実装した（peer device が NCM のた�
 
 data interface は CDC-DATA class（0x0a）で CDC-ACM serial と同一のため、`handleTransfer` で network data endpoint を serial より先に分岐する。
 
+実機知見（重要）: ESP32-S3 の Full Speed では、1つの NTB が **bulk IN の複数完了（USB パケット=64B 単位）にまたがって**届く。「1 完了 = 1 NTB」を前提にすると、先頭 64B パケット（NTH を含む）しか見えず datagram が blockLength 外になって全フレームを取りこぼす（`rxNtb>0` だが `rxFrames=0`）。そのため `handleNetworkInput` は device 毎の再アセンブルバッファにチャンクを追記し、`wBlockLength` 分たまってから `parseNetworkNtb` で解析する。ESP-IDF が 1 完了で NTB 全体を返す構成でも同じロジックで動く。
+
+DHCP client 起動順序: netif は `action_start` → `action_connected`（リンク up）→ `dhcpc_start` の順で起動する必要がある（リンク up より先に dhcpc_start すると DISCOVER が送出されない）。診断用に `EspUsbHostNetworkStats` / `networkStats()`（rxNtb/rxFrames/tx/txFail/link）を公開している。
+
 ### Phase 4: lwIP netif
 
 実装済み。

@@ -8389,6 +8389,12 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
   device.networkRxTail = 0;
   device.networkTxSequence = 0;
   device.networkLinkUp = false;
+  device.networkAsmLen = 0;
+  device.networkAsmExpected = 0;
+  device.networkRxNtbCount = 0;
+  device.networkRxFrameCount = 0;
+  device.networkTxCount = 0;
+  device.networkTxFailCount = 0;
 
   // Start the bulk IN (NTB receive) and, if present, the interrupt IN
   // (link-status notification) transfers. Failure here is not fatal to the
@@ -8490,28 +8496,66 @@ bool EspUsbHost::startNetworkEndpoints(DeviceState &device)
 // Parse one received NCM NTB (device->host) and deliver each contained Ethernet
 // datagram. NCM 1.0, 16-bit format: NTH16 header, then one or more NDP16 tables
 // chained by wNextNdpIndex, each listing (offset,length) datagram entries.
+// Bulk-IN completion handler. A device->host NTB can arrive across several
+// completions (one per USB packet at full speed), so reassemble by wBlockLength
+// before parsing.
 void EspUsbHost::handleNetworkInput(DeviceState &device, EndpointState &endpoint, const uint8_t *data, size_t length)
 {
   (void)endpoint;
-  if (!data || length < ESP_USB_HOST_NCM_NTH16_LEN)
+  if (!data || length == 0)
   {
     return;
   }
-  if (ncmRead32(data) != ESP_USB_HOST_NCM_NTH16_SIG)
+
+  // Start of a new NTB: the chunk must begin with an NTH16 header.
+  if (device.networkAsmLen == 0)
   {
-    ESP_LOGD(TAG, "network RX: bad NTH16 signature");
+    if (length < ESP_USB_HOST_NCM_NTH16_LEN || ncmRead32(data) != ESP_USB_HOST_NCM_NTH16_SIG)
+    {
+      ESP_LOGD(TAG, "network RX: stray chunk (no NTH16), len=%u", static_cast<unsigned>(length));
+      return;
+    }
+    const uint16_t headerLength = ncmRead16(data + 4);
+    const uint16_t blockLength = ncmRead16(data + 8);
+    if (headerLength < ESP_USB_HOST_NCM_NTH16_LEN ||
+        blockLength < ESP_USB_HOST_NCM_NTH16_LEN ||
+        blockLength > ESP_USB_HOST_NETWORK_NTB_IN_MAX)
+    {
+      return;
+    }
+    device.networkAsmExpected = blockLength;
+    device.networkRxNtbCount++;
+  }
+
+  // Append this chunk to the reassembly buffer.
+  size_t copy = length;
+  if (device.networkAsmLen + copy > ESP_USB_HOST_NETWORK_NTB_IN_MAX)
+  {
+    copy = ESP_USB_HOST_NETWORK_NTB_IN_MAX - device.networkAsmLen;
+  }
+  memcpy(device.networkAsm + device.networkAsmLen, data, copy);
+  device.networkAsmLen = static_cast<uint16_t>(device.networkAsmLen + copy);
+
+  if (device.networkAsmLen >= device.networkAsmExpected)
+  {
+    parseNetworkNtb(device, device.networkAsm, device.networkAsmExpected);
+    device.networkAsmLen = 0;
+    device.networkAsmExpected = 0;
+  }
+}
+
+// Parse a fully-assembled device->host NTB (NCM 1.0, 16-bit) and deliver each
+// contained Ethernet datagram.
+void EspUsbHost::parseNetworkNtb(DeviceState &device, const uint8_t *data, size_t length)
+{
+  if (!data || length < ESP_USB_HOST_NCM_NTH16_LEN || ncmRead32(data) != ESP_USB_HOST_NCM_NTH16_SIG)
+  {
     return;
   }
   // NTH16: dwSignature(0..4) wHeaderLength(4..6) wSequence(6..8)
   //        wBlockLength(8..10) wNdpIndex(10..12)
-  const uint16_t headerLength = ncmRead16(data + 4);
   uint16_t blockLength = ncmRead16(data + 8);
   uint16_t ndpIndex = ncmRead16(data + 10);
-  if (headerLength < ESP_USB_HOST_NCM_NTH16_LEN)
-  {
-    return;
-  }
-  // blockLength should equal the NTB size; clamp to what we actually received.
   if (blockLength == 0 || blockLength > length)
   {
     blockLength = static_cast<uint16_t>(length);
@@ -8568,6 +8612,7 @@ void EspUsbHost::deliverNetworkFrame(DeviceState &device, const uint8_t *frame, 
   {
     return;
   }
+  device.networkRxFrameCount++;
 
 #if defined(ESP_USB_HOST_HAS_ESP_NETIF)
   if (device.networkNetifAttached && device.networkNetif)
@@ -8741,6 +8786,14 @@ bool EspUsbHost::networkSendFrameInternal(DeviceState &device, const uint8_t *fr
   }
   usb_host_transfer_free(transfer);
   vSemaphoreDelete(context.done);
+  if (ok)
+  {
+    device.networkTxCount++;
+  }
+  else
+  {
+    device.networkTxFailCount++;
+  }
   return ok;
 }
 
@@ -8789,6 +8842,24 @@ bool EspUsbHost::networkLinkUp(uint8_t address) const
   return device && device->networkLinkUp;
 }
 
+bool EspUsbHost::networkStats(EspUsbHostNetworkStats &stats, uint8_t address) const
+{
+  stats = EspUsbHostNetworkStats();
+  const DeviceState *device = findNetworkDevice(address);
+  if (!device)
+  {
+    return false;
+  }
+  stats.ready = device->hasNetworkInterface;
+  stats.linkUp = device->networkLinkUp;
+  stats.netifAttached = device->networkNetifAttached;
+  stats.rxNtb = device->networkRxNtbCount;
+  stats.rxFrames = device->networkRxFrameCount;
+  stats.txFrames = device->networkTxCount;
+  stats.txFails = device->networkTxFailCount;
+  return true;
+}
+
 bool EspUsbHost::networkAttachNetif(const EspUsbHostNetworkConfig &config, uint8_t address)
 {
 #if defined(ESP_USB_HOST_HAS_ESP_NETIF)
@@ -8810,6 +8881,13 @@ bool EspUsbHost::networkAttachNetif(const EspUsbHostNetworkConfig &config, uint8
   if (!device)
   {
     return false;
+  }
+  if (!device->networkNetifAttached)
+  {
+    // networkOpen() issues SET_INTERFACE(data, alt=1) asynchronously; give the
+    // device time to activate its data endpoints before the DHCP client starts
+    // exchanging frames, otherwise the first DHCP round can be dropped.
+    vTaskDelay(pdMS_TO_TICKS(300));
   }
   return networkStartNetif(*device, config);
 #else
@@ -8941,9 +9019,16 @@ bool EspUsbHost::networkStartNetif(DeviceState &device, const EspUsbHostNetworkC
   esp_netif_set_mac(netif, mac);
 
   esp_netif_action_start(netif, nullptr, 0, nullptr);
+  // Bring the link up first so the DHCP client sends DISCOVER on an up netif.
+  esp_netif_action_connected(netif, nullptr, 0, nullptr);
   if (config.dhcpClient)
   {
-    esp_netif_dhcpc_start(netif);
+    esp_netif_dhcpc_stop(netif); // may already be running from the start action
+    esp_err_t derr = esp_netif_dhcpc_start(netif);
+    if (derr != ESP_OK && derr != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED)
+    {
+      ESP_LOGW(TAG, "esp_netif_dhcpc_start() failed: %s", esp_err_to_name(derr));
+    }
   }
   else
   {
@@ -8957,7 +9042,6 @@ bool EspUsbHost::networkStartNetif(DeviceState &device, const EspUsbHostNetworkC
       esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns);
     }
   }
-  esp_netif_action_connected(netif, nullptr, 0, nullptr);
 
   device.networkNetif = netif;
   device.networkNetifAttached = true;
