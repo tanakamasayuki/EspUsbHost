@@ -8538,6 +8538,19 @@ void EspUsbHost::handleNetworkInput(DeviceState &device, EndpointState &endpoint
     return;
   }
 
+  // Resync: if a fresh chunk starts with an NTH16 signature while a previous NTB
+  // is still being assembled, the tail of that NTB was lost (e.g. a dropped/errored
+  // bulk-IN completion). Discard the stale partial and start over on this chunk
+  // rather than appending it as continuation data and parsing a corrupt NTB.
+  if (device.networkAsmLen != 0 && length >= ESP_USB_HOST_NCM_NTH16_LEN &&
+      ncmRead32(data) == ESP_USB_HOST_NCM_NTH16_SIG)
+  {
+    ESP_LOGD(TAG, "network RX: resync on new NTH16 (dropped %u of %u bytes)",
+             static_cast<unsigned>(device.networkAsmLen), static_cast<unsigned>(device.networkAsmExpected));
+    device.networkAsmLen = 0;
+    device.networkAsmExpected = 0;
+  }
+
   // Start of a new NTB: the chunk must begin with an NTH16 header.
   if (device.networkAsmLen == 0)
   {
@@ -9202,6 +9215,13 @@ bool EspUsbHost::networkStartNetif(DeviceState &device, const EspUsbHostNetworkC
       dns.ip.type = ESP_IPADDR_TYPE_V4;
       dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(config.dns1);
       esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns);
+    }
+    if (static_cast<uint32_t>(config.dns2) != 0)
+    {
+      esp_netif_dns_info_t dns = {};
+      dns.ip.type = ESP_IPADDR_TYPE_V4;
+      dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(config.dns2);
+      esp_netif_set_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns);
     }
   }
 
