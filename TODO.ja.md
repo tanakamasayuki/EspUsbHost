@@ -110,11 +110,12 @@ Audio Input サンプルの実受信確認
 
 Input サンプルはビルドと情報表示までは整えました。
 実USBマイクで audio: ... bytes_per_sec=... が継続して出るか確認したいです。
-ドキュメントの対応範囲明記
+ドキュメントの対応範囲明記（対応済み）
 
-OUT/IN は標準Arduino `USBAudioCard` のpeerで送受信確認済み。
-実USBマイク・オーディオIFの確認は継続。
-UAC1中心、UAC2やFeature Unit以外のAudio Controlは限定的、という注意書きをもう少し明確にしてよさそうです。
+README.md / README.ja.md のUSB audio API節末尾に「Audioの対応範囲」小節を追加。
+対応: Isochronous IN/OUT、UAC1 Type Iフォーマット解析・サンプルレート選択、Feature UnitのMute/Volume。
+非対応: UAC2 / Clock Source / Clock Selector、Mixer / Selector / Processing Unit、Mute/Volume以外のFeature Unit control。
+OUT/IN は標準Arduino `USBAudioCard` のpeerで送受信確認済み、実USBマイク・オーディオIFの確認は継続、と明記。
 
 # P4対応
 

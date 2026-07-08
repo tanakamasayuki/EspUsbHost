@@ -521,6 +521,15 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 `getAudioFeatureUnits`は解析済みのUAC1 Audio Control Feature Unitを返します。`audioGetMute`、`audioSetMute`、`audioGetVolume`、`audioSetVolume`、dB/range系ヘルパーはUAC1のFeature Unit class-specific requestを使います。`audioSetVolumeDbClamped`はrangeが取得できた場合にデバイスのmin/max/resolutionへ丸めます。`audioConfigureVolume`は再生向けの簡易ヘルパーで、対応していればmuteを設定し、volumeをclamp付きdB指定で設定します。percent系ヘルパーは`1..100`をPCM振幅比として扱い、`20 * log10(percent / 100)`でdBへ変換してからmin/maxへclampし、デバイスstepへ丸めます。`0`はmute対応ならmuteし、mute非対応ならminimum volumeへfallbackします。`unitId=0`は指定したcontrolを持つ最初のFeature Unitを選びます。`channel=0`はmaster、`channel=1`以降はチャンネル別controlです。raw volume値はsigned 1/256 dB単位です。
 
+#### Audioの対応範囲
+
+オーディオ対応は **UAC1 (Audio Class 1.0)、Type I PCM** ストリーミングを対象としています。
+
+- **対応:** Isochronous IN/OUTストリーミング、UAC1 Type Iフォーマット解析とサンプルレート選択、**Feature Unit** の Mute / Volume 制御(get/set、range、dB・percentヘルパー)。
+- **非対応:** UAC2デバイスおよびその **Clock Source / Clock Selector**、Feature Unit以外のAudio Control Unit(**Mixer / Selector / Processing Unit**)、Mute/Volume以外のFeature Unit control(Bass、Mid、Treble、Automatic Gain、Delay など)。これらがストリーミング開始に必須なデバイスや、UAC2記述子しか持たないデバイスは、列挙はできてもストリーミングできない場合があります。
+
+Audio OUT/IN は標準Arduino `USBAudioCard` でpeer確認済みですが、実USBマイク・オーディオIFでの確認はまだ限定的です。
+
 ### USB Mass Storage
 
 ```cpp

@@ -525,6 +525,15 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 `getAudioFeatureUnits` reports parsed UAC1 Audio Control Feature Units. `audioGetMute`, `audioSetMute`, `audioGetVolume`, `audioSetVolume`, and the dB/range helpers use UAC1 class-specific Feature Unit requests. `audioSetVolumeDbClamped` applies the device min/max/resolution when the range is available. `audioConfigureVolume` is the simple playback helper: it unmutes/mutes when mute is supported and sets clamped dB volume when volume is supported. The percent helpers treat `1..100` as a PCM amplitude ratio (`20 * log10(percent / 100)`) and round to the device step after clamping to min/max; `0` mutes when mute is supported, or falls back to minimum volume. `unitId=0` selects the first Feature Unit that exposes the requested control. `channel=0` means master; channel values starting at 1 address per-channel controls. Raw volume values are signed 1/256 dB units.
 
+#### Audio scope
+
+The audio support targets **UAC1 (Audio Class 1.0), Type I PCM** streaming:
+
+- **Supported:** isochronous IN/OUT streaming, UAC1 Type I format parsing and sample-rate selection, and the **Feature Unit** Mute / Volume controls (get/set, range, dB and percent helpers).
+- **Not supported:** UAC2 devices and their **Clock Source / Clock Selector** entities; other Audio Control units — **Mixer / Selector / Processing Unit** — and Feature Unit controls beyond Mute/Volume (Bass, Mid, Treble, Automatic Gain, Delay, etc.). Devices that require these to start streaming, or that only expose UAC2 descriptors, may enumerate but not stream.
+
+Audio OUT and IN are peer-verified with the standard Arduino `USBAudioCard`; validation against real USB microphones and audio interfaces is still limited.
+
 ### USB Mass Storage
 
 ```cpp
