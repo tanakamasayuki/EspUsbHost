@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.1.1
 - (EN) Add N-key rollover (NKRO) keyboard support on the host: the HID report descriptor is parsed to detect keyboards that report keys as a bitmap (report protocol) instead of the 6-key boot report, and they are decoded automatically so `onKeyboard()` delivers the same press/release events with no simultaneous-key limit. New diagnostic `keyboardUsesBitmapReport()`, `EspUsbHostKeyboardNKRO` example, and `hid_keyboard_nkro` peer test against `EspUsbDevice`.
 - (JA) ホスト側でN-key rollover(NKRO)キーボードに対応。HID report descriptorを解析し、6キーのbootレポートではなくビットマップ(report protocol)でキーを送るキーボードを検出して自動デコードするため、同時押し数の制限なく`onKeyboard()`が同じpress/releaseイベントを返します。診断用`keyboardUsesBitmapReport()`、`EspUsbHostKeyboardNKRO`サンプル、`EspUsbDevice`との`hid_keyboard_nkro` peerテストを追加しました。
 - (EN) Harden the experimental USB network (CDC-NCM) transmit path: reuse a per-device bulk-OUT transfer and completion semaphore instead of allocating them per frame, serialize concurrent senders (a user thread and the lwIP transmit hook) with a TX mutex, drain an in-flight send before teardown to avoid a use-after-free on disconnect, flush the endpoint on a send timeout instead of freeing a driver-owned transfer, resync NTB reassembly when a mid-block completion is lost, and apply `dns2` for static-IP configs.
