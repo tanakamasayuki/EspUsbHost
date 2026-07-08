@@ -295,6 +295,18 @@ struct EspUsbHostNetworkConfig
   IPAddress dns2;
 };
 
+// Lightweight counters for diagnosing the USB network data path.
+struct EspUsbHostNetworkStats
+{
+  bool ready = false;
+  bool linkUp = false;
+  bool netifAttached = false;
+  uint32_t rxNtb = 0;    // NTBs received on bulk IN
+  uint32_t rxFrames = 0; // Ethernet datagrams extracted from NTBs
+  uint32_t txFrames = 0; // frames sent (NTB built + bulk OUT ok)
+  uint32_t txFails = 0;  // frame send failures
+};
+
 struct EspUsbHostVendorInterface
 {
   uint8_t address = 0;
@@ -1101,6 +1113,7 @@ public:
                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool networkDetachNetif(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   IPAddress networkLocalIP(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool networkStats(EspUsbHostNetworkStats &stats, uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -1284,6 +1297,15 @@ private:
     volatile uint16_t networkRxTail = 0;
     void *networkNetif = nullptr; // esp_netif_t* (opaque here to keep esp_netif out of the header)
     bool networkNetifAttached = false;
+    uint32_t networkRxNtbCount = 0;
+    uint32_t networkRxFrameCount = 0;
+    uint32_t networkTxCount = 0;
+    uint32_t networkTxFailCount = 0;
+    // Reassembly buffer: a device->host NTB can span several bulk-IN completions
+    // (one per USB packet at full speed), so accumulate until wBlockLength bytes.
+    uint8_t networkAsm[ESP_USB_HOST_NETWORK_NTB_IN_MAX] = {};
+    uint16_t networkAsmLen = 0;
+    uint16_t networkAsmExpected = 0;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
@@ -1395,6 +1417,7 @@ private:
   void releaseNetworkInterface(DeviceState &device);
   bool startNetworkEndpoints(DeviceState &device);
   void handleNetworkInput(DeviceState &device, EndpointState &endpoint, const uint8_t *data, size_t length);
+  void parseNetworkNtb(DeviceState &device, const uint8_t *data, size_t length);
   void handleNetworkNotification(DeviceState &device, const uint8_t *data, size_t length);
   void deliverNetworkFrame(DeviceState &device, const uint8_t *frame, size_t length);
   size_t buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t *frame, size_t length, uint16_t sequence);

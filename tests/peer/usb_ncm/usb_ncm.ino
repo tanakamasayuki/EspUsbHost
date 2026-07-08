@@ -109,6 +109,18 @@ void loop()
       const uint32_t ip = static_cast<uint32_t>(usb.networkLocalIP(deviceAddress));
       Serial.printf("NETWORK_IP ip=%s\n", IPAddress(ip).toString().c_str());
     }
+    else if (command == 'd')
+    {
+      EspUsbHostNetworkStats st;
+      usb.networkStats(st, deviceAddress);
+      Serial.printf("NETWORK_STATS ready=%u link=%u netif=%u rxNtb=%lu rxFrames=%lu tx=%lu txFail=%lu ip=%s\n",
+                    st.ready ? 1 : 0, st.linkUp ? 1 : 0, st.netifAttached ? 1 : 0,
+                    static_cast<unsigned long>(st.rxNtb),
+                    static_cast<unsigned long>(st.rxFrames),
+                    static_cast<unsigned long>(st.txFrames),
+                    static_cast<unsigned long>(st.txFails),
+                    usb.networkLocalIP(deviceAddress).toString().c_str());
+    }
     else if (command == 'g')
     {
       HTTPClient http;
