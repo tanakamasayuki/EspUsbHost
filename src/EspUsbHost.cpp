@@ -5089,6 +5089,7 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
 #endif
   device->hasNetworkInterface = false;
   device->networkLinkUp = false;
+  networkDrainTx(*device); // wait out an in-flight send before tearing down
   releaseEndpoints(*device, false);
   releaseInterfaces(*device);
   if (device->handle)
@@ -7308,8 +7309,22 @@ EspUsbHost::DeviceState *EspUsbHost::allocateDevice()
 
 void EspUsbHost::resetDeviceState(DeviceState &device)
 {
+  // Free the reusable OUT transfer (it references this device's now-stale handle),
+  // but keep the TX lock / completion semaphore alive across the reset: they are
+  // created once per device slot and reused for whatever device next occupies it.
+  // Deleting them here would risk a concurrent sender blocking on / signalling a
+  // freed handle; a plain mutex + binary semaphore per slot is cheap to keep.
+  if (device.networkOutTransfer)
+  {
+    usb_host_transfer_free(device.networkOutTransfer);
+    device.networkOutTransfer = nullptr;
+  }
+  SemaphoreHandle_t txLock = device.networkTxLock;
+  SemaphoreHandle_t outDone = device.networkOutDone;
   device.~DeviceState();
   new (&device) DeviceState();
+  device.networkTxLock = txLock;
+  device.networkOutDone = outDone;
 }
 
 void EspUsbHost::resetEndpointState(EndpointState &endpoint)
@@ -8246,11 +8261,16 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
   networkStopNetif(device);
 #endif
 
-  if (!device.hasNetworkInterface || !clientHandle_ || !device.handle)
+  // Stop new sends (the re-check in networkSendFrameInternal reads this), then
+  // wait out any in-flight send before freeing the interface's resources.
+  const bool hadInterface = device.hasNetworkInterface;
+  device.hasNetworkInterface = false;
+  device.networkLinkUp = false;
+  networkDrainTx(device);
+
+  if (!hadInterface || !clientHandle_ || !device.handle)
   {
-    device.hasNetworkInterface = false;
     device.networkInterface = EspUsbHostNetworkInterfaceInfo();
-    device.networkLinkUp = false;
     return;
   }
 
@@ -8389,6 +8409,17 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
   device.networkRxTail = 0;
   device.networkTxSequence = 0;
   device.networkLinkUp = false;
+  // TX lock / completion semaphore are created once per device slot and kept for
+  // the slot's lifetime (see DeviceState); (re)create only if this slot never had
+  // a network interface before.
+  if (!device.networkTxLock)
+  {
+    device.networkTxLock = xSemaphoreCreateMutex();
+  }
+  if (!device.networkOutDone)
+  {
+    device.networkOutDone = xSemaphoreCreateBinary();
+  }
   device.networkAsmLen = 0;
   device.networkAsmExpected = 0;
   device.networkRxNtbCount = 0;
@@ -8719,14 +8750,17 @@ size_t EspUsbHost::buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t
 }
 
 // Synchronously send one Ethernet frame as an NTB over the network bulk OUT.
+// Serializes concurrent callers (a user thread and the lwIP transmit hook) on
+// networkTxLock, and re-checks the interface under the lock so a disconnect /
+// networkClose() that ran while we waited for the lock cannot send on a freed
+// device.
 bool EspUsbHost::networkSendFrameInternal(DeviceState &device, const uint8_t *frame, size_t length)
 {
   if (!device.hasNetworkInterface || !device.handle || !clientHandle_)
   {
     return false;
   }
-  const EspUsbHostNetworkInterfaceInfo &network = device.networkInterface;
-  if (!network.outEndpoint)
+  if (!device.networkInterface.outEndpoint)
   {
     return false;
   }
@@ -8735,31 +8769,60 @@ bool EspUsbHost::networkSendFrameInternal(DeviceState &device, const uint8_t *fr
     return false;
   }
 
-  const size_t ntbCapacity = ncmAlign4(ESP_USB_HOST_NCM_NTH16_LEN + ESP_USB_HOST_NCM_NDP16_MIN_LEN) + ESP_USB_HOST_NETWORK_MAX_FRAME;
-  usb_transfer_t *transfer = nullptr;
-  esp_err_t err = usb_host_transfer_alloc(ntbCapacity, 0, &transfer);
-  if (err != ESP_OK)
+  SemaphoreHandle_t lock = device.networkTxLock;
+  if (!lock || !device.networkOutDone)
   {
-    ESP_LOGW(TAG, "usb_host_transfer_alloc(network OUT) failed: %s", esp_err_to_name(err));
-    setLastError(err);
     return false;
   }
+  if (xSemaphoreTake(lock, pdMS_TO_TICKS(1000)) != pdTRUE)
+  {
+    ESP_LOGW(TAG, "network TX busy ep=0x%02x", device.networkInterface.outEndpoint);
+    setLastError(ESP_ERR_TIMEOUT);
+    device.networkTxFailCount++;
+    return false;
+  }
+
+  bool ok = false;
+  if (device.hasNetworkInterface && device.handle && clientHandle_ &&
+      device.networkInterface.outEndpoint && device.networkOutDone)
+  {
+    ok = networkSendLocked(device, frame, length);
+  }
+  xSemaphoreGive(lock);
+  return ok;
+}
+
+// Sends one frame with networkTxLock held. Owns the reusable OUT transfer and
+// completion semaphore stored on the device.
+bool EspUsbHost::networkSendLocked(DeviceState &device, const uint8_t *frame, size_t length)
+{
+  const EspUsbHostNetworkInterfaceInfo &network = device.networkInterface;
+  const size_t ntbCapacity = ncmAlign4(ESP_USB_HOST_NCM_NTH16_LEN + ESP_USB_HOST_NCM_NDP16_MIN_LEN) + ESP_USB_HOST_NETWORK_MAX_FRAME;
+
+  if (!device.networkOutTransfer)
+  {
+    esp_err_t err = usb_host_transfer_alloc(ntbCapacity, 0, &device.networkOutTransfer);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(network OUT) failed: %s", esp_err_to_name(err));
+      setLastError(err);
+      device.networkOutTransfer = nullptr;
+      device.networkTxFailCount++;
+      return false;
+    }
+  }
+  usb_transfer_t *transfer = device.networkOutTransfer;
 
   const size_t ntbLength = buildNcmFrame(transfer->data_buffer, ntbCapacity, frame, length, device.networkTxSequence++);
   if (ntbLength == 0)
   {
-    usb_host_transfer_free(transfer);
+    device.networkTxFailCount++;
     return false;
   }
 
   EspUsbHostSyncTransferContext context;
-  context.done = xSemaphoreCreateBinary();
-  if (!context.done)
-  {
-    usb_host_transfer_free(transfer);
-    setLastError(ESP_ERR_NO_MEM);
-    return false;
-  }
+  context.done = device.networkOutDone;
+  xSemaphoreTake(device.networkOutDone, 0); // clear any stale completion
 
   transfer->device_handle = device.handle;
   transfer->bEndpointAddress = network.outEndpoint;
@@ -8767,25 +8830,31 @@ bool EspUsbHost::networkSendFrameInternal(DeviceState &device, const uint8_t *fr
   transfer->context = &context;
   transfer->num_bytes = ntbLength;
 
-  err = usb_host_transfer_submit(transfer);
+  esp_err_t err = usb_host_transfer_submit(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit(network OUT ep=0x%02x) failed: %s", network.outEndpoint, esp_err_to_name(err));
     setLastError(err);
-    usb_host_transfer_free(transfer);
-    vSemaphoreDelete(context.done);
+    device.networkTxFailCount++;
     return false;
   }
 
-  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(1000)) == pdTRUE;
-  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  bool done = xSemaphoreTake(device.networkOutDone, pdMS_TO_TICKS(250)) == pdTRUE;
   if (!done)
   {
-    ESP_LOGW(TAG, "network bulk OUT timeout ep=0x%02x", network.outEndpoint);
+    // The driver still owns the transfer. Flush the endpoint so the transfer is
+    // canceled (its callback fires with CANCELED and signals the semaphore), then
+    // reclaim ownership before returning so the transfer is safe to reuse and the
+    // stack-allocated context is not referenced after we return.
+    ESP_LOGW(TAG, "network bulk OUT timeout ep=0x%02x, flushing", network.outEndpoint);
     setLastError(ESP_ERR_TIMEOUT);
+    if (device.handle)
+    {
+      usb_host_endpoint_clear(device.handle, network.outEndpoint);
+    }
+    xSemaphoreTake(device.networkOutDone, pdMS_TO_TICKS(500));
   }
-  usb_host_transfer_free(transfer);
-  vSemaphoreDelete(context.done);
+  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
   if (ok)
   {
     device.networkTxCount++;
@@ -8795,6 +8864,39 @@ bool EspUsbHost::networkSendFrameInternal(DeviceState &device, const uint8_t *fr
     device.networkTxFailCount++;
   }
   return ok;
+}
+
+// Wait for any in-flight send to finish and free the reusable OUT transfer. The
+// caller must clear device.hasNetworkInterface first so no new send proceeds
+// past the re-check in networkSendFrameInternal. The TX lock / completion
+// semaphore are intentionally kept alive and reused (never deleted here) so a
+// concurrent sender can never block on or signal a freed handle.
+void EspUsbHost::networkDrainTx(DeviceState &device)
+{
+  SemaphoreHandle_t lock = device.networkTxLock;
+  bool held = true;
+  if (lock)
+  {
+    // Worst case an in-flight send holds the lock ~750ms (250ms submit wait +
+    // 500ms flush reclaim); 2s leaves margin.
+    held = xSemaphoreTake(lock, pdMS_TO_TICKS(2000)) == pdTRUE;
+  }
+  // Only touch the transfer if we hold the lock (or there is no lock, in which
+  // case no send can be in flight): freeing it under a wedged send would be a
+  // use-after-free in the USB driver.
+  if (held && device.networkOutTransfer)
+  {
+    usb_host_transfer_free(device.networkOutTransfer);
+    device.networkOutTransfer = nullptr;
+  }
+  else if (!held)
+  {
+    ESP_LOGW(TAG, "network TX drain timed out; keeping OUT transfer to avoid UAF");
+  }
+  if (lock && held)
+  {
+    xSemaphoreGive(lock);
+  }
 }
 
 bool EspUsbHost::networkWriteFrame(const uint8_t *frame, size_t length, uint8_t address)
