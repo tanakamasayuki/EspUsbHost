@@ -1,0 +1,67 @@
+name: Build Check
+
+# Compile the examples for the key targets so library changes that break a build
+# — especially ESP32-S2 `dram0_0_seg` overflows from growing static RAM use — are
+# caught on every push and pull request. Board platforms are installed
+# automatically by arduino-cli from each example's sketch.yaml profile.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "src/**"
+      - "examples/**"
+      - "tools/build_check.py"
+      - ".github/workflows/build-check.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "examples/**"
+      - "tools/build_check.py"
+      - ".github/workflows/build-check.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: build-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # esp32s3 is the primary target; esp32s2 guards the RAM-constrained build.
+        profile: [esp32s3, esp32s2]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+            | BINDIR="$HOME/.local/bin" sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Arduino platform + tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/.cache/arduino
+          # Keyed on the pinned platform lines in sketch.yaml so a core bump busts it.
+          key: arduino-${{ runner.os }}-${{ matrix.profile }}-${{ hashFiles('examples/**/sketch.yaml') }}
+          restore-keys: |
+            arduino-${{ runner.os }}-${{ matrix.profile }}-
+
+      - name: Build examples (${{ matrix.profile }})
+        # Every example declares its libraries (including external ones like
+        # ESP8266Audio / PCMFlow) in sketch.yaml, so all of them build from a clean
+        # checkout — nothing is excluded. UsbNetwork simply has no esp32s2 profile,
+        # so build_check.py skips it for that target automatically.
+        run: python tools/build_check.py ${{ matrix.profile }}

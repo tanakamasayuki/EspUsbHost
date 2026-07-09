@@ -96,7 +96,19 @@ static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_MUTE = 0x00e2;
 static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP = 0x00e9;
 static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN = 0x00ea;
 static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
-static constexpr size_t ESP_USB_HOST_MAX_DEVICES = 8;
+// Maximum number of concurrently-tracked USB devices. Each slot is a sizable
+// static DeviceState (several KB — RX ring, NTB reassembly buffer, HID field
+// tables, etc.), so this constant dominates the library's static RAM use. The
+// ESP32-S2 has far less internal RAM than the S3/P4, so it defaults to fewer
+// slots to fit. Override for any target by defining ESP_USB_HOST_MAX_DEVICES
+// before this header is compiled, e.g. build flag -DESP_USB_HOST_MAX_DEVICES=4.
+#ifndef ESP_USB_HOST_MAX_DEVICES
+#if defined(CONFIG_IDF_TARGET_ESP32S2)
+#define ESP_USB_HOST_MAX_DEVICES 3
+#else
+#define ESP_USB_HOST_MAX_DEVICES 8
+#endif
+#endif
 static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
 static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
 static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS = 8;
