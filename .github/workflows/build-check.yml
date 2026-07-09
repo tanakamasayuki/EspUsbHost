@@ -42,11 +42,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install arduino-cli
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
-            | BINDIR="$HOME/.local/bin" sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
 
       - name: Cache Arduino platform + tools
         uses: actions/cache@v4
