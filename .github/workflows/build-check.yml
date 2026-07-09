@@ -31,8 +31,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # esp32s3 is the primary target; esp32s2 guards the RAM-constrained build.
-        profile: [esp32s3, esp32s2]
+        # esp32s3 is the primary target, esp32p4 the HS-OTG target, esp32s2 the
+        # RAM-constrained guard. The `-v` (verbose) profiles are the same build with
+        # a higher debug level, so they are omitted here. Examples that do not
+        # declare a given profile are skipped automatically for that target.
+        profile: [esp32s3, esp32p4, esp32s2]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
