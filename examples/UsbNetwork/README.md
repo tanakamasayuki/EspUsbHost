@@ -15,7 +15,7 @@
 Turns the board into a USB *host* for a USB Ethernet adapter (CDC-NCM / CDC-ECM)
 and brings it up as an lwIP network interface. Plug in a USB NIC — or a second
 board running the sibling
-[EspUsbDevice `UsbNetwork`](../../../EspUsbDevice/examples/UsbNetwork/) sketch —
+[EspUsbDevice `UsbNetwork`](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/UsbNetwork) sketch —
 and standard Arduino networking (`NetworkClient`, `HTTPClient`) runs over USB,
 with no Wi-Fi.
 
@@ -63,7 +63,7 @@ the network *host* that receives a `192.168.7.x` lease and can reach it.
 
 ## See Also
 
-- [EspUsbDevice UsbNetwork](../../../EspUsbDevice/examples/UsbNetwork/) - the
+- [EspUsbDevice UsbNetwork](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/UsbNetwork) - the
   matching USB network device
 - `tests/peer/usb_ncm` - the automated two-board CDC-NCM peer test
 - `docs/usb-network-spec.ja.md` - the USB network API design notes

@@ -14,7 +14,7 @@ press/release イベントを返します。設定は不要です。
 
 - ホスト用の ESP32-S3(または USB ホスト対応の Arduino-ESP32 ボード)
 - NKRO 対応 USB キーボード、または兄弟ライブラリの
-  [EspUsbDevice `KeyboardNKRO`](../../../../EspUsbDevice/examples/KeyboardNKRO/) スケッチを
+  [EspUsbDevice `KeyboardNKRO`](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/KeyboardNKRO) スケッチを
   動かした 2 枚目の ESP32-S3
 - ログ用の別 Serial モニタ接続
 
@@ -42,4 +42,4 @@ press/release イベントを返します。設定は不要です。
 ## 関連
 
 - [EspUsbHostKeyboard](../EspUsbHostKeyboard/) - 標準の boot キーボード例
-- [EspUsbDevice KeyboardNKRO](../../../../EspUsbDevice/examples/KeyboardNKRO/) - 対になる NKRO デバイス
+- [EspUsbDevice KeyboardNKRO](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/KeyboardNKRO) - 対になる NKRO デバイス
