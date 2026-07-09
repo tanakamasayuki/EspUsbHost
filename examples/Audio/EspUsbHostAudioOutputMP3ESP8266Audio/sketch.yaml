@@ -35,4 +35,13 @@ profiles:
       - dir: ../../../
       - ESP8266Audio (2.4.1)
 
+  esp32s2:
+    fqbn: esp32:esp32:esp32s2
+    platforms:
+      - platform: esp32:esp32 (3.3.10)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../../
+      - ESP8266Audio (2.4.1)
+
 default_profile: esp32s3

@@ -725,7 +725,7 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 1. **作業ツリーのクリーン確認** — `git status` で未コミットの変更がないことを確認する
 2. **依存バージョンの確認・更新** — [vscode-arduino-cli-wrapper](https://marketplace.visualstudio.com/items?itemName=tanakamasayuki.vscode-arduino-cli-wrapper) の _sketch.yaml Versions_ 機能で全 `sketch.yaml` のボード・ライブラリバージョンを確認し、更新があれば最新にしてから手順 3〜5 をやり直す
-3. **ビルドチェック** — vscode-arduino-cli-wrapper の _Build Check_ を使用。最低限 `examples/` の `esp32s3` プロファイル。ESP32-P4 関連の変更がある場合は全プロファイルも確認する
+3. **ビルドチェック** — vscode-arduino-cli-wrapper の _Build Check_ を使用するか、`python tools/build_check.py <プロファイル>` で該当 sketch.yaml プロファイルを持つ全 example をビルドする（例: `python tools/build_check.py esp32s2`）。最低限 `examples/` の `esp32s3` プロファイル。ESP32-P4 関連の変更がある場合は全プロファイルも確認する。静的RAM使用量が増える変更では `esp32s2` プロファイルもビルドすること（S2は内蔵RAMが少なく `ESP_USB_HOST_MAX_DEVICES` の既定値も小さい）。`dram0_0_seg overflowed` の再発を早期に検出できる。`UsbNetwork` 例はS2マトリクスから意図的に除外している。
 4. **自動テスト** — `peer/` または `loopback/` のテストがすべて通っていること
 5. **手動テスト** — 改修内容に関連するテストを実行する（`tests/.pytest-results/state.json` で最終実行日時を確認）。必須ではないが強く推奨
 6. **CHANGELOG** — 今回のリリースのエントリが正確で漏れがないか確認・更新する

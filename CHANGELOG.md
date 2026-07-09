@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Fix ESP32-S2 builds that overflowed `dram0_0_seg`: `ESP_USB_HOST_MAX_DEVICES` (each slot is a multi-KB static `DeviceState`) now defaults to 3 on the RAM-constrained ESP32-S2 and stays 8 elsewhere, and can be overridden for any target with `-DESP_USB_HOST_MAX_DEVICES=N`. Added an `esp32s2` build profile to the examples (except the experimental `UsbNetwork`), a `tools/build_check.py` helper that compiles every example declaring a given sketch.yaml profile, and a GitHub Actions Build Check workflow that runs it for `esp32s3` and `esp32s2` on push/PR, so S2 memory regressions are caught automatically.
+- (JA) `dram0_0_seg` オーバーフローで失敗していたESP32-S2ビルドを修正。1スロットが数KBの静的`DeviceState`である`ESP_USB_HOST_MAX_DEVICES`を、RAMの少ないESP32-S2では既定3・それ以外は8とし、`-DESP_USB_HOST_MAX_DEVICES=N`で任意ターゲットで上書き可能にしました。examples（実験的な`UsbNetwork`を除く）に`esp32s2`ビルドプロファイルを追加し、指定した sketch.yaml プロファイルで全 example をビルドする `tools/build_check.py` と、push/PR時に`esp32s3`・`esp32s2`で実行するGitHub Actions Build Checkワークフローを追加して、S2のメモリ回帰を自動検出できるようにしました。
 
 ## 2.1.1
 - (EN) Add N-key rollover (NKRO) keyboard support on the host: the HID report descriptor is parsed to detect keyboards that report keys as a bitmap (report protocol) instead of the 6-key boot report, and they are decoded automatically so `onKeyboard()` delivers the same press/release events with no simultaneous-key limit. New diagnostic `keyboardUsesBitmapReport()`, `EspUsbHostKeyboardNKRO` example, and `hid_keyboard_nkro` peer test against `EspUsbDevice`.
