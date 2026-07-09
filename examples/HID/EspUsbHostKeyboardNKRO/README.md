@@ -14,7 +14,7 @@ events whether the keyboard is boot (6KRO) or NKRO. No configuration is required
 
 - ESP32-S3 (or another Arduino-ESP32 board with USB host support) as the host
 - An NKRO USB keyboard, or a second ESP32-S3 running the sibling
-  [EspUsbDevice `KeyboardNKRO`](../../../../EspUsbDevice/examples/KeyboardNKRO/) sketch
+  [EspUsbDevice `KeyboardNKRO`](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/KeyboardNKRO) sketch
 - A separate Serial monitor connection for logs
 
 ## What It Does
@@ -43,5 +43,5 @@ events whether the keyboard is boot (6KRO) or NKRO. No configuration is required
 ## See Also
 
 - [EspUsbHostKeyboard](../EspUsbHostKeyboard/) - standard boot keyboard example
-- [EspUsbDevice KeyboardNKRO](../../../../EspUsbDevice/examples/KeyboardNKRO/) - the
+- [EspUsbDevice KeyboardNKRO](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/KeyboardNKRO) - the
   matching NKRO device

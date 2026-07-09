@@ -14,7 +14,7 @@
 
 USB Ethernet アダプタ（CDC-NCM / CDC-ECM）に対する USB *ホスト* として動作し、
 lwIP のネットワークインターフェースとして立ち上げます。USB NIC、または兄弟ライブラリの
-[EspUsbDevice `UsbNetwork`](../../../EspUsbDevice/examples/UsbNetwork/) スケッチを動かした
+[EspUsbDevice `UsbNetwork`](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/UsbNetwork) スケッチを動かした
 2 枚目のボードを挿すと、Wi-Fi なしで標準の Arduino ネットワーク（`NetworkClient` /
 `HTTPClient`）が USB 経由で動きます。
 
@@ -58,6 +58,6 @@ lwIP のネットワークインターフェースとして立ち上げます。
 
 ## 関連
 
-- [EspUsbDevice UsbNetwork](../../../EspUsbDevice/examples/UsbNetwork/) - 対になる USB ネットワークデバイス
+- [EspUsbDevice UsbNetwork](https://github.com/tanakamasayuki/EspUsbDevice/tree/main/examples/UsbNetwork) - 対になる USB ネットワークデバイス
 - `tests/peer/usb_ncm` - 2 枚のボードによる CDC-NCM 自動 peer テスト
 - `docs/usb-network-spec.ja.md` - USB network API の設計メモ
