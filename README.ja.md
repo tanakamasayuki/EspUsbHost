@@ -93,14 +93,19 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 
 ### ESP32-P4 の注意事項
 
-ESP32-P4搭載ボードでは、ボード設計によって最大4系統のUSB関連ポート/経路が見えることがあります：
+ESP32-P4はSoC内部に3つのUSB機能を持っています。これはSoC内部のcontroller/PHY経路を数えたもので、すべてのボードに必ず3個の物理コネクタがあるという意味ではありません。
 
-- 書き込み・ログ用の外付けUSB-UARTシリアル変換（CH34xなど）
-- USB FSのCDC
-- USB FSのOTG
-- USB HSのOTG
+1. **USB Serial/JTAG** — 書き込み、console CDC、JTAGに使う固定機能のFull-speed USB controllerです。
+2. **USB OTG FS** — HostまたはDeviceとして使用できる、プログラム可能なFull-speed/Low-speed OTG controllerです。
+3. **USB OTG HS** — USB専用ピンを使用し、HostまたはDeviceとして使用できる、プログラム可能なHigh-speed OTG controllerです。
 
-ボードによっては、外付けUSB-UARTシリアル変換の先に通常のUARTポートがあります。これはESP32-P4内蔵のUSB Serial/JTAGやUSB OTG peripheralとは別の経路です。
+実際のボードは3機能すべてを個別に引き出すこともあれば、一部だけを引き出したり、1つのコネクタの役割を切り替えたりします。さらにCH34xやCP210xなどの外付けUSB-UART変換ICが追加されることがあります。外付けUSB-UARTはP4内蔵USB controllerではないため、ボード上ではUSB関連のコネクタ/経路が4系統に見える場合があります。代表的な組み合わせは次のとおりです。
+
+- USB OTG HS + USB OTG FS + 内蔵USB Serial/JTAG
+- USB OTG HS + 内蔵FS USB Serial/JTAG + 外付けUSB-UARTシリアル
+- USB OTG HS + USB OTG FS + 内蔵USB Serial/JTAG + 外付けUSB-UARTシリアル
+
+`USB`、`OTG`、`UART`、`DOWNLOAD`などのコネクタ表記だけで判断せず、必ずボード回路図を確認してください。外付けUSB-UARTコネクタの先はP4の通常のUARTであり、内蔵USB Serial/JTAGやUSB OTG controllerとは独立しています。
 
 SoCレベルの信号ピンは以下です。実際のボードでどのコネクタに配線されているかはボード設計によって異なるため、配線やポート選択の前に回路図を確認してください。
 
@@ -110,9 +115,38 @@ SoCレベルの信号ピンは以下です。実際のボードでどのコネ�
 | USB OTG FS | GPIO26 | GPIO27 | Full-speed OTGコネクタとして使われることが多いペアです。USB Hostでは`ESP_USB_HOST_PORT_FULL_SPEED`で選択します。 |
 | USB OTG HS | package pin 49 | package pin 50 | High-speed OTGポート。汎用GPIOではなくUSB専用ピンです。`ESP_USB_HOST_PORT_HIGH_SPEED`で選択します。 |
 
-ESP32-P4にはFull-speed USB PHYのピンペアが2つあり、FS OTGとUSB Serial/JTAGはGPIO24/GPIO25またはGPIO26/GPIO27から選択できます。上の表は典型的/デフォルトの割り当てであり、すべてのボードで同じとは限りません。
+ESP32-P4にはFull-speed/Low-speed PHYが2つあります。USB OTG FSとUSB Serial/JTAGは互いに別のPHYへ接続されます。
 
-FS USBのピンペア選択はeFuseで変更できますが、一度スワップすると不可逆で元に戻せません。また、通常のライブラリ利用では変更は推奨されません。基本的にはボードのデフォルト配線を使い、USB Hostで使うperipheralは`EspUsbHostConfig::port`で選択してください。
+| 割り当て | GPIO24/GPIO25（FSLS PHY0） | GPIO26/GPIO27（FSLS PHY1） |
+|----------|-----------------------------|-----------------------------|
+| デフォルト | USB Serial/JTAG | USB OTG FS |
+| 入れ替え後 | USB OTG FS | USB Serial/JTAG |
+
+この割り当ては`USB_PHY_SEL` eFuseで恒久的に入れ替えることも、実行時に一時的に入れ替えることもできます。これは一対一の交換であり、信号の複製ではありません。USB OTG FSとUSB Serial/JTAGは常に別々のFSLS PHYを使用します。**eFuseへの書き込みは不可逆であり、特定ボードのコネクタへ対応するためだけに変更することは推奨しません。** 開発中やボード固有ファームウェアでは、通常は実行時のソフトウェア上書きの方が安全です。
+
+ESP-IDFはP4用Low-level HALで実行時の割り当て変更を提供しています。`usb.begin()`および他のUSB OTG FS driverを初期化する前に呼び出します。
+
+```cpp
+#include "hal/usb_wrap_ll.h"
+#include "soc/usb_wrap_struct.h"
+
+// USB OTG FSをGPIO24/GPIO25へ接続する。USB Serial/JTAGはGPIO26/GPIO27へ移動する。
+usb_wrap_ll_phy_select(&USB_WRAP, 0);
+
+EspUsbHostConfig config;
+config.port = ESP_USB_HOST_PORT_FULL_SPEED;
+usb.begin(config);
+```
+
+`usb_wrap_ll_phy_select(&USB_WRAP, 0)`はUSB OTG FSをFSLS PHY0（GPIO24/GPIO25）へ接続し、同時にUSB Serial/JTAGをFSLS PHY1（GPIO26/GPIO27）へ接続します。`1`を指定すると反対の割り当てになります。同じUSB機能が両方のピンペアへ出力されるわけではありません。これはFS PHY割り当てのソフトウェア上書きであり、eFuseには書き込みません。チップをリセットすると、起動時のeFuse/デフォルト割り当てへ制御が戻ります。
+
+USB Serial/JTAGをGPIO26/GPIO27へ移しても、新しいCDC stackを生成・初期化するわけではありません。内蔵の固定機能USB Serial/JTAG controllerを移動するため、そのcontrollerが有効ならGPIO26/GPIO27側でCDC/JTAG USB deviceとして動作できます。GPIO24/GPIO25経由でSerial Monitor、書き込み、JTAG debugを行っていた場合、OTG FSをGPIO24/GPIO25へ移した時点でその接続は切断されます。切り替え後もログが必要な場合は、外付けUSB-UARTコネクタなど別のconsoleを使うか、GPIO26/GPIO27側へ移動したUSB Serial/JTAGへ接続してください。
+
+OTG FSのHostまたはDevice driverが動作中に割り当てを変更してはいけません。別のframeworkが先にOTG FSを初期化している場合は、そのdriverを停止・uninstallしてから経路を変更し、その後で`EspUsbHost`を初期化します。別のFS stackを開始していない通常のスケッチなら、`usb.begin(config)`の直前に呼べば十分です。USB Serial/JTAGはROMやArduino coreによって先に初期化されている場合があり、切り替えると旧PHY側では物理的なUSB切断、新PHY側では再列挙が発生する可能性があります。
+
+この設定で変わるのはD+/D-の信号経路だけです。USB HostにはVBUS供給、過電流保護、USB-Cの場合はrole/CC制御も必要であり、これらはボード側ハードウェアが提供する必要があります。GPIO24/GPIO25へ配線されたコネクタであっても、PHYを切り替えるだけで電気的にHostとして使用可能になるとは限りません。またUSB Serial/JTAGがGPIO26/GPIO27へ移るため、26/27側コネクタがHost用VBUSを出力したままになっていないこと、および移動後のUSB Serial/JTAGのDevice roleと競合する機器が接続されていないことを確認してください。
+
+USB Serial/JTAGをGPIO26/GPIO27へ割り当てている間は、この2ピンを通常のGPIOや別peripheralと併用できません。USB経路を変更する前に、GPIOまたは対象peripheralの使用を停止してください。後からUSB割り当てを元へ戻してGPIO26/GPIO27を別用途へ戻す場合は、`pinMode()`を再実行するか、対象peripheral driverの`begin()`/設定APIを呼び直してピンを再初期化してください。USB PHYの初期化によってpin mux、入出力方向、pull設定が変更される可能性があるため、それ以前のGPIO/peripheral初期化が維持されているとは限りません。
 
 USB Hostとして使えるのはOTGポートです。ボードによっては、どのコネクタがFS OTGで、どれがCDC/デバイス用なのか分かりにくい場合があります。ボードの回路図とサンプル設定を確認してください。
 
@@ -180,6 +214,7 @@ void loop() {
 | [EspUsbHostHIDReportDescriptor](examples/Info/EspUsbHostHIDReportDescriptor/) | HID調査用にHIDレポートディスクリプタと簡易item decodeを表示 |
 | [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | 接続・切断コールバックを自分で定義し、接続デバイスを調べる |
 | [EspUsbHostHubPPPS](examples/Info/EspUsbHostHubPPPS/) | PPPS対応USBハブのポート電源を制御 |
+| [EspUsbHostP4FsPhyRouting](examples/Info/EspUsbHostP4FsPhyRouting/) | ESP32-P4のUSB OTG FSを実行時にGPIO24/GPIO25側USBコネクタへ切り替える |
 
 ### MIDI
 

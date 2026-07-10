@@ -97,14 +97,19 @@ Host/Device loopback tests.
 
 ### ESP32-P4 notes
 
-ESP32-P4 boards can expose up to four USB-related connectors or paths, depending on the board design:
+ESP32-P4 contains three USB functions. These are controllers/PHY paths inside the SoC, not necessarily three physical connectors on every board:
 
-- External USB-to-UART serial converter, such as CH34x, for flashing/logging
-- USB FS used as CDC
-- USB FS OTG
-- USB HS OTG
+1. **USB Serial/JTAG** — a fixed-function Full-speed USB controller for flashing, console CDC, and JTAG.
+2. **USB OTG FS** — a programmable Full-speed/Low-speed OTG controller that can operate as Host or Device.
+3. **USB OTG HS** — a programmable High-speed OTG controller with dedicated USB pins that can operate as Host or Device.
 
-Some boards also have a normal UART port behind the external USB-to-UART converter. This is separate from the ESP32-P4 built-in USB Serial/JTAG and USB OTG peripherals.
+A board may expose all three, combine roles on a connector, or expose only some of them. It may also add an external USB-to-UART bridge such as CH34x or CP210x. That bridge is not one of the P4 USB controllers, so such a board can appear to have four USB-related connectors or paths. Common arrangements include:
+
+- USB OTG HS + USB OTG FS + built-in USB Serial/JTAG
+- USB OTG HS + built-in FS USB Serial/JTAG + external USB-to-UART serial
+- USB OTG HS + USB OTG FS + built-in USB Serial/JTAG + external USB-to-UART serial
+
+Check the board schematic rather than relying on connector labels such as `USB`, `OTG`, `UART`, or `DOWNLOAD`. An external USB-to-UART connector carries a normal P4 UART behind the bridge and is independent of the built-in USB Serial/JTAG and OTG controllers.
 
 The chip-level signal pins are as follows. Board connectors may be wired differently, so always check the board schematic before wiring or choosing a port.
 
@@ -114,9 +119,38 @@ The chip-level signal pins are as follows. Board connectors may be wired differe
 | USB OTG FS | GPIO26 | GPIO27 | Commonly used as the full-speed OTG connector; selectable as USB Host with `ESP_USB_HOST_PORT_FULL_SPEED`. |
 | USB OTG HS | package pin 49 | package pin 50 | High-speed OTG port; these are dedicated USB pins, not general GPIOs. Select with `ESP_USB_HOST_PORT_HIGH_SPEED`. |
 
-ESP32-P4 has two full-speed USB PHY pin pairs, and the FS OTG and USB Serial/JTAG functions can choose between GPIO24/GPIO25 and GPIO26/GPIO27. The table above shows the typical/default assignment, not a guarantee for every board.
+ESP32-P4 has two internal Full-speed/Low-speed PHYs. USB OTG FS and USB Serial/JTAG are mapped to opposite PHYs:
 
-The FS USB pin-pair selection can be changed with eFuse, but this is irreversible once swapped and is not recommended for normal library use. Prefer using the board's default wiring and select the host peripheral in software with `EspUsbHostConfig::port`.
+| Mapping | GPIO24/GPIO25 (FSLS PHY0) | GPIO26/GPIO27 (FSLS PHY1) |
+|---------|----------------------------|----------------------------|
+| Default | USB Serial/JTAG | USB OTG FS |
+| Swapped | USB OTG FS | USB Serial/JTAG |
+
+The assignment can be swapped permanently with the `USB_PHY_SEL` eFuse or temporarily at runtime. This is a one-to-one swap, not signal duplication: USB OTG FS and USB Serial/JTAG always use different FSLS PHYs. **Burning the eFuse is irreversible and is not recommended just to support a particular board connector.** The runtime override is normally the safer choice during development and for board-specific firmware.
+
+ESP-IDF exposes the runtime mapping through its P4 low-level HAL. Call it before `usb.begin()` and before any other USB OTG FS driver is initialized:
+
+```cpp
+#include "hal/usb_wrap_ll.h"
+#include "soc/usb_wrap_struct.h"
+
+// Route USB OTG FS to GPIO24/GPIO25. USB Serial/JTAG moves to GPIO26/GPIO27.
+usb_wrap_ll_phy_select(&USB_WRAP, 0);
+
+EspUsbHostConfig config;
+config.port = ESP_USB_HOST_PORT_FULL_SPEED;
+usb.begin(config);
+```
+
+`usb_wrap_ll_phy_select(&USB_WRAP, 0)` maps USB OTG FS to FSLS PHY0 (GPIO24/GPIO25) and simultaneously maps USB Serial/JTAG to FSLS PHY1 (GPIO26/GPIO27). Passing `1` applies the opposite mapping. It does not make the same USB function appear on both pin pairs. This is a software override of the FS PHY mapping; it does not burn an eFuse. Resetting the chip returns startup control to the configured eFuse/default mapping.
+
+Moving USB Serial/JTAG to GPIO26/GPIO27 does not create or initialize another CDC stack. It relocates the built-in fixed-function USB Serial/JTAG controller; if that controller is enabled, its CDC/JTAG USB device can therefore operate on GPIO26/GPIO27. If the serial monitor, flashing connection, or JTAG debugger is using GPIO24/GPIO25, it disconnects when OTG FS is moved there. Use an external USB-to-UART connector, another available console, or connect USB Serial/JTAG to GPIO26/GPIO27 when logs are needed after the switch.
+
+Do not change the mapping while an OTG FS Host or Device driver is running. If another framework initialized OTG FS earlier, stop and uninstall that driver before changing the route, then initialize `EspUsbHost`. In a normal sketch that has not started another FS stack, calling the function immediately before `usb.begin(config)` is sufficient. USB Serial/JTAG may already have been initialized by ROM or the Arduino core; switching it causes a physical USB disconnect from the old PHY and possible re-enumeration on the new PHY.
+
+This routing changes D+/D- connectivity only. USB Host also requires correct VBUS sourcing, over-current protection, and, for USB-C, appropriate role/CC handling supplied by the board hardware. Never assume that a connector wired to GPIO24/GPIO25 is electrically capable of Host mode from PHY routing alone. Because USB Serial/JTAG moves onto GPIO26/GPIO27, ensure that connector is not still sourcing Host VBUS and is not connected to a device that conflicts with the relocated USB Serial/JTAG device role.
+
+GPIO26/GPIO27 cannot remain in use as ordinary GPIOs or by another peripheral while USB Serial/JTAG is mapped to them. Stop that GPIO/peripheral use before changing the USB route. If the USB mapping is later restored and GPIO26/GPIO27 are returned to another purpose, initialize those pins again with `pinMode()` or restart the owning peripheral driver with its `begin()`/configuration API. USB PHY setup can change the pin mux, direction, and pull configuration, so the previous GPIO/peripheral initialization must not be assumed to remain valid.
 
 Only the OTG ports are usable as USB Host ports. Some boards make it hard to tell which connector is FS OTG versus a CDC/device connector, so check the board schematic and examples carefully.
 
@@ -184,6 +218,7 @@ void loop() {
 | [EspUsbHostHIDReportDescriptor](examples/Info/EspUsbHostHIDReportDescriptor/) | Print HID report descriptors and a simple item decode for HID investigation |
 | [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | Define custom connect/disconnect callbacks and inspect connected devices |
 | [EspUsbHostHubPPPS](examples/Info/EspUsbHostHubPPPS/) | Control power on a PPPS-capable USB hub port |
+| [EspUsbHostP4FsPhyRouting](examples/Info/EspUsbHostP4FsPhyRouting/) | Route ESP32-P4 USB OTG FS to the GPIO24/GPIO25 USB connector at runtime |
 
 ### MIDI
 
