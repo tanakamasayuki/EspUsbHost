@@ -1,3 +1,7 @@
+# This file is maintained in the shared release toolkit:
+# https://github.com/tanakamasayuki/arduino-library-release-toolkit
+# Do not edit it in individual projects. Make changes in the toolkit and sync them instead.
+
 name: Release
 
 on:
@@ -45,6 +49,21 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_header=$HEADER" >> "$GITHUB_OUTPUT"
 
+      - name: Run pre-version-commit hook
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: v${{ steps.version.outputs.version }}
+          RELEASE_LEVEL: ${{ github.event.inputs.version_level || 'patch' }}
+          RELEASE_PHASE: pre_version_commit
+        run: |
+          HOOK="tools/release_hooks/pre_version_commit.py"
+          if [ -f "$HOOK" ]; then
+            echo "Running $HOOK"
+            python "$HOOK"
+          else
+            echo "No $HOOK; skipping."
+          fi
+
       - name: Stage files
         run: |
           git add library.properties
@@ -68,15 +87,35 @@ jobs:
         id: release_branch
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: v${{ steps.version.outputs.version }}
+          RELEASE_LEVEL: ${{ github.event.inputs.version_level || 'patch' }}
+          RELEASE_PHASE: pre_release_commit
         run: |
           git checkout -B "$RELEASE_BRANCH"
           git rm -r --ignore-unmatch tests
           git ls-files 'examples/sketch.yaml' 'examples/**/sketch.yaml' | sort -u | xargs -r git add
+
+          HOOK="tools/release_hooks/pre_release_commit.py"
+          if [ -f "$HOOK" ]; then
+            echo "Running $HOOK"
+            python "$HOOK"
+          else
+            echo "No $HOOK; skipping."
+          fi
+
           if git diff --cached --quiet; then
             echo "No release-only changes to commit."
           else
             git commit -m "Release assets v${VERSION}"
           fi
+
+          if ! git diff --quiet; then
+            echo "Tracked files contain unstaged changes after the release commit."
+            git diff --stat
+            exit 1
+          fi
+
           echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Build release archive
