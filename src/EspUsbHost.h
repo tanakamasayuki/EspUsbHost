@@ -1189,7 +1189,8 @@ private:
     uint8_t lastMouseButtons = 0;
     uint16_t lastConsumerUsage = 0;
     EspUsbHostGamepadPrevState lastGamepadState;
-    EspUsbHostHIDFieldValue hidFieldValues[ESP_USB_HOST_MAX_HID_EVENT_FIELDS] = {};
+    // Generic HID field values are only needed by decoded gamepad events.
+    EspUsbHostHIDFieldValue *hidFieldValues = nullptr;
     size_t hidFieldValueCount = 0;
     uint8_t lastSystemUsage = 0;
   };
@@ -1338,7 +1339,10 @@ private:
     usb_transfer_t *networkOutTransfer = nullptr;
     SemaphoreHandle_t networkOutDone = nullptr;
     SemaphoreHandle_t networkTxLock = nullptr;
-    uint8_t networkRxRing[ESP_USB_HOST_NETWORK_RX_RING_SIZE] = {};
+    // Allocated only while a network interface is open. Keeping these large
+    // buffers out of every DeviceState slot avoids reserving ~7 KB per tracked
+    // device for sketches that never use USB networking.
+    uint8_t *networkRxRing = nullptr;
     volatile uint16_t networkRxHead = 0;
     volatile uint16_t networkRxTail = 0;
     void *networkNetif = nullptr; // esp_netif_t* (opaque here to keep esp_netif out of the header)
@@ -1349,7 +1353,7 @@ private:
     uint32_t networkTxFailCount = 0;
     // Reassembly buffer: a device->host NTB can span several bulk-IN completions
     // (one per USB packet at full speed), so accumulate until wBlockLength bytes.
-    uint8_t networkAsm[ESP_USB_HOST_NETWORK_NTB_IN_MAX] = {};
+    uint8_t *networkAsm = nullptr;
     uint16_t networkAsmLen = 0;
     uint16_t networkAsmExpected = 0;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
@@ -1361,7 +1365,9 @@ private:
     uint8_t endpointChannelCount = 0;
     HIDReportDescriptorState hidReportDescriptors[ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS] = {};
     uint8_t hidReportDescriptorCount = 0;
-    HIDInputFieldState hidInputFields[ESP_USB_HOST_MAX_HID_INPUT_FIELDS] = {};
+    // Allocated when a HID report descriptor is first parsed. Most device
+    // slots never need this comparatively large field table.
+    HIDInputFieldState *hidInputFields = nullptr;
     size_t hidInputFieldCount = 0;
     uint8_t interfaces[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceCount = 0;

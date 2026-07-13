@@ -6221,8 +6221,22 @@ bool EspUsbHost::submitHIDReportDescriptorRequest(const HIDReportDescriptorState
 
 void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostHIDReportDescriptor &descriptor)
 {
+  if (!device.hidInputFields)
+  {
+    device.hidInputFields = static_cast<HIDInputFieldState *>(calloc(ESP_USB_HOST_MAX_HID_INPUT_FIELDS,
+                                                                     sizeof(HIDInputFieldState)));
+    if (!device.hidInputFields)
+    {
+      // Keyboard bitmap layout detection below does not depend on this table,
+      // so continue parsing while omitting generic HID field metadata.
+      ESP_LOGW(TAG, "HID input field allocation failed");
+      setLastError(ESP_ERR_NO_MEM);
+    }
+  }
+
   size_t writeIndex = device.hidInputFieldCount;
-  while (writeIndex > 0 && device.hidInputFields[writeIndex - 1].interfaceNumber == descriptor.interfaceNumber)
+  while (device.hidInputFields && writeIndex > 0 &&
+         device.hidInputFields[writeIndex - 1].interfaceNumber == descriptor.interfaceNumber)
   {
     writeIndex--;
   }
@@ -6349,7 +6363,8 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
 
       for (uint8_t field = 0; field < reportCount; field++)
       {
-        if (!constant && reportSize > 0 && device.hidInputFieldCount < ESP_USB_HOST_MAX_HID_INPUT_FIELDS)
+        if (device.hidInputFields && !constant && reportSize > 0 &&
+            device.hidInputFieldCount < ESP_USB_HOST_MAX_HID_INPUT_FIELDS)
         {
           HIDInputFieldState &inputField = device.hidInputFields[device.hidInputFieldCount++];
           inputField.interfaceNumber = descriptor.interfaceNumber;
@@ -7339,6 +7354,16 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
   const uint8_t reportId = rawLength > 0 && rawData && rawData != data ? rawData[0] : 0;
   if (device)
   {
+    if (!endpoint.hidFieldValues)
+    {
+      endpoint.hidFieldValues = static_cast<EspUsbHostHIDFieldValue *>(
+          calloc(ESP_USB_HOST_MAX_HID_EVENT_FIELDS, sizeof(EspUsbHostHIDFieldValue)));
+      if (!endpoint.hidFieldValues)
+      {
+        ESP_LOGW(TAG, "HID event field allocation failed");
+        setLastError(ESP_ERR_NO_MEM);
+      }
+    }
     endpoint.hidFieldValueCount = decodeHIDInputFields(*device,
                                                        endpoint.interfaceNumber,
                                                        reportId,
@@ -7526,6 +7551,12 @@ void EspUsbHost::resetDeviceState(DeviceState &device)
     usb_host_transfer_free(device.networkOutTransfer);
     device.networkOutTransfer = nullptr;
   }
+  free(device.networkRxRing);
+  free(device.networkAsm);
+  free(device.hidInputFields);
+  device.networkRxRing = nullptr;
+  device.networkAsm = nullptr;
+  device.hidInputFields = nullptr;
   SemaphoreHandle_t txLock = device.networkTxLock;
   SemaphoreHandle_t outDone = device.networkOutDone;
   device.~DeviceState();
@@ -7536,6 +7567,8 @@ void EspUsbHost::resetDeviceState(DeviceState &device)
 
 void EspUsbHost::resetEndpointState(EndpointState &endpoint)
 {
+  free(endpoint.hidFieldValues);
+  endpoint.hidFieldValues = nullptr;
   endpoint.~EndpointState();
   new (&endpoint) EndpointState();
 }
@@ -8477,6 +8510,10 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
 
   if (!hadInterface || !clientHandle_ || !device.handle)
   {
+    free(device.networkRxRing);
+    free(device.networkAsm);
+    device.networkRxRing = nullptr;
+    device.networkAsm = nullptr;
     device.networkInterface = EspUsbHostNetworkInterfaceInfo();
     return;
   }
@@ -8538,12 +8575,34 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
   device.hasNetworkInterface = false;
   device.networkInterface = EspUsbHostNetworkInterfaceInfo();
   device.networkLinkUp = false;
+  // The IN transfers have been halted and freed above, so their callbacks can
+  // no longer access the receive buffers.
+  free(device.networkRxRing);
+  free(device.networkAsm);
+  device.networkRxRing = nullptr;
+  device.networkAsm = nullptr;
 }
 
 bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network)
 {
   if (!clientHandle_ || !device.handle || !network.complete())
   {
+    return false;
+  }
+
+  // Network receive storage is intentionally lazy: serial/HID/audio-only
+  // sketches should not pay ~7 KB for every available device slot. Allocate
+  // before claiming interfaces so failure leaves the USB device untouched.
+  device.networkRxRing = static_cast<uint8_t *>(malloc(ESP_USB_HOST_NETWORK_RX_RING_SIZE));
+  device.networkAsm = static_cast<uint8_t *>(malloc(ESP_USB_HOST_NETWORK_NTB_IN_MAX));
+  if (!device.networkRxRing || !device.networkAsm)
+  {
+    free(device.networkRxRing);
+    free(device.networkAsm);
+    device.networkRxRing = nullptr;
+    device.networkAsm = nullptr;
+    ESP_LOGE(TAG, "USB Network receive buffer allocation failed");
+    setLastError(ESP_ERR_NO_MEM);
     return false;
   }
 
@@ -8573,6 +8632,10 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
              network.controlInterfaceAlternate,
              esp_err_to_name(err));
     setLastError(err);
+    free(device.networkRxRing);
+    free(device.networkAsm);
+    device.networkRxRing = nullptr;
+    device.networkAsm = nullptr;
     return false;
   }
 
@@ -8590,6 +8653,10 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
     setLastError(err);
     usb_host_interface_release(clientHandle_, device.handle, network.controlInterfaceNumber);
     markClaim(network.controlInterfaceNumber, network.controlInterfaceAlternate, ESP_OK, false);
+    free(device.networkRxRing);
+    free(device.networkAsm);
+    device.networkRxRing = nullptr;
+    device.networkAsm = nullptr;
     return false;
   }
 
