@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# This file is maintained in the shared release toolkit:
+# https://github.com/tanakamasayuki/arduino-library-release-toolkit
+# Do not edit it in individual projects. Make changes in the toolkit and sync them instead.
+
 """Increment the library version in library.properties and print the new value."""
 
 from __future__ import annotations
