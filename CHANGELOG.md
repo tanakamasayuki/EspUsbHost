@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+## 2.1.3
 - (EN) Reduce static RAM usage for sketches that do not use USB networking by allocating the per-device 4,096-byte receive ring and 3,200-byte NTB reassembly buffer only when `networkOpen()` succeeds, then releasing them on `networkClose()` or device teardown. With the default eight device slots, this removes about 58 KB from the always-resident `EspUsbHost` instance; each open network interface now consumes about 7.3 KB dynamically instead.
 - (JA) USBネットワークを使用しないスケッチの静的RAM使用量を削減。デバイスごとの4,096バイト受信リングと3,200バイトNTB再アセンブルバッファを、`networkOpen()`成功時のみ確保し、`networkClose()`またはデバイス切断時に解放するようにしました。既定の8デバイススロットでは、常駐する`EspUsbHost`インスタンスから約58 KBを削減し、ネットワーク使用時のみオープンしたインターフェースごとに約7.3 KBを動的に使用します。
 - (EN) Further reduce static RAM by allocating HID input-field metadata only for devices whose report descriptors are parsed, and decoded HID event values only for endpoints that produce gamepad events. With the default eight device and sixteen endpoint slots, this removes another approximately 40 KB from the always-resident `EspUsbHost` instance while preserving basic HID and NKRO handling if an optional metadata allocation fails.
