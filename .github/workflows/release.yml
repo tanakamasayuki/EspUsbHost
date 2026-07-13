@@ -39,6 +39,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
       - name: Plan version bump
         id: version_plan
         run: |
