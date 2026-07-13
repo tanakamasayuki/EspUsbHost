@@ -39,21 +39,57 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Plan version bump
+        id: version_plan
+        run: |
+          LEVEL="${{ github.event.inputs.version_level || 'patch' }}"
+          OUT=$(python tools/bump_version.py --preview --level "$LEVEL")
+          VERSION=$(printf '%s\n' "$OUT" | sed -n '1p')
+          OLD_VERSION=$(printf '%s\n' "$OUT" | sed -n '3p')
+          echo "Preparing release: v${OLD_VERSION} -> v${VERSION} (${LEVEL})"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
+
+      - name: Run pre-bump hook
+        env:
+          RELEASE_OLD_VERSION: ${{ steps.version_plan.outputs.old_version }}
+          RELEASE_VERSION: ${{ steps.version_plan.outputs.version }}
+          RELEASE_TAG: v${{ steps.version_plan.outputs.version }}
+          RELEASE_LEVEL: ${{ steps.version_plan.outputs.level }}
+          RELEASE_PHASE: pre_bump
+        run: |
+          HOOK="tools/release_hooks/pre_bump.py"
+          if [ -f "$HOOK" ]; then
+            echo "Running $HOOK"
+            python "$HOOK"
+          else
+            echo "No $HOOK; skipping."
+          fi
+
       - name: Bump version
         id: version
         run: |
-          LEVEL="${{ github.event.inputs.version_level || 'patch' }}"
+          LEVEL="${{ steps.version_plan.outputs.level }}"
           OUT=$(python tools/bump_version.py --level "$LEVEL")
           VERSION=$(printf '%s\n' "$OUT" | sed -n '1p')
           HEADER=$(printf '%s\n' "$OUT" | sed -n '2p')
+          OLD_VERSION=$(printf '%s\n' "$OUT" | sed -n '3p')
+          if [ "$VERSION" != "${{ steps.version_plan.outputs.version }}" ] || \
+             [ "$OLD_VERSION" != "${{ steps.version_plan.outputs.old_version }}" ]; then
+            echo "Version changed while preparing the release."
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_header=$HEADER" >> "$GITHUB_OUTPUT"
+          echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Run pre-version-commit hook
         env:
+          RELEASE_OLD_VERSION: ${{ steps.version.outputs.old_version }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_TAG: v${{ steps.version.outputs.version }}
-          RELEASE_LEVEL: ${{ github.event.inputs.version_level || 'patch' }}
+          RELEASE_LEVEL: ${{ steps.version_plan.outputs.level }}
           RELEASE_PHASE: pre_version_commit
         run: |
           HOOK="tools/release_hooks/pre_version_commit.py"
@@ -87,9 +123,10 @@ jobs:
         id: release_branch
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_OLD_VERSION: ${{ steps.version.outputs.old_version }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_TAG: v${{ steps.version.outputs.version }}
-          RELEASE_LEVEL: ${{ github.event.inputs.version_level || 'patch' }}
+          RELEASE_LEVEL: ${{ steps.version_plan.outputs.level }}
           RELEASE_PHASE: pre_release_commit
         run: |
           git checkout -B "$RELEASE_BRANCH"

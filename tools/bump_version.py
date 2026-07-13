@@ -3,7 +3,7 @@
 # https://github.com/tanakamasayuki/arduino-library-release-toolkit
 # Do not edit it in individual projects. Make changes in the toolkit and sync them instead.
 
-"""Increment the library version in library.properties and print the new value."""
+"""Increment the library version and print the new version, header, and old version."""
 
 from __future__ import annotations
 
@@ -212,9 +212,10 @@ def main() -> None:
         # preview: no header written, but keep second-line output empty for workflow parsing
         header_path_str = ""
 
-    # Output two lines: first the version, second the header path (or empty)
+    # Keep the first two lines backward compatible, then report the old version.
     print(next_version)
     print(header_path_str)
+    print(format_version(current))
 
 
 if __name__ == "__main__":
