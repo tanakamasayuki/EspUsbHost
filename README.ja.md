@@ -252,6 +252,7 @@ void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 
 ```cpp
 void onKeyboard(KeyboardCallback callback);
+void onKeyboardState(KeyboardStateCallback callback);
 void onMouse(MouseCallback callback);
 void onConsumerControl(ConsumerControlCallback callback);
 void onSystemControl(SystemControlCallback callback);
@@ -270,13 +271,35 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage);
 `onKeyboard` はどちらでも同じ press/release イベントを返します。`keyboardUsesBitmapReport(address)`
 で検出したフォーマット（診断用）を確認できます。[KeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) 例を参照。
 
+`onKeyboardState`はキーボードreportで状態が変化するたびに、入力形式に依存しないスナップショットを
+1回通知します。`keys`はKeyboard/Keypad usage `0x00～0xFF`の現在状態、`changedKeys`は
+そのreportで変化したusageです。`isDown(keycode)`、`wasPressed(keycode)`、
+`wasReleased(keycode)`で確認できます。修飾キーも通常キーと同じusage `0xE0～0xE7`として
+含まれるため、修飾キー単独の変化も取得できます。boot、Report ID付きboot、NKROのすべてで
+同じAPIを使用し、状態が変化しないreportではコールバックを呼びません。
+
+```cpp
+usb.onKeyboardState([](const EspUsbHostKeyboardState &state) {
+  for (uint16_t usage = 0; usage <= 0xff; usage++) {
+    uint8_t keycode = static_cast<uint8_t>(usage);
+    if (state.wasPressed(keycode)) {
+      // Left Ctrl (0xE0)などの修飾キーもkeycodeに含まれる
+    }
+    if (state.wasReleased(keycode)) {
+      // このreportで離された
+    }
+  }
+});
+```
+
 主なイベントフィールド：
 
-パース済みHIDコールバック（`onKeyboard`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onHIDVendorInput`）はすべて、`vid`、`pid`、`manufacturer`、`product`、`serial`、入力レポート全体を指す`rawData` / `rawLength`、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
+パース済みHIDコールバック（`onKeyboard`、`onKeyboardState`、`onMouse`、`onConsumerControl`、`onSystemControl`、`onGamepad`、`onHIDVendorInput`）はすべて、`vid`、`pid`、`manufacturer`、`product`、`serial`、入力レポート全体を指す`rawData` / `rawLength`、Report IDがある場合にそれを除いたレポートバイトを指す`reportData` / `reportLength`を含みます。
 
 | コールバック | 主要フィールド |
 |-------------|--------------|
 | `onKeyboard` | `pressed`、`keycode`、`ascii`、`modifiers`、`address` |
+| `onKeyboardState` | `keys`、`changedKeys`、`modifiers`、`isDown()`、`wasPressed()`、`wasReleased()`、`address` |
 | `onMouse` | `x`、`y`、`wheel`、`buttons`、`previousButtons`、`moved`、`buttonsChanged`、`address` |
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |

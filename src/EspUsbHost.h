@@ -113,6 +113,7 @@ static constexpr size_t ESP_USB_HOST_MAX_INTERFACES = 16;
 static constexpr size_t ESP_USB_HOST_MAX_ENDPOINTS = 16;
 static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTOR_SIZE = 512;
+static constexpr size_t ESP_USB_HOST_KEYBOARD_BITMAP_SIZE = 32;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS = 4;
@@ -392,6 +393,37 @@ struct EspUsbHostKeyboardEvent : EspUsbHostHIDReportData
   bool numLock = false;
   bool capsLock = false;
   bool scrollLock = false;
+};
+
+// A format-independent snapshot of the Keyboard/Keypad usage page. Boot and
+// bitmap (NKRO) reports are both normalized to the same 256-bit key map.
+struct EspUsbHostKeyboardState : EspUsbHostHIDReportData
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t keys[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
+  uint8_t changedKeys[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
+  uint8_t modifiers = 0;
+  bool numLock = false;
+  bool capsLock = false;
+  bool scrollLock = false;
+
+  bool isDown(uint8_t keycode) const
+  {
+    return (keys[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
+  }
+
+  bool wasPressed(uint8_t keycode) const
+  {
+    return isDown(keycode) &&
+           (changedKeys[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
+  }
+
+  bool wasReleased(uint8_t keycode) const
+  {
+    return !isDown(keycode) &&
+           (changedKeys[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
+  }
 };
 
 struct EspUsbHostMouseEvent : EspUsbHostHIDReportData
@@ -884,6 +916,7 @@ class EspUsbHost
 public:
   using DeviceCallback = std::function<void(const EspUsbHostDeviceInfo &)>;
   using KeyboardCallback = std::function<void(const EspUsbHostKeyboardEvent &)>;
+  using KeyboardStateCallback = std::function<void(const EspUsbHostKeyboardState &)>;
   using MouseCallback = std::function<void(const EspUsbHostMouseEvent &)>;
   using HIDInputCallback = std::function<void(const EspUsbHostHIDInput &)>;
   using HIDReportDescriptorCallback = std::function<void(const EspUsbHostHIDReportDescriptor &)>;
@@ -909,6 +942,7 @@ public:
   void onDeviceConnected(DeviceCallback callback);
   void onDeviceDisconnected(DeviceCallback callback);
   void onKeyboard(KeyboardCallback callback);
+  void onKeyboardState(KeyboardStateCallback callback);
   void onMouse(MouseCallback callback);
   void onHIDInput(HIDInputCallback callback);
   void onHIDReportDescriptor(HIDReportDescriptorCallback callback);
@@ -1182,6 +1216,7 @@ private:
     bool resubmitAfterLed = false;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
+    uint8_t lastKeyboardState[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
     // Previous NKRO bitmap report state, for press/release diffing.
     uint8_t lastKeyboardBitmap[ESP_USB_HOST_NKRO_BITMAP_MAX_BYTES] = {};
     uint8_t lastKeyboardBitmapModifiers = 0;
@@ -1400,6 +1435,13 @@ private:
   void parseAudioControlDescriptor(DeviceState &device, const uint8_t *data);
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
   void handleTransfer(usb_transfer_t *transfer);
+  void dispatchKeyboardState(EndpointState &endpoint,
+                             DeviceState *device,
+                             const uint8_t *keys,
+                             const uint8_t *rawData,
+                             size_t rawLength,
+                             const uint8_t *reportData,
+                             size_t reportLength);
   void handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength);
   void handleKeyboardBitmap(EndpointState &endpoint, DeviceState &device, const uint8_t *data, size_t length);
   void handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length);
@@ -1572,6 +1614,7 @@ private:
   DeviceCallback deviceConnectedCallback_;
   DeviceCallback deviceDisconnectedCallback_;
   KeyboardCallback keyboardCallback_;
+  KeyboardStateCallback keyboardStateCallback_;
   MouseCallback mouseCallback_;
   HIDInputCallback hidInputCallback_;
   HIDReportDescriptorCallback hidReportDescriptorCallback_;

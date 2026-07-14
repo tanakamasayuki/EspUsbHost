@@ -51,6 +51,19 @@ void setup()
                    }
                  });
 
+  usb.onKeyboardState([](const EspUsbHostKeyboardState &state)
+                      {
+                        int down = 0;
+                        for (uint16_t usage = 0; usage <= 0xff; usage++)
+                        {
+                          if (state.isDown(static_cast<uint8_t>(usage)))
+                          {
+                            down++;
+                          }
+                        }
+                        Serial.printf("STATE down=%d\n", down);
+                      });
+
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());

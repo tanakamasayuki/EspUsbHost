@@ -62,6 +62,11 @@ void loop()
             sendRawKey(0x02, 0x87);
             Serial.println("SEND _ 1");
         }
+        else if (command == '^')
+        {
+            sendRawKey(0x01, 0x00);
+            Serial.println("SEND LCTRL 1");
+        }
         else if (command >= 0x20 && command <= 0x7e)
         {
             Keyboard.write(command);

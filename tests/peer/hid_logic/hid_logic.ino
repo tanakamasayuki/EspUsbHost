@@ -87,6 +87,21 @@ static void testKeyboardDiff()
   check(count == 1 && events[0].pressed && events[0].ascii == '_' && events[0].modifiers == 0x02, "keyboard_shift_international3");
 }
 
+static void testKeyboardStateHelpers()
+{
+  EspUsbHostKeyboardState state;
+  state.keys[0x04 >> 3] |= static_cast<uint8_t>(1u << (0x04 & 7));
+  state.changedKeys[0x04 >> 3] |= static_cast<uint8_t>(1u << (0x04 & 7));
+  state.changedKeys[0xe0 >> 3] |= static_cast<uint8_t>(1u << (0xe0 & 7));
+
+  check(state.isDown(0x04), "keyboard_state_a_down");
+  check(state.wasPressed(0x04), "keyboard_state_a_pressed");
+  check(!state.wasReleased(0x04), "keyboard_state_a_not_released");
+  check(!state.isDown(0xe0), "keyboard_state_ctrl_up");
+  check(state.wasReleased(0xe0), "keyboard_state_ctrl_released");
+  check(!state.wasPressed(0x05) && !state.wasReleased(0x05), "keyboard_state_unchanged");
+}
+
 static void testMouseReportEdges()
 {
   EspUsbHostMouseEvent event;
@@ -153,6 +168,7 @@ void setup()
   testKeycodeToAscii();
   testKeyboardReportValidation();
   testKeyboardDiff();
+  testKeyboardStateHelpers();
   testMouseReportEdges();
   testKeyboardLedReport();
   testConsumerControlReportEdges();

@@ -26,6 +26,7 @@ def test_hid_keyboard_nkro_chord(dut, peers):
 
     # All eight keys must be reported held at the same time — impossible with the
     # 6-key boot report, so this is the NKRO proof.
+    dut.expect_exact("STATE down=8")
     dut.expect(r"PRESS keycode=0x[0-9a-f]+ n=8", timeout=10)
 
     dut.write("m")

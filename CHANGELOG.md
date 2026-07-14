@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add `onKeyboardState()` with a format-independent 256-bit Keyboard/Keypad state for boot, Report-ID boot, and NKRO keyboards. Each changed report is delivered once with current and changed bitmaps, including modifier-only changes at usages `0xE0-0xE7`, plus `isDown()`, `wasPressed()`, and `wasReleased()` helpers. Existing `onKeyboard()` behavior is unchanged.
+- (JA) boot、Report ID付きboot、NKROキーボード共通の256-bit Keyboard/Keypad状態を返す`onKeyboardState()`を追加。変化したreportごとに現在状態と変化bitmapを1回通知し、usage `0xE0～0xE7`の修飾キー単独変化も含みます。`isDown()`、`wasPressed()`、`wasReleased()`ヘルパーを備え、既存`onKeyboard()`の挙動は変更しません。
 
 ## 2.1.3
 - (EN) Reduce static RAM usage for sketches that do not use USB networking by allocating the per-device 4,096-byte receive ring and 3,200-byte NTB reassembly buffer only when `networkOpen()` succeeds, then releasing them on `networkClose()` or device teardown. With the default eight device slots, this removes about 58 KB from the always-resident `EspUsbHost` instance; each open network interface now consumes about 7.3 KB dynamically instead.
