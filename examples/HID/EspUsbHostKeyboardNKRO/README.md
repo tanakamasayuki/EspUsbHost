@@ -7,8 +7,8 @@ the same time. A boot keyboard is limited to 6 simultaneous keys; an NKRO keyboa
 sends a key **bitmap** instead, lifting that limit.
 
 EspUsbHost decodes both formats automatically — it learns the report layout from
-the HID report descriptor, so `onKeyboard()` delivers the same press/release
-events whether the keyboard is boot (6KRO) or NKRO. No configuration is required.
+the HID report descriptor, so `onKeyboardState()` delivers the same normalized
+key state whether the keyboard is boot (6KRO) or NKRO. No configuration is required.
 
 ## Hardware
 
@@ -26,12 +26,12 @@ events whether the keyboard is boot (6KRO) or NKRO. No configuration is required
 
 ## Key APIs
 
-- `usb.onKeyboard(cb)` delivers `EspUsbHostKeyboardEvent` press/release events with
-  `keycode`, `ascii`, and `modifiers` — identical for boot and NKRO keyboards.
+- `usb.onKeyboardState(cb)` delivers one `EspUsbHostKeyboardState` for each changed
+  report. `isDown()`, `wasPressed()`, and `wasReleased()` cover every Keyboard/Keypad
+  usage, including modifiers `0xE0-0xE7`, identically for boot and NKRO keyboards.
 - `usb.keyboardUsesBitmapReport(address)` reports whether the keyboard sends an
   NKRO bitmap (report protocol) rather than the 6-key boot report. Diagnostic
   only; decoding is automatic.
-- `usb.setKeyboardLayout(layout)` selects the layout used for the `ascii` field.
 
 ## Notes
 

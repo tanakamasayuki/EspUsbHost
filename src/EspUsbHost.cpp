@@ -1517,6 +1517,11 @@ void EspUsbHost::onKeyboard(KeyboardCallback callback)
   keyboardCallback_ = callback;
 }
 
+void EspUsbHost::onKeyboardState(KeyboardStateCallback callback)
+{
+  keyboardStateCallback_ = callback;
+}
+
 void EspUsbHost::onMouse(MouseCallback callback)
 {
   mouseCallback_ = callback;
@@ -6857,6 +6862,61 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
   }
 }
 
+void EspUsbHost::dispatchKeyboardState(EndpointState &endpoint,
+                                       DeviceState *device,
+                                       const uint8_t *keys,
+                                       const uint8_t *rawData,
+                                       size_t rawLength,
+                                       const uint8_t *reportData,
+                                       size_t reportLength)
+{
+  if (!keys)
+  {
+    return;
+  }
+
+  EspUsbHostKeyboardState state;
+  bool changed = false;
+  for (size_t i = 0; i < ESP_USB_HOST_KEYBOARD_BITMAP_SIZE; i++)
+  {
+    state.keys[i] = keys[i];
+    state.changedKeys[i] = static_cast<uint8_t>(keys[i] ^ endpoint.lastKeyboardState[i]);
+    changed = changed || state.changedKeys[i] != 0;
+  }
+  memcpy(endpoint.lastKeyboardState, keys, ESP_USB_HOST_KEYBOARD_BITMAP_SIZE);
+
+  if (!changed || !keyboardStateCallback_)
+  {
+    return;
+  }
+
+  state.address = endpoint.deviceAddress;
+  state.interfaceNumber = endpoint.interfaceNumber;
+  if (device)
+  {
+    state.vid = device->info.vid;
+    state.pid = device->info.pid;
+    state.manufacturer = device->info.manufacturer;
+    state.product = device->info.product;
+    state.serial = device->info.serial;
+    state.numLock = device->keyboardNumLock;
+    state.capsLock = device->keyboardCapsLock;
+    state.scrollLock = device->keyboardScrollLock;
+  }
+  for (int b = 0; b < 8; b++)
+  {
+    if (state.isDown(static_cast<uint8_t>(0xe0 + b)))
+    {
+      state.modifiers |= static_cast<uint8_t>(1u << b);
+    }
+  }
+  state.rawData = rawData;
+  state.rawLength = rawLength;
+  state.reportData = reportData;
+  state.reportLength = reportLength;
+  keyboardStateCallback_(state);
+}
+
 void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
 {
   if (length < ESP_USB_HOST_BOOT_KEYBOARD_REPORT_SIZE)
@@ -6929,6 +6989,25 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
   const bool capsLock = device ? device->keyboardCapsLock : false;
   const bool numLock = device ? device->keyboardNumLock : false;
   const bool scrollLock = device ? device->keyboardScrollLock : false;
+
+  uint8_t keyboardState[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
+  for (int b = 0; b < 8; b++)
+  {
+    if ((currentReport.data[0] & static_cast<uint8_t>(1u << b)) != 0)
+    {
+      const uint8_t usage = static_cast<uint8_t>(0xe0 + b);
+      keyboardState[usage >> 3] |= static_cast<uint8_t>(1u << (usage & 7));
+    }
+  }
+  for (int i = 0; i < 6; i++)
+  {
+    const uint8_t usage = currentReport.data[2 + i];
+    if (usage != 0)
+    {
+      keyboardState[usage >> 3] |= static_cast<uint8_t>(1u << (usage & 7));
+    }
+  }
+  dispatchKeyboardState(endpoint, device, keyboardState, rawData, rawLength, data, length);
 
   EspUsbHostKeyboardEvent events[ESP_USB_HOST_BOOT_KEYBOARD_MAX_EVENTS];
   const size_t eventCount = espUsbHostBuildKeyboardEvents(endpoint.interfaceNumber,
@@ -7077,6 +7156,32 @@ void EspUsbHost::handleKeyboardBitmap(EndpointState &endpoint, DeviceState &devi
   const bool capsLock = device.keyboardCapsLock;
   const bool numLock = device.keyboardNumLock;
   const bool scrollLock = device.keyboardScrollLock;
+
+  uint8_t keyboardState[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
+  for (uint16_t i = 0; i < bitCount; i++)
+  {
+    const uint16_t usage = static_cast<uint16_t>(device.keyboardBitmapUsageMin + i);
+    if (usage > 0xff || !readBit(body, bitStart + i))
+    {
+      continue;
+    }
+    keyboardState[usage >> 3] |= static_cast<uint8_t>(1u << (usage & 7));
+  }
+  if (device.keyboardHasModifierField)
+  {
+    // A dedicated modifier field is authoritative when a descriptor also
+    // includes 0xE0-0xE7 in its general key bitmap.
+    for (int b = 0; b < 8; b++)
+    {
+      const uint8_t usage = static_cast<uint8_t>(0xe0 + b);
+      keyboardState[usage >> 3] &= static_cast<uint8_t>(~(1u << (usage & 7)));
+      if ((modifiers & static_cast<uint8_t>(1u << b)) != 0)
+      {
+        keyboardState[usage >> 3] |= static_cast<uint8_t>(1u << (usage & 7));
+      }
+    }
+  }
+  dispatchKeyboardState(endpoint, &device, keyboardState, data, length, body, bodyLen);
 
   // Emit a press/release event for every changed key bit (no 6-key cap).
   for (uint16_t i = 0; i < bitCount; i++)

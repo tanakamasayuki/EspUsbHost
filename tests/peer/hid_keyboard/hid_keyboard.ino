@@ -42,6 +42,20 @@ void setup()
           }
       } });
 
+    usb.onKeyboardState([](const EspUsbHostKeyboardState &state)
+                        {
+      if (verboseKeyboard)
+      {
+          Serial.printf("KEY_STATE modifiers=0x%02x a_down=%u a_pressed=%u a_released=%u lctrl_down=%u lctrl_pressed=%u lctrl_released=%u\n",
+                        state.modifiers,
+                        state.isDown(0x04) ? 1 : 0,
+                        state.wasPressed(0x04) ? 1 : 0,
+                        state.wasReleased(0x04) ? 1 : 0,
+                        state.isDown(0xe0) ? 1 : 0,
+                        state.wasPressed(0xe0) ? 1 : 0,
+                        state.wasReleased(0xe0) ? 1 : 0);
+      } });
+
     if (!usb.begin())
     {
         Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());

@@ -3,9 +3,9 @@
 // NKRO (N-key rollover) keyboard host. A boot keyboard reports at most 6 keys at
 // once; an NKRO keyboard sends a bitmap instead, so any number of keys can be
 // held simultaneously. EspUsbHost decodes both automatically from the HID report
-// descriptor — no configuration needed — and delivers the same onKeyboard()
-// press/release events either way. This sketch just reports how many keys are
-// held at the same time, which is what proves NKRO is working.
+// descriptor — no configuration needed — and normalizes both formats for
+// onKeyboardState(). This sketch reports every changed HID usage, including
+// modifiers (0xE0-0xE7), and counts how many keys are held at the same time.
 //
 // Pairs with the sibling EspUsbDevice "KeyboardNKRO" example (or any NKRO USB
 // keyboard). Use keyboardUsesBitmapReport() to see which format was detected.
@@ -29,29 +29,32 @@ void setup()
                                         usb.keyboardUsesBitmapReport(device.address) ? 1 : 0);
                         });
 
-  usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
-                 {
-                   if (event.pressed)
-                   {
-                     pressedCount++;
-                     if (pressedCount > maxSimultaneous)
-                     {
-                       maxSimultaneous = pressedCount;
-                     }
-                     Serial.printf("press   keycode=0x%02x ascii=%c held=%d (max=%d)\n",
-                                   event.keycode,
-                                   (event.ascii >= 0x20 && event.ascii < 0x7f) ? (char)event.ascii : ' ',
-                                   pressedCount, maxSimultaneous);
-                   }
-                   else
-                   {
-                     if (pressedCount > 0)
-                     {
-                       pressedCount--;
-                     }
-                     Serial.printf("release keycode=0x%02x held=%d\n", event.keycode, pressedCount);
-                   }
-                 });
+  usb.onKeyboardState([](const EspUsbHostKeyboardState &state)
+                      {
+                        pressedCount = 0;
+                        for (uint16_t usage = 0; usage <= 0xff; usage++)
+                        {
+                          const uint8_t keycode = static_cast<uint8_t>(usage);
+                          if (state.isDown(keycode))
+                          {
+                            pressedCount++;
+                          }
+                          if (state.wasPressed(keycode))
+                          {
+                            Serial.printf("press   keycode=0x%02x\n", keycode);
+                          }
+                          else if (state.wasReleased(keycode))
+                          {
+                            Serial.printf("release keycode=0x%02x\n", keycode);
+                          }
+                        }
+                        if (pressedCount > maxSimultaneous)
+                        {
+                          maxSimultaneous = pressedCount;
+                        }
+                        Serial.printf("held=%d (max=%d) modifiers=0x%02x\n",
+                                      pressedCount, maxSimultaneous, state.modifiers);
+                      });
 
   if (!usb.begin())
   {

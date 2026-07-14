@@ -7,8 +7,8 @@ boot キーボードは同時 6 キーまでですが、NKRO キーボードは�
 この制限がありません。
 
 EspUsbHost は両方のフォーマットを自動でデコードします。HID report descriptor から
-レポートレイアウトを学習するため、boot(6KRO)でも NKRO でも `onKeyboard()` は同じ
-press/release イベントを返します。設定は不要です。
+レポートレイアウトを学習するため、boot(6KRO)でも NKRO でも `onKeyboardState()` は同じ
+正規化済みキー状態を返します。設定は不要です。
 
 ## ハードウェア
 
@@ -26,11 +26,11 @@ press/release イベントを返します。設定は不要です。
 
 ## 主な API
 
-- `usb.onKeyboard(cb)`: `EspUsbHostKeyboardEvent` の press/release を通知。`keycode`、
-  `ascii`、`modifiers` を持ち、boot / NKRO で同じ。
+- `usb.onKeyboardState(cb)`: 状態が変化したreportごとに`EspUsbHostKeyboardState`を1回通知。
+  `isDown()`、`wasPressed()`、`wasReleased()`で、修飾キー`0xE0～0xE7`を含むすべての
+  Keyboard/Keypad usageをboot / NKRO共通で確認できる。
 - `usb.keyboardUsesBitmapReport(address)`: キーボードが NKRO ビットマップ(report
   protocol)を送るか、6 キーの boot レポートかを返す。診断用(デコード自体は自動)。
-- `usb.setKeyboardLayout(layout)`: `ascii` に使うレイアウトを選ぶ。
 
 ## 注意
 
