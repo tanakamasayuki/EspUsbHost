@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.2.0
 - (EN) Add `onKeyboardState()` with a format-independent 256-bit Keyboard/Keypad state for boot, Report-ID boot, and NKRO keyboards. Each changed report is delivered once with current and changed bitmaps, including modifier-only changes at usages `0xE0-0xE7`, plus `isDown()`, `wasPressed()`, and `wasReleased()` helpers. Existing `onKeyboard()` behavior is unchanged.
 - (JA) boot、Report ID付きboot、NKROキーボード共通の256-bit Keyboard/Keypad状態を返す`onKeyboardState()`を追加。変化したreportごとに現在状態と変化bitmapを1回通知し、usage `0xE0～0xE7`の修飾キー単独変化も含みます。`isDown()`、`wasPressed()`、`wasReleased()`ヘルパーを備え、既存`onKeyboard()`の挙動は変更しません。
 
