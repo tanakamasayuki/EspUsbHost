@@ -31,3 +31,18 @@ def test_hid_keyboard_nkro_chord(dut, peers):
 
     dut.write("m")
     dut.expect(r"MAX n=8")
+
+
+def test_hid_keyboard_nkro_led(dut, peers):
+    device = peers["device"]
+    device.write("?")
+    device.expect(r"DEVICE_READY nkro=1")
+
+    # LEDs must reach the keyboard while NKRO (report protocol) is active.
+    dut.write("l")
+    dut.expect_exact("LED_TX 1")
+    device.expect_exact("LED numlock=0 capslock=1 scrolllock=0")
+
+    dut.write("o")
+    dut.expect_exact("LED_TX 1")
+    device.expect_exact("LED numlock=0 capslock=0 scrolllock=0")

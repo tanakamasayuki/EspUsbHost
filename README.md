@@ -364,6 +364,12 @@ bool sendHIDVendorFeature(const uint8_t *data, size_t length,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
+`setKeyboardLeds()` works with boot keyboards and with keyboards that only expose a
+report protocol (report-ID composite HID devices, NKRO keyboards): when no boot
+interface is declared, the LED output report found in the HID report descriptor is
+used and the Set_Report carries the keyboard's report ID. The host also pushes its
+current lock state to the keyboard once at connect.
+
 `sendHIDVendorOutput()` and `sendHIDVendorFeature()` are HID vendor-report helpers. For non-HID vendor-specific interfaces, use the Vendor bulk/control APIs below.
 
 The default layout is `ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US`. Pass any of the following constants to `setKeyboardLayout()`:

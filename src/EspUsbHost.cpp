@@ -2078,15 +2078,44 @@ bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
   return true;
 }
 
+bool EspUsbHost::deviceHasKeyboard(const DeviceState &device)
+{
+  return device.hasKeyboardInterface || device.keyboardLayoutInterface != 0xff;
+}
+
+bool EspUsbHost::keyboardLedTarget(const DeviceState &device, uint8_t &interfaceNumber, uint8_t &reportId)
+{
+  if (device.hasKeyboardInterface)
+  {
+    interfaceNumber = device.keyboardInterfaceNumber;
+    reportId = 0;
+    return true;
+  }
+  if (device.hasKeyboardLedOutput)
+  {
+    interfaceNumber = device.keyboardLedInterface;
+    reportId = device.keyboardLedReportId;
+    return true;
+  }
+  return false;
+}
+
 bool EspUsbHost::sendKeyboardLedReport(DeviceState &device, uint8_t leds)
 {
   if (device.keyboardLedPending)
   {
     return false;
   }
-  if (sendHIDReport(device.keyboardInterfaceNumber,
+  uint8_t interfaceNumber = 0;
+  uint8_t reportId = 0;
+  if (!keyboardLedTarget(device, interfaceNumber, reportId))
+  {
+    ESP_LOGW(TAG, "no keyboard LED output report known for address=%u", device.info.address);
+    return false;
+  }
+  if (sendHIDReport(interfaceNumber,
                     ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
-                    0,
+                    reportId,
                     &leds,
                     sizeof(leds),
                     device.info.address))
@@ -4862,7 +4891,7 @@ void EspUsbHost::clientTaskLoop()
     }
     for (DeviceState &device : devices_)
     {
-      if (!device.inUse || !device.hasKeyboardInterface || !device.keyboardLedDirty || device.keyboardLedPending)
+      if (!device.inUse || !deviceHasKeyboard(device) || !device.keyboardLedDirty || device.keyboardLedPending)
       {
         continue;
       }
@@ -6264,6 +6293,12 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
     device.keyboardBitmapUsageMin = 0;
     device.keyboardLayoutInterface = 0xff;
   }
+  if (device.keyboardLedInterface == descriptor.interfaceNumber)
+  {
+    device.hasKeyboardLedOutput = false;
+    device.keyboardLedInterface = 0xff;
+    device.keyboardLedReportId = 0;
+  }
 
   struct GlobalState
   {
@@ -6426,6 +6461,31 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
       usageMaximum = 0;
       hasUsageRange = false;
     }
+    else if (type == 0 && tag == 0x09)
+    {
+      // Output main item. A variable field on the LED usage page covering the
+      // lock LEDs (Num Lock = 0x01 .. Kana = 0x05) is the keyboard LED report;
+      // remember its interface and report ID so Set_Report can target keyboards
+      // that never declare a boot interface. Boot keyboards keep report ID 0.
+      const uint8_t flags = static_cast<uint8_t>(unsignedValue & 0xff);
+      const bool constant = (flags & 0x01) != 0;
+      if (!constant && !device.hasKeyboardLedOutput &&
+          global.usagePage == ESP_USB_HOST_HID_USAGE_PAGE_LED)
+      {
+        const uint16_t uMin = hasUsageRange ? usageMinimum : (usageCount > 0 ? usages[0] : 0);
+        if (uMin >= 0x01 && uMin <= 0x05)
+        {
+          device.hasKeyboardLedOutput = true;
+          device.keyboardLedInterface = descriptor.interfaceNumber;
+          device.keyboardLedReportId = global.reportId;
+        }
+      }
+
+      usageCount = 0;
+      usageMinimum = 0;
+      usageMaximum = 0;
+      hasUsageRange = false;
+    }
 
     i += available;
     if (available < itemSize)
@@ -6435,6 +6495,16 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
   }
 
   delete[] bitOffsets;
+
+  // Boot keyboards get their LED state pushed right after enumeration; keyboards
+  // recognized only here (no boot interface) get the same initial sync once the
+  // LED output report is known. The client task loop picks up the dirty flag.
+  if (!device.hasKeyboardInterface && device.hasKeyboardLedOutput &&
+      device.keyboardLedInterface == descriptor.interfaceNumber)
+  {
+    device.keyboardLedDirty = true;
+    device.keyboardLedDirtyTimeMs = millis();
+  }
 }
 
 bool EspUsbHost::hasHIDReportId(const DeviceState &device, uint8_t interfaceNumber, uint8_t reportId) const
@@ -6557,7 +6627,7 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
   if (host && isLedSetReport)
   {
     DeviceState *device = host->findDeviceByHandle(deviceHandle);
-    if (device && device->hasKeyboardInterface)
+    if (device && deviceHasKeyboard(*device))
     {
       device->keyboardLedPending = false;
       if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
@@ -6843,9 +6913,11 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
         transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
       }
     }
+    uint8_t ledInterfaceNumber = 0;
+    uint8_t ledReportId = 0;
     const bool isKeyboardEndpoint = device &&
-                                    device->hasKeyboardInterface &&
-                                    endpoint->interfaceNumber == device->keyboardInterfaceNumber;
+                                    keyboardLedTarget(*device, ledInterfaceNumber, ledReportId) &&
+                                    endpoint->interfaceNumber == ledInterfaceNumber;
     if (isKeyboardEndpoint && device->keyboardLedDirty)
     {
       endpoint->resubmitAfterLed = true;
@@ -7948,7 +8020,7 @@ const EspUsbHost::DeviceState *EspUsbHost::findKeyboardDevice(uint8_t address) c
 {
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || !device.hasKeyboardInterface)
+    if (!device.inUse || !device.handle || !deviceHasKeyboard(device))
     {
       continue;
     }
@@ -8571,6 +8643,17 @@ void EspUsbHost::releaseInterfaces(DeviceState &device)
 void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
 {
   device.hasKeyboardInterface = false;
+  device.keyboardBitmapReport = false;
+  device.keyboardLayoutInterface = 0xff;
+  device.keyboardLayoutReportId = 0;
+  device.keyboardHasModifierField = false;
+  device.keyboardModifierBitOffset = 0;
+  device.keyboardBitmapBitOffset = 0;
+  device.keyboardBitmapBitCount = 0;
+  device.keyboardBitmapUsageMin = 0;
+  device.hasKeyboardLedOutput = false;
+  device.keyboardLedInterface = 0xff;
+  device.keyboardLedReportId = 0;
   device.hasVendorInterface = false;
   device.hasVendorOutEndpoint = false;
   device.hasCdcControlInterface = false;

@@ -84,6 +84,7 @@ static constexpr size_t ESP_USB_HOST_MAX_HID_EVENT_FIELDS = 64;
 // HID Usage Page for Keyboard/Keypad, and the widest NKRO key bitmap we decode
 // (256 usages = 32 bytes; NKRO keyboards typically expose 0x00-0xDF = 28 bytes).
 static constexpr uint16_t ESP_USB_HOST_HID_USAGE_PAGE_KEYBOARD = 0x0007;
+static constexpr uint16_t ESP_USB_HOST_HID_USAGE_PAGE_LED = 0x0008;
 static constexpr size_t ESP_USB_HOST_NKRO_BITMAP_MAX_BYTES = 32;
 
 static constexpr uint8_t ESP_USB_HOST_SYSTEM_CONTROL_POWER_OFF = 0x01;
@@ -1275,6 +1276,14 @@ private:
     uint16_t keyboardBitmapBitOffset = 0;
     uint16_t keyboardBitmapBitCount = 0;
     uint16_t keyboardBitmapUsageMin = 0;
+    // Keyboard LED output report learned from the HID report descriptor (LED usage
+    // page in an Output item). Lets setKeyboardLeds() reach keyboards that never
+    // declare a boot interface (report-ID composites, NKRO keyboards): the LED
+    // Set_Report then targets this interface with this report ID instead of the
+    // boot interface with report ID 0.
+    bool hasKeyboardLedOutput = false;
+    uint8_t keyboardLedInterface = 0xff;
+    uint8_t keyboardLedReportId = 0;
     bool keyboardNumLock = true;
     bool keyboardCapsLock = false;
     bool keyboardScrollLock = false;
@@ -1583,6 +1592,13 @@ private:
   esp_err_t lastError_ = ESP_OK;
 
   usb_host_client_handle_t clientHandle_ = nullptr;
+  // A device counts as a keyboard when it declared a boot keyboard interface or
+  // when the report descriptor revealed a keyboard input report.
+  static bool deviceHasKeyboard(const DeviceState &device);
+  // Resolve where a keyboard LED Set_Report must go: boot interface with report
+  // ID 0 when declared, otherwise the LED output report learned from the report
+  // descriptor. False when the device has no known LED output.
+  static bool keyboardLedTarget(const DeviceState &device, uint8_t &interfaceNumber, uint8_t &reportId);
   bool sendKeyboardLedReport(DeviceState &device, uint8_t leds);
   DeviceState devices_[ESP_USB_HOST_MAX_DEVICES];
   DeviceState *currentDevice_ = nullptr;

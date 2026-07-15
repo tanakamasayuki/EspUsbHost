@@ -20,6 +20,13 @@ void setup()
 
   keyboard.enableNkro();
   keyboard.setLayout(ESP_USB_DEVICE_KEYBOARD_LAYOUT_EN_US);
+  keyboard.onOutputReport([](const EspUsbDeviceHidKeyboardOutputReport &report)
+                          {
+                            Serial.printf("LED numlock=%u capslock=%u scrolllock=%u\n",
+                                          report.numLock ? 1 : 0,
+                                          report.capsLock ? 1 : 0,
+                                          report.scrollLock ? 1 : 0);
+                          });
 
   EspUsbDeviceConfig config;
   config.vid = 0x303a;
