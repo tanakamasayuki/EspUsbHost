@@ -255,6 +255,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | Generic non-HID vendor-specific interface: bulk IN/OUT and EP0 vendor control IN/OUT |
+| [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | Find an Android ADB interface and send the `A_CNXN` handshake over vendor bulk (skeleton) |
 
 ## API reference
 
