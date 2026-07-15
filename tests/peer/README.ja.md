@@ -47,6 +47,8 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `hid_keyboard`: Arduino Core標準USB keyboard実装とペアで動作
 - `hid_mouse`: Arduino Core標準USB mouse実装とペアで動作
 - `hid_keyboard_mouse`: Arduino Core標準keyboard + mouse composite実装とペアで動作
+- `hid_keyboard_nkro`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceHidKeyboard`（NKRO 有効）とペアで動作。ビットマップレポートのデコード（8 キー同時押し）と、report protocol 中でも `setKeyboardLeds()` が届くことを検証
+- `hid_keyboard_composite`: `EspUsbDevice` の複合 HID device（keyboard + consumer control + mouse を report ID 付き 1 interface に統合、boot interface なし）とペアで動作。各入力が対応する Host コールバックに届くことと、`setKeyboardLeds()` が report ID 付き LED output report で届くことを検証
 - `hid_consumer_control`: Arduino Core標準consumer control実装とペアで動作
 - `hid_system_control`: Arduino Core標準system control実装とペアで動作
 - `hid_gamepad`: Arduino Core標準gamepad実装とペアで動作

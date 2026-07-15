@@ -89,6 +89,14 @@ void loop()
     {
       Serial.printf("MAX n=%d\n", maxSimultaneous);
     }
+    else if (command == 'l')
+    {
+      Serial.printf("LED_TX %u\n", usb.setKeyboardLeds(false, true, false) ? 1 : 0);
+    }
+    else if (command == 'o')
+    {
+      Serial.printf("LED_TX %u\n", usb.setKeyboardLeds(false, false, false) ? 1 : 0);
+    }
   }
   delay(1);
 }

@@ -358,6 +358,12 @@ bool sendHIDVendorFeature(const uint8_t *data, size_t length,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```
 
+`setKeyboardLeds()` は boot キーボードに加えて、report protocol しか持たないキーボード
+（report ID 付き複合 HID デバイスや NKRO キーボード）でも動作します。boot interface の
+宣言がない場合は、HID report descriptor から見つけた LED output report を使い、
+Set_Report にキーボードの report ID を付けて送信します。接続時にはホストの現在の
+lock 状態を一度キーボードへ送信します。
+
 `sendHIDVendorOutput()` と `sendHIDVendorFeature()` は HID vendor report 用です。HIDではない vendor-specific interface には次の Vendor bulk/control API を使います。
 
 デフォルトは`ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US`です。以下のいずれかの定数を`setKeyboardLayout()`に渡します：
