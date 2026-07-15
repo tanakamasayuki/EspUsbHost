@@ -250,6 +250,12 @@ void loop() {
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | Print MSC capacity and dump the first block |
 | [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | Mount MSC as Arduino `fs::FS`, list files, and run a small write/read/delete probe |
 
+### Vendor
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | Generic non-HID vendor-specific interface: bulk IN/OUT and EP0 vendor control IN/OUT |
+
 ## API reference
 
 ### Core
