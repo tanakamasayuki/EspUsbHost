@@ -246,6 +246,12 @@ void loop() {
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | MSCの容量情報を表示し、先頭ブロックをダンプ |
 | [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | MSCをArduino `fs::FS`としてマウントし、ファイル一覧と小さなwrite/read/delete確認を行う |
 
+### Vendor
+
+| スケッチ | 説明 |
+|----------|------|
+| [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | 汎用の非HID vendor-specificインターフェース：bulk IN/OUTとEP0 vendor control IN/OUT |
+
 ## APIリファレンス
 
 ### コア
