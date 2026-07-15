@@ -35,8 +35,9 @@ def test_hid_keyboard_composite_input(dut, peers):
     dut.expect_exact("KEY k")
 
     device.write("v")
+    # The host reports the release with the usage that was let go, not usage 0.
     dut.expect(r"CONSUMER usage=0x00e9 pressed=1")
-    dut.expect(r"CONSUMER usage=0x0000 pressed=0")
+    dut.expect(r"CONSUMER usage=0x00e9 pressed=0")
 
     device.write("m")
     dut.expect_exact("MOUSE x=40 y=0")

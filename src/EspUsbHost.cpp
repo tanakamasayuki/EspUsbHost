@@ -2113,11 +2113,22 @@ bool EspUsbHost::sendKeyboardLedReport(DeviceState &device, uint8_t leds)
     ESP_LOGW(TAG, "no keyboard LED output report known for address=%u", device.info.address);
     return false;
   }
+  // For numbered reports, prefix the control data stage with the report ID, as
+  // Linux and Windows do. TinyUSB-based devices strip a leading byte that equals
+  // the report ID; without the prefix, an LED byte that happens to match it
+  // (Num Lock = 0x01 with report ID 1) would be mis-stripped to an empty report.
+  uint8_t payload[2];
+  size_t payloadLength = 0;
+  if (reportId != 0)
+  {
+    payload[payloadLength++] = reportId;
+  }
+  payload[payloadLength++] = leds;
   if (sendHIDReport(interfaceNumber,
                     ESP_USB_HOST_HID_REPORT_TYPE_OUTPUT,
                     reportId,
-                    &leds,
-                    sizeof(leds),
+                    payload,
+                    payloadLength,
                     device.info.address))
   {
     device.keyboardLedPending = true;
