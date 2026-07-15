@@ -5,6 +5,9 @@ static volatile bool verboseKeyboard = false;
 
 void setup()
 {
+    // Event prints can burst faster than the default serial TX buffer
+    // drains; enlarge it so lines are not truncated mid-flight.
+    Serial.setTxBufferSize(4096);
     Serial.begin(115200);
     delay(500);
 
