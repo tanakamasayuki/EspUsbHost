@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.3.0
 - (EN) `setKeyboardLeds()` now reaches keyboards that never declare a boot interface: the HID report descriptor parser records the LED output report (LED usage page in an Output item), and the LED Set_Report targets that interface with the keyboard's report ID (prefixed to the data stage as Linux/Windows hosts do, so TinyUSB-based devices strip it correctly). This covers report-ID composite HID devices (e.g. keyboard + consumer control + mouse merged into one interface) and report-protocol-only NKRO keyboards. Keyboards recognized this way also get the host's lock state pushed once the descriptor is parsed, and `findKeyboardDevice()`-based APIs (`getKeyboardNumLock()` etc.) now treat them as keyboards. Boot-declared keyboards keep the existing behavior (boot interface, report ID 0). Added the `hid_keyboard_composite` peer test and an LED check in the `hid_keyboard_nkro` peer test.
 - (JA) `setKeyboardLeds()`がboot interfaceを宣言しないキーボードにも届くようになりました。HID report descriptor解析でLED output report(Output itemのLED usage page)を記録し、LEDのSet_Reportをそのinterfaceへキーボードのreport ID付きで送信します(Linux/Windowsホストと同様にdataステージ先頭へreport IDプレフィックスを付加するため、TinyUSBベースのdeviceでも正しく解釈されます)。これによりreport ID付き複合HIDデバイス(keyboard + consumer control + mouseを1 interfaceに統合した構成など)やreport protocol専用のNKROキーボードに対応します。この経路で認識したキーボードにはdescriptor解析完了時にホストのlock状態を初期送信し、`findKeyboardDevice()`系API(`getKeyboardNumLock()`など)もキーボードとして扱います。boot宣言キーボードは従来どおり(boot interface、report ID 0)です。`hid_keyboard_composite` peerテストを追加し、`hid_keyboard_nkro` peerテストにLED確認を追加しました。
 
