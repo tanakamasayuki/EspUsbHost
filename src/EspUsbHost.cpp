@@ -4793,7 +4793,9 @@ void EspUsbHost::taskLoop()
   usb_host_config_t hostConfig = {};
   hostConfig.skip_phy_setup = false;
   hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   hostConfig.peripheral_map = hostPeripheralMap(config_.port);
+#endif
 
   esp_err_t err = usb_host_install(&hostConfig);
   if (err != ESP_OK)
