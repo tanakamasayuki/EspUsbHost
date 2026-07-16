@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.3.1
 - (EN) Fix builds on arduino-esp32 cores whose bundled ESP-IDF snapshot predates the `peripheral_map` field of `usb_host_config_t` (e.g. 3.2.1, which ships a pre-backport 5.4-based core): the assignment is now guarded by `#if defined(CONFIG_IDF_TARGET_ESP32P4)`, since the field only selects a USB peripheral on ESP32-P4 and is otherwise left at its zero default. Fixes #32.
 - (JA) `usb_host_config_t` に `peripheral_map` フィールドが無い arduino-esp32 コア(例: バックポート前の 5.4 系を同梱する 3.2.1)でのビルドエラーを修正。`peripheral_map` は ESP32-P4 でUSBペリフェラルを選択する時だけ意味を持ち、それ以外では既定の 0 のままでよいので、代入を `#if defined(CONFIG_IDF_TARGET_ESP32P4)` で囲むようにしました。#32 を修正。
 - (EN) Add a `tools/version_matrix.py` helper and a manual `Core Compatibility Matrix` GitHub Actions workflow that build one library version against many arduino-esp32 core versions (one core per matrix job) and commit the resulting `docs/COMPATIBILITY.<version>.md` table, so it is clear which core versions each library version still builds on.
