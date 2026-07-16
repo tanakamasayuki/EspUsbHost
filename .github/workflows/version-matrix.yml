@@ -3,7 +3,7 @@ name: Core Compatibility Matrix
 # Build ONE library version against many arduino-esp32 core versions and commit the
 # resulting compatibility matrix to docs/COMPATIBILITY.<libver>.md. Manual only: pick
 # a library ref (a release tag such as v2.3.0, or WORKTREE for the current checkout)
-# and either 'auto' (all released cores >= 3.0.0) or an explicit core-version list.
+# and either 'auto' (all released cores >= 3.2.0) or an explicit core-version list.
 #
 # Decomposition (GitHub-hosted runners have little free disk, so one core per job):
 #   setup      -> resolve the core-version list into a matrix
@@ -23,7 +23,7 @@ on:
         default: "WORKTREE"
         required: true
       core_versions:
-        description: "Comma-separated core versions, or 'auto' for all releases >= 3.0.0"
+        description: "Comma-separated core versions, or 'auto' for all releases >= 3.2.0"
         default: "auto"
         required: true
 
