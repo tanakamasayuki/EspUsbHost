@@ -30,6 +30,7 @@ Examples:
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -108,6 +109,28 @@ def set_platform_version(sketch_yaml: pathlib.Path, version: str) -> None:
         sketch_yaml.write_text(new)
 
 
+def use_local_library(sketch_yaml: pathlib.Path, lib_root: pathlib.Path) -> None:
+    """Point the EspUsbHost dependency at the checked-out source, not the registry.
+
+    Released tags reference the *published* library (`- EspUsbHost (x.y.z)`), which
+    arduino-cli would download from the Arduino library index — so a plain build would
+    test the registry copy (or fail outright for a version not yet published) instead
+    of the code at this ref. Rewrite that entry to `- dir: <lib_root>` so the example
+    compiles against THIS ref's src/. Other libraries (ESP8266Audio, etc.) are left
+    untouched. Uses a relative path so it matches the dev-tree `dir: ../../../` form.
+    """
+    text = sketch_yaml.read_text()
+    rel = os.path.relpath(lib_root, sketch_yaml.parent)
+    new = re.sub(
+        r"^(\s*)-\s*EspUsbHost\s*\([^)]*\)\s*$",
+        lambda m: f"{m.group(1)}- dir: {rel}",
+        text,
+        flags=re.MULTILINE,
+    )
+    if new != text:
+        sketch_yaml.write_text(new)
+
+
 def discover_core_versions() -> list[str]:
     """Fetch released esp32:esp32 core versions (>= floor) from the package index."""
     with urllib.request.urlopen(PACKAGE_INDEX_URL, timeout=30) as resp:
@@ -135,13 +158,27 @@ def resolve_lib_worktree(lib_ref: str, stack) -> tuple[pathlib.Path, str]:
     """
     if lib_ref == "WORKTREE":
         return REPO_ROOT, _read_lib_version(REPO_ROOT) + "+wt"
-    tmp = pathlib.Path(tempfile.mkdtemp(prefix="espusbhost-wt-"))
-    subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "worktree", "add", "--detach", str(tmp), lib_ref],
-        check=True,
-        capture_output=True,
-        text=True,
+    # Fail early with a clear message if the ref does not exist, rather than letting
+    # `git worktree add` dump a CalledProcessError traceback. A not-yet-created release
+    # tag is the common cause; suggest WORKTREE or an existing ref.
+    verify = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify", "--quiet", f"{lib_ref}^{{commit}}"],
+        capture_output=True, text=True,
     )
+    if verify.returncode != 0:
+        raise SystemExit(
+            f"error: library ref '{lib_ref}' not found in this repository.\n"
+            f"  - Check the spelling (e.g. 'v2.3.1', not 'v.2.3.1').\n"
+            f"  - The tag must already exist and be fetched (CI checkout needs fetch-depth: 0).\n"
+            f"  - To test an unreleased version, pass WORKTREE (current checkout) or a branch/commit."
+        )
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="espusbhost-wt-"))
+    proc = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "worktree", "add", "--detach", str(tmp), lib_ref],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        raise SystemExit(f"error: `git worktree add {lib_ref}` failed:\n{proc.stderr.strip()}")
     stack.append(tmp)
     return tmp, _read_lib_version(tmp)
 
@@ -348,6 +385,7 @@ def main() -> int:
                         results[(cat, path, target, core)] = (ABSENT, CELL_NOTE[ABSENT])
                     continue
                 set_platform_version(sk, core)
+                use_local_library(sk, root)
                 profs = profiles_in(sk)
                 for target in targets:
                     key = (cat, path, target, core)
