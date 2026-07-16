@@ -6,6 +6,17 @@ Arduino library for using USB Host on ESP32-S3 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
+## Requirements
+
+Minimum Arduino-ESP32 core (board package) version:
+
+| Target | Minimum arduino-esp32 |
+| --- | --- |
+| ESP32-S2 / ESP32-S3 | 3.2.0 |
+| ESP32-P4 | 3.3.1 |
+
+Older cores are not supported: 3.1.x and earlier may fail to build. Per-library-version build results across core versions are published under [`docs/`](docs/) as `COMPATIBILITY.<version>.md`.
+
 ## Version 2 status
 
 Version 2 is a ground-up redesign and is **not compatible with the 1.x API**. The old inheritance/virtual-method style is no longer the primary interface; use the callback-based APIs such as `onKeyboard()`, `onMouse()`, `onDeviceConnected()`, and class-specific send/start APIs.
