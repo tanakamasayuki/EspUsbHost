@@ -1,0 +1,113 @@
+name: Core Compatibility Matrix
+
+# Build ONE library version against many arduino-esp32 core versions and commit the
+# resulting compatibility matrix to docs/COMPATIBILITY.<libver>.md. Manual only: pick
+# a library ref (a release tag such as v2.3.0, or WORKTREE for the current checkout)
+# and either 'auto' (all released cores >= 3.0.0) or an explicit core-version list.
+#
+# Decomposition (GitHub-hosted runners have little free disk, so one core per job):
+#   setup      -> resolve the core-version list into a matrix
+#   build      -> one job per core version; installs just that core, builds every
+#                 target profile x representative example, uploads a per-core JSON
+#   aggregate  -> merge all per-core JSONs into one Markdown matrix and commit it
+#
+# Caching is intentionally omitted: a single esp32 core install (~a dozen GB) times
+# 25 versions dwarfs the 10 GB Actions cache budget, so each job just downloads its
+# own core. Runs are manual, so the parallel downloads are acceptable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lib_version:
+        description: "Library git ref/tag to test (e.g. v2.3.0). WORKTREE = current checkout."
+        default: "WORKTREE"
+        required: true
+      core_versions:
+        description: "Comma-separated core versions, or 'auto' for all releases >= 3.0.0"
+        default: "auto"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-matrix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      cores: ${{ steps.list.outputs.cores }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - id: list
+        name: Resolve core version list
+        run: |
+          cores=$(python tools/version_matrix.py --core-versions "${{ inputs.core_versions }}" --print-cores)
+          echo "cores=$cores" >> "$GITHUB_OUTPUT"
+          echo "Cores to build: $cores"
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        core: ${{ fromJSON(needs.setup.outputs.cores) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history + tags so the script can materialise a release tag in a worktree.
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Build ${{ inputs.lib_version }} on core ${{ matrix.core }}
+        # arduino-cli auto-installs the pinned core on first `compile --profile`, so no
+        # explicit `core install` is needed. The script records PASS/FAIL/NA per cell
+        # and exits 0 even when builds fail, so a red cell does not fail the job.
+        run: |
+          mkdir -p out
+          python tools/version_matrix.py \
+            --lib-version "${{ inputs.lib_version }}" \
+            --core-versions "${{ matrix.core }}" \
+            --json-only \
+            --json "out/${{ matrix.core }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compat-${{ matrix.core }}
+          path: out/*.json
+          if-no-files-found: error
+
+  aggregate:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: compat-*
+          merge-multiple: true
+      - name: Render compatibility matrix
+        run: python tools/version_matrix.py --render-from artifacts
+      - name: Commit matrix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/COMPATIBILITY.*.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "docs: update core compatibility matrix (lib ${{ inputs.lib_version }})"
+            git push
+          fi

@@ -1,6 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Fix builds on arduino-esp32 cores whose bundled ESP-IDF snapshot predates the `peripheral_map` field of `usb_host_config_t` (e.g. 3.2.1, which ships a pre-backport 5.4-based core): the assignment is now guarded by `#if defined(CONFIG_IDF_TARGET_ESP32P4)`, since the field only selects a USB peripheral on ESP32-P4 and is otherwise left at its zero default. Fixes #32.
+- (JA) `usb_host_config_t` に `peripheral_map` フィールドが無い arduino-esp32 コア(例: バックポート前の 5.4 系を同梱する 3.2.1)でのビルドエラーを修正。`peripheral_map` は ESP32-P4 でUSBペリフェラルを選択する時だけ意味を持ち、それ以外では既定の 0 のままでよいので、代入を `#if defined(CONFIG_IDF_TARGET_ESP32P4)` で囲むようにしました。#32 を修正。
+- (EN) Add a `tools/version_matrix.py` helper and a manual `Core Compatibility Matrix` GitHub Actions workflow that build one library version against many arduino-esp32 core versions (one core per matrix job) and commit the resulting `docs/COMPATIBILITY.<version>.md` table, so it is clear which core versions each library version still builds on.
+- (JA) 1つのライブラリバージョンを複数の arduino-esp32 コアバージョンでビルドし(matrixジョブごとに1コア)、結果の `docs/COMPATIBILITY.<version>.md` 表をコミットする `tools/version_matrix.py` ヘルパーと手動実行の `Core Compatibility Matrix` GitHub Actions ワークフローを追加しました。どのライブラリバージョンがどのコアバージョンでビルドできるかを明確にします。
 
 ## 2.3.0
 - (EN) `setKeyboardLeds()` now reaches keyboards that never declare a boot interface: the HID report descriptor parser records the LED output report (LED usage page in an Output item), and the LED Set_Report targets that interface with the keyboard's report ID (prefixed to the data stage as Linux/Windows hosts do, so TinyUSB-based devices strip it correctly). This covers report-ID composite HID devices (e.g. keyboard + consumer control + mouse merged into one interface) and report-protocol-only NKRO keyboards. Keyboards recognized this way also get the host's lock state pushed once the descriptor is parsed, and `findKeyboardDevice()`-based APIs (`getKeyboardNumLock()` etc.) now treat them as keyboards. Boot-declared keyboards keep the existing behavior (boot interface, report ID 0). Added the `hid_keyboard_composite` peer test and an LED check in the `hid_keyboard_nkro` peer test.
