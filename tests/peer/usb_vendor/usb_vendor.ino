@@ -2,6 +2,8 @@
 
 EspUsbHost usb;
 
+static constexpr uint16_t VENDOR_VID = 0x303a;
+static constexpr uint16_t VENDOR_PID = 0x4019;
 static volatile bool connected = false;
 static uint8_t deviceAddress = 0;
 static volatile bool vendorDataSeen = false;
@@ -82,15 +84,35 @@ void setup()
 
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
-                          deviceAddress = device.address;
-                          connected = true;
                           Serial.printf("HOST_CONNECTED address=%u vid=%04x pid=%04x supported=%u interfaces=%u\n",
                                         device.address,
                                         device.vid,
                                         device.pid,
                                         device.supported ? 1 : 0,
                                         device.configurationInterfaceCount);
+
+                          // Track only the intended peer. During development a board
+                          // may enumerate with another USB identity while it is being
+                          // flashed, and a hub may expose unrelated devices as well.
+                          if (device.vid == VENDOR_VID && device.pid == VENDOR_PID)
+                          {
+                            deviceAddress = device.address;
+                            connected = true;
+                          }
                         });
+
+  usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
+                           {
+                             Serial.printf("HOST_DISCONNECTED address=%u vid=%04x pid=%04x\n",
+                                           device.address,
+                                           device.vid,
+                                           device.pid);
+                             if (connected && device.address == deviceAddress)
+                             {
+                               connected = false;
+                               deviceAddress = 0;
+                             }
+                           });
 
   usb.onVendorData([](const EspUsbHostVendorData &data)
                    {
