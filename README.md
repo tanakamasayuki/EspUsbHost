@@ -75,7 +75,7 @@ Host/Device loopback tests.
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT, and EP0 vendor IN/OUT requests |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
-| MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; includes `SYNCHRONIZE CACHE(10)` fallback for non-compliant devices. Multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
+| MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental. Basic read/write and FatFs mounting with a single MSC device are peer/manual tested. Non-compliant devices, multiple MSC devices/LUNs, and full abnormal BOT recovery need further validation |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
