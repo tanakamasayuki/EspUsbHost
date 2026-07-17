@@ -295,9 +295,22 @@ int main()
   check("huHU o-double-acute base ascii 0", conv(0x2f, 0, HuHu), 0);
   check("huHU u-double-acute base unicode (U+0171)", convU(0x31, 0, HuHu), 0x171);
 
-  // pt-BR (ABNT2): no printable AltGr layer.
-  check("ptBR AltGr [ falls back to [", conv(0x30, AltGr, PtBr), '[');
-  check("ptBR AltGr 2 falls back to 2", conv(0x1f, AltGr, PtBr), '2');
+  // pt-BR (ABNT2, Windows KBDBR): AltGr is the third shift state.
+  check("ptBR AltGr 1 (superscript1)", conv(0x1e, AltGr, PtBr), 0xb9);
+  check("ptBR AltGr 2 (superscript2)", conv(0x1f, AltGr, PtBr), 0xb2);
+  check("ptBR AltGr 3 (superscript3)", conv(0x20, AltGr, PtBr), 0xb3);
+  check("ptBR AltGr 4 (pound)", conv(0x21, AltGr, PtBr), 0xa3);
+  check("ptBR AltGr 5 (cent)", conv(0x22, AltGr, PtBr), 0xa2);
+  check("ptBR AltGr 6 (not-sign)", conv(0x23, AltGr, PtBr), 0xac);
+  check("ptBR AltGr q (/)", conv(0x14, AltGr, PtBr), '/');
+  check("ptBR AltGr w (?)", conv(0x1a, AltGr, PtBr), '?');
+  check("ptBR AltGr e (degree)", conv(0x08, AltGr, PtBr), 0xb0);
+  check("ptBR AltGr = (section)", conv(0x2e, AltGr, PtBr), 0xa7);
+  check("ptBR AltGr [ (feminine ord)", conv(0x30, AltGr, PtBr), 0xaa);
+  check("ptBR AltGr ] (masculine ord)", conv(0x31, AltGr, PtBr), 0xba);
+  // Cruzeiro sign (U+20A2) is outside Latin-1: unicode set, ascii 0.
+  check("ptBR AltGr c cruzeiro unicode", convU(0x06, AltGr, PtBr), 0x20a2);
+  check("ptBR AltGr c ascii 0", conv(0x06, AltGr, PtBr), 0);
 
   if (failures != 0)
   {
