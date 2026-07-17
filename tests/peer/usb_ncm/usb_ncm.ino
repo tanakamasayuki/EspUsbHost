@@ -17,6 +17,15 @@ static void reportEnumeration()
 {
   EspUsbHostNetworkInterfaceInfo networks[ESP_USB_HOST_MAX_NETWORK_INTERFACES];
   const size_t count = usb.getNetworkInterfaces(deviceAddress, networks, ESP_USB_HOST_MAX_NETWORK_INTERFACES);
+  EspUsbHostInterfaceInfo interfaces[ESP_USB_HOST_MAX_INTERFACES];
+  const size_t interfaceCount = usb.getInterfaces(deviceAddress, interfaces, ESP_USB_HOST_MAX_INTERFACES);
+  size_t claimAttempts = 0;
+  size_t claimed = 0;
+  for (size_t i = 0; i < interfaceCount; i++)
+  {
+    claimAttempts += interfaces[i].claimAttempted ? 1 : 0;
+    claimed += interfaces[i].claimed ? 1 : 0;
+  }
   int selected = -1;
   for (size_t i = 0; i < count; i++)
   {
@@ -34,7 +43,7 @@ static void reportEnumeration()
     Serial.printf("NCM_ENUM count=%u protocol=none complete=0\n", static_cast<unsigned>(count));
     return;
   }
-  Serial.printf("NCM_ENUM count=%u protocol=%s complete=1 ctrl=%u data=%u alt=%u in=0x%02x out=0x%02x notify=0x%02x\n",
+  Serial.printf("NCM_ENUM count=%u protocol=%s complete=1 ctrl=%u data=%u alt=%u in=0x%02x out=0x%02x notify=0x%02x claim_attempts=%u claimed=%u managed=%u error=%s\n",
                 static_cast<unsigned>(count),
                 espUsbHostNetworkProtocolName(networks[selected].protocol),
                 networks[selected].controlInterfaceNumber,
@@ -42,7 +51,11 @@ static void reportEnumeration()
                 networks[selected].dataInterfaceAlternate,
                 networks[selected].inEndpoint,
                 networks[selected].outEndpoint,
-                networks[selected].notificationEndpoint);
+                networks[selected].notificationEndpoint,
+                static_cast<unsigned>(claimAttempts),
+                static_cast<unsigned>(claimed),
+                static_cast<unsigned>(usb.managedEndpointCount(deviceAddress)),
+                usb.lastErrorName());
 }
 
 void setup()

@@ -27,7 +27,11 @@ def test_usb_ncm_enumeration(dut, peers):
 
     dut.expect_exact("HOST_CONNECTED")
     dut.write("i")
-    dut.expect("NCM_ENUM count=[1-9][0-9]* protocol=CDC-NCM complete=1")
+    dut.expect(
+        r"NCM_ENUM count=[1-9][0-9]* protocol=CDC-NCM complete=1 "
+        r"ctrl=\d+ data=\d+ alt=\d+ in=0x[0-9a-f]+ out=0x[0-9a-f]+ "
+        r"notify=0x[0-9a-f]+ claim_attempts=0 claimed=0 managed=0 error=ESP_OK"
+    )
 
 
 def test_usb_ncm_dhcp_and_http(dut, peers):
