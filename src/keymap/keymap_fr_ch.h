@@ -8,7 +8,7 @@
 //   y/z swapped (0x1C=z, 0x1D=y)
 //   0x2F: è/ü, 0x30: dead¨/!, 0x33: é/ö, 0x34: à/ä
 //   shift+1=+, shift+4=ç
-static const uint8_t KEYCODE_TO_ASCII_FR_CH[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_FR_CH[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

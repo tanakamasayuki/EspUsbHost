@@ -5,7 +5,7 @@
 // Danish QWERTY (da_DK)
 // Reference: QMK keymap_danish.h
 // Nearly identical to sv_SE; differs at 0x33 (æ/Æ), 0x34 (ø/Ø), 0x35 (½/§ reversed)
-static const uint8_t KEYCODE_TO_ASCII_DA_DK[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_DA_DK[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

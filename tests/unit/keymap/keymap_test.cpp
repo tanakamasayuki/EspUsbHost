@@ -21,7 +21,8 @@
 namespace
 {
 int failures = 0;
-constexpr uint8_t Shift = 0x02; // Left Shift modifier bit
+constexpr uint8_t Shift = 0x02;   // Left Shift modifier bit
+constexpr uint8_t AltGr = 0x40;   // Right Alt (AltGr) modifier bit
 
 void check(const char *name, unsigned actual, unsigned expected)
 {
@@ -41,11 +42,25 @@ uint8_t conv(
 {
   return espUsbHostKeycodeToAscii(keycode, modifiers, layout, capsLock, numLock);
 }
+
+uint16_t convU(
+    uint8_t keycode,
+    uint8_t modifiers,
+    EspUsbHostKeyboardLayout layout,
+    bool capsLock = false,
+    bool numLock = false)
+{
+  return espUsbHostKeycodeToUnicode(keycode, modifiers, layout, capsLock, numLock);
+}
 } // namespace
 
 int main()
 {
   const auto EnUs = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;
+  const auto DeDe = ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE;
+  const auto EsEs = ESP_USB_HOST_KEYBOARD_LAYOUT_ES_ES;
+  const auto FrFr = ESP_USB_HOST_KEYBOARD_LAYOUT_FR_FR;
+  const auto ItIt = ESP_USB_HOST_KEYBOARD_LAYOUT_IT_IT;
   const auto JaJp = ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP;
   const auto NlNl = ESP_USB_HOST_KEYBOARD_LAYOUT_NL_NL;
   const auto PtBr = ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR;
@@ -106,6 +121,99 @@ int main()
   check("ptBR International1 /", conv(0x87, 0, PtBr), '/');
   check("ptBR shift International1 ?", conv(0x87, Shift, PtBr), '?');
   check("ptBR keypad comma", conv(0x85, 0, PtBr), ',');
+
+  // --- AltGr (Right Alt / level 3) ---
+  // Mechanism: AltGr held on a key with no AltGr value falls back to base/Shift.
+  // (Uses de_DE 'a', which has no AltGr value; the en_US table is a zero stub on
+  // the host build so it cannot exercise character values here.)
+  check("deDE AltGr a falls back to a", conv(0x04, AltGr, DeDe), 'a');
+  check("deDE AltGr shift a falls back to A", conv(0x04, AltGr | Shift, DeDe), 'A');
+  // de-DE (Windows KBDGR / DIN 2137 T1) AltGr layer.
+  check("deDE AltGr q (@)", conv(0x14, AltGr, DeDe), '@');
+  check("deDE AltGr m (micro)", conv(0x10, AltGr, DeDe), 0xb5);
+  check("deDE AltGr 2 (superscript2)", conv(0x1f, AltGr, DeDe), 0xb2);
+  check("deDE AltGr 3 (superscript3)", conv(0x20, AltGr, DeDe), 0xb3);
+  check("deDE AltGr 7 ({)", conv(0x24, AltGr, DeDe), '{');
+  check("deDE AltGr 8 ([)", conv(0x25, AltGr, DeDe), '[');
+  check("deDE AltGr 9 (])", conv(0x26, AltGr, DeDe), ']');
+  check("deDE AltGr 0 (})", conv(0x27, AltGr, DeDe), '}');
+  check("deDE AltGr ss (backslash)", conv(0x2d, AltGr, DeDe), '\\');
+  check("deDE AltGr + (tilde)", conv(0x30, AltGr, DeDe), '~');
+  check("deDE AltGr < (pipe)", conv(0x64, AltGr, DeDe), '|');
+  // AltGr wins over Shift on a key that has an AltGr value.
+  check("deDE AltGr+shift q still @", conv(0x14, AltGr | Shift, DeDe), '@');
+  // AltGr+E (=> EUR) is not representable in ISO-8859-1: falls back to base.
+  check("deDE AltGr e unicode EUR", convU(0x08, AltGr, DeDe), 0x20ac);
+  check("deDE AltGr e ascii 0 (EUR not Latin-1)", conv(0x08, AltGr, DeDe), 0);
+  // Non-AltGr de-DE basics unaffected.
+  check("deDE q", conv(0x14, 0, DeDe), 'q');
+  check("deDE shift 7 (/)", conv(0x24, Shift, DeDe), '/');
+
+  // fr-FR (AZERTY, Windows KBDFR) AltGr layer.
+  check("frFR AltGr 0 (@)", conv(0x27, AltGr, FrFr), '@');
+  check("frFR AltGr 4 ({)", conv(0x21, AltGr, FrFr), '{');
+  check("frFR AltGr 5 ([)", conv(0x22, AltGr, FrFr), '[');
+  check("frFR AltGr ) (])", conv(0x2d, AltGr, FrFr), ']');
+  check("frFR AltGr = (})", conv(0x2e, AltGr, FrFr), '}');
+  check("frFR AltGr 6 (pipe)", conv(0x23, AltGr, FrFr), '|');
+  check("frFR AltGr 8 (backslash)", conv(0x25, AltGr, FrFr), '\\');
+  check("frFR AltGr 2 (~)", conv(0x1f, AltGr, FrFr), '~');
+  check("frFR AltGr 3 (#)", conv(0x20, AltGr, FrFr), '#');
+  check("frFR AltGr 7 (backtick)", conv(0x24, AltGr, FrFr), '`');
+  check("frFR AltGr 9 (^)", conv(0x26, AltGr, FrFr), '^');
+  check("frFR AltGr e unicode EUR", convU(0x08, AltGr, FrFr), 0x20ac);
+  check("frFR AltGr e ascii 0", conv(0x08, AltGr, FrFr), 0);
+  // Non-AltGr fr-FR basics unaffected (AZERTY positions).
+  check("frFR a position -> q", conv(0x04, 0, FrFr), 'q');
+  check("frFR shift 2 -> 2", conv(0x1f, Shift, FrFr), '2');
+
+  // es-ES (Windows KBDSP) AltGr layer.
+  check("esES AltGr 2 (@)", conv(0x1f, AltGr, EsEs), '@');
+  check("esES AltGr 1 (pipe)", conv(0x1e, AltGr, EsEs), '|');
+  check("esES AltGr 3 (#)", conv(0x20, AltGr, EsEs), '#');
+  check("esES AltGr 4 (~)", conv(0x21, AltGr, EsEs), '~');
+  check("esES AltGr 6 (not-sign)", conv(0x23, AltGr, EsEs), 0xac);
+  check("esES AltGr grave ([)", conv(0x2f, AltGr, EsEs), '[');
+  check("esES AltGr + (])", conv(0x30, AltGr, EsEs), ']');
+  check("esES AltGr acute ({)", conv(0x34, AltGr, EsEs), '{');
+  check("esES AltGr cedilla (})", conv(0x32, AltGr, EsEs), '}');
+  check("esES AltGr masculine (backslash)", conv(0x35, AltGr, EsEs), '\\');
+  check("esES AltGr e unicode EUR", convU(0x08, AltGr, EsEs), 0x20ac);
+  check("esES AltGr e ascii 0", conv(0x08, AltGr, EsEs), 0);
+  // Base values on dead keys stay 0.
+  check("esES grave dead key base 0", conv(0x2f, 0, EsEs), 0);
+
+  // it-IT (Windows KBDIT) AltGr layer (sparse; { } are level-4, unsupported).
+  check("itIT AltGr o-grave (@)", conv(0x33, AltGr, ItIt), '@');
+  check("itIT AltGr a-grave (#)", conv(0x34, AltGr, ItIt), '#');
+  check("itIT AltGr e-grave ([)", conv(0x2f, AltGr, ItIt), '[');
+  check("itIT AltGr + (])", conv(0x30, AltGr, ItIt), ']');
+  check("itIT AltGr e unicode EUR", convU(0x08, AltGr, ItIt), 0x20ac);
+  check("itIT AltGr e ascii 0", conv(0x08, AltGr, ItIt), 0);
+  // AltGr alone gives [ ]; AltGr+Shift (level 4) gives { }.
+  check("itIT AltGr e-grave ([)", conv(0x2f, AltGr, ItIt), '[');
+  check("itIT AltGr+Shift e-grave ({)", conv(0x2f, AltGr | Shift, ItIt), '{');
+  check("itIT AltGr+Shift + (})", conv(0x30, AltGr | Shift, ItIt), '}');
+
+  // nl-NL (Windows KBDNE / ReactOS kbdne.c) AltGr layer.
+  check("nlNL AltGr 8 ({)", conv(0x25, AltGr, NlNl), '{');
+  check("nlNL AltGr 9 (})", conv(0x26, AltGr, NlNl), '}');
+  check("nlNL AltGr 7 (pound)", conv(0x24, AltGr, NlNl), 0xa3);
+  check("nlNL AltGr 1 (superscript1)", conv(0x1e, AltGr, NlNl), 0xb9);
+  check("nlNL AltGr 2 (superscript2)", conv(0x1f, AltGr, NlNl), 0xb2);
+  check("nlNL AltGr 4 (quarter)", conv(0x21, AltGr, NlNl), 0xbc);
+  check("nlNL AltGr 5 (half)", conv(0x22, AltGr, NlNl), 0xbd);
+  check("nlNL AltGr 6 (three-quarters)", conv(0x23, AltGr, NlNl), 0xbe);
+  check("nlNL AltGr m (micro)", conv(0x10, AltGr, NlNl), 0xb5);
+  check("nlNL AltGr s (eszett)", conv(0x16, AltGr, NlNl), 0xdf);
+  check("nlNL AltGr z (left guillemet)", conv(0x1d, AltGr, NlNl), 0xab);
+  check("nlNL AltGr x (right guillemet)", conv(0x1b, AltGr, NlNl), 0xbb);
+  check("nlNL AltGr c (cent)", conv(0x06, AltGr, NlNl), 0xa2);
+  check("nlNL AltGr r (pilcrow)", conv(0x15, AltGr, NlNl), 0xb6);
+  check("nlNL AltGr e unicode EUR", convU(0x08, AltGr, NlNl), 0x20ac);
+  check("nlNL AltGr e ascii 0", conv(0x08, AltGr, NlNl), 0);
+  // AltGr on a letter ignores CapsLock (returns the AltGr symbol).
+  check("nlNL AltGr s with capslock", conv(0x16, AltGr, NlNl, true), 0xdf);
 
   if (failures != 0)
   {

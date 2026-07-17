@@ -8,7 +8,7 @@
 //   0x1F: 2/"  0x20: 3/£  0x31: (not on ISO)
 //   0x32: NUHS #/~  0x34: '/@ (not '/")  0x35: `/¬
 //   0x64: NUBS \/|
-static const uint8_t KEYCODE_TO_ASCII_EN_GB[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_EN_GB[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

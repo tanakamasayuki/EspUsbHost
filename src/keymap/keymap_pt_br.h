@@ -10,7 +10,7 @@
 //   0x33: ç/Ç  0x34: dead~/dead^
 //   0x38: ;/:  (slash key → semicolon)
 //   0x64: \/|
-static const uint8_t KEYCODE_TO_ASCII_PT_BR[0x90][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_PT_BR[0x90][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

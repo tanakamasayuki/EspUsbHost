@@ -12,7 +12,7 @@
 // 0x39-0x53: function/nav (unused, 0)
 // 0x54-0x63: keypad (handled by espUsbHostKeypadKeycodeToAscii, 0)
 // 0x64:      NUBS (extra ISO key between LShift and Z)
-static const uint8_t KEYCODE_TO_ASCII_SV_SE[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_SV_SE[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

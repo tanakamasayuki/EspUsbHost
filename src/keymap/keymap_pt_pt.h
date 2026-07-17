@@ -8,7 +8,7 @@
 //   0x2D: '/?  0x2E: «/»  0x2F: +/*  0x30: dead´/dead`
 //   0x32: dead~/dead^  0x33: ç/Ç  0x34: º/ª
 //   0x35: \/|  shift+7=/
-static const uint8_t KEYCODE_TO_ASCII_PT_PT[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_PT_PT[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
