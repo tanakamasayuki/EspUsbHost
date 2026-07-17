@@ -21,7 +21,7 @@ uv run --env-file .env pytest unit/
 `src/EspUsbHostHid.cpp`は`Arduino.h`とESP USB hostスタックをincludeするため、host上で
 そのままコンパイルできない。ロジックを複製せずに実コードを検証するため、
 `test_keymap.py`が実ソースから`EspUsbHostKeyboardLayout` enum・`keymap/*.h`のinclude
-一覧・`MOD_*`定数・2つの純粋な変換関数を抽出し、`output/espusbhost_keymap_real.h`に
+一覧・`MOD_*`定数・純粋な変換関数(keypad・`espUsbHostKeycodeToUnicode`・`espUsbHostKeycodeToAscii`ラッパー)を抽出し、`output/espusbhost_keymap_real.h`に
 結合して`keymap_test.cpp`と一緒にビルドする。よってアサーションはproductionのtableと
 ロジックそのものを検証する。`stub/`はTinyUSBの`<class/hid/hid.h>`のhost用スタブ
 (en_USフォールバックtable。本テストでは検証対象外)を提供する。
