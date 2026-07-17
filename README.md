@@ -106,6 +106,20 @@ Host/Device loopback tests.
 - ESP32-S3, or any board supported by Arduino-ESP32 USB Host
 - Arduino-ESP32 core
 
+### Recommended ESP32-S3 hardware and cautions
+
+Before using a board as a USB Host, first verify whether its USB connector supplies VBUS (5 V) to the attached USB device.
+
+The official Espressif Systems ESP32-S3-DevKitC-1 does not supply power to an attached device through its USB OTG connector. This is convenient when the board is used as a USB Device, but in USB Host mode you must either wire a separate power supply to the attached USB device or use an externally powered (self-powered) USB hub.
+
+Some M5Stack products can control USB connector power from software. Check the schematic and power-control procedure for the specific product you use.
+
+For a straightforward USB Host setup, we recommend a board such as the Freenove ESP32-S3-WROOM Board, which can power an attached device through its USB Type-C OTG connector.
+
+The final application can use a product with only one USB connector, such as the AtomS3. During development, however, we recommend a board with two USB connectors so that the USB-to-UART connector used for flashing and the Serial Monitor remains separate from the USB OTG connector used for the attached device.
+
+Even when a board has two USB connectors, which one is connected to the USB-to-UART bridge and which one is connected to the ESP32-S3 USB OTG peripheral depends on the board. For example, the USB-to-UART and USB OTG connector positions are reversed between the official Espressif Systems ESP32-S3-DevKitC-1 and the Freenove ESP32-S3-WROOM Board. Do not rely on connector position alone; check the board silkscreen, product documentation, and schematic.
+
 ### ESP32-P4 notes
 
 ESP32-P4 contains three USB functions. These are controllers/PHY paths inside the SoC, not necessarily three physical connectors on every board:
