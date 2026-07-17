@@ -823,6 +823,15 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 See [tests/README.md](tests/README.md) for setup instructions.
 
+The manually triggered _Library Footprint Matrix_ workflow uses the Arduino core
+pinned by a representative example's `sketch.yaml` and builds fixed Base, HID,
+Serial, Audio, Storage, MIDI, Vendor, Network, and Info probes against each
+selected library release. It overwrites one canonical normalized Flash/static-RAM
+JSON and Markdown report, while retaining compiler logs, ELF, map, and application
+bin files as short-lived workflow artifacts. This is separate from the core
+compatibility matrix, which varies the Arduino core to test build compatibility
+rather than library-version size trends.
+
 ## Release checklist
 
 1. **Clean working tree** — confirm `git status` shows no uncommitted changes

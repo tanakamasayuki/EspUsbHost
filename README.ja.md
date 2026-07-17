@@ -817,6 +817,8 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 
 セットアップ方法は[tests/README.md](tests/README.md)を参照してください。
 
+手動実行の _Library Footprint Matrix_ workflowでは、代表exampleの`sketch.yaml`に指定されたArduinoコアへ固定し、Base、HID、Serial、Audio、Storage、MIDI、Vendor、Network、Infoの固定probeを、指定した各ライブラリリリースに対してビルドします。正規化したFlash/静的RAMは常に1組のJSONとMarkdownレポートへ上書きし、コンパイラログ、ELF、map、アプリケーションbinは保存期間を限定したworkflow artifactとして残します。Arduinoコアを切り替えてビルド互換性を調べるcore compatibility matrixとは別の用途です。
+
 ## リリースチェックリスト
 
 1. **作業ツリーのクリーン確認** — `git status` で未コミットの変更がないことを確認する
