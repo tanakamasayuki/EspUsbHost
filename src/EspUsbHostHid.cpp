@@ -96,7 +96,10 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
 {
   if (keycode >= 128)
   {
-    if (layout != ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP || keycode >= 0x90)
+    const bool extendedLayout =
+        (layout == ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP ||
+         layout == ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR);
+    if (!extendedLayout || keycode >= 0x90)
       return 0;
   }
   if ((keycode >= 0x54 && keycode <= 0x63) || keycode == 0x67)

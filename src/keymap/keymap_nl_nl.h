@@ -3,11 +3,14 @@
 #include <stdint.h>
 
 // Dutch QWERTY (nl_NL)
-// Reference: QMK keymap_dutch.h
+// Reference: Windows Dutch Keyboard Layout (KBDNE), via kbdlayout.info
 // Key differences from en_US:
-//   0x1F: 2/"  0x31: (not on ISO)
-//   0x32: NUHS #/~  0x35: @/| (backtick pos)
-//   0x64: NUBS \/|
+//   number row shift: 1! 2" 3# 4$ 5% 6& 7_ 8( 9) 0'
+//   0x2D: /?  0x2E: \xb0(degree)/dead~  0x2F: dead\xa8/dead^
+//   0x30: */|  0x32: NUHS </>  0x33: +/\xb1  0x34: dead\xb4/dead`
+//   0x35: @/\xa7  0x36: ,;  0x37: .:  0x38: -/=
+//   0x64: NUBS ]/[
+// Dead keys map to 0; non-ASCII characters use ISO-8859-1.
 static const uint8_t KEYCODE_TO_ASCII_NL_NL[128][2] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
@@ -44,28 +47,28 @@ static const uint8_t KEYCODE_TO_ASCII_NL_NL[128][2] = {
     {'3', '#'},       // 0x20
     {'4', '$'},       // 0x21
     {'5', '%'},       // 0x22
-    {'6', '^'},       // 0x23
-    {'7', '&'},       // 0x24
-    {'8', '*'},       // 0x25
-    {'9', '('},       // 0x26
-    {'0', ')'},       // 0x27
+    {'6', '&'},       // 0x23
+    {'7', '_'},       // 0x24
+    {'8', '('},       // 0x25
+    {'9', ')'},       // 0x26
+    {'0', '\''},      // 0x27
     {'\r', '\r'},     // 0x28
     {'\x1b', '\x1b'}, // 0x29
     {'\b', '\b'},     // 0x2a
     {'\t', '\t'},     // 0x2b
     {' ', ' '},       // 0x2c
-    {'-', '_'},       // 0x2d
-    {'=', '+'},       // 0x2e
-    {'[', '{'},       // 0x2f
-    {']', '}'},       // 0x30
+    {'/', '?'},       // 0x2d
+    {'\xb0', 0},      // 0x2e
+    {0, 0},           // 0x2f
+    {'*', '|'},       // 0x30
     {0, 0},           // 0x31
-    {'#', '~'},       // 0x32
-    {';', ':'},       // 0x33
-    {'\'', '"'},      // 0x34
-    {'@', '|'},       // 0x35
-    {',', '<'},       // 0x36
-    {'.', '>'},       // 0x37
-    {'/', '?'},       // 0x38
+    {'<', '>'},       // 0x32
+    {'+', '\xb1'},    // 0x33
+    {0, 0},           // 0x34
+    {'@', '\xa7'},    // 0x35
+    {',', ';'},       // 0x36
+    {'.', ':'},       // 0x37
+    {'-', '='},       // 0x38
     {0, 0},           // 0x39
     {0, 0},           // 0x3a
     {0, 0},           // 0x3b
@@ -109,5 +112,5 @@ static const uint8_t KEYCODE_TO_ASCII_NL_NL[128][2] = {
     {0, 0},           // 0x61
     {0, 0},           // 0x62
     {0, 0},           // 0x63
-    {'\\', '|'},      // 0x64
+    {']', '['},       // 0x64
 };
