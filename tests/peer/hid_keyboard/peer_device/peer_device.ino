@@ -79,6 +79,18 @@ void loop()
             sendRawKey(0x40, 0x08);
             Serial.println("SEND ALTGR_E 1");
         }
+        else if (command == '<')
+        {
+            // Caps Lock key (usage 0x39): toggles the host's CapsLock state.
+            sendRawKey(0x00, 0x39);
+            Serial.println("SEND CAPS 1");
+        }
+        else if (command == '>')
+        {
+            // ü key (usage 0x2F): ü / Ü on the German layout.
+            sendRawKey(0x00, 0x2f);
+            Serial.println("SEND KEY_UE 1");
+        }
         else if (command >= 0x20 && command <= 0x7e)
         {
             Keyboard.write(command);
