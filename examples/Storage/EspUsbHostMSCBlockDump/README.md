@@ -4,6 +4,8 @@ Reads capacity and device information from a USB Mass Storage device and dumps t
 
 MSC support is block-level only. This example does not mount FAT or expose files.
 
+> **Caution:** USB MSC support in this library is experimental. It should work for simple read and write use cases, but an SPI-connected SD card is usually a better choice when storage reliability or speed matters. Unless USB connectivity is required, USB MSC is not recommended as the default storage solution.
+
 ## Hardware
 
 - ESP32-S3 (or another board supported by Arduino-ESP32 USB Host)

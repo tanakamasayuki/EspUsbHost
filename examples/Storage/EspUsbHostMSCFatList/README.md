@@ -4,6 +4,8 @@ Mounts a USB Mass Storage device through `EspUsbHostMscFS` at `/usb`, lists the 
 
 Use a USB flash drive that may be safely written by the sketch.
 
+> **Caution:** USB MSC support in this library is experimental. It should work for simple read and write use cases, but an SPI-connected SD card is usually a better choice when storage reliability or speed matters. Unless USB connectivity is required, USB MSC is not recommended as the default storage solution.
+
 ## What it demonstrates
 
 - Mounting FAT with `EspUsbHostMscFS::begin(usb, "/usb")` and using it as a `fs::FS`-compatible object
