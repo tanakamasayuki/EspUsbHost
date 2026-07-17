@@ -28,6 +28,28 @@ def test_hid_keyboard_shift_boot_reports(dut, peers):
     dut.expect_exact("KEY _")
 
 
+def test_hid_keyboard_altgr(dut, peers):
+    device = peers["device"]
+
+    dut.write("d")
+    dut.expect_exact("LAYOUT DE_DE")
+
+    # AltGr (Right Alt, 0x40) + Q produces '@' on the German layout: an
+    # ASCII-representable character, so both ascii and unicode are 0x40.
+    device.write("{")
+    device.expect_exact("SEND ALTGR_Q 1")
+    dut.expect_exact("HID_INPUT modifier=0x40 reserved=0x00 key0=0x14 len=8")
+    dut.expect_exact("RAW_KEY keycode=0x14 ascii=0x40 modifiers=0x40 unicode=0x0040")
+    dut.expect_exact("KEY @")
+
+    # AltGr + E produces € (U+20AC): outside Latin-1, so unicode carries it and
+    # the ascii byte is 0.
+    device.write("}")
+    device.expect_exact("SEND ALTGR_E 1")
+    dut.expect_exact("HID_INPUT modifier=0x40 reserved=0x00 key0=0x08 len=8")
+    dut.expect_exact("RAW_KEY keycode=0x08 ascii=0x00 modifiers=0x40 unicode=0x20ac")
+
+
 def test_hid_keyboard_state_modifier_only(dut, peers):
     device = peers["device"]
 

@@ -35,10 +35,11 @@ void setup()
       }
       if (verboseKeyboard && event.pressed)
       {
-          Serial.printf("RAW_KEY keycode=0x%02x ascii=0x%02x modifiers=0x%02x\n",
+          Serial.printf("RAW_KEY keycode=0x%02x ascii=0x%02x modifiers=0x%02x unicode=0x%04x\n",
                         event.keycode,
                         event.ascii,
-                        event.modifiers);
+                        event.modifiers,
+                        event.unicode);
           if (event.ascii)
           {
               Serial.printf("KEY %c\n", static_cast<char>(event.ascii));
@@ -97,6 +98,12 @@ void loop()
             verboseKeyboard = true;
             usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP);
             Serial.println("LAYOUT JA_JP");
+        }
+        else if (command == 'd')
+        {
+            verboseKeyboard = true;
+            usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE);
+            Serial.println("LAYOUT DE_DE");
         }
         else if (command == 'q')
         {
