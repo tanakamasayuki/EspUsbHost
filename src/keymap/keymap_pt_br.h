@@ -10,7 +10,7 @@
 //   0x33: ç/Ç  0x34: dead~/dead^
 //   0x38: ;/:  (slash key → semicolon)
 //   0x64: \/|
-static const uint8_t KEYCODE_TO_ASCII_PT_BR[128][2] = {
+static const uint8_t KEYCODE_TO_ASCII_PT_BR[0x90][2] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -112,4 +112,47 @@ static const uint8_t KEYCODE_TO_ASCII_PT_BR[128][2] = {
     {0, 0},           // 0x62
     {0, 0},           // 0x63
     {'\\', '|'},      // 0x64
+    {0, 0},           // 0x65
+    {0, 0},           // 0x66
+    {0, 0},           // 0x67
+    {0, 0},           // 0x68
+    {0, 0},           // 0x69
+    {0, 0},           // 0x6a
+    {0, 0},           // 0x6b
+    {0, 0},           // 0x6c
+    {0, 0},           // 0x6d
+    {0, 0},           // 0x6e
+    {0, 0},           // 0x6f
+    {0, 0},           // 0x70
+    {0, 0},           // 0x71
+    {0, 0},           // 0x72
+    {0, 0},           // 0x73
+    {0, 0},           // 0x74
+    {0, 0},           // 0x75
+    {0, 0},           // 0x76
+    {0, 0},           // 0x77
+    {0, 0},           // 0x78
+    {0, 0},           // 0x79
+    {0, 0},           // 0x7a
+    {0, 0},           // 0x7b
+    {0, 0},           // 0x7c
+    {0, 0},           // 0x7d
+    {0, 0},           // 0x7e
+    {0, 0},           // 0x7f
+    {0, 0},           // 0x80
+    {0, 0},           // 0x81
+    {0, 0},           // 0x82
+    {0, 0},           // 0x83
+    {0, 0},           // 0x84
+    {',', ','},       // 0x85 Keypad Comma (ABNT2 numpad)
+    {0, 0},           // 0x86 Keypad Equal Sign
+    {'/', '?'},       // 0x87 International1 (ABNT2 / and ?)
+    {0, 0},           // 0x88 International2
+    {0, 0},           // 0x89 International3
+    {0, 0},           // 0x8a International4
+    {0, 0},           // 0x8b International5
+    {0, 0},           // 0x8c International6
+    {0, 0},           // 0x8d
+    {0, 0},           // 0x8e
+    {0, 0},           // 0x8f
 };

@@ -136,14 +136,14 @@ static const uint8_t KEYCODE_TO_ASCII_JA_JP[0x90][2] = {
     {0, 0},           // 0x82
     {0, 0},           // 0x83
     {0, 0},           // 0x84
-    {0, 0},           // 0x85 International 1
-    {0, 0},           // 0x86 International 2 (かたかな/ひらがな)
-    {'\\', '_'},      // 0x87 International 3 (ろ / \ key)
-    {0, 0},           // 0x88 International 4 (変換/Henkan)
-    {'\\', '|'},      // 0x89 International 5 (¥ / | key, treated as \ in ASCII)
-    {0, 0},           // 0x8a International 6 (無変換/Muhenkan)
-    {0, 0},           // 0x8b
-    {0, 0},           // 0x8c
+    {0, 0},           // 0x85 Keypad Comma
+    {0, 0},           // 0x86 Keypad Equal Sign
+    {'\\', '_'},      // 0x87 International1 (ろ / \ key)
+    {0, 0},           // 0x88 International2 (かたかな/ひらがな)
+    {'\\', '|'},      // 0x89 International3 (¥ / | key, treated as \ in ASCII)
+    {0, 0},           // 0x8a International4 (変換/Henkan)
+    {0, 0},           // 0x8b International5 (無変換/Muhenkan)
+    {0, 0},           // 0x8c International6
     {0, 0},           // 0x8d
     {0, 0},           // 0x8e
     {0, 0},           // 0x8f
