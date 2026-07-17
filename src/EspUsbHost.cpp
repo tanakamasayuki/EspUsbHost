@@ -3487,6 +3487,11 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     if (!done)
     {
       ESP_LOGW(TAG, "MSC transfer timeout ep=0x%02x", endpointAddress);
+      usb_host_endpoint_halt(device.handle, endpointAddress);
+      usb_host_endpoint_flush(device.handle, endpointAddress);
+      // The transfer remains owned by the HCD until the flushed URB callback
+      // runs. Waiting here prevents a late dequeue from touching freed memory.
+      xSemaphoreTake(context.done, portMAX_DELAY);
       usb_host_endpoint_clear(device.handle, endpointAddress);
       usb_host_transfer_free(transfer);
       setLastError(ESP_ERR_TIMEOUT);
@@ -3510,6 +3515,7 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   const uint8_t commandOpcode = command[0];
   const bool allowResetRecovery = commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10;
   bool requestSenseAfterCommand = false;
+  uint8_t failedDataEndpoint = 0;
   const uint32_t tag = device.mscTag++;
   EspUsbHostMscCbw cbw = {};
   cbw.signature = USB_MSC_CBW_SIGNATURE;
@@ -3587,6 +3593,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       else if (commandOpcode != SCSI_CMD_REQUEST_SENSE &&
                commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10)
       {
+        if (dataLength > 0 && csw.dataResidue > 0)
+        {
+          failedDataEndpoint = dataIn ? device.mscInEndpointAddress : device.mscOutEndpointAddress;
+        }
         requestSenseAfterCommand = true;
       }
     }
@@ -3600,11 +3610,111 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   }
 
   vSemaphoreDelete(context.done);
+  if (failedDataEndpoint != 0 && !mscClearEndpointHalt(device, failedDataEndpoint, timeoutMs))
+  {
+    if (allowResetRecovery)
+    {
+      mscResetRecovery(device, timeoutMs);
+    }
+  }
   if (requestSenseAfterCommand)
   {
     EspUsbHostMscSense sense;
     mscRequestSense(sense, device.info.address, timeoutMs);
   }
+  return ok;
+}
+
+bool EspUsbHost::mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs)
+{
+  if (!device.handle || endpointAddress == 0)
+  {
+    return false;
+  }
+
+  esp_err_t err = usb_host_endpoint_halt(device.handle, endpointAddress);
+  if (err == ESP_OK)
+  {
+    err = usb_host_endpoint_flush(device.handle, endpointAddress);
+  }
+  if (err == ESP_OK)
+  {
+    err = usb_host_endpoint_clear(device.handle, endpointAddress);
+  }
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "MSC host endpoint recovery failed ep=0x%02x: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC ClearFeature ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT |
+                         USB_BM_REQUEST_TYPE_TYPE_STANDARD |
+                         USB_BM_REQUEST_TYPE_RECIP_ENDPOINT;
+  setup->bRequest = USB_REQUEST_CLEAR_FEATURE;
+  setup->wValue = 0; // ENDPOINT_HALT
+  setup->wIndex = endpointAddress;
+  setup->wLength = 0;
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC ClearFeature ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "MSC ClearFeature timeout ep=0x%02x", endpointAddress);
+    setLastError(ESP_ERR_TIMEOUT);
+    // A submitted control transfer cannot be freed until its callback returns.
+    xSemaphoreTake(context.done, portMAX_DELAY);
+  }
+  else if (!ok)
+  {
+    ESP_LOGW(TAG, "MSC ClearFeature failed ep=0x%02x status=%d", endpointAddress, context.status);
+    setLastError(ESP_FAIL);
+  }
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
   return ok;
 }
 
@@ -3669,6 +3779,8 @@ bool EspUsbHost::mscResetRecovery(DeviceState &device, uint32_t timeoutMs)
   {
     ESP_LOGW(TAG, "MSC reset timeout");
     setLastError(ESP_ERR_TIMEOUT);
+    // A submitted control transfer cannot be freed until its callback returns.
+    xSemaphoreTake(context.done, portMAX_DELAY);
   }
   else if (!resetOk)
   {
@@ -3679,29 +3791,11 @@ bool EspUsbHost::mscResetRecovery(DeviceState &device, uint32_t timeoutMs)
   vSemaphoreDelete(context.done);
 
   bool clearOk = resetOk;
-  if (device.hasMscInEndpoint)
+  if (resetOk)
   {
-    err = usb_host_endpoint_clear(device.handle, device.mscInEndpointAddress);
-    if (err != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_endpoint_clear(MSC IN 0x%02x) failed: %s",
-               device.mscInEndpointAddress,
-               esp_err_to_name(err));
-      setLastError(err);
-      clearOk = false;
-    }
-  }
-  if (device.hasMscOutEndpoint)
-  {
-    err = usb_host_endpoint_clear(device.handle, device.mscOutEndpointAddress);
-    if (err != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_endpoint_clear(MSC OUT 0x%02x) failed: %s",
-               device.mscOutEndpointAddress,
-               esp_err_to_name(err));
-      setLastError(err);
-      clearOk = false;
-    }
+    const bool clearInOk = mscClearEndpointHalt(device, device.mscInEndpointAddress, timeoutMs);
+    const bool clearOutOk = mscClearEndpointHalt(device, device.mscOutEndpointAddress, timeoutMs);
+    clearOk = clearInOk && clearOutOk;
   }
   return clearOk;
 }
@@ -4920,6 +5014,57 @@ void EspUsbHost::clientTaskLoop()
     }
     for (EndpointState &ep : endpoints_)
     {
+      if (!ep.inUse || !ep.recoveryPending)
+      {
+        continue;
+      }
+      ep.recoveryPending = false;
+      DeviceState *dev = findDeviceByHandle(ep.deviceHandle);
+      if (!dev || !ep.transfer || !ep.deviceHandle)
+      {
+        continue;
+      }
+
+      // Endpoint callbacks are dispatched before DEV_GONE events. Defer error
+      // recovery until usb_host_client_handle_events() has processed both, so a
+      // disconnected device is released instead of receiving a new URB.
+      esp_err_t clearErr = usb_host_endpoint_clear(ep.deviceHandle, ep.address);
+      if (clearErr != ESP_OK)
+      {
+        ESP_LOGD(TAG, "usb_host_endpoint_clear(recovery ep=0x%02x) failed: %s",
+                 ep.address,
+                 esp_err_to_name(clearErr));
+        setLastError(clearErr);
+        continue;
+      }
+
+      uint8_t ledInterfaceNumber = 0;
+      uint8_t ledReportId = 0;
+      const bool isKeyboardEndpoint = keyboardLedTarget(*dev, ledInterfaceNumber, ledReportId) &&
+                                      ep.interfaceNumber == ledInterfaceNumber;
+      if (isKeyboardEndpoint && (dev->keyboardLedDirty || dev->keyboardLedPending))
+      {
+        ep.resubmitAfterLed = true;
+      }
+      else
+      {
+        ep.resubmitPending = true;
+      }
+    }
+    for (EndpointState &ep : endpoints_)
+    {
+      if (!ep.inUse || !ep.resubmitPending)
+      {
+        continue;
+      }
+      ep.resubmitPending = false;
+      if (ep.transfer && running_ && ep.deviceHandle)
+      {
+        submitInputTransfer(ep);
+      }
+    }
+    for (EndpointState &ep : endpoints_)
+    {
       if (!ep.inUse || !ep.resubmitAfterLed)
       {
         continue;
@@ -4932,11 +5077,7 @@ void EspUsbHost::clientTaskLoop()
       ep.resubmitAfterLed = false;
       if (ep.transfer && running_ && ep.deviceHandle)
       {
-        esp_err_t resubErr = usb_host_transfer_submit(ep.transfer);
-        if (resubErr != ESP_OK && resubErr != ESP_ERR_INVALID_STATE && resubErr != ESP_ERR_NOT_FINISHED)
-        {
-          ESP_LOGD(TAG, "usb_host_transfer_submit(after LED) failed: %s", esp_err_to_name(resubErr));
-        }
+        submitInputTransfer(ep);
       }
     }
     if (millis() - lastHostDeviceScanMs_ >= 500)
@@ -5823,14 +5964,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->context = this;
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-      if (submitInputTransfer(*endpoint))
-      {
-        ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
-                 currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
-                 endpoint->interfaceNumber,
-                 endpoint->address,
-                 ep->wMaxPacketSize);
-      }
+      endpoint->resubmitPending = true;
+      ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
+               currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
+               endpoint->interfaceNumber,
+               endpoint->address,
+               ep->wMaxPacketSize);
       return;
     }
 
@@ -5880,13 +6019,11 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->context = this;
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-      if (submitInputTransfer(*endpoint))
-      {
-        ESP_LOGI(TAG, "USB MIDI bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
-                 endpoint->interfaceNumber,
-                 endpoint->address,
-                 ep->wMaxPacketSize);
-      }
+      endpoint->resubmitPending = true;
+      ESP_LOGI(TAG, "USB MIDI bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
+               endpoint->interfaceNumber,
+               endpoint->address,
+               ep->wMaxPacketSize);
       return;
     }
 
@@ -6021,11 +6158,9 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     endpoint->transfer->context = this;
     endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-    if (submitInputTransfer(*endpoint))
-    {
-      ESP_LOGI(TAG, "HID interrupt IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
-               endpoint->interfaceNumber, endpoint->address, ep->wMaxPacketSize, ep->bInterval);
-    }
+    endpoint->resubmitPending = true;
+    ESP_LOGI(TAG, "HID interrupt IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
+             endpoint->interfaceNumber, endpoint->address, ep->wMaxPacketSize, ep->bInterval);
     break;
   }
 
@@ -6585,7 +6720,8 @@ void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_
     if (!endpoint.inUse ||
         endpoint.deviceHandle != deviceHandle ||
         endpoint.interfaceNumber != interfaceNumber ||
-        endpoint.transferSubmitted)
+        endpoint.transferSubmitted ||
+        endpoint.resubmitPending)
     {
       continue;
     }
@@ -6600,7 +6736,7 @@ void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_
       }
     }
 
-    submitInputTransfer(endpoint);
+    endpoint.resubmitPending = true;
   }
 }
 
@@ -6775,6 +6911,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
   {
     return;
   }
+  endpoint->transferSubmitted = false;
   DeviceState *device = findDeviceByHandle(endpoint->deviceHandle);
 
   const bool isAudioStreaming = endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
@@ -6922,6 +7059,12 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     return;
   }
 
+  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+  {
+    endpoint->recoveryPending = true;
+    return;
+  }
+
   if (running_ && endpoint->deviceHandle)
   {
     if (transfer->num_isoc_packets > 0)
@@ -6945,12 +7088,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     }
     else
     {
-      esp_err_t err = usb_host_transfer_submit(transfer);
-      if (err != ESP_OK && err != ESP_ERR_INVALID_STATE && err != ESP_ERR_NOT_FINISHED)
-      {
-        ESP_LOGD(TAG, "usb_host_transfer_submit() failed: %s", esp_err_to_name(err));
-        setLastError(err);
-      }
+      endpoint->resubmitPending = true;
     }
   }
 }
