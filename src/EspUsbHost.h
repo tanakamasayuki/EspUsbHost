@@ -1215,6 +1215,8 @@ private:
     uint8_t audioBitsPerSample = 0;
     usb_transfer_t *transfer = nullptr;
     bool transferSubmitted = false;
+    bool recoveryPending = false;
+    bool resubmitPending = false;
     bool resubmitAfterLed = false;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
@@ -1561,6 +1563,7 @@ private:
                   size_t dataLength,
                   bool dataIn,
                   uint32_t timeoutMs);
+  bool mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs);
   bool mscResetRecovery(DeviceState &device, uint32_t timeoutMs);
   void mscUnmountAddress(uint8_t address);
   bool submitVendorSerialControl(uint8_t requestType,
