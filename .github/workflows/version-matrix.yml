@@ -88,8 +88,15 @@ jobs:
     needs: build
     if: always()
     runs-on: ubuntu-latest
+    concurrency:
+      group: docs-matrix-publish-${{ github.ref }}
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -109,5 +116,6 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "docs: update core compatibility matrix (lib ${{ inputs.lib_version }})"
-            git push
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
