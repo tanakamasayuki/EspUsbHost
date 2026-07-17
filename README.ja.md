@@ -71,7 +71,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT、EP0 vendor IN/OUT requestに対応 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
-| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。非準拠デバイス向けの`SYNCHRONIZE CACHE(10)`フォールバックあり。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
+| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的。単一MSCデバイスの基本read/writeとFatFsマウントはpeer/manual確認済み。非準拠デバイス、複数MSC・複数LUN、異常系BOT完全復旧は継続確認 |
 | UVC — USBカメラ | 💭 検討中 |
 
 ### その他の予定機能
