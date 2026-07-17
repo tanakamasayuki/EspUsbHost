@@ -8,7 +8,7 @@
 //   y/z swapped (0x1C=z, 0x1D=y)
 //   Number row: 0 at GRV (0x35), Ö/Ü/Ó at 0/MINS/EQL positions
 //   ő/Ő and ű/Ű (U+0150/0151/0170/0171) are outside Latin-1 → 0
-static const uint8_t KEYCODE_TO_ASCII_HU_HU[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_HU_HU[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

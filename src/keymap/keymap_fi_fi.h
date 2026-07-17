@@ -5,7 +5,7 @@
 // Finnish QWERTY (fi_FI)
 // Reference: QMK keymap_finnish.h
 // Identical to sv_SE: same physical layout (ä, ö, å at same positions)
-static const uint8_t KEYCODE_TO_ASCII_FI_FI[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_FI_FI[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

@@ -390,6 +390,7 @@ struct EspUsbHostKeyboardEvent : EspUsbHostHIDReportData
   bool released = false;
   uint8_t keycode = 0;
   uint8_t ascii = 0;
+  uint16_t unicode = 0; // Unicode code point (0 if none); ascii is its Latin-1 low byte
   uint8_t modifiers = 0;
   bool numLock = false;
   bool capsLock = false;

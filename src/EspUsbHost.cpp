@@ -7292,7 +7292,8 @@ void EspUsbHost::handleKeyboardBitmap(EndpointState &endpoint, DeviceState &devi
     event.pressed = now;
     event.released = !now;
     event.keycode = usage;
-    event.ascii = espUsbHostKeycodeToAscii(usage, now ? modifiers : prevModifiers, keyboardLayout_, capsLock, numLock);
+    event.unicode = espUsbHostKeycodeToUnicode(usage, now ? modifiers : prevModifiers, keyboardLayout_, capsLock, numLock);
+    event.ascii = event.unicode <= 0xFF ? static_cast<uint8_t>(event.unicode) : 0;
     event.modifiers = now ? modifiers : prevModifiers;
     event.numLock = numLock;
     event.capsLock = capsLock;

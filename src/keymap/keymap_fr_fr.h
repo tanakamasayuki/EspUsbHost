@@ -3,7 +3,8 @@
 #include <stdint.h>
 
 // French AZERTY (fr_FR)
-// Reference: QMK keymap_french.h
+// Reference: QMK keymap_french.h; AltGr layer per Windows KBDFR.
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode; AltGr+E = € = 0x20AC).
 // AZERTY: letters are remapped from QWERTY physical positions.
 // Physical key positions (HID keycodes) vs. characters produced:
 //   0x04(A pos)=q/Q  0x10(M pos)=,/?  0x14(Q pos)=a/A
@@ -12,7 +13,7 @@
 //   0x1E: &/1  0x1F: é/2  0x20: "/3  0x21: '/4  0x22: (/5
 //   0x23: -/6  0x24: è/7  0x25: _/8  0x26: ç/9  0x27: à/0
 //   0x2D: )/°  0x2E: =/+
-static const uint8_t KEYCODE_TO_ASCII_FR_FR[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_FR_FR[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -21,7 +22,7 @@ static const uint8_t KEYCODE_TO_ASCII_FR_FR[128][2] = {
     {'b', 'B'},       // 0x05
     {'c', 'C'},       // 0x06
     {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
+    {'e', 'E', 0x20ac}, // 0x08 e E  AltGr:€
     {'f', 'F'},       // 0x09
     {'g', 'G'},       // 0x0a
     {'h', 'H'},       // 0x0b
@@ -44,22 +45,22 @@ static const uint8_t KEYCODE_TO_ASCII_FR_FR[128][2] = {
     {'y', 'Y'},       // 0x1c
     {'w', 'W'},       // 0x1d
     {'&', '1'},       // 0x1e
-    {'\xe9', '2'},    // 0x1f
-    {'"', '3'},       // 0x20
-    {'\'', '4'},      // 0x21
-    {'(', '5'},       // 0x22
-    {'-', '6'},       // 0x23
-    {'\xe8', '7'},    // 0x24
-    {'_', '8'},       // 0x25
-    {'\xe7', '9'},    // 0x26
-    {'\xe0', '0'},    // 0x27
+    {'\xe9', '2', '~'},  // 0x1f é 2  AltGr:~
+    {'"', '3', '#'},     // 0x20 " 3  AltGr:#
+    {'\'', '4', '{'},    // 0x21 ' 4  AltGr:{
+    {'(', '5', '['},     // 0x22 ( 5  AltGr:[
+    {'-', '6', '|'},     // 0x23 - 6  AltGr:pipe
+    {'\xe8', '7', '`'},  // 0x24 è 7  AltGr:`
+    {'_', '8', '\\'},    // 0x25 _ 8  AltGr:backslash
+    {'\xe7', '9', '^'},  // 0x26 ç 9  AltGr:^
+    {'\xe0', '0', '@'},  // 0x27 à 0  AltGr:@
     {'\r', '\r'},     // 0x28
     {'\x1b', '\x1b'}, // 0x29
     {'\b', '\b'},     // 0x2a
     {'\t', '\t'},     // 0x2b
     {' ', ' '},       // 0x2c
-    {')', '\xb0'},    // 0x2d
-    {'=', '+'},       // 0x2e
+    {')', '\xb0', ']'}, // 0x2d ) °  AltGr:]
+    {'=', '+', '}'},  // 0x2e = +  AltGr:}
     {0, 0},           // 0x2f
     {'$', '\xa3'},    // 0x30
     {0, 0},           // 0x31

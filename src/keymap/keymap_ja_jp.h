@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-static const uint8_t KEYCODE_TO_ASCII_JA_JP[0x90][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_JA_JP[0x90][4] = {
     {0, 0},           // 0x00 (no event)
     {0, 0},           // 0x01 (error rollover)
     {0, 0},           // 0x02 (POST fail)

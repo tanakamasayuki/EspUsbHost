@@ -5,7 +5,7 @@
 // Norwegian Bokmål QWERTY (nb_NO)
 // Reference: QMK keymap_norwegian.h
 // Nearly identical to da_DK; differs at 0x33 (ø/Ø), 0x34 (æ/Æ), 0x35 (|/§ vs ½/§)
-static const uint8_t KEYCODE_TO_ASCII_NB_NO[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_NB_NO[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02

@@ -3,12 +3,14 @@
 #include <stdint.h>
 
 // Italian QWERTY (it_IT)
-// Reference: QMK keymap_italian.h
+// Reference: QMK keymap_italian.h; AltGr layer per Windows KBDIT.
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode code points).
+// { and } are AltGr+Shift (level 4) on the è and + keys; AltGr+E = € (0x20AC).
 // Key differences from US:
 //   0x2D: '/?  0x2E: ì/^  0x2F: è/é  0x30: +/*
 //   0x32: ù/§  0x33: ò/ç  0x34: à/°  0x35: \/|
 //   shift+3=£
-static const uint8_t KEYCODE_TO_ASCII_IT_IT[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_IT_IT[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -17,7 +19,7 @@ static const uint8_t KEYCODE_TO_ASCII_IT_IT[128][2] = {
     {'b', 'B'},       // 0x05
     {'c', 'C'},       // 0x06
     {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
+    {'e', 'E', 0x20ac}, // 0x08 e E  AltGr:€
     {'f', 'F'},       // 0x09
     {'g', 'G'},       // 0x0a
     {'h', 'H'},       // 0x0b
@@ -56,12 +58,12 @@ static const uint8_t KEYCODE_TO_ASCII_IT_IT[128][2] = {
     {' ', ' '},       // 0x2c
     {'\'', '?'},      // 0x2d
     {'\xec', '^'},    // 0x2e
-    {'\xe8', '\xe9'}, // 0x2f
-    {'+', '*'},       // 0x30
+    {'\xe8', '\xe9', '[', '{'}, // 0x2f è é  AltGr:[  AltGr+Shift:{
+    {'+', '*', ']', '}'}, // 0x30 + *  AltGr:]  AltGr+Shift:}
     {0, 0},           // 0x31
     {'\xf9', '\xa7'}, // 0x32
-    {'\xf2', '\xe7'}, // 0x33
-    {'\xe0', '\xb0'}, // 0x34
+    {'\xf2', '\xe7', '@'}, // 0x33 ò ç  AltGr:@
+    {'\xe0', '\xb0', '#'}, // 0x34 à °  AltGr:#
     {'\\', '|'},      // 0x35
     {',', ';'},       // 0x36
     {'.', ':'},       // 0x37
