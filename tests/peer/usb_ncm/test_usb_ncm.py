@@ -1,9 +1,29 @@
+import time
+
+
+def _wait_device_link(device, timeout=15):
+    """Wait for the peer to observe the host's SET_CONFIGURATION request.
+
+    The peer is uploaded and started after the host, so its serial console can
+    become ready before USB enumeration reaches the configured state.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        device.write("?")
+        match = device.expect(
+            r"DEVICE_READY ip=192\.168\.7\.1 link=(\d)",
+            timeout=min(2, max(0.1, deadline - time.monotonic())),
+        )
+        if int(match.group(1)) == 1:
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"USB NCM device link did not come up within {timeout}s")
+        time.sleep(0.1)
+
+
 def test_usb_ncm_enumeration(dut, peers):
     device = peers["device"]
-    # DEVICE_BEGIN is a one-shot boot message; use the '?' handshake instead so
-    # readiness does not depend on capture starting before boot.
-    device.write("?")
-    device.expect(r"DEVICE_READY ip=192\.168\.7\.1 link=1")
+    _wait_device_link(device)
 
     dut.expect_exact("HOST_CONNECTED")
     dut.write("i")
