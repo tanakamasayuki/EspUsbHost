@@ -50,6 +50,28 @@ def test_hid_keyboard_altgr(dut, peers):
     dut.expect_exact("RAW_KEY keycode=0x08 ascii=0x00 modifiers=0x40 unicode=0x20ac")
 
 
+def test_hid_keyboard_capslock(dut, peers):
+    device = peers["device"]
+
+    dut.write("d")
+    dut.expect_exact("LAYOUT DE_DE")
+
+    # CapsLock ON, then the ü key -> Ü. This is an accented letter outside the
+    # US a-z usage range, which the old positional CapsLock could not reach.
+    device.write("<")
+    device.expect_exact("SEND CAPS 1")
+    device.write(">")
+    device.expect_exact("SEND KEY_UE 1")
+    dut.expect_exact("RAW_KEY keycode=0x2f ascii=0xdc modifiers=0x00 unicode=0x00dc")
+
+    # CapsLock OFF again, same key -> ü.
+    device.write("<")
+    device.expect_exact("SEND CAPS 1")
+    device.write(">")
+    device.expect_exact("SEND KEY_UE 1")
+    dut.expect_exact("RAW_KEY keycode=0x2f ascii=0xfc modifiers=0x00 unicode=0x00fc")
+
+
 def test_hid_keyboard_state_modifier_only(dut, peers):
     device = peers["device"]
 
