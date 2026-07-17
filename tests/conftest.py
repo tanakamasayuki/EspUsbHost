@@ -18,9 +18,10 @@ _SERIAL_ERROR_PATTERNS = (
     re.compile(r"Brownout detector was triggered", re.IGNORECASE),
 )
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-_AUDIT_RESULTS_KEY = pytest.StashKey[list[tuple[str, list[str]]]]()
+_AUDIT_RESULTS_KEY = pytest.StashKey[list[tuple[str, str, list[str]]]]()
 _AUDIT_SECTION_KEY = pytest.StashKey[str]()
 _AUDIT_LOG_COUNT_KEY = pytest.StashKey[int]()
+_AUDIT_ROOTS_KEY = pytest.StashKey[set[str]]()
 
 
 def _serial_error_lines(log_path: Path) -> list[str]:
@@ -41,6 +42,8 @@ def serial_log_audit(request, test_case_tempdir):
     log_dir = Path(test_case_tempdir)
     log_paths = sorted(log_dir.glob("*.log"))
     request.config.stash[_AUDIT_LOG_COUNT_KEY] += len(log_paths)
+    if log_paths:
+        request.config.stash[_AUDIT_ROOTS_KEY].add(str(log_dir.parent))
 
     findings = []
     for log_path in log_paths:
@@ -49,14 +52,17 @@ def serial_log_audit(request, test_case_tempdir):
     if not findings:
         return
 
-    section = "\n".join(findings)
+    section = f"Log directory: {log_dir}\n" + "\n".join(findings)
     request.node.stash[_AUDIT_SECTION_KEY] = section
-    request.config.stash[_AUDIT_RESULTS_KEY].append((request.node.nodeid, findings))
+    request.config.stash[_AUDIT_RESULTS_KEY].append(
+        (request.node.nodeid, str(log_dir), findings)
+    )
 
 
 def pytest_configure(config):
     config.stash[_AUDIT_RESULTS_KEY] = []
     config.stash[_AUDIT_LOG_COUNT_KEY] = 0
+    config.stash[_AUDIT_ROOTS_KEY] = set()
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -75,18 +81,22 @@ def pytest_runtest_makereport(item, call):
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     results = config.stash[_AUDIT_RESULTS_KEY]
     log_count = config.stash[_AUDIT_LOG_COUNT_KEY]
+    log_roots = sorted(config.stash[_AUDIT_ROOTS_KEY])
     terminalreporter.section("serial log audit", sep="=")
+    for log_root in log_roots:
+        terminalreporter.write_line(f"Log root: {log_root}")
     if not results:
         terminalreporter.write_line(
             f"No suspicious serial output found in {log_count} DUT/peer log(s)."
         )
         return
 
-    finding_count = sum(len(findings) for _, findings in results)
+    finding_count = sum(len(findings) for _, _, findings in results)
     terminalreporter.write_line(
         f"Found {finding_count} suspicious line(s) in {len(results)} test(s); tests were not failed."
     )
-    for nodeid, findings in results:
+    for nodeid, log_dir, findings in results:
         terminalreporter.write_line(nodeid)
+        terminalreporter.write_line(f"  Log directory: {log_dir}")
         for finding in findings:
             terminalreporter.write_line(f"  {finding}")
