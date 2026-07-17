@@ -4,6 +4,8 @@
 
 // Brazilian Portuguese ABNT2 (pt_BR)
 // Reference: QMK keymap_brazilian_abnt2.h
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode). ABNT2 has no printable
+// AltGr layer (brackets/braces are on dedicated keys), so columns 2-3 stay 0.
 // Key differences from US:
 //   0x35: '/", 0x23: 6 (no shift ^ → 0)
 //   0x2F: dead´/dead`  0x30: [/{  0x31: ]/}
