@@ -109,7 +109,6 @@ uint16_t espUsbHostKeycodeToUnicode(uint8_t keycode, uint8_t modifiers, EspUsbHo
   }
 
   const uint8_t shift = (modifiers & (MOD_LEFT_SHIFT | MOD_RIGHT_SHIFT)) ? 1 : 0;
-  const uint8_t effectiveShift = (keycode >= 0x04 && keycode <= 0x1D) ? (shift ^ (capsLock ? 1 : 0)) : shift;
   const uint16_t (*table)[4];
   switch (layout)
   {
@@ -170,6 +169,23 @@ uint16_t espUsbHostKeycodeToUnicode(uint8_t keycode, uint8_t modifiers, EspUsbHo
   default:
     table = KEYCODE_TO_UNICODE_EN_US;
     break;
+  }
+  // CapsLock toggles Shift only on real cased-letter keys: those whose Shift
+  // value is the Unicode uppercase of the unshifted value. This applies to
+  // accented letters (ü->Ü, å->Å) and to layouts where letters sit outside the
+  // US a-z usage range (e.g. AZERTY m), while leaving digits, symbols and keys
+  // like German ß (whose Shift is '?', not an uppercase) unaffected.
+  uint8_t effectiveShift = shift;
+  if (capsLock)
+  {
+    const uint16_t base = table[keycode][0];
+    uint16_t upper = base;
+    if (base >= 'a' && base <= 'z')
+      upper = base - 0x20;
+    else if (base >= 0xe0 && base <= 0xfe && base != 0xf7)
+      upper = base - 0x20; // Latin-1 lowercase -> uppercase
+    if (upper != base && upper == table[keycode][1])
+      effectiveShift ^= 1;
   }
   // Columns: 0=unshifted, 1=Shift, 2=AltGr, 3=AltGr+Shift. Values are Unicode
   // code points (Latin-1 is the first 256 code points, so legacy 8-bit values

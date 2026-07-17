@@ -312,6 +312,27 @@ int main()
   check("ptBR AltGr c cruzeiro unicode", convU(0x06, AltGr, PtBr), 0x20a2);
   check("ptBR AltGr c ascii 0", conv(0x06, AltGr, PtBr), 0);
 
+  // --- CapsLock (applies only to real cased-letter keys) ---
+  // Basic a-z, and Shift cancels CapsLock.
+  check("deDE capslock a -> A", conv(0x04, 0, DeDe, true), 'A');
+  check("deDE capslock+shift a -> a", conv(0x04, Shift, DeDe, true), 'a');
+  // Accented letters get uppercased (previously outside the 0x04-0x1D range).
+  check("deDE capslock u-umlaut -> U-umlaut", conv(0x2f, 0, DeDe, true), 0xdc);
+  check("deDE capslock+shift u-umlaut -> u-umlaut", conv(0x2f, Shift, DeDe, true), 0xfc);
+  check("daDK capslock a-ring -> A-ring", conv(0x2f, 0, DaDk, true), 0xc5);
+  // German ß: a letter but Shift is '?', not an uppercase -> CapsLock no-op.
+  check("deDE capslock eszett stays eszett", conv(0x2d, 0, DeDe, true), 0xdf);
+  // AZERTY: 'm' is at usage 0x33 (outside the old range) -> now uppercased.
+  check("frFR capslock m -> M", conv(0x33, 0, FrFr, true), 'M');
+  check("frFR capslock a-position -> A", conv(0x04, 0, FrFr, true), 'Q'); // AZERTY 0x04 = q/Q
+  check("frFR capslock q-position -> A", conv(0x14, 0, FrFr, true), 'A'); // AZERTY 0x14 = a/A
+  // AZERTY comma key (usage 0x10, inside old range) is NOT a letter -> no-op.
+  check("frFR capslock comma-key stays ','", conv(0x10, 0, FrFr, true), ',');
+  // Digits/symbols never affected by CapsLock.
+  check("deDE capslock 1 stays 1", conv(0x1e, 0, DeDe, true), '1');
+  // CapsLock does not disturb the AltGr layer.
+  check("deDE capslock + AltGr q still @", conv(0x14, AltGr, DeDe, true), '@');
+
   if (failures != 0)
   {
     std::printf("%d check(s) failed\n", failures);
