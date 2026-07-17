@@ -102,6 +102,20 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - ESP32-S3、またはArduino-ESP32 USB Hostに対応したボード
 - Arduino-ESP32コア
 
+### ESP32-S3 の推奨機材と注意事項
+
+USB Hostとして使用する前に、まずボードのUSB端子からVBUS（5V）が供給されているかを確認してください。
+
+Espressif Systems純正のESP32-S3-DevKitC-1は、USB OTG端子から接続機器へ電源を供給しません。USB Deviceとして使用する場合はボード側から給電しない構成が好都合ですが、USB Hostとして使用する場合は、接続するUSB機器へ別途電源を配線するか、外部電源に対応したセルフパワーUSBハブを使用してください。
+
+M5Stack系製品には、プログラムからUSB端子への電源供給を制御できるものもあります。使用する製品の回路図と電源制御方法を確認してください。
+
+USB Hostを手軽に試す場合は、USB Type-CのUSB OTG端子から接続機器へ給電できるFreenove社のESP32-S3-WROOM Boardなどを推奨します。
+
+最終的には、AtomS3のようにUSB端子が1つだけの製品でも利用できます。ただし開発中は、書き込みやSerial Monitorに使うUART端子と、接続機器に使うUSB OTG端子を分けられる、USB端子を2つ搭載したボードを推奨します。
+
+USB端子が2つある場合でも、どちらがUSB-to-UARTで、どちらがESP32-S3のUSB OTGへ接続されているかはボードによって異なります。たとえばEspressif Systems純正のESP32-S3-DevKitC-1とFreenove ESP32-S3-WROOM Boardでは、UART端子とUSB OTG端子の配置が逆です。コネクタの位置だけで判断せず、ボード上のシルク印刷、製品資料、回路図を確認してください。
+
 ### ESP32-P4 の注意事項
 
 ESP32-P4はSoC内部に3つのUSB機能を持っています。これはSoC内部のcontroller/PHY経路を数えたもので、すべてのボードに必ず3個の物理コネクタがあるという意味ではありません。
