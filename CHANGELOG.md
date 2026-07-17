@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.3.2
 - (EN) Add Unicode-aware keyboard conversion: `EspUsbHostKeyboardEvent` now exposes a `unicode` code point and the new `espUsbHostKeycodeToUnicode()` helper, while the existing `ascii` field and conversion helper remain available for ASCII/Latin-1 characters. Keyboard layout tables now cover AltGr and AltGr+Shift layers, extended ISO/ABNT2 usages, and additional mappings across the bundled layouts, including German and Brazilian Portuguese. Caps Lock is applied only to keys whose shifted value is the uppercase form of the base character. Added host-side unit tests for layout conversion and peer tests for Caps Lock behavior.
 - (JA) キーボード変換をUnicode対応にしました。`EspUsbHostKeyboardEvent`にUnicodeコードポイントを返す`unicode`と、新しい`espUsbHostKeycodeToUnicode()`ヘルパーを追加し、既存の`ascii`フィールドと変換ヘルパーはASCII/Latin-1文字向けとして引き続き利用できます。キーボードレイアウト表をAltGr・AltGr+Shiftレイヤー、ISO/ABNT2拡張usage、同梱各レイアウトの追加マッピングへ拡張し、ドイツ語やブラジルポルトガル語にも対応しました。Caps Lockは、Shift時の値が基底文字の大文字になるキーだけに適用されます。レイアウト変換のホスト側unit testとCaps Lockのpeer testも追加しました。
 - (EN) Fix CDC-NCM enumeration so an unclaimed NCM CDC-DATA interface is not mistaken for a claimed CDC-ACM serial interface. NCM bulk endpoints are no longer registered or submitted as serial endpoints, while `networkOpen()` continues to claim and use the NCM control/data interfaces normally. The NCM peer test now waits for the device link to come up, removing a startup-order race.
