@@ -1624,6 +1624,7 @@ private:
   uint32_t currentAudioSampleRateMin_ = 0;
   uint32_t currentAudioSampleRateMax_ = 0;
   uint32_t currentAudioSampleRateResolution_ = 0;
+  bool currentInterfaceClaimed_ = false;
   esp_err_t currentClaimResult_ = ESP_OK;
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;

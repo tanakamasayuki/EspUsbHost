@@ -5516,6 +5516,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     currentAudioSampleRateMin_ = 0;
     currentAudioSampleRateMax_ = 0;
     currentAudioSampleRateResolution_ = 0;
+    currentInterfaceClaimed_ = false;
     currentClaimResult_ = ESP_OK;
     if (device->interfaceInfoCount < ESP_USB_HOST_MAX_INTERFACES)
     {
@@ -5561,7 +5562,8 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isCdcAcmControlInterface = currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE &&
                                           currentInterfaceSubClass_ == USB_CDC_SUBCLASS_ACM;
     const bool isCdcAcmDataInterface = currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
-                                       device->hasCdcControlInterface;
+                                       device->hasCdcControlInterface &&
+                                       !device->hasCdcDataInterface;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         isCdcAcmControlInterface ||
         isCdcAcmDataInterface ||
@@ -5572,6 +5574,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isVendorSerialInterface)
     {
       currentClaimResult_ = usb_host_interface_claim(clientHandle_, device->handle, currentInterfaceNumber_, intf->bAlternateSetting);
+      currentInterfaceClaimed_ = currentClaimResult_ == ESP_OK;
       for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
       {
         EspUsbHostInterfaceInfo &info = device->interfaceInfos[i];
@@ -5767,9 +5770,14 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       return;
     }
 
-    const bool isSerialBulkEndpoint = currentClaimResult_ == ESP_OK &&
-                                      (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
-                                       (device->vendorSerialSupported && currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE)) &&
+    const bool isSerialBulkEndpoint = currentInterfaceClaimed_ &&
+                                      ((currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
+                                        device->hasCdcDataInterface &&
+                                        currentInterfaceNumber_ == device->cdcDataInterfaceNumber) ||
+                                       (currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE &&
+                                        device->vendorSerialSupported &&
+                                        device->hasVendorSerialInterface &&
+                                        currentInterfaceNumber_ == device->vendorSerialInterfaceNumber)) &&
                                       isBulk;
     if (isSerialBulkEndpoint)
     {
