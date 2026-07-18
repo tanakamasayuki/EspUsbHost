@@ -48,13 +48,13 @@ Current coverage:
 
 - `hid_logic`: HID helper logic checks that do not require a peer device.
 - `custom_hid`: pairs with an Arduino Core standard Custom HID-style device.
-- `hid_keyboard`: pairs with an Arduino Core standard USB keyboard device.
+- `hid_keyboard`: pairs with an Arduino Core standard USB keyboard device. Also verifies HID listener coexistence with the single callback, capacity and invalid-operation failures, removal, registration order, persistent mutable callback state, and next-event mutation semantics.
 - `hid_mouse`: pairs with an Arduino Core standard USB mouse device.
 - `hid_keyboard_mouse`: pairs with an Arduino Core standard keyboard + mouse composite device.
 - `hid_keyboard_nkro`: pairs with an `EspUsbDeviceHidKeyboard` NKRO keyboard from the sibling `EspUsbDevice` library. Verifies bitmap-report decoding (8-key chord) and that `setKeyboardLeds()` reaches the keyboard in report protocol.
 - `hid_keyboard_composite`: pairs with an `EspUsbDevice` composite HID device (keyboard + consumer control + mouse in one interface with report IDs, no boot interface). Verifies each input reaches its host callback and that `setKeyboardLeds()` delivers the LED output report by report ID.
 - `hid_consumer_control`: pairs with an Arduino Core standard consumer control device.
-- `hid_system_control`: pairs with an Arduino Core standard system control device.
+- `hid_system_control`: pairs with an Arduino Core standard system control device, including delivery with listeners only and no single callback.
 - `hid_gamepad`: pairs with an Arduino Core standard gamepad device.
 - `hid_vendor`: pairs with an Arduino Core standard vendor HID device.
 - `usb_serial`: pairs with an Arduino Core standard USB CDC device.

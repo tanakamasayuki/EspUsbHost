@@ -59,6 +59,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | HID consumer control | ✅ peer | | |
 | HID system control | ✅ peer | | |
 | HID gamepad | ✅ peer | | |
+| HID multi-listener dispatch | ✅ peer (single-callback coexistence, listener-only delivery, ordering, capacity, removal, callback-time mutation) | | |
 | HID vendor input/output | ✅ peer | | |
 | HID raw input dump | ✅ peer (custom_hid) | | |
 | Keyboard LED output | ✅ peer (hid_logic) | ✅ manual (visual) | |

@@ -326,10 +326,43 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // 生データ — 全HIDインターフェースで発火
 void onHIDVendorInput(HIDVendorInputCallback callback);
+EspUsbHostListenerId addKeyboardListener(KeyboardCallback callback);
+EspUsbHostListenerId addKeyboardStateListener(KeyboardStateCallback callback);
+EspUsbHostListenerId addMouseListener(MouseCallback callback);
+EspUsbHostListenerId addConsumerControlListener(ConsumerControlCallback callback);
+EspUsbHostListenerId addSystemControlListener(SystemControlCallback callback);
+EspUsbHostListenerId addGamepadListener(GamepadCallback callback);
+bool removeListener(EspUsbHostListenerId listenerId);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
+```
+
+互換性のため、各`on*()`は従来どおり単一callbackを保持します。対応する
+`add*Listener()`を使うと、アダプタとスケッチが互いを上書きせず、同じパース済みHIDイベントを
+受信できます。登録成功時は0以外の`EspUsbHostListenerId`を返します。0
+（`ESP_USB_HOST_INVALID_LISTENER_ID`）は空callbackまたはeventのlistener上限到達を表します。
+`removeListener()`は6種のどのlistener IDも受け取り、解除できたかを返します。
+
+listenerはeventごとに既定4件（`EspUsbHost::MaxListenersPerEvent`）で、コンパイル時に
+`ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`で変更できます。単一`on*()` callbackを最初に呼び、
+続いてlistenerを登録順に呼びます。callback集合はeventごとにsnapshotするため、callback内での
+追加・解除は次のeventから反映されます。スケッチtaskとUSB task間の登録・差し替え・解除は
+保護され、利用者callbackの実行中はregistryのmutexを保持しません。
+
+```cpp
+EspUsbHostListenerId adapterListener =
+    usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &event) {
+      // アダプタ側の入力処理
+    });
+
+usb.onKeyboard([](const EspUsbHostKeyboardEvent &event) {
+  // スケッチ側の入力処理。両方が同じeventを受け取る
+});
+
+// 後でtask contextから解除
+usb.removeListener(adapterListener);
 ```
 
 6キーの boot キーボードと N-key rollover（NKRO）キーボードの両方に対応します。NKRO

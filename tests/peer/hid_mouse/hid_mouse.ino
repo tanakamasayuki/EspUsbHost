@@ -19,6 +19,11 @@ void setup()
                                 event.previousButtons,
                                 event.moved ? 1 : 0,
                                 event.buttonsChanged ? 1 : 0); });
+    usb.addMouseListener([](const EspUsbHostMouseEvent &event)
+                         { Serial.printf("MOUSE_LISTENER x=%d y=%d buttons=%u\n",
+                                         event.x,
+                                         event.y,
+                                         event.buttons); });
 
     if (!usb.begin())
     {

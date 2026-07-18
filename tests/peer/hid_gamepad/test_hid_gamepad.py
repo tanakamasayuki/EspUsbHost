@@ -3,6 +3,7 @@ def test_hid_gamepad_axes(dut, peers):
 
     device.write("a")
     dut.expect("GAMEPAD report=0a f6 14 ec 1e e2 03 05 00 00 00 fields=[1-9][0-9]*")
+    dut.expect("GAMEPAD_LISTENER length=11 fields=[1-9][0-9]*")
 
     device.write("0")
     dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*")
