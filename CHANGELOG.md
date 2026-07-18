@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.4.0
 - (EN) Add fixed-capacity, thread-safe listener APIs for parsed keyboard, keyboard-state, mouse, consumer-control, system-control, and gamepad input. Existing single `on*()` callbacks remain compatible and run first; listeners run in registration order from a per-event snapshot, can be removed by ID, and callback-time mutations take effect on the next event. Peer tests cover coexistence, listener-only delivery, capacity and invalid-operation failures, removal, and callback-time mutation.
 - (JA) パース済みkeyboard・keyboard state・mouse・consumer control・system control・gamepad入力に、固定容量でthread-safeなlistener APIを追加しました。既存の単一`on*()` callbackは互換性を維持して最初に呼ばれ、listenerはeventごとのsnapshotから登録順に呼ばれます。IDによる解除に対応し、callback内の追加・解除は次eventから反映します。peer testでcallbackとの共存、listener単独配送、上限・無効操作の失敗、解除、callback内変更を確認します。
 - (EN) Harden the USB Vendor peer tests against device re-enumeration during flashing and multi-device setups. The host test sketch now tracks only the expected VID/PID, clears that address on disconnect, and ignores transient or unrelated USB identities; each test also waits for the peer firmware and polls until the vendor interface and bulk IN/OUT endpoints are ready. This removes a startup-order failure where an intermediate PID `0x1001` could overwrite the intended device address.
