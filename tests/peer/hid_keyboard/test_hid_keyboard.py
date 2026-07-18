@@ -83,6 +83,42 @@ def test_hid_keyboard_state_modifier_only(dut, peers):
     dut.expect_exact("KEY_STATE modifiers=0x00 a_down=0 a_pressed=0 a_released=0 lctrl_down=0 lctrl_pressed=0 lctrl_released=1")
 
 
+def test_hid_keyboard_listeners(dut, peers):
+    device = peers["device"]
+
+    dut.write("l")
+    dut.expect_exact("LISTENER_SETUP empty=1 ids=1 capacity=1 invalid_remove=1 state=1 max=4")
+
+    # The callback and listeners use the same event snapshot. Listener 1 removes
+    # itself and adds listener 5, but listener 5 must not run for this event.
+    device.write("a")
+    dut.expect_exact("STATE_LISTENER a_down=1 changed=1")
+    dut.expect_exact("LISTENER PRIMARY")
+    dut.expect_exact("LISTENER 1")
+    dut.expect_exact("LISTENER 2")
+    dut.expect_exact("LISTENER_STATE count=1")
+    dut.expect_exact("STATE_LISTENER a_down=0 changed=1")
+
+    # The mutation takes effect on the next event, preserving registration
+    # order: the existing listener 2 runs before the newly-added listener 5.
+    device.write("b")
+    dut.expect_exact("STATE_LISTENER a_down=0 changed=1")
+    dut.expect_exact("LISTENER PRIMARY")
+    dut.expect_exact("LISTENER 2")
+    dut.expect_exact("LISTENER_STATE count=2")
+    dut.expect_exact("LISTENER 5")
+
+    dut.write("u")
+    dut.expect_exact("LISTENER_REMOVE removed=1 second=1")
+    device.write("c")
+    dut.expect_exact("LISTENER PRIMARY")
+    dut.expect_exact("LISTENER_STATE count=3")
+    dut.expect_exact("LISTENER 5")
+
+    dut.write("x")
+    dut.expect_exact("LISTENER_CLEAR 1")
+
+
 # arduino-esp32 の USBHID.cpp (tinyusb_get_device_by_report_id) は reports_num==0 の
 # デバイスを検索対象から除外する。USBHIDKeyboard が使う TUD_HID_REPORT_DESC_KEYBOARD を
 # esp_hid_parse_report_map がすべて BOOT mode と判定するため reports_num が 0 になり、

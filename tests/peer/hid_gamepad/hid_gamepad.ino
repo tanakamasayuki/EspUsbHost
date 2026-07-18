@@ -23,6 +23,10 @@ void setup()
                       }
                       Serial.printf(" fields=%u", (unsigned)event.fieldCount);
                       Serial.println(); });
+    usb.addGamepadListener([](const EspUsbHostGamepadEvent &event)
+                           { Serial.printf("GAMEPAD_LISTENER length=%u fields=%u\n",
+                                           static_cast<unsigned>(event.reportLength),
+                                           static_cast<unsigned>(event.fieldCount)); });
 
     if (!usb.begin())
     {

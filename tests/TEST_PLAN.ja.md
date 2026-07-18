@@ -54,6 +54,7 @@ tests/
 | HIDコンシューマーコントロール | ✅ peer | | |
 | HIDシステムコントロール | ✅ peer | | |
 | HIDゲームパッド | ✅ peer | | |
+| HID複数listener配送 | ✅ peer（単一callbackとの共存、listener単独配送、順序、上限、解除、callback内変更） | | |
 | HIDベンダー入出力 | ✅ peer | | |
 | HID生データダンプ | ✅ peer (custom_hid) | | |
 | キーボードLED出力 | ✅ peer (hid_logic) | ✅ manual（目視） | |

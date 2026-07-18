@@ -35,6 +35,7 @@ EspUsbHostNetworkInterfaceInfo	KEYWORD1
 EspUsbHostNetworkFrame	KEYWORD1
 EspUsbHostNetworkConfig	KEYWORD1
 EspUsbHostNetworkStats	KEYWORD1
+EspUsbHostListenerId	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -48,6 +49,13 @@ onDeviceDisconnected	KEYWORD2
 onKeyboard	KEYWORD2
 onKeyboardState	KEYWORD2
 onMouse	KEYWORD2
+addKeyboardListener	KEYWORD2
+addKeyboardStateListener	KEYWORD2
+addMouseListener	KEYWORD2
+addConsumerControlListener	KEYWORD2
+addSystemControlListener	KEYWORD2
+addGamepadListener	KEYWORD2
+removeListener	KEYWORD2
 onHIDInput	KEYWORD2
 onAudioData	KEYWORD2
 audioInputReady	KEYWORD2

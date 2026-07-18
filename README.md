@@ -330,10 +330,47 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // raw — fires for all HID interfaces
 void onHIDVendorInput(HIDVendorInputCallback callback);
+EspUsbHostListenerId addKeyboardListener(KeyboardCallback callback);
+EspUsbHostListenerId addKeyboardStateListener(KeyboardStateCallback callback);
+EspUsbHostListenerId addMouseListener(MouseCallback callback);
+EspUsbHostListenerId addConsumerControlListener(ConsumerControlCallback callback);
+EspUsbHostListenerId addSystemControlListener(SystemControlCallback callback);
+EspUsbHostListenerId addGamepadListener(GamepadCallback callback);
+bool removeListener(EspUsbHostListenerId listenerId);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
+```
+
+Each `on*()` function keeps one callback for compatibility. The matching
+`add*Listener()` functions allow adapters and the sketch to receive the same
+parsed HID event without replacing one another. A successful registration
+returns a nonzero `EspUsbHostListenerId`; zero
+(`ESP_USB_HOST_INVALID_LISTENER_ID`) means that the callback was empty or the
+event's listener capacity was reached. `removeListener()` accepts an ID from any
+of the six listener types and returns whether it removed one.
+
+There are four listeners per event by default (`EspUsbHost::MaxListenersPerEvent`),
+configurable at compile time with `ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`. The
+single `on*()` callback runs first, followed by listeners in registration order.
+The callback set is snapshotted for each event, so adding or removing a listener
+inside a callback affects the next event. Registration, replacement, and removal
+are protected across the sketch and USB tasks; callbacks run without holding the
+registry mutex.
+
+```cpp
+EspUsbHostListenerId adapterListener =
+    usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &event) {
+      // adapter input path
+    });
+
+usb.onKeyboard([](const EspUsbHostKeyboardEvent &event) {
+  // sketch input path; both callbacks receive the event
+});
+
+// Later, from task context:
+usb.removeListener(adapterListener);
 ```
 
 Both 6-key boot keyboards and N-key rollover (NKRO) keyboards are supported. NKRO

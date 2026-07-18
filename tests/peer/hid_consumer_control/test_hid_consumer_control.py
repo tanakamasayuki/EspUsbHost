@@ -3,6 +3,7 @@ def test_hid_consumer_control_volume(dut, peers):
 
     device.write("u")
     dut.expect_exact("CONSUMER usage=0x00e9 pressed=1 released=0")
+    dut.expect_exact("CONSUMER_LISTENER usage=0x00e9 pressed=1")
     dut.expect_exact("CONSUMER usage=0x00e9 pressed=0 released=1")
 
     device.write("d")

@@ -2,6 +2,35 @@
 
 EspUsbHost usb;
 static volatile bool verboseKeyboard = false;
+static volatile bool listenerTestActive = false;
+static volatile bool listenerMutated = false;
+static EspUsbHostListenerId listenerIds[4] = {};
+static EspUsbHostListenerId replacementListenerId = ESP_USB_HOST_INVALID_LISTENER_ID;
+static EspUsbHostListenerId stateListenerId = ESP_USB_HOST_INVALID_LISTENER_ID;
+
+static void clearListenerTest()
+{
+    for (size_t i = 0; i < 4; i++)
+    {
+        if (listenerIds[i] != ESP_USB_HOST_INVALID_LISTENER_ID)
+        {
+            usb.removeListener(listenerIds[i]);
+            listenerIds[i] = ESP_USB_HOST_INVALID_LISTENER_ID;
+        }
+    }
+    if (replacementListenerId != ESP_USB_HOST_INVALID_LISTENER_ID)
+    {
+        usb.removeListener(replacementListenerId);
+        replacementListenerId = ESP_USB_HOST_INVALID_LISTENER_ID;
+    }
+    if (stateListenerId != ESP_USB_HOST_INVALID_LISTENER_ID)
+    {
+        usb.removeListener(stateListenerId);
+        stateListenerId = ESP_USB_HOST_INVALID_LISTENER_ID;
+    }
+    listenerTestActive = false;
+    listenerMutated = false;
+}
 
 void setup()
 {
@@ -29,7 +58,11 @@ void setup()
 
     usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
                    {
-      if (event.pressed && event.ascii && !verboseKeyboard)
+      if (listenerTestActive && event.pressed)
+      {
+          Serial.println("LISTENER PRIMARY");
+      }
+      if (event.pressed && event.ascii && !verboseKeyboard && !listenerTestActive)
       {
           Serial.print((char)event.ascii);
       }
@@ -109,6 +142,82 @@ void loop()
         {
             verboseKeyboard = false;
             Serial.println("VERBOSE 0");
+        }
+        else if (command == 'l')
+        {
+            clearListenerTest();
+            const bool emptyRejected = usb.addKeyboardListener(EspUsbHost::KeyboardCallback()) == ESP_USB_HOST_INVALID_LISTENER_ID;
+            listenerIds[0] = usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &event)
+                                                     {
+                if (!listenerTestActive || !event.pressed)
+                {
+                    return;
+                }
+                Serial.println("LISTENER 1");
+                if (!listenerMutated)
+                {
+                    listenerMutated = true;
+                    usb.removeListener(listenerIds[0]);
+                    listenerIds[0] = ESP_USB_HOST_INVALID_LISTENER_ID;
+                    replacementListenerId = usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &nextEvent)
+                                                                    {
+                        if (listenerTestActive && nextEvent.pressed)
+                        {
+                            Serial.println("LISTENER 5");
+                        } });
+                } });
+            listenerIds[1] = usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &event)
+                                                     {
+                if (listenerTestActive && event.pressed)
+                {
+                    Serial.println("LISTENER 2");
+                } });
+            listenerIds[2] = usb.addKeyboardListener([count = 0](const EspUsbHostKeyboardEvent &event) mutable
+                                                     {
+                if (listenerTestActive && event.pressed)
+                {
+                    count++;
+                    Serial.printf("LISTENER_STATE count=%u\n", static_cast<unsigned>(count));
+                } });
+            listenerIds[3] = usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &) {});
+            const bool allIdsValid = listenerIds[0] != ESP_USB_HOST_INVALID_LISTENER_ID &&
+                                     listenerIds[1] != ESP_USB_HOST_INVALID_LISTENER_ID &&
+                                     listenerIds[2] != ESP_USB_HOST_INVALID_LISTENER_ID &&
+                                     listenerIds[3] != ESP_USB_HOST_INVALID_LISTENER_ID;
+            const bool capacityRejected = usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &) {}) == ESP_USB_HOST_INVALID_LISTENER_ID;
+            const bool invalidRemoveRejected = !usb.removeListener(ESP_USB_HOST_INVALID_LISTENER_ID) &&
+                                               !usb.removeListener(0xffffffffu);
+            stateListenerId = usb.addKeyboardStateListener([](const EspUsbHostKeyboardState &state)
+                                                           {
+                if (listenerTestActive)
+                {
+                    Serial.printf("STATE_LISTENER a_down=%u changed=%u\n",
+                                  state.isDown(0x04) ? 1 : 0,
+                                  state.changedKeys[0] ? 1 : 0);
+                } });
+            listenerTestActive = true;
+            Serial.printf("LISTENER_SETUP empty=%u ids=%u capacity=%u invalid_remove=%u state=%u max=%u\n",
+                          emptyRejected ? 1 : 0,
+                          allIdsValid ? 1 : 0,
+                          capacityRejected ? 1 : 0,
+                          invalidRemoveRejected ? 1 : 0,
+                          stateListenerId != ESP_USB_HOST_INVALID_LISTENER_ID ? 1 : 0,
+                          static_cast<unsigned>(EspUsbHost::MaxListenersPerEvent));
+        }
+        else if (command == 'u')
+        {
+            const EspUsbHostListenerId removedId = listenerIds[1];
+            const bool removed = usb.removeListener(removedId);
+            listenerIds[1] = ESP_USB_HOST_INVALID_LISTENER_ID;
+            const bool secondRemoveRejected = !usb.removeListener(removedId);
+            Serial.printf("LISTENER_REMOVE removed=%u second=%u\n",
+                          removed ? 1 : 0,
+                          secondRemoveRejected ? 1 : 0);
+        }
+        else if (command == 'x')
+        {
+            clearListenerTest();
+            Serial.println("LISTENER_CLEAR 1");
         }
     }
     delay(1);
