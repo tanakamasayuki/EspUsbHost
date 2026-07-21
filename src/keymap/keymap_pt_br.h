@@ -4,22 +4,25 @@
 
 // Brazilian Portuguese ABNT2 (pt_BR)
 // Reference: QMK keymap_brazilian_abnt2.h
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode code points), AltGr
+// layer per Windows KBDBR / ReactOS kbdbr.c (where AltGr is the third shift
+// state): number row ¹²³£¢¬, Q=/ W=? E=° C=₢(U+20A2), ==§ [=ª ]=º.
 // Key differences from US:
 //   0x35: '/", 0x23: 6 (no shift ^ → 0)
 //   0x2F: dead´/dead`  0x30: [/{  0x31: ]/}
 //   0x33: ç/Ç  0x34: dead~/dead^
 //   0x38: ;/:  (slash key → semicolon)
 //   0x64: \/|
-static const uint8_t KEYCODE_TO_ASCII_PT_BR[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_PT_BR[0x90][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
     {0, 0},           // 0x03
     {'a', 'A'},       // 0x04
     {'b', 'B'},       // 0x05
-    {'c', 'C'},       // 0x06
+    {'c', 'C', 0x20a2},       // 0x06
     {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
+    {'e', 'E', 0xb0},       // 0x08
     {'f', 'F'},       // 0x09
     {'g', 'G'},       // 0x0a
     {'h', 'H'},       // 0x0b
@@ -31,22 +34,22 @@ static const uint8_t KEYCODE_TO_ASCII_PT_BR[128][2] = {
     {'n', 'N'},       // 0x11
     {'o', 'O'},       // 0x12
     {'p', 'P'},       // 0x13
-    {'q', 'Q'},       // 0x14
+    {'q', 'Q', '/'},       // 0x14
     {'r', 'R'},       // 0x15
     {'s', 'S'},       // 0x16
     {'t', 'T'},       // 0x17
     {'u', 'U'},       // 0x18
     {'v', 'V'},       // 0x19
-    {'w', 'W'},       // 0x1a
+    {'w', 'W', '?'},       // 0x1a
     {'x', 'X'},       // 0x1b
     {'y', 'Y'},       // 0x1c
     {'z', 'Z'},       // 0x1d
-    {'1', '!'},       // 0x1e
-    {'2', '@'},       // 0x1f
-    {'3', '#'},       // 0x20
-    {'4', '$'},       // 0x21
-    {'5', '%'},       // 0x22
-    {'6', 0},         // 0x23
+    {'1', '!', 0xb9},       // 0x1e
+    {'2', '@', 0xb2},       // 0x1f
+    {'3', '#', 0xb3},       // 0x20
+    {'4', '$', 0xa3},       // 0x21
+    {'5', '%', 0xa2},       // 0x22
+    {'6', 0, 0xac},         // 0x23
     {'7', '&'},       // 0x24
     {'8', '*'},       // 0x25
     {'9', '('},       // 0x26
@@ -57,10 +60,10 @@ static const uint8_t KEYCODE_TO_ASCII_PT_BR[128][2] = {
     {'\t', '\t'},     // 0x2b
     {' ', ' '},       // 0x2c
     {'-', '_'},       // 0x2d
-    {'=', '+'},       // 0x2e
+    {'=', '+', 0xa7},       // 0x2e
     {0, 0},           // 0x2f
-    {'[', '{'},       // 0x30
-    {']', '}'},       // 0x31
+    {'[', '{', 0xaa},       // 0x30
+    {']', '}', 0xba},       // 0x31
     {0, 0},           // 0x32
     {'\xe7', '\xc7'}, // 0x33
     {0, 0},           // 0x34
@@ -112,4 +115,47 @@ static const uint8_t KEYCODE_TO_ASCII_PT_BR[128][2] = {
     {0, 0},           // 0x62
     {0, 0},           // 0x63
     {'\\', '|'},      // 0x64
+    {0, 0},           // 0x65
+    {0, 0},           // 0x66
+    {0, 0},           // 0x67
+    {0, 0},           // 0x68
+    {0, 0},           // 0x69
+    {0, 0},           // 0x6a
+    {0, 0},           // 0x6b
+    {0, 0},           // 0x6c
+    {0, 0},           // 0x6d
+    {0, 0},           // 0x6e
+    {0, 0},           // 0x6f
+    {0, 0},           // 0x70
+    {0, 0},           // 0x71
+    {0, 0},           // 0x72
+    {0, 0},           // 0x73
+    {0, 0},           // 0x74
+    {0, 0},           // 0x75
+    {0, 0},           // 0x76
+    {0, 0},           // 0x77
+    {0, 0},           // 0x78
+    {0, 0},           // 0x79
+    {0, 0},           // 0x7a
+    {0, 0},           // 0x7b
+    {0, 0},           // 0x7c
+    {0, 0},           // 0x7d
+    {0, 0},           // 0x7e
+    {0, 0},           // 0x7f
+    {0, 0},           // 0x80
+    {0, 0},           // 0x81
+    {0, 0},           // 0x82
+    {0, 0},           // 0x83
+    {0, 0},           // 0x84
+    {',', ','},       // 0x85 Keypad Comma (ABNT2 numpad)
+    {0, 0},           // 0x86 Keypad Equal Sign
+    {'/', '?'},       // 0x87 International1 (ABNT2 / and ?)
+    {0, 0},           // 0x88 International2
+    {0, 0},           // 0x89 International3
+    {0, 0},           // 0x8a International4
+    {0, 0},           // 0x8b International5
+    {0, 0},           // 0x8c International6
+    {0, 0},           // 0x8d
+    {0, 0},           // 0x8e
+    {0, 0},           // 0x8f
 };

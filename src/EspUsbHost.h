@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <FS.h>
 #include <functional>
+#include <memory>
 #include <usb/usb_host.h>
 #include <class/hid/hid.h>
 
@@ -97,6 +98,11 @@ static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_MUTE = 0x00e2;
 static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP = 0x00e9;
 static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN = 0x00ea;
 static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
+using EspUsbHostListenerId = uint32_t;
+static constexpr EspUsbHostListenerId ESP_USB_HOST_INVALID_LISTENER_ID = 0;
+#ifndef ESP_USB_HOST_MAX_LISTENERS_PER_EVENT
+#define ESP_USB_HOST_MAX_LISTENERS_PER_EVENT 4
+#endif
 // Maximum number of concurrently-tracked USB devices. Each slot is a sizable
 // static DeviceState (several KB — RX ring, NTB reassembly buffer, HID field
 // tables, etc.), so this constant dominates the library's static RAM use. The
@@ -390,6 +396,7 @@ struct EspUsbHostKeyboardEvent : EspUsbHostHIDReportData
   bool released = false;
   uint8_t keycode = 0;
   uint8_t ascii = 0;
+  uint16_t unicode = 0; // Unicode code point (0 if none); ascii is its Latin-1 low byte
   uint8_t modifiers = 0;
   bool numLock = false;
   bool capsLock = false;
@@ -931,6 +938,8 @@ public:
   using VendorDataCallback = std::function<void(const EspUsbHostVendorData &)>;
   using SystemControlCallback = std::function<void(const EspUsbHostSystemControlEvent &)>;
   using NetworkFrameCallback = std::function<void(const EspUsbHostNetworkFrame &)>;
+  static constexpr size_t MaxListenersPerEvent = ESP_USB_HOST_MAX_LISTENERS_PER_EVENT;
+  static_assert(MaxListenersPerEvent > 0, "ESP_USB_HOST_MAX_LISTENERS_PER_EVENT must be greater than zero");
 
   EspUsbHost();
   ~EspUsbHost();
@@ -957,6 +966,13 @@ public:
   void onVendorData(VendorDataCallback callback);
   void onSystemControl(SystemControlCallback callback);
   void onNetworkFrame(NetworkFrameCallback callback);
+  EspUsbHostListenerId addKeyboardListener(KeyboardCallback callback);
+  EspUsbHostListenerId addKeyboardStateListener(KeyboardStateCallback callback);
+  EspUsbHostListenerId addMouseListener(MouseCallback callback);
+  EspUsbHostListenerId addConsumerControlListener(ConsumerControlCallback callback);
+  EspUsbHostListenerId addSystemControlListener(SystemControlCallback callback);
+  EspUsbHostListenerId addGamepadListener(GamepadCallback callback);
+  bool removeListener(EspUsbHostListenerId listenerId);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
   bool sendSetProtocol(uint8_t interfaceNumber, uint8_t address);
@@ -1197,6 +1213,20 @@ public:
   void printAllDeviceInfo(Print &out = Serial);
 
 private:
+  template <typename Callback>
+  struct ListenerSlot
+  {
+    EspUsbHostListenerId id = ESP_USB_HOST_INVALID_LISTENER_ID;
+    std::shared_ptr<Callback> callback;
+  };
+
+  template <typename Callback>
+  struct ListenerRegistry
+  {
+    ListenerSlot<Callback> slots[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+    size_t count = 0;
+  };
+
   struct EndpointState
   {
     bool inUse = false;
@@ -1214,6 +1244,8 @@ private:
     uint8_t audioBitsPerSample = 0;
     usb_transfer_t *transfer = nullptr;
     bool transferSubmitted = false;
+    bool recoveryPending = false;
+    bool resubmitPending = false;
     bool resubmitAfterLed = false;
     uint8_t lastKeyboardReport[8] = {};
     bool keyboardReportReady = false;
@@ -1560,6 +1592,7 @@ private:
                   size_t dataLength,
                   bool dataIn,
                   uint32_t timeoutMs);
+  bool mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs);
   bool mscResetRecovery(DeviceState &device, uint32_t timeoutMs);
   void mscUnmountAddress(uint8_t address);
   bool submitVendorSerialControl(uint8_t requestType,
@@ -1583,6 +1616,22 @@ private:
   void setLastError(esp_err_t err);
   static String usbString(const usb_str_desc_t *strDesc);
   friend class EspUsbHostCdcSerial;
+
+  template <typename Callback>
+  void setHIDCallback(std::shared_ptr<Callback> &target, Callback callback);
+  template <typename Callback>
+  EspUsbHostListenerId addHIDListener(ListenerRegistry<Callback> &registry, Callback callback);
+  template <typename Callback>
+  bool removeHIDListenerLocked(ListenerRegistry<Callback> &registry, EspUsbHostListenerId listenerId);
+  template <typename Callback>
+  bool listenerIdInUseLocked(const ListenerRegistry<Callback> &registry, EspUsbHostListenerId listenerId) const;
+  template <typename Callback>
+  size_t snapshotHIDCallbacks(const std::shared_ptr<Callback> &single,
+                              const ListenerRegistry<Callback> &registry,
+                              std::shared_ptr<Callback> &singleSnapshot,
+                              std::shared_ptr<Callback> *listenerSnapshots);
+  EspUsbHostListenerId allocateListenerIdLocked();
+  bool listenerIdInUseLocked(EspUsbHostListenerId listenerId) const;
 
   EspUsbHostConfig config_;
   TaskHandle_t taskHandle_ = nullptr;
@@ -1623,27 +1672,36 @@ private:
   uint32_t currentAudioSampleRateMin_ = 0;
   uint32_t currentAudioSampleRateMax_ = 0;
   uint32_t currentAudioSampleRateResolution_ = 0;
+  bool currentInterfaceClaimed_ = false;
   esp_err_t currentClaimResult_ = ESP_OK;
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;
 
   DeviceCallback deviceConnectedCallback_;
   DeviceCallback deviceDisconnectedCallback_;
-  KeyboardCallback keyboardCallback_;
-  KeyboardStateCallback keyboardStateCallback_;
-  MouseCallback mouseCallback_;
+  std::shared_ptr<KeyboardCallback> keyboardCallback_;
+  std::shared_ptr<KeyboardStateCallback> keyboardStateCallback_;
+  std::shared_ptr<MouseCallback> mouseCallback_;
   HIDInputCallback hidInputCallback_;
   HIDReportDescriptorCallback hidReportDescriptorCallback_;
   SerialDataCallback serialDataCallback_;
   MidiMessageCallback midiMessageCallback_;
   AudioDataCallback audioDataCallback_;
   AudioOutputCallback audioOutputCallback_;
-  ConsumerControlCallback consumerControlCallback_;
-  GamepadCallback gamepadCallback_;
+  std::shared_ptr<ConsumerControlCallback> consumerControlCallback_;
+  std::shared_ptr<GamepadCallback> gamepadCallback_;
   HIDVendorInputCallback hidVendorInputCallback_;
   VendorDataCallback vendorDataCallback_;
-  SystemControlCallback systemControlCallback_;
+  std::shared_ptr<SystemControlCallback> systemControlCallback_;
   NetworkFrameCallback networkFrameCallback_;
+  ListenerRegistry<KeyboardCallback> keyboardListeners_;
+  ListenerRegistry<KeyboardStateCallback> keyboardStateListeners_;
+  ListenerRegistry<MouseCallback> mouseListeners_;
+  ListenerRegistry<ConsumerControlCallback> consumerControlListeners_;
+  ListenerRegistry<SystemControlCallback> systemControlListeners_;
+  ListenerRegistry<GamepadCallback> gamepadListeners_;
+  SemaphoreHandle_t hidCallbackMutex_ = nullptr;
+  EspUsbHostListenerId nextListenerId_ = 1;
 };
 
 class EspUsbHostMscFS : public fs::FS

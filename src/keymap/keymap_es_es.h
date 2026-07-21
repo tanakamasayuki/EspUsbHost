@@ -3,12 +3,13 @@
 #include <stdint.h>
 
 // Spanish QWERTY (es_ES)
-// Reference: QMK keymap_spanish.h
+// Reference: QMK keymap_spanish.h; AltGr layer per Windows KBDSP.
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode; AltGr+E = € = 0x20AC).
 // Key differences from US:
 //   0x2D: '/?  0x2E: ¡/¿  0x2F: dead`/dead^  0x30: +/*
 //   0x33: ñ/Ñ  0x34: dead´/dead¨  0x35: º/ª
 //   0x32: ç/Ç  shift+3=·
-static const uint8_t KEYCODE_TO_ASCII_ES_ES[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_ES_ES[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -17,7 +18,7 @@ static const uint8_t KEYCODE_TO_ASCII_ES_ES[128][2] = {
     {'b', 'B'},       // 0x05
     {'c', 'C'},       // 0x06
     {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
+    {'e', 'E', 0x20ac}, // 0x08 e E  AltGr:€
     {'f', 'F'},       // 0x09
     {'g', 'G'},       // 0x0a
     {'h', 'H'},       // 0x0b
@@ -39,12 +40,12 @@ static const uint8_t KEYCODE_TO_ASCII_ES_ES[128][2] = {
     {'x', 'X'},       // 0x1b
     {'y', 'Y'},       // 0x1c
     {'z', 'Z'},       // 0x1d
-    {'1', '!'},       // 0x1e
-    {'2', '"'},       // 0x1f
-    {'3', '\xb7'},    // 0x20
-    {'4', '$'},       // 0x21
+    {'1', '!', '|'},  // 0x1e 1 !  AltGr:pipe
+    {'2', '"', '@'},  // 0x1f 2 "  AltGr:@
+    {'3', '\xb7', '#'}, // 0x20 3 ·  AltGr:#
+    {'4', '$', '~'},  // 0x21 4 $  AltGr:~
     {'5', '%'},       // 0x22
-    {'6', '&'},       // 0x23
+    {'6', '&', '\xac'}, // 0x23 6 &  AltGr:¬
     {'7', '/'},       // 0x24
     {'8', '('},       // 0x25
     {'9', ')'},       // 0x26
@@ -56,13 +57,13 @@ static const uint8_t KEYCODE_TO_ASCII_ES_ES[128][2] = {
     {' ', ' '},       // 0x2c
     {'\'', '?'},      // 0x2d
     {'\xa1', '\xbf'}, // 0x2e
-    {0, 0},           // 0x2f
-    {'+', '*'},       // 0x30
+    {0, 0, '['},      // 0x2f dead`/dead^  AltGr:[
+    {'+', '*', ']'},  // 0x30 + *  AltGr:]
     {0, 0},           // 0x31
-    {'\xe7', '\xc7'}, // 0x32
+    {'\xe7', '\xc7', '}'}, // 0x32 ç Ç  AltGr:}
     {'\xf1', '\xd1'}, // 0x33
-    {0, 0},           // 0x34
-    {'\xba', '\xaa'}, // 0x35
+    {0, 0, '{'},      // 0x34 dead´/dead¨  AltGr:{
+    {'\xba', '\xaa', '\\'}, // 0x35 º ª  AltGr:backslash
     {',', ';'},       // 0x36
     {'.', ':'},       // 0x37
     {'-', '_'},       // 0x38

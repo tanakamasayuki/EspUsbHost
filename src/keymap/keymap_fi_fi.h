@@ -5,7 +5,7 @@
 // Finnish QWERTY (fi_FI)
 // Reference: QMK keymap_finnish.h
 // Identical to sv_SE: same physical layout (ä, ö, å at same positions)
-static const uint8_t KEYCODE_TO_ASCII_FI_FI[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_FI_FI[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -14,7 +14,7 @@ static const uint8_t KEYCODE_TO_ASCII_FI_FI[128][2] = {
     {'b', 'B'},       // 0x05
     {'c', 'C'},       // 0x06
     {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
+    {'e', 'E', 0x20ac},       // 0x08
     {'f', 'F'},       // 0x09
     {'g', 'G'},       // 0x0a
     {'h', 'H'},       // 0x0b
@@ -22,7 +22,7 @@ static const uint8_t KEYCODE_TO_ASCII_FI_FI[128][2] = {
     {'j', 'J'},       // 0x0d
     {'k', 'K'},       // 0x0e
     {'l', 'L'},       // 0x0f
-    {'m', 'M'},       // 0x10
+    {'m', 'M', 0xb5},       // 0x10
     {'n', 'N'},       // 0x11
     {'o', 'O'},       // 0x12
     {'p', 'P'},       // 0x13
@@ -37,21 +37,21 @@ static const uint8_t KEYCODE_TO_ASCII_FI_FI[128][2] = {
     {'y', 'Y'},       // 0x1c
     {'z', 'Z'},       // 0x1d
     {'1', '!'},       // 0x1e
-    {'2', '"'},       // 0x1f
-    {'3', '#'},       // 0x20
-    {'4', '\xa4'},    // 0x21
-    {'5', '%'},       // 0x22
+    {'2', '"', '@'},       // 0x1f
+    {'3', '#', 0xa3},       // 0x20
+    {'4', '\xa4', '$'},    // 0x21
+    {'5', '%', 0x20ac},       // 0x22
     {'6', '&'},       // 0x23
-    {'7', '/'},       // 0x24
-    {'8', '('},       // 0x25
-    {'9', ')'},       // 0x26
-    {'0', '='},       // 0x27
+    {'7', '/', '{'},       // 0x24
+    {'8', '(', '['},       // 0x25
+    {'9', ')', ']'},       // 0x26
+    {'0', '=', '}'},       // 0x27
     {'\r', '\r'},     // 0x28
     {'\x1b', '\x1b'}, // 0x29
     {'\b', '\b'},     // 0x2a
     {'\t', '\t'},     // 0x2b
     {' ', ' '},       // 0x2c
-    {'+', '?'},       // 0x2d
+    {'+', '?', '\\'},       // 0x2d
     {0, 0},           // 0x2e
     {'\xe5', '\xc5'}, // 0x2f
     {0, 0},           // 0x30
@@ -106,5 +106,5 @@ static const uint8_t KEYCODE_TO_ASCII_FI_FI[128][2] = {
     {0, 0},           // 0x61
     {0, 0},           // 0x62
     {0, 0},           // 0x63
-    {'<', '>'},       // 0x64
+    {'<', '>', '|'},       // 0x64
 };

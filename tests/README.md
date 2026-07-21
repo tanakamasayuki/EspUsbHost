@@ -68,6 +68,13 @@ To generate an HTML report, uncomment `PYTEST_ADDOPTS` in `.env` or pass the opt
 uv run --env-file .env pytest --html=report.html --self-contained-html
 ```
 
+After each test, the host `dut.log` and peer `peer-*.log` files are audited
+automatically. Suspicious ESP-IDF errors, `ESP_ERR_*` values, panics, asserts,
+and watchdog messages are summarized under `serial log audit` without failing
+the test. When the HTML report is enabled, findings are also appended to that
+test's expandable log. Complete serial logs remain available under
+`/tmp/pytest-embedded/`.
+
 ## Test directories
 
 ### `peer/` — Two-board tests

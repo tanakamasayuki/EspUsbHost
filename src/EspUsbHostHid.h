@@ -43,6 +43,7 @@ size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
                                      size_t maxEvents);
 
 bool espUsbHostIsBootKeyboardReportValid(const uint8_t *data, size_t length);
+uint16_t espUsbHostKeycodeToUnicode(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout, bool capsLock, bool numLock);
 uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout, bool capsLock, bool numLock);
 uint8_t espUsbHostKeypadKeycodeToAscii(uint8_t keycode, bool numLock);
 

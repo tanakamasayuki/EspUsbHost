@@ -75,7 +75,7 @@ Host/Device loopback tests.
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT, and EP0 vendor IN/OUT requests |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
-| MSC — USB storage block I/O and FatFs/Arduino FS mount | ✅ Basic support implemented. Single MSC device is covered by peer/manual tests; includes `SYNCHRONIZE CACHE(10)` fallback for non-compliant devices. Multiple MSC devices, multiple LUNs, and full abnormal BOT recovery are deferred |
+| MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental. Basic read/write and FatFs mounting with a single MSC device are peer/manual tested. Non-compliant devices, multiple MSC devices/LUNs, and full abnormal BOT recovery need further validation |
 | UVC — USB camera | 💭 Under consideration |
 
 ### Other planned features
@@ -105,6 +105,20 @@ Host/Device loopback tests.
 
 - ESP32-S3, or any board supported by Arduino-ESP32 USB Host
 - Arduino-ESP32 core
+
+### Recommended ESP32-S3 hardware and cautions
+
+Before using a board as a USB Host, first verify whether its USB connector supplies VBUS (5 V) to the attached USB device.
+
+The official Espressif Systems ESP32-S3-DevKitC-1 does not supply power to an attached device through its USB OTG connector. This is convenient when the board is used as a USB Device, but in USB Host mode you must either wire a separate power supply to the attached USB device or use an externally powered (self-powered) USB hub.
+
+Some M5Stack products can control USB connector power from software. Check the schematic and power-control procedure for the specific product you use.
+
+For a straightforward USB Host setup, we recommend a board such as the Freenove ESP32-S3-WROOM Board, which can power an attached device through its USB Type-C OTG connector.
+
+The final application can use a product with only one USB connector, such as the AtomS3. During development, however, we recommend a board with two USB connectors so that the USB-to-UART connector used for flashing and the Serial Monitor remains separate from the USB OTG connector used for the attached device.
+
+Even when a board has two USB connectors, which one is connected to the USB-to-UART bridge and which one is connected to the ESP32-S3 USB OTG peripheral depends on the board. For example, the USB-to-UART and USB OTG connector positions are reversed between the official Espressif Systems ESP32-S3-DevKitC-1 and the Freenove ESP32-S3-WROOM Board. Do not rely on connector position alone; check the board silkscreen, product documentation, and schematic.
 
 ### ESP32-P4 notes
 
@@ -316,10 +330,47 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // raw — fires for all HID interfaces
 void onHIDVendorInput(HIDVendorInputCallback callback);
+EspUsbHostListenerId addKeyboardListener(KeyboardCallback callback);
+EspUsbHostListenerId addKeyboardStateListener(KeyboardStateCallback callback);
+EspUsbHostListenerId addMouseListener(MouseCallback callback);
+EspUsbHostListenerId addConsumerControlListener(ConsumerControlCallback callback);
+EspUsbHostListenerId addSystemControlListener(SystemControlCallback callback);
+EspUsbHostListenerId addGamepadListener(GamepadCallback callback);
+bool removeListener(EspUsbHostListenerId listenerId);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
+```
+
+Each `on*()` function keeps one callback for compatibility. The matching
+`add*Listener()` functions allow adapters and the sketch to receive the same
+parsed HID event without replacing one another. A successful registration
+returns a nonzero `EspUsbHostListenerId`; zero
+(`ESP_USB_HOST_INVALID_LISTENER_ID`) means that the callback was empty or the
+event's listener capacity was reached. `removeListener()` accepts an ID from any
+of the six listener types and returns whether it removed one.
+
+There are four listeners per event by default (`EspUsbHost::MaxListenersPerEvent`),
+configurable at compile time with `ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`. The
+single `on*()` callback runs first, followed by listeners in registration order.
+The callback set is snapshotted for each event, so adding or removing a listener
+inside a callback affects the next event. Registration, replacement, and removal
+are protected across the sketch and USB tasks; callbacks run without holding the
+registry mutex.
+
+```cpp
+EspUsbHostListenerId adapterListener =
+    usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &event) {
+      // adapter input path
+    });
+
+usb.onKeyboard([](const EspUsbHostKeyboardEvent &event) {
+  // sketch input path; both callbacks receive the event
+});
+
+// Later, from task context:
+usb.removeListener(adapterListener);
 ```
 
 Both 6-key boot keyboards and N-key rollover (NKRO) keyboards are supported. NKRO
@@ -808,6 +859,15 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 - [`tests/manual/`](tests/manual/) — manual tests for special hardware and human verification
 
 See [tests/README.md](tests/README.md) for setup instructions.
+
+The manually triggered _Library Footprint Matrix_ workflow uses the Arduino core
+pinned by a representative example's `sketch.yaml` and builds fixed Base, HID,
+Serial, Audio, Storage, MIDI, Vendor, Network, and Info probes against each
+selected library release. It overwrites one canonical normalized Flash/static-RAM
+JSON and Markdown report, while retaining compiler logs, ELF, map, and application
+bin files as short-lived workflow artifacts. This is separate from the core
+compatibility matrix, which varies the Arduino core to test build compatibility
+rather than library-version size trends.
 
 ## Release checklist
 
