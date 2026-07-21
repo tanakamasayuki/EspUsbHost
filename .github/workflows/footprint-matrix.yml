@@ -1,0 +1,108 @@
+name: Library Footprint Matrix
+
+# Build fixed feature probes against multiple EspUsbHost releases while keeping
+# the Arduino core and target board profile constant. Normalized metrics and a
+# Markdown report are committed; large ELF/map/bin files remain short-lived
+# workflow artifacts for deeper analysis.
+
+on:
+  workflow_dispatch:
+    inputs:
+      library_versions:
+        description: "Comma-separated library refs, or 'auto' for every v2.* release tag"
+        default: "auto"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: footprint-matrix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32s3, esp32s2, esp32p4]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Cache Arduino platform and tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/.cache/arduino
+          key: footprint-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('examples/Info/EspUsbHostDeviceInfo/sketch.yaml') }}
+          restore-keys: |
+            footprint-${{ runner.os }}-${{ matrix.target }}-
+      - name: Measure ${{ matrix.target }}
+        run: |
+          python tools/footprint_matrix.py \
+            --library-versions "${{ inputs.library_versions }}" \
+            --core-version auto \
+            --target "${{ matrix.target }}" \
+            --json "metrics/${{ matrix.target }}.json" \
+            --artifacts-dir "build-artifacts"
+      - name: Upload normalized metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: footprint-metrics-${{ matrix.target }}
+          path: metrics/*.json
+          if-no-files-found: error
+      - name: Upload maps and binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: footprint-builds-${{ matrix.target }}
+          path: build-artifacts/${{ matrix.target }}/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+
+  aggregate:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docs-matrix-publish-${{ github.ref }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          path: footprint-input
+          pattern: footprint-metrics-*
+          merge-multiple: true
+      - name: Render footprint report
+        run: |
+          python tools/footprint_matrix.py \
+            --render-from footprint-input \
+            --output "docs/FOOTPRINT.md" \
+            --merged-json "docs/footprint.json"
+      - name: Commit footprint report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/FOOTPRINT.md docs/footprint.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "docs: update library footprint matrix"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi

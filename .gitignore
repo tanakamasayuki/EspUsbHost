@@ -34,3 +34,6 @@ report.html
 
 # Arduino CLI build outputs inside sketch directories
 tests/**/build/
+
+# Host-side unit test build output (generated headers + binaries)
+tests/unit/**/output/

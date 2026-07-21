@@ -3,69 +3,72 @@
 #include <stdint.h>
 
 // Hungarian QWERTZ (hu_HU)
-// Reference: QMK keymap_hungarian.h
+// Reference: QMK keymap_hungarian.h; AltGr layer per Windows KBDHU (ReactOS
+// kbdhu.c, where AltGr is the third shift state).
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode code points).
 // Key differences:
 //   y/z swapped (0x1C=z, 0x1D=y)
 //   Number row: 0 at GRV (0x35), Ö/Ü/Ó at 0/MINS/EQL positions
-//   ő/Ő and ű/Ű (U+0150/0151/0170/0171) are outside Latin-1 → 0
-static const uint8_t KEYCODE_TO_ASCII_HU_HU[128][2] = {
+//   ő/Ő (U+0150/0151) at 0x2F, ű/Ű (U+0170/0171) at 0x31 — now represented as
+//   Unicode (ascii is 0 for these since they are outside Latin-1).
+static const uint16_t KEYCODE_TO_UNICODE_HU_HU[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
     {0, 0},           // 0x03
-    {'a', 'A'},       // 0x04
-    {'b', 'B'},       // 0x05
-    {'c', 'C'},       // 0x06
-    {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
-    {'f', 'F'},       // 0x09
-    {'g', 'G'},       // 0x0a
+    {'a', 'A', 0xe4},       // 0x04
+    {'b', 'B', '{'},       // 0x05
+    {'c', 'C', '&'},       // 0x06
+    {'d', 'D', 0x0110},       // 0x07
+    {'e', 'E', 0xc4},       // 0x08
+    {'f', 'F', '['},       // 0x09
+    {'g', 'G', ']'},       // 0x0a
     {'h', 'H'},       // 0x0b
-    {'i', 'I'},       // 0x0c
-    {'j', 'J'},       // 0x0d
-    {'k', 'K'},       // 0x0e
-    {'l', 'L'},       // 0x0f
-    {'m', 'M'},       // 0x10
-    {'n', 'N'},       // 0x11
+    {'i', 'I', 0xcd},       // 0x0c
+    {'j', 'J', 0xed},       // 0x0d
+    {'k', 'K', 0x0142},       // 0x0e
+    {'l', 'L', 0x0141},       // 0x0f
+    {'m', 'M', '<'},       // 0x10
+    {'n', 'N', '}'},       // 0x11
     {'o', 'O'},       // 0x12
     {'p', 'P'},       // 0x13
-    {'q', 'Q'},       // 0x14
+    {'q', 'Q', '\\'},       // 0x14
     {'r', 'R'},       // 0x15
-    {'s', 'S'},       // 0x16
+    {'s', 'S', 0x0111},       // 0x16
     {'t', 'T'},       // 0x17
-    {'u', 'U'},       // 0x18
-    {'v', 'V'},       // 0x19
-    {'w', 'W'},       // 0x1a
-    {'x', 'X'},       // 0x1b
-    {'z', 'Z'},       // 0x1c
+    {'u', 'U', 0x20ac},       // 0x18
+    {'v', 'V', '@'},       // 0x19
+    {'w', 'W', '|'},       // 0x1a
+    {'x', 'X', '#'},       // 0x1b
+    {'z', 'Z', '>'},       // 0x1c
     {'y', 'Y'},       // 0x1d
-    {'1', '\''},      // 0x1e
-    {'2', '"'},       // 0x1f
-    {'3', '+'},       // 0x20
-    {'4', '!'},       // 0x21
-    {'5', '%'},       // 0x22
-    {'6', '/'},       // 0x23
-    {'7', '='},       // 0x24
-    {'8', '('},       // 0x25
-    {'9', ')'},       // 0x26
-    {'\xf6', '\xd6'}, // 0x27
+    {'1', '\'', '~'},      // 0x1e
+    {'2', '"', 0x02c7},       // 0x1f
+    {'3', '+', '^'},       // 0x20
+    {'4', '!', 0x02d8},       // 0x21
+    {'5', '%', 0xb0},       // 0x22
+    {'6', '/', 0x02db},       // 0x23
+    {'7', '=', '`'},       // 0x24
+    {'8', '(', 0x02d9},       // 0x25
+    {'9', ')', 0xb4},       // 0x26
+    {'\xf6', '\xd6', 0x02dd}, // 0x27
     {'\r', '\r'},     // 0x28
     {'\x1b', '\x1b'}, // 0x29
     {'\b', '\b'},     // 0x2a
     {'\t', '\t'},     // 0x2b
     {' ', ' '},       // 0x2c
-    {'\xfc', '\xdc'}, // 0x2d
-    {'\xf3', '\xd3'}, // 0x2e
-    {0, 0},           // 0x2f
-    {'\xfa', '\xda'}, // 0x30
-    {0, 0},           // 0x31
+    {'\xfc', '\xdc', 0xa8}, // 0x2d
+    {'\xf3', '\xd3', 0xb8}, // 0x2e
+    {0x151, 0x150, 0xf7}, // 0x2f ő Ő  AltGr:÷
+    {'\xfa', '\xda', 0xd7}, // 0x30 ú Ú  AltGr:×
+    {0x171, 0x170, 0xa4}, // 0x31 ű Ű  AltGr:¤
     {0, 0},           // 0x32
-    {'\xe9', '\xc9'}, // 0x33
-    {'\xe1', '\xc1'}, // 0x34
+    {'\xe9', '\xc9', '$'}, // 0x33
+    {'\xe1', '\xc1', 0xdf}, // 0x34
     {'0', '\xa7'},    // 0x35
-    {',', '?'},       // 0x36
-    {'.', ':'},       // 0x37
-    {'-', '_'},       // 0x38
+    {',', '?', ';'},       // 0x36
+    {'.', ':', '>'},       // 0x37
+    {'-', '_', '*'},       // 0x38
     {0, 0},           // 0x39
     {0, 0},           // 0x3a
     {0, 0},           // 0x3b
@@ -109,5 +112,5 @@ static const uint8_t KEYCODE_TO_ASCII_HU_HU[128][2] = {
     {0, 0},           // 0x61
     {0, 0},           // 0x62
     {0, 0},           // 0x63
-    {'\xed', '\xcd'}, // 0x64
+    {'\xed', '\xcd', '<'}, // 0x64
 };

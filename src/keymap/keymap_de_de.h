@@ -3,13 +3,15 @@
 #include <stdint.h>
 
 // German QWERTZ (de_DE)
-// Reference: QMK keymap_german.h
+// Reference: QMK keymap_german.h; AltGr layer per Windows KBDGR / DIN 2137 T1.
 // Key differences from US:
 //   y/z swapped (0x1C=z, 0x1D=y)
 //   umlauts: ü at 0x2F, ö at 0x33, ä at 0x34
 //   ß at 0x2D, dead ^ at 0x35
 //   non-Latin-1 dead keys → 0
-static const uint8_t KEYCODE_TO_ASCII_DE_DE[128][2] = {
+// Columns: unshifted, Shift, AltGr, AltGr+Shift (Unicode code points; e.g.
+// AltGr+E = € = 0x20AC). 0 means the key produces nothing at that level.
+static const uint16_t KEYCODE_TO_UNICODE_DE_DE[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -18,7 +20,7 @@ static const uint8_t KEYCODE_TO_ASCII_DE_DE[128][2] = {
     {'b', 'B'},       // 0x05
     {'c', 'C'},       // 0x06
     {'d', 'D'},       // 0x07
-    {'e', 'E'},       // 0x08
+    {'e', 'E', 0x20ac}, // 0x08 e E  AltGr:€
     {'f', 'F'},       // 0x09
     {'g', 'G'},       // 0x0a
     {'h', 'H'},       // 0x0b
@@ -26,11 +28,11 @@ static const uint8_t KEYCODE_TO_ASCII_DE_DE[128][2] = {
     {'j', 'J'},       // 0x0d
     {'k', 'K'},       // 0x0e
     {'l', 'L'},       // 0x0f
-    {'m', 'M'},       // 0x10
+    {'m', 'M', '\xb5'}, // 0x10 m M  AltGr:µ
     {'n', 'N'},       // 0x11
     {'o', 'O'},       // 0x12
     {'p', 'P'},       // 0x13
-    {'q', 'Q'},       // 0x14
+    {'q', 'Q', '@'},  // 0x14 q Q  AltGr:@
     {'r', 'R'},       // 0x15
     {'s', 'S'},       // 0x16
     {'t', 'T'},       // 0x17
@@ -41,24 +43,24 @@ static const uint8_t KEYCODE_TO_ASCII_DE_DE[128][2] = {
     {'z', 'Z'},       // 0x1c
     {'y', 'Y'},       // 0x1d
     {'1', '!'},       // 0x1e
-    {'2', '"'},       // 0x1f
-    {'3', '\xa7'},    // 0x20
+    {'2', '"', '\xb2'}, // 0x1f 2 "  AltGr:²
+    {'3', '\xa7', '\xb3'}, // 0x20 3 §  AltGr:³
     {'4', '$'},       // 0x21
     {'5', '%'},       // 0x22
     {'6', '&'},       // 0x23
-    {'7', '/'},       // 0x24
-    {'8', '('},       // 0x25
-    {'9', ')'},       // 0x26
-    {'0', '='},       // 0x27
+    {'7', '/', '{'},  // 0x24 7 /  AltGr:{
+    {'8', '(', '['},  // 0x25 8 (  AltGr:[
+    {'9', ')', ']'},  // 0x26 9 )  AltGr:]
+    {'0', '=', '}'},  // 0x27 0 =  AltGr:}
     {'\r', '\r'},     // 0x28
     {'\x1b', '\x1b'}, // 0x29
     {'\b', '\b'},     // 0x2a
     {'\t', '\t'},     // 0x2b
     {' ', ' '},       // 0x2c
-    {'\xdf', '?'},    // 0x2d
+    {'\xdf', '?', '\\'}, // 0x2d ß ?  AltGr:backslash
     {0, 0},           // 0x2e
     {'\xfc', '\xdc'}, // 0x2f
-    {'+', '*'},       // 0x30
+    {'+', '*', '~'},  // 0x30 + *  AltGr:~
     {0, 0},           // 0x31
     {'#', '\''},      // 0x32
     {'\xf6', '\xd6'}, // 0x33
@@ -110,5 +112,5 @@ static const uint8_t KEYCODE_TO_ASCII_DE_DE[128][2] = {
     {0, 0},           // 0x61
     {0, 0},           // 0x62
     {0, 0},           // 0x63
-    {'<', '>'},       // 0x64
+    {'<', '>', '|'},  // 0x64 < >  AltGr:|
 };

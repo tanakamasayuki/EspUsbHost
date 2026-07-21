@@ -19,6 +19,7 @@
 
 static constexpr uint8_t MOD_LEFT_SHIFT = 0x02;
 static constexpr uint8_t MOD_RIGHT_SHIFT = 0x20;
+static constexpr uint8_t MOD_RIGHT_ALT = 0x40; // AltGr
 
 uint8_t espUsbHostKeypadKeycodeToAscii(uint8_t keycode, bool numLock)
 {
@@ -92,11 +93,14 @@ bool espUsbHostIsBootKeyboardReportValid(const uint8_t *data, size_t length)
   return true;
 }
 
-uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout, bool capsLock, bool numLock)
+uint16_t espUsbHostKeycodeToUnicode(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout, bool capsLock, bool numLock)
 {
   if (keycode >= 128)
   {
-    if (layout != ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP || keycode >= 0x90)
+    const bool extendedLayout =
+        (layout == ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP ||
+         layout == ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR);
+    if (!extendedLayout || keycode >= 0x90)
       return 0;
   }
   if ((keycode >= 0x54 && keycode <= 0x63) || keycode == 0x67)
@@ -105,69 +109,109 @@ uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostK
   }
 
   const uint8_t shift = (modifiers & (MOD_LEFT_SHIFT | MOD_RIGHT_SHIFT)) ? 1 : 0;
-  const uint8_t effectiveShift = (keycode >= 0x04 && keycode <= 0x1D) ? (shift ^ (capsLock ? 1 : 0)) : shift;
-  const uint8_t (*table)[2];
+  const uint16_t (*table)[4];
   switch (layout)
   {
   case ESP_USB_HOST_KEYBOARD_LAYOUT_DA_DK:
-    table = KEYCODE_TO_ASCII_DA_DK;
+    table = KEYCODE_TO_UNICODE_DA_DK;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_DE_DE:
-    table = KEYCODE_TO_ASCII_DE_DE;
+    table = KEYCODE_TO_UNICODE_DE_DE;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_EN_GB:
-    table = KEYCODE_TO_ASCII_EN_GB;
+    table = KEYCODE_TO_UNICODE_EN_GB;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_ES_ES:
-    table = KEYCODE_TO_ASCII_ES_ES;
+    table = KEYCODE_TO_UNICODE_ES_ES;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_FI_FI:
-    table = KEYCODE_TO_ASCII_FI_FI;
+    table = KEYCODE_TO_UNICODE_FI_FI;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_FR_CH:
-    table = KEYCODE_TO_ASCII_FR_CH;
+    table = KEYCODE_TO_UNICODE_FR_CH;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_FR_FR:
-    table = KEYCODE_TO_ASCII_FR_FR;
+    table = KEYCODE_TO_UNICODE_FR_FR;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_HU_HU:
-    table = KEYCODE_TO_ASCII_HU_HU;
+    table = KEYCODE_TO_UNICODE_HU_HU;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_IT_IT:
-    table = KEYCODE_TO_ASCII_IT_IT;
+    table = KEYCODE_TO_UNICODE_IT_IT;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_JA_JP:
-    table = KEYCODE_TO_ASCII_JA_JP;
+    table = KEYCODE_TO_UNICODE_JA_JP;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_KO_KR:
-    table = KEYCODE_TO_ASCII_EN_US;
+    table = KEYCODE_TO_UNICODE_EN_US;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_NB_NO:
-    table = KEYCODE_TO_ASCII_NB_NO;
+    table = KEYCODE_TO_UNICODE_NB_NO;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_NL_NL:
-    table = KEYCODE_TO_ASCII_NL_NL;
+    table = KEYCODE_TO_UNICODE_NL_NL;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_PT_BR:
-    table = KEYCODE_TO_ASCII_PT_BR;
+    table = KEYCODE_TO_UNICODE_PT_BR;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_PT_PT:
-    table = KEYCODE_TO_ASCII_PT_PT;
+    table = KEYCODE_TO_UNICODE_PT_PT;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_SV_SE:
-    table = KEYCODE_TO_ASCII_SV_SE;
+    table = KEYCODE_TO_UNICODE_SV_SE;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_CN:
-    table = KEYCODE_TO_ASCII_EN_US;
+    table = KEYCODE_TO_UNICODE_EN_US;
     break;
   case ESP_USB_HOST_KEYBOARD_LAYOUT_ZH_TW:
-    table = KEYCODE_TO_ASCII_EN_US;
+    table = KEYCODE_TO_UNICODE_EN_US;
     break;
   default:
-    table = KEYCODE_TO_ASCII_EN_US;
+    table = KEYCODE_TO_UNICODE_EN_US;
     break;
   }
+  // CapsLock toggles Shift only on real cased-letter keys: those whose Shift
+  // value is the Unicode uppercase of the unshifted value. This applies to
+  // accented letters (ü->Ü, å->Å) and to layouts where letters sit outside the
+  // US a-z usage range (e.g. AZERTY m), while leaving digits, symbols and keys
+  // like German ß (whose Shift is '?', not an uppercase) unaffected.
+  uint8_t effectiveShift = shift;
+  if (capsLock)
+  {
+    const uint16_t base = table[keycode][0];
+    uint16_t upper = base;
+    if (base >= 'a' && base <= 'z')
+      upper = base - 0x20;
+    else if (base >= 0xe0 && base <= 0xfe && base != 0xf7)
+      upper = base - 0x20; // Latin-1 lowercase -> uppercase
+    if (upper != base && upper == table[keycode][1])
+      effectiveShift ^= 1;
+  }
+  // Columns: 0=unshifted, 1=Shift, 2=AltGr, 3=AltGr+Shift. Values are Unicode
+  // code points (Latin-1 is the first 256 code points, so legacy 8-bit values
+  // pass through unchanged). AltGr (Right Alt) selects the AltGr columns when the
+  // layout produces a character there; otherwise we fall back to unshifted/Shift.
+  if (modifiers & MOD_RIGHT_ALT)
+  {
+    if (shift && table[keycode][3] != 0)
+    {
+      return table[keycode][3];
+    }
+    if (table[keycode][2] != 0)
+    {
+      return table[keycode][2];
+    }
+  }
   return table[keycode][effectiveShift];
+}
+
+// ISO-8859-1 / ASCII convenience wrapper: returns the low byte when the produced
+// character is representable in a single 8-bit code unit, otherwise 0. Kept for
+// backward compatibility with the byte-oriented `ascii` field.
+uint8_t espUsbHostKeycodeToAscii(uint8_t keycode, uint8_t modifiers, EspUsbHostKeyboardLayout layout, bool capsLock, bool numLock)
+{
+  const uint16_t cp = espUsbHostKeycodeToUnicode(keycode, modifiers, layout, capsLock, numLock);
+  return cp <= 0xFF ? static_cast<uint8_t>(cp) : 0;
 }
 
 bool espUsbHostParseBootMouseReport(uint8_t interfaceNumber,
@@ -346,7 +390,8 @@ size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
       event.pressed = true;
       event.released = false;
       event.keycode = key;
-      event.ascii = espUsbHostKeycodeToAscii(key, modifiers, layout, capsLock, numLock);
+      event.unicode = espUsbHostKeycodeToUnicode(key, modifiers, layout, capsLock, numLock);
+      event.ascii = event.unicode <= 0xFF ? static_cast<uint8_t>(event.unicode) : 0;
       event.modifiers = modifiers;
     }
   }
@@ -376,7 +421,8 @@ size_t espUsbHostBuildKeyboardEvents(uint8_t interfaceNumber,
       event.pressed = false;
       event.released = true;
       event.keycode = key;
-      event.ascii = espUsbHostKeycodeToAscii(key, previousReport.data[0], layout, capsLock, numLock);
+      event.unicode = espUsbHostKeycodeToUnicode(key, previousReport.data[0], layout, capsLock, numLock);
+      event.ascii = event.unicode <= 0xFF ? static_cast<uint8_t>(event.unicode) : 0;
       event.modifiers = modifiers;
     }
   }

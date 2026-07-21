@@ -1,11 +1,41 @@
+import time
+
+
+def _wait_vendor_ready(dut, device, timeout=15):
+    """Wait for the final peer identity and its descriptors to be available."""
+    device.write("?")
+    device.expect_exact("DEVICE_READY")
+
+    deadline = time.monotonic() + timeout
+    while True:
+        dut.write("i")
+        match = dut.expect(
+            r"VENDOR_ENUM interface=(\d) bulk_out=(\d) bulk_in=(\d) "
+            r"interfaces=(\d+) endpoints=(\d+)",
+            timeout=min(2, max(0.1, deadline - time.monotonic())),
+        )
+        if match.group(1) == b"1" and match.group(2) == b"1" and match.group(3) == b"1":
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"USB Vendor device did not become ready within {timeout}s")
+        time.sleep(0.1)
+
+
 def test_usb_vendor_enumeration(dut, peers):
-    dut.expect_exact("HOST_CONNECTED")
+    device = peers["device"]
+    _wait_vendor_ready(dut, device)
+
+    # Query once more to verify the public descriptor details independently of
+    # the readiness polling above.
     dut.write("i")
     dut.expect_exact("INTERFACE number=0 class=0xff subclass=0x00 protocol=0x00 endpoints=2")
     dut.expect_exact("VENDOR_ENUM interface=1 bulk_out=1 bulk_in=1")
 
 
 def test_usb_vendor_bulk_and_control(dut, peers):
+    device = peers["device"]
+    _wait_vendor_ready(dut, device)
+
     dut.write("o")
     dut.expect_exact("VENDOR_OPEN 1")
     dut.write("w")

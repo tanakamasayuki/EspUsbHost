@@ -71,7 +71,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT、EP0 vendor IN/OUT requestに対応 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
-| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | ✅ 基本実装済み。単一MSCデバイスでpeer/manual確認済み。非準拠デバイス向けの`SYNCHRONIZE CACHE(10)`フォールバックあり。複数MSC・複数LUN・異常系BOT完全復旧は後回し |
+| MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的。単一MSCデバイスの基本read/writeとFatFsマウントはpeer/manual確認済み。非準拠デバイス、複数MSC・複数LUN、異常系BOT完全復旧は継続確認 |
 | UVC — USBカメラ | 💭 検討中 |
 
 ### その他の予定機能
@@ -101,6 +101,20 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 
 - ESP32-S3、またはArduino-ESP32 USB Hostに対応したボード
 - Arduino-ESP32コア
+
+### ESP32-S3 の推奨機材と注意事項
+
+USB Hostとして使用する前に、まずボードのUSB端子からVBUS（5V）が供給されているかを確認してください。
+
+Espressif Systems純正のESP32-S3-DevKitC-1は、USB OTG端子から接続機器へ電源を供給しません。USB Deviceとして使用する場合はボード側から給電しない構成が好都合ですが、USB Hostとして使用する場合は、接続するUSB機器へ別途電源を配線するか、外部電源に対応したセルフパワーUSBハブを使用してください。
+
+M5Stack系製品には、プログラムからUSB端子への電源供給を制御できるものもあります。使用する製品の回路図と電源制御方法を確認してください。
+
+USB Hostを手軽に試す場合は、USB Type-CのUSB OTG端子から接続機器へ給電できるFreenove社のESP32-S3-WROOM Boardなどを推奨します。
+
+最終的には、AtomS3のようにUSB端子が1つだけの製品でも利用できます。ただし開発中は、書き込みやSerial Monitorに使うUART端子と、接続機器に使うUSB OTG端子を分けられる、USB端子を2つ搭載したボードを推奨します。
+
+USB端子が2つある場合でも、どちらがUSB-to-UARTで、どちらがESP32-S3のUSB OTGへ接続されているかはボードによって異なります。たとえばEspressif Systems純正のESP32-S3-DevKitC-1とFreenove ESP32-S3-WROOM Boardでは、UART端子とUSB OTG端子の配置が逆です。コネクタの位置だけで判断せず、ボード上のシルク印刷、製品資料、回路図を確認してください。
 
 ### ESP32-P4 の注意事項
 
@@ -312,10 +326,43 @@ void onSystemControl(SystemControlCallback callback);
 void onGamepad(GamepadCallback callback);
 void onHIDInput(HIDInputCallback callback);    // 生データ — 全HIDインターフェースで発火
 void onHIDVendorInput(HIDVendorInputCallback callback);
+EspUsbHostListenerId addKeyboardListener(KeyboardCallback callback);
+EspUsbHostListenerId addKeyboardStateListener(KeyboardStateCallback callback);
+EspUsbHostListenerId addMouseListener(MouseCallback callback);
+EspUsbHostListenerId addConsumerControlListener(ConsumerControlCallback callback);
+EspUsbHostListenerId addSystemControlListener(SystemControlCallback callback);
+EspUsbHostListenerId addGamepadListener(GamepadCallback callback);
+bool removeListener(EspUsbHostListenerId listenerId);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 const char *espUsbHostConsumerControlUsageName(uint16_t usage);
 const char *espUsbHostSystemControlUsageName(uint8_t usage);
+```
+
+互換性のため、各`on*()`は従来どおり単一callbackを保持します。対応する
+`add*Listener()`を使うと、アダプタとスケッチが互いを上書きせず、同じパース済みHIDイベントを
+受信できます。登録成功時は0以外の`EspUsbHostListenerId`を返します。0
+（`ESP_USB_HOST_INVALID_LISTENER_ID`）は空callbackまたはeventのlistener上限到達を表します。
+`removeListener()`は6種のどのlistener IDも受け取り、解除できたかを返します。
+
+listenerはeventごとに既定4件（`EspUsbHost::MaxListenersPerEvent`）で、コンパイル時に
+`ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`で変更できます。単一`on*()` callbackを最初に呼び、
+続いてlistenerを登録順に呼びます。callback集合はeventごとにsnapshotするため、callback内での
+追加・解除は次のeventから反映されます。スケッチtaskとUSB task間の登録・差し替え・解除は
+保護され、利用者callbackの実行中はregistryのmutexを保持しません。
+
+```cpp
+EspUsbHostListenerId adapterListener =
+    usb.addKeyboardListener([](const EspUsbHostKeyboardEvent &event) {
+      // アダプタ側の入力処理
+    });
+
+usb.onKeyboard([](const EspUsbHostKeyboardEvent &event) {
+  // スケッチ側の入力処理。両方が同じeventを受け取る
+});
+
+// 後でtask contextから解除
+usb.removeListener(adapterListener);
 ```
 
 6キーの boot キーボードと N-key rollover（NKRO）キーボードの両方に対応します。NKRO
@@ -802,6 +849,8 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 - [`tests/manual/`](tests/manual/) — 特殊ハードウェアや人による確認が必要な手動テスト
 
 セットアップ方法は[tests/README.md](tests/README.md)を参照してください。
+
+手動実行の _Library Footprint Matrix_ workflowでは、代表exampleの`sketch.yaml`に指定されたArduinoコアへ固定し、Base、HID、Serial、Audio、Storage、MIDI、Vendor、Network、Infoの固定probeを、指定した各ライブラリリリースに対してビルドします。正規化したFlash/静的RAMは常に1組のJSONとMarkdownレポートへ上書きし、コンパイラログ、ELF、map、アプリケーションbinは保存期間を限定したworkflow artifactとして残します。Arduinoコアを切り替えてビルド互換性を調べるcore compatibility matrixとは別の用途です。
 
 ## リリースチェックリスト
 

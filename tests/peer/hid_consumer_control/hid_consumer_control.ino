@@ -15,6 +15,10 @@ void setup()
                                           event.usage,
                                           event.pressed ? 1 : 0,
                                           event.released ? 1 : 0); });
+    usb.addConsumerControlListener([](const EspUsbHostConsumerControlEvent &event)
+                                   { Serial.printf("CONSUMER_LISTENER usage=0x%04x pressed=%u\n",
+                                                   event.usage,
+                                                   event.pressed ? 1 : 0); });
 
     if (!usb.begin())
     {

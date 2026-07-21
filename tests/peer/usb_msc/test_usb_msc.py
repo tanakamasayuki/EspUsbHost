@@ -103,3 +103,8 @@ def test_usb_msc_failed_write_is_reported(dut, peers):
     dut.write("e")
     device.expect_exact("DEVICE_WRITE_FAIL lba=10 offset=0 size=512")
     dut.expect_exact("MSC_FAILED_WRITE write=0")
+
+    # Reset recovery must leave the bulk endpoints usable for the next command.
+    dut.write("w")
+    device.expect_exact("DEVICE_WRITE lba=4 offset=0 size=512")
+    dut.expect_exact("MSC_WRITE_READ write=1 read=1 b0=a5 b1=a4 b255=5a b511=5a")

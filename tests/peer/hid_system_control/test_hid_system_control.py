@@ -3,6 +3,7 @@ def test_hid_system_control(dut, peers):
 
     device.write("p")
     dut.expect_exact("SYSTEM usage=0x01 pressed=1 released=0")
+    dut.expect_exact("SYSTEM_LISTENER usage=0x01 pressed=1")
     dut.expect_exact("SYSTEM usage=0x01 pressed=0 released=1")
 
     device.write("s")

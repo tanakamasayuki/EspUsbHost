@@ -8,6 +8,7 @@
 #include <string.h>
 #include <math.h>
 #include <new>
+#include <utility>
 
 #if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
@@ -1410,11 +1411,38 @@ static void hubControlTransferCallback(usb_transfer_t *transfer)
   }
 }
 
-EspUsbHost::EspUsbHost() = default;
+template <typename Callback, typename Event>
+static void invokeHIDCallbacks(std::shared_ptr<Callback> &single,
+                               std::shared_ptr<Callback> *listeners,
+                               size_t listenerCount,
+                               const Event &event)
+{
+  if (single && *single)
+  {
+    (*single)(event);
+  }
+  for (size_t i = 0; i < listenerCount; i++)
+  {
+    if (listeners[i] && *listeners[i])
+    {
+      (*listeners[i])(event);
+    }
+  }
+}
+
+EspUsbHost::EspUsbHost()
+{
+  hidCallbackMutex_ = xSemaphoreCreateMutex();
+}
 
 EspUsbHost::~EspUsbHost()
 {
   end();
+  if (hidCallbackMutex_)
+  {
+    vSemaphoreDelete(hidCallbackMutex_);
+    hidCallbackMutex_ = nullptr;
+  }
 }
 
 bool EspUsbHost::begin()
@@ -1514,17 +1542,17 @@ void EspUsbHost::onDeviceDisconnected(DeviceCallback callback)
 
 void EspUsbHost::onKeyboard(KeyboardCallback callback)
 {
-  keyboardCallback_ = callback;
+  setHIDCallback(keyboardCallback_, std::move(callback));
 }
 
 void EspUsbHost::onKeyboardState(KeyboardStateCallback callback)
 {
-  keyboardStateCallback_ = callback;
+  setHIDCallback(keyboardStateCallback_, std::move(callback));
 }
 
 void EspUsbHost::onMouse(MouseCallback callback)
 {
-  mouseCallback_ = callback;
+  setHIDCallback(mouseCallback_, std::move(callback));
 }
 
 void EspUsbHost::onHIDInput(HIDInputCallback callback)
@@ -1559,12 +1587,12 @@ void EspUsbHost::onAudioOutputRequest(AudioOutputCallback callback)
 
 void EspUsbHost::onConsumerControl(ConsumerControlCallback callback)
 {
-  consumerControlCallback_ = callback;
+  setHIDCallback(consumerControlCallback_, std::move(callback));
 }
 
 void EspUsbHost::onGamepad(GamepadCallback callback)
 {
-  gamepadCallback_ = callback;
+  setHIDCallback(gamepadCallback_, std::move(callback));
 }
 
 void EspUsbHost::onHIDVendorInput(HIDVendorInputCallback callback)
@@ -1579,12 +1607,217 @@ void EspUsbHost::onVendorData(VendorDataCallback callback)
 
 void EspUsbHost::onSystemControl(SystemControlCallback callback)
 {
-  systemControlCallback_ = callback;
+  setHIDCallback(systemControlCallback_, std::move(callback));
 }
 
 void EspUsbHost::onNetworkFrame(NetworkFrameCallback callback)
 {
   networkFrameCallback_ = callback;
+}
+
+template <typename Callback>
+void EspUsbHost::setHIDCallback(std::shared_ptr<Callback> &target, Callback callback)
+{
+  std::shared_ptr<Callback> stored;
+  if (callback)
+  {
+    stored = std::make_shared<Callback>(std::move(callback));
+  }
+  if (!hidCallbackMutex_)
+  {
+    target = std::move(stored);
+    return;
+  }
+  xSemaphoreTake(hidCallbackMutex_, portMAX_DELAY);
+  target = std::move(stored);
+  xSemaphoreGive(hidCallbackMutex_);
+}
+
+template <typename Callback>
+EspUsbHostListenerId EspUsbHost::addHIDListener(ListenerRegistry<Callback> &registry, Callback callback)
+{
+  if (!callback || !hidCallbackMutex_)
+  {
+    return ESP_USB_HOST_INVALID_LISTENER_ID;
+  }
+  std::shared_ptr<Callback> stored = std::make_shared<Callback>(std::move(callback));
+
+  xSemaphoreTake(hidCallbackMutex_, portMAX_DELAY);
+  if (registry.count >= MaxListenersPerEvent)
+  {
+    xSemaphoreGive(hidCallbackMutex_);
+    return ESP_USB_HOST_INVALID_LISTENER_ID;
+  }
+
+  const EspUsbHostListenerId listenerId = allocateListenerIdLocked();
+  if (listenerId == ESP_USB_HOST_INVALID_LISTENER_ID)
+  {
+    xSemaphoreGive(hidCallbackMutex_);
+    return ESP_USB_HOST_INVALID_LISTENER_ID;
+  }
+  ListenerSlot<Callback> &slot = registry.slots[registry.count++];
+  slot.id = listenerId;
+  slot.callback = std::move(stored);
+  xSemaphoreGive(hidCallbackMutex_);
+  return listenerId;
+}
+
+template <typename Callback>
+bool EspUsbHost::removeHIDListenerLocked(ListenerRegistry<Callback> &registry,
+                                         EspUsbHostListenerId listenerId)
+{
+  for (size_t i = 0; i < registry.count; i++)
+  {
+    if (registry.slots[i].id != listenerId)
+    {
+      continue;
+    }
+    for (size_t j = i + 1; j < registry.count; j++)
+    {
+      registry.slots[j - 1] = std::move(registry.slots[j]);
+    }
+    registry.count--;
+    registry.slots[registry.count] = ListenerSlot<Callback>();
+    return true;
+  }
+  return false;
+}
+
+template <typename Callback>
+bool EspUsbHost::listenerIdInUseLocked(const ListenerRegistry<Callback> &registry,
+                                       EspUsbHostListenerId listenerId) const
+{
+  for (size_t i = 0; i < registry.count; i++)
+  {
+    if (registry.slots[i].id == listenerId)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool EspUsbHost::listenerIdInUseLocked(EspUsbHostListenerId listenerId) const
+{
+  return listenerIdInUseLocked(keyboardListeners_, listenerId) ||
+         listenerIdInUseLocked(keyboardStateListeners_, listenerId) ||
+         listenerIdInUseLocked(mouseListeners_, listenerId) ||
+         listenerIdInUseLocked(consumerControlListeners_, listenerId) ||
+         listenerIdInUseLocked(systemControlListeners_, listenerId) ||
+         listenerIdInUseLocked(gamepadListeners_, listenerId);
+}
+
+EspUsbHostListenerId EspUsbHost::allocateListenerIdLocked()
+{
+  EspUsbHostListenerId candidate = nextListenerId_;
+  do
+  {
+    if (candidate == ESP_USB_HOST_INVALID_LISTENER_ID)
+    {
+      candidate = 1;
+    }
+    if (!listenerIdInUseLocked(candidate))
+    {
+      nextListenerId_ = candidate + 1;
+      if (nextListenerId_ == ESP_USB_HOST_INVALID_LISTENER_ID)
+      {
+        nextListenerId_ = 1;
+      }
+      return candidate;
+    }
+    candidate++;
+  } while (candidate != nextListenerId_);
+  return ESP_USB_HOST_INVALID_LISTENER_ID;
+}
+
+template <typename Callback>
+size_t EspUsbHost::snapshotHIDCallbacks(const std::shared_ptr<Callback> &single,
+                                        const ListenerRegistry<Callback> &registry,
+                                        std::shared_ptr<Callback> &singleSnapshot,
+                                        std::shared_ptr<Callback> *listenerSnapshots)
+{
+  if (!hidCallbackMutex_)
+  {
+    singleSnapshot = single;
+    for (size_t i = 0; i < registry.count; i++)
+    {
+      listenerSnapshots[i] = registry.slots[i].callback;
+    }
+    return registry.count;
+  }
+
+  xSemaphoreTake(hidCallbackMutex_, portMAX_DELAY);
+  singleSnapshot = single;
+  const size_t count = registry.count;
+  for (size_t i = 0; i < count; i++)
+  {
+    listenerSnapshots[i] = registry.slots[i].callback;
+  }
+  xSemaphoreGive(hidCallbackMutex_);
+  return count;
+}
+
+EspUsbHostListenerId EspUsbHost::addKeyboardListener(KeyboardCallback callback)
+{
+  return addHIDListener(keyboardListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addKeyboardStateListener(KeyboardStateCallback callback)
+{
+  return addHIDListener(keyboardStateListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addMouseListener(MouseCallback callback)
+{
+  return addHIDListener(mouseListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addConsumerControlListener(ConsumerControlCallback callback)
+{
+  return addHIDListener(consumerControlListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addSystemControlListener(SystemControlCallback callback)
+{
+  return addHIDListener(systemControlListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addGamepadListener(GamepadCallback callback)
+{
+  return addHIDListener(gamepadListeners_, std::move(callback));
+}
+
+bool EspUsbHost::removeListener(EspUsbHostListenerId listenerId)
+{
+  if (listenerId == ESP_USB_HOST_INVALID_LISTENER_ID || !hidCallbackMutex_)
+  {
+    return false;
+  }
+
+  xSemaphoreTake(hidCallbackMutex_, portMAX_DELAY);
+  bool removed = removeHIDListenerLocked(keyboardListeners_, listenerId);
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(keyboardStateListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(mouseListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(consumerControlListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(systemControlListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(gamepadListeners_, listenerId);
+  }
+  xSemaphoreGive(hidCallbackMutex_);
+  return removed;
 }
 
 void EspUsbHost::setKeyboardLayout(EspUsbHostKeyboardLayout layout)
@@ -3487,6 +3720,11 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     if (!done)
     {
       ESP_LOGW(TAG, "MSC transfer timeout ep=0x%02x", endpointAddress);
+      usb_host_endpoint_halt(device.handle, endpointAddress);
+      usb_host_endpoint_flush(device.handle, endpointAddress);
+      // The transfer remains owned by the HCD until the flushed URB callback
+      // runs. Waiting here prevents a late dequeue from touching freed memory.
+      xSemaphoreTake(context.done, portMAX_DELAY);
       usb_host_endpoint_clear(device.handle, endpointAddress);
       usb_host_transfer_free(transfer);
       setLastError(ESP_ERR_TIMEOUT);
@@ -3510,6 +3748,7 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   const uint8_t commandOpcode = command[0];
   const bool allowResetRecovery = commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10;
   bool requestSenseAfterCommand = false;
+  uint8_t failedDataEndpoint = 0;
   const uint32_t tag = device.mscTag++;
   EspUsbHostMscCbw cbw = {};
   cbw.signature = USB_MSC_CBW_SIGNATURE;
@@ -3587,6 +3826,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       else if (commandOpcode != SCSI_CMD_REQUEST_SENSE &&
                commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10)
       {
+        if (dataLength > 0 && csw.dataResidue > 0)
+        {
+          failedDataEndpoint = dataIn ? device.mscInEndpointAddress : device.mscOutEndpointAddress;
+        }
         requestSenseAfterCommand = true;
       }
     }
@@ -3600,11 +3843,111 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   }
 
   vSemaphoreDelete(context.done);
+  if (failedDataEndpoint != 0 && !mscClearEndpointHalt(device, failedDataEndpoint, timeoutMs))
+  {
+    if (allowResetRecovery)
+    {
+      mscResetRecovery(device, timeoutMs);
+    }
+  }
   if (requestSenseAfterCommand)
   {
     EspUsbHostMscSense sense;
     mscRequestSense(sense, device.info.address, timeoutMs);
   }
+  return ok;
+}
+
+bool EspUsbHost::mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs)
+{
+  if (!device.handle || endpointAddress == 0)
+  {
+    return false;
+  }
+
+  esp_err_t err = usb_host_endpoint_halt(device.handle, endpointAddress);
+  if (err == ESP_OK)
+  {
+    err = usb_host_endpoint_flush(device.handle, endpointAddress);
+  }
+  if (err == ESP_OK)
+  {
+    err = usb_host_endpoint_clear(device.handle, endpointAddress);
+  }
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "MSC host endpoint recovery failed ep=0x%02x: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC ClearFeature ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT |
+                         USB_BM_REQUEST_TYPE_TYPE_STANDARD |
+                         USB_BM_REQUEST_TYPE_RECIP_ENDPOINT;
+  setup->bRequest = USB_REQUEST_CLEAR_FEATURE;
+  setup->wValue = 0; // ENDPOINT_HALT
+  setup->wIndex = endpointAddress;
+  setup->wLength = 0;
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC ClearFeature ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "MSC ClearFeature timeout ep=0x%02x", endpointAddress);
+    setLastError(ESP_ERR_TIMEOUT);
+    // A submitted control transfer cannot be freed until its callback returns.
+    xSemaphoreTake(context.done, portMAX_DELAY);
+  }
+  else if (!ok)
+  {
+    ESP_LOGW(TAG, "MSC ClearFeature failed ep=0x%02x status=%d", endpointAddress, context.status);
+    setLastError(ESP_FAIL);
+  }
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
   return ok;
 }
 
@@ -3669,6 +4012,8 @@ bool EspUsbHost::mscResetRecovery(DeviceState &device, uint32_t timeoutMs)
   {
     ESP_LOGW(TAG, "MSC reset timeout");
     setLastError(ESP_ERR_TIMEOUT);
+    // A submitted control transfer cannot be freed until its callback returns.
+    xSemaphoreTake(context.done, portMAX_DELAY);
   }
   else if (!resetOk)
   {
@@ -3679,29 +4024,11 @@ bool EspUsbHost::mscResetRecovery(DeviceState &device, uint32_t timeoutMs)
   vSemaphoreDelete(context.done);
 
   bool clearOk = resetOk;
-  if (device.hasMscInEndpoint)
+  if (resetOk)
   {
-    err = usb_host_endpoint_clear(device.handle, device.mscInEndpointAddress);
-    if (err != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_endpoint_clear(MSC IN 0x%02x) failed: %s",
-               device.mscInEndpointAddress,
-               esp_err_to_name(err));
-      setLastError(err);
-      clearOk = false;
-    }
-  }
-  if (device.hasMscOutEndpoint)
-  {
-    err = usb_host_endpoint_clear(device.handle, device.mscOutEndpointAddress);
-    if (err != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_endpoint_clear(MSC OUT 0x%02x) failed: %s",
-               device.mscOutEndpointAddress,
-               esp_err_to_name(err));
-      setLastError(err);
-      clearOk = false;
-    }
+    const bool clearInOk = mscClearEndpointHalt(device, device.mscInEndpointAddress, timeoutMs);
+    const bool clearOutOk = mscClearEndpointHalt(device, device.mscOutEndpointAddress, timeoutMs);
+    clearOk = clearInOk && clearOutOk;
   }
   return clearOk;
 }
@@ -4920,6 +5247,57 @@ void EspUsbHost::clientTaskLoop()
     }
     for (EndpointState &ep : endpoints_)
     {
+      if (!ep.inUse || !ep.recoveryPending)
+      {
+        continue;
+      }
+      ep.recoveryPending = false;
+      DeviceState *dev = findDeviceByHandle(ep.deviceHandle);
+      if (!dev || !ep.transfer || !ep.deviceHandle)
+      {
+        continue;
+      }
+
+      // Endpoint callbacks are dispatched before DEV_GONE events. Defer error
+      // recovery until usb_host_client_handle_events() has processed both, so a
+      // disconnected device is released instead of receiving a new URB.
+      esp_err_t clearErr = usb_host_endpoint_clear(ep.deviceHandle, ep.address);
+      if (clearErr != ESP_OK)
+      {
+        ESP_LOGD(TAG, "usb_host_endpoint_clear(recovery ep=0x%02x) failed: %s",
+                 ep.address,
+                 esp_err_to_name(clearErr));
+        setLastError(clearErr);
+        continue;
+      }
+
+      uint8_t ledInterfaceNumber = 0;
+      uint8_t ledReportId = 0;
+      const bool isKeyboardEndpoint = keyboardLedTarget(*dev, ledInterfaceNumber, ledReportId) &&
+                                      ep.interfaceNumber == ledInterfaceNumber;
+      if (isKeyboardEndpoint && (dev->keyboardLedDirty || dev->keyboardLedPending))
+      {
+        ep.resubmitAfterLed = true;
+      }
+      else
+      {
+        ep.resubmitPending = true;
+      }
+    }
+    for (EndpointState &ep : endpoints_)
+    {
+      if (!ep.inUse || !ep.resubmitPending)
+      {
+        continue;
+      }
+      ep.resubmitPending = false;
+      if (ep.transfer && running_ && ep.deviceHandle)
+      {
+        submitInputTransfer(ep);
+      }
+    }
+    for (EndpointState &ep : endpoints_)
+    {
       if (!ep.inUse || !ep.resubmitAfterLed)
       {
         continue;
@@ -4932,11 +5310,7 @@ void EspUsbHost::clientTaskLoop()
       ep.resubmitAfterLed = false;
       if (ep.transfer && running_ && ep.deviceHandle)
       {
-        esp_err_t resubErr = usb_host_transfer_submit(ep.transfer);
-        if (resubErr != ESP_OK && resubErr != ESP_ERR_INVALID_STATE && resubErr != ESP_ERR_NOT_FINISHED)
-        {
-          ESP_LOGD(TAG, "usb_host_transfer_submit(after LED) failed: %s", esp_err_to_name(resubErr));
-        }
+        submitInputTransfer(ep);
       }
     }
     if (millis() - lastHostDeviceScanMs_ >= 500)
@@ -5516,6 +5890,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     currentAudioSampleRateMin_ = 0;
     currentAudioSampleRateMax_ = 0;
     currentAudioSampleRateResolution_ = 0;
+    currentInterfaceClaimed_ = false;
     currentClaimResult_ = ESP_OK;
     if (device->interfaceInfoCount < ESP_USB_HOST_MAX_INTERFACES)
     {
@@ -5561,7 +5936,8 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     const bool isCdcAcmControlInterface = currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE &&
                                           currentInterfaceSubClass_ == USB_CDC_SUBCLASS_ACM;
     const bool isCdcAcmDataInterface = currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
-                                       device->hasCdcControlInterface;
+                                       device->hasCdcControlInterface &&
+                                       !device->hasCdcDataInterface;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         isCdcAcmControlInterface ||
         isCdcAcmDataInterface ||
@@ -5572,6 +5948,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isVendorSerialInterface)
     {
       currentClaimResult_ = usb_host_interface_claim(clientHandle_, device->handle, currentInterfaceNumber_, intf->bAlternateSetting);
+      currentInterfaceClaimed_ = currentClaimResult_ == ESP_OK;
       for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
       {
         EspUsbHostInterfaceInfo &info = device->interfaceInfos[i];
@@ -5767,9 +6144,14 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       return;
     }
 
-    const bool isSerialBulkEndpoint = currentClaimResult_ == ESP_OK &&
-                                      (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
-                                       (device->vendorSerialSupported && currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE)) &&
+    const bool isSerialBulkEndpoint = currentInterfaceClaimed_ &&
+                                      ((currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
+                                        device->hasCdcDataInterface &&
+                                        currentInterfaceNumber_ == device->cdcDataInterfaceNumber) ||
+                                       (currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE &&
+                                        device->vendorSerialSupported &&
+                                        device->hasVendorSerialInterface &&
+                                        currentInterfaceNumber_ == device->vendorSerialInterfaceNumber)) &&
                                       isBulk;
     if (isSerialBulkEndpoint)
     {
@@ -5815,14 +6197,12 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->context = this;
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-      if (submitInputTransfer(*endpoint))
-      {
-        ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
-                 currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
-                 endpoint->interfaceNumber,
-                 endpoint->address,
-                 ep->wMaxPacketSize);
-      }
+      endpoint->resubmitPending = true;
+      ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
+               currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
+               endpoint->interfaceNumber,
+               endpoint->address,
+               ep->wMaxPacketSize);
       return;
     }
 
@@ -5872,13 +6252,11 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->context = this;
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-      if (submitInputTransfer(*endpoint))
-      {
-        ESP_LOGI(TAG, "USB MIDI bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
-                 endpoint->interfaceNumber,
-                 endpoint->address,
-                 ep->wMaxPacketSize);
-      }
+      endpoint->resubmitPending = true;
+      ESP_LOGI(TAG, "USB MIDI bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
+               endpoint->interfaceNumber,
+               endpoint->address,
+               ep->wMaxPacketSize);
       return;
     }
 
@@ -6013,11 +6391,9 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     endpoint->transfer->context = this;
     endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
-    if (submitInputTransfer(*endpoint))
-    {
-      ESP_LOGI(TAG, "HID interrupt IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
-               endpoint->interfaceNumber, endpoint->address, ep->wMaxPacketSize, ep->bInterval);
-    }
+    endpoint->resubmitPending = true;
+    ESP_LOGI(TAG, "HID interrupt IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
+             endpoint->interfaceNumber, endpoint->address, ep->wMaxPacketSize, ep->bInterval);
     break;
   }
 
@@ -6577,7 +6953,8 @@ void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_
     if (!endpoint.inUse ||
         endpoint.deviceHandle != deviceHandle ||
         endpoint.interfaceNumber != interfaceNumber ||
-        endpoint.transferSubmitted)
+        endpoint.transferSubmitted ||
+        endpoint.resubmitPending)
     {
       continue;
     }
@@ -6592,7 +6969,7 @@ void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_
       }
     }
 
-    submitInputTransfer(endpoint);
+    endpoint.resubmitPending = true;
   }
 }
 
@@ -6767,6 +7144,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
   {
     return;
   }
+  endpoint->transferSubmitted = false;
   DeviceState *device = findDeviceByHandle(endpoint->deviceHandle);
 
   const bool isAudioStreaming = endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
@@ -6914,6 +7292,12 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     return;
   }
 
+  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+  {
+    endpoint->recoveryPending = true;
+    return;
+  }
+
   if (running_ && endpoint->deviceHandle)
   {
     if (transfer->num_isoc_packets > 0)
@@ -6937,12 +7321,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     }
     else
     {
-      esp_err_t err = usb_host_transfer_submit(transfer);
-      if (err != ESP_OK && err != ESP_ERR_INVALID_STATE && err != ESP_ERR_NOT_FINISHED)
-      {
-        ESP_LOGD(TAG, "usb_host_transfer_submit() failed: %s", esp_err_to_name(err));
-        setLastError(err);
-      }
+      endpoint->resubmitPending = true;
     }
   }
 }
@@ -6970,7 +7349,18 @@ void EspUsbHost::dispatchKeyboardState(EndpointState &endpoint,
   }
   memcpy(endpoint.lastKeyboardState, keys, ESP_USB_HOST_KEYBOARD_BITMAP_SIZE);
 
-  if (!changed || !keyboardStateCallback_)
+  if (!changed)
+  {
+    return;
+  }
+
+  std::shared_ptr<KeyboardStateCallback> singleCallback;
+  std::shared_ptr<KeyboardStateCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+  const size_t listenerCount = snapshotHIDCallbacks(keyboardStateCallback_,
+                                                    keyboardStateListeners_,
+                                                    singleCallback,
+                                                    listeners);
+  if (!singleCallback && listenerCount == 0)
   {
     return;
   }
@@ -6999,7 +7389,7 @@ void EspUsbHost::dispatchKeyboardState(EndpointState &endpoint,
   state.rawLength = rawLength;
   state.reportData = reportData;
   state.reportLength = reportLength;
-  keyboardStateCallback_(state);
+  invokeHIDCallbacks(singleCallback, listeners, listenerCount, state);
 }
 
 void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
@@ -7136,10 +7526,13 @@ void EspUsbHost::handleKeyboard(EndpointState &endpoint, const uint8_t *data, si
              capsLock,
              numLock,
              scrollLock);
-    if (keyboardCallback_)
-    {
-      keyboardCallback_(events[i]);
-    }
+    std::shared_ptr<KeyboardCallback> singleCallback;
+    std::shared_ptr<KeyboardCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+    const size_t listenerCount = snapshotHIDCallbacks(keyboardCallback_,
+                                                      keyboardListeners_,
+                                                      singleCallback,
+                                                      listeners);
+    invokeHIDCallbacks(singleCallback, listeners, listenerCount, events[i]);
   }
 
   memcpy(endpoint.lastKeyboardReport, data, ESP_USB_HOST_BOOT_KEYBOARD_REPORT_SIZE);
@@ -7292,7 +7685,8 @@ void EspUsbHost::handleKeyboardBitmap(EndpointState &endpoint, DeviceState &devi
     event.pressed = now;
     event.released = !now;
     event.keycode = usage;
-    event.ascii = espUsbHostKeycodeToAscii(usage, now ? modifiers : prevModifiers, keyboardLayout_, capsLock, numLock);
+    event.unicode = espUsbHostKeycodeToUnicode(usage, now ? modifiers : prevModifiers, keyboardLayout_, capsLock, numLock);
+    event.ascii = event.unicode <= 0xFF ? static_cast<uint8_t>(event.unicode) : 0;
     event.modifiers = now ? modifiers : prevModifiers;
     event.numLock = numLock;
     event.capsLock = capsLock;
@@ -7304,10 +7698,13 @@ void EspUsbHost::handleKeyboardBitmap(EndpointState &endpoint, DeviceState &devi
     ESP_LOGD(TAG, "Keyboard(NKRO) %s iface=%u keycode=0x%02x ascii=0x%02x modifiers=0x%02x caps=%d num=%d scroll=%d",
              now ? "press" : "release", event.interfaceNumber, event.keycode, event.ascii,
              event.modifiers, capsLock, numLock, scrollLock);
-    if (keyboardCallback_)
-    {
-      keyboardCallback_(event);
-    }
+    std::shared_ptr<KeyboardCallback> singleCallback;
+    std::shared_ptr<KeyboardCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+    const size_t listenerCount = snapshotHIDCallbacks(keyboardCallback_,
+                                                      keyboardListeners_,
+                                                      singleCallback,
+                                                      listeners);
+    invokeHIDCallbacks(singleCallback, listeners, listenerCount, event);
   }
 
   // Save the current bitmap (densely, bit i -> our bit i) and modifiers.
@@ -7325,7 +7722,10 @@ void EspUsbHost::handleKeyboardBitmap(EndpointState &endpoint, DeviceState &devi
 
 void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_t length)
 {
-  if (!mouseCallback_)
+  std::shared_ptr<MouseCallback> singleCallback;
+  std::shared_ptr<MouseCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+  const size_t listenerCount = snapshotHIDCallbacks(mouseCallback_, mouseListeners_, singleCallback, listeners);
+  if (!singleCallback && listenerCount == 0)
   {
     return;
   }
@@ -7372,7 +7772,7 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
            event.wheel,
            event.buttons,
            event.previousButtons);
-  mouseCallback_(event);
+  invokeHIDCallbacks(singleCallback, listeners, listenerCount, event);
   endpoint.lastMouseButtons = event.buttons;
 }
 
@@ -7473,7 +7873,13 @@ void EspUsbHost::handleAudio(EndpointState &endpoint, usb_transfer_t *transfer)
 
 void EspUsbHost::handleConsumerControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
 {
-  if (!consumerControlCallback_)
+  std::shared_ptr<ConsumerControlCallback> singleCallback;
+  std::shared_ptr<ConsumerControlCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+  const size_t listenerCount = snapshotHIDCallbacks(consumerControlCallback_,
+                                                    consumerControlListeners_,
+                                                    singleCallback,
+                                                    listeners);
+  if (!singleCallback && listenerCount == 0)
   {
     return;
   }
@@ -7507,13 +7913,16 @@ void EspUsbHost::handleConsumerControl(EndpointState &endpoint, const uint8_t *d
            event.usage,
            event.pressed ? 1 : 0,
            event.released ? 1 : 0);
-  consumerControlCallback_(event);
+  invokeHIDCallbacks(singleCallback, listeners, listenerCount, event);
   endpoint.lastConsumerUsage = event.pressed ? event.usage : 0;
 }
 
 void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
 {
-  if (!gamepadCallback_)
+  std::shared_ptr<GamepadCallback> singleCallback;
+  std::shared_ptr<GamepadCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+  const size_t listenerCount = snapshotHIDCallbacks(gamepadCallback_, gamepadListeners_, singleCallback, listeners);
+  if (!singleCallback && listenerCount == 0)
   {
     return;
   }
@@ -7569,7 +7978,7 @@ void EspUsbHost::handleGamepad(EndpointState &endpoint, const uint8_t *data, siz
            event.interfaceNumber,
            static_cast<unsigned>(event.reportLength),
            static_cast<unsigned>(event.fieldCount));
-  gamepadCallback_(event);
+  invokeHIDCallbacks(singleCallback, listeners, listenerCount, event);
   endpoint.lastGamepadState = {};
   endpoint.lastGamepadState.reportLength = event.reportLength < ESP_USB_HOST_GAMEPAD_MAX_REPORT_BYTES
                                                ? event.reportLength
@@ -7649,7 +8058,13 @@ void EspUsbHost::handleUsbVendorData(EndpointState &endpoint, const uint8_t *dat
 
 void EspUsbHost::handleSystemControl(EndpointState &endpoint, const uint8_t *data, size_t length, const uint8_t *rawData, size_t rawLength)
 {
-  if (!systemControlCallback_)
+  std::shared_ptr<SystemControlCallback> singleCallback;
+  std::shared_ptr<SystemControlCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+  const size_t listenerCount = snapshotHIDCallbacks(systemControlCallback_,
+                                                    systemControlListeners_,
+                                                    singleCallback,
+                                                    listeners);
+  if (!singleCallback && listenerCount == 0)
   {
     return;
   }
@@ -7683,7 +8098,7 @@ void EspUsbHost::handleSystemControl(EndpointState &endpoint, const uint8_t *dat
            event.usage,
            event.pressed ? 1 : 0,
            event.released ? 1 : 0);
-  systemControlCallback_(event);
+  invokeHIDCallbacks(singleCallback, listeners, listenerCount, event);
   endpoint.lastSystemUsage = event.pressed ? event.usage : 0;
 }
 

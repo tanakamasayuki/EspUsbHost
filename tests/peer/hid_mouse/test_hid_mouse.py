@@ -3,6 +3,7 @@ def test_hid_mouse_move(dut, peers):
 
     device.write("r")
     dut.expect_exact("MOUSE x=40 y=0 wheel=0 buttons=0 previous=0 moved=1 changed=0")
+    dut.expect_exact("MOUSE_LISTENER x=40 y=0 buttons=0")
 
     device.write("l")
     dut.expect_exact("MOUSE x=-40 y=0 wheel=0 buttons=0 previous=0 moved=1 changed=0")

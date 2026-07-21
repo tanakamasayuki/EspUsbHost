@@ -8,7 +8,7 @@
 //   0x1F: 2/"  0x20: 3/£  0x31: (not on ISO)
 //   0x32: NUHS #/~  0x34: '/@ (not '/")  0x35: `/¬
 //   0x64: NUBS \/|
-static const uint8_t KEYCODE_TO_ASCII_EN_GB[128][2] = {
+static const uint16_t KEYCODE_TO_UNICODE_EN_GB[128][4] = {
     {0, 0},           // 0x00
     {0, 0},           // 0x01
     {0, 0},           // 0x02
@@ -42,7 +42,7 @@ static const uint8_t KEYCODE_TO_ASCII_EN_GB[128][2] = {
     {'1', '!'},       // 0x1e
     {'2', '"'},       // 0x1f
     {'3', '\xa3'},    // 0x20
-    {'4', '$'},       // 0x21
+    {'4', '$', 0x20ac},       // 0x21
     {'5', '%'},       // 0x22
     {'6', '^'},       // 0x23
     {'7', '&'},       // 0x24
@@ -62,7 +62,7 @@ static const uint8_t KEYCODE_TO_ASCII_EN_GB[128][2] = {
     {'#', '~'},       // 0x32
     {';', ':'},       // 0x33
     {'\'', '@'},      // 0x34
-    {'`', '\xac'},    // 0x35
+    {'`', '\xac', 0xa6},    // 0x35
     {',', '<'},       // 0x36
     {'.', '>'},       // 0x37
     {'/', '?'},       // 0x38

@@ -63,6 +63,8 @@ HTMLレポートを生成する場合は、`.env` の `PYTEST_ADDOPTS` のコメ
 uv run --env-file .env pytest --html=report.html --self-contained-html
 ```
 
+各テスト終了時に、Host側の `dut.log` とpeer側の `peer-*.log` が自動的に監査されます。ESP-IDFのエラーログ、`ESP_ERR_*`、panic、assert、watchdogなどの疑わしい行は、テストを失敗させずに端末の `serial log audit` サマリーへ集計されます。HTMLレポートを有効にしている場合は、該当テストの展開ログにも追加されます。完全なシリアルログは `/tmp/pytest-embedded/` 以下に保存されます。
+
 ## テストディレクトリ
 
 ### `peer/` — 2台構成テスト
