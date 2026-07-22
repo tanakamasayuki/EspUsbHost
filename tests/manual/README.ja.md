@@ -51,7 +51,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`usb_network_descriptor/`](usb_network_descriptor/) | configurationを横断して汎用CDC-ECM/CDC-NCM USB Ethernet descriptor候補を検出すること | CDC-ECMまたはCDC-NCM対応USB Ethernetアダプタ | ✅ |
 | [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得、LBA 0読み取り、FatFs/VFS mount、POSIXと`fs::FS` APIで一時ファイルのwrite/read/deleteを確認 | USBメモリ | ✅ |
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | mount中のUSBメモリを抜き、再接続後に同じFatFs/VFS pathへ再mountできることを確認 | USBメモリ | ✅ |
-| [`adb_connect/`](adb_connect/) | Android実機のADB interfaceをclaimし、`A_CNXN`に対する`CNXN`または`AUTH`応答を受信すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
+| [`adb_connect/`](adb_connect/) | Android実機のADBを許可・永続RSA鍵で認証し、単一shell echo streamを検証すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 

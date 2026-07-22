@@ -51,7 +51,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`usb_network_descriptor/`](usb_network_descriptor/) | Detects generic CDC-ECM/CDC-NCM USB Ethernet descriptor candidates across configurations | USB Ethernet adapter with CDC-ECM or CDC-NCM support | ✅ |
 | [`msc_block/`](msc_block/) | Query real USB flash-drive MSC capacity, read LBA 0, mount FatFs/VFS, and write/read/delete temporary probe files through POSIX and `fs::FS` APIs | USB flash drive | ✅ |
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | Unplug a USB flash drive while mounted and verify the same FatFs/VFS path can mount again after reconnect | USB flash drive | ✅ |
-| [`adb_connect/`](adb_connect/) | Claim a real Android ADB interface and receive a `CNXN` or `AUTH` response to `A_CNXN` | Android device with USB debugging enabled + USB data cable | ✅ |
+| [`adb_connect/`](adb_connect/) | Authorize a real Android ADB transport, authenticate with a persisted RSA key, and verify one shell echo stream | Android device with USB debugging enabled + USB data cable | ✅ |
 
 ## ESP32-S3 HCD Channel Limits
 

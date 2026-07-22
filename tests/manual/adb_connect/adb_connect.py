@@ -1,7 +1,7 @@
 """
 Purpose:
-    Verify that EspUsbHost finds a real Android ADB interface, sends A_CNXN,
-    and receives the device's first valid ADB response without crashing.
+    Verify that EspUsbHost authenticates a real Android ADB transport, opens a
+    single shell stream, and completes an echo command without crashing.
 
 Why manual:
     Requires a physical Android device with USB debugging enabled. Real Android
@@ -18,19 +18,21 @@ Setup:
     2. Enable USB debugging on the Android device.
     3. Set TEST_SERIAL_PORT_ESP32S3 in .env to the host board's serial port.
     4. Run: uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
-    5. When prompted, connect and unlock the Android device. Either an AUTH
-       challenge or an already-authorized CNXN response is accepted.
+    5. When prompted, connect and unlock the Android device. On the first run,
+       approve the USB debugging dialog. The generated RSA key is kept in NVS,
+       so a second run verifies authorization with the saved key.
 """
 
 
 def test_adb_connect(dut):
     """
-    Expected result (pass):  An ff/42/01 interface is claimed, A_CNXN is sent,
-                             and a valid AUTH or CNXN message is received. The
-                             sketch remains alive for two seconds afterward.
-    Expected result (fail):  No ADB interface/response, an invalid ADB message,
-                             a bulk OUT failure, crash, or timeout.
+    Expected result (pass):  An ff/42/01 interface is claimed, ADB authentication
+                             completes, shell:echo returns ESP_USB_HOST_ADB_OK,
+                             and the sketch remains alive for two seconds.
+    Expected result (fail):  Authentication, stream setup, shell output, bulk
+                             transfer, protocol validation, or stability fails.
     """
     dut.expect("adb_connect test start")
     print("\nConnect and unlock an Android device with USB debugging enabled.")
-    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=40) == b"[PASS]"
+    print("Approve the USB debugging dialog if it appears.")
+    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=140) == b"[PASS]"

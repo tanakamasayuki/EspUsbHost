@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <atomic>
 #include <new>
 #include <utility>
 
@@ -119,6 +120,21 @@ struct EspUsbHostSyncTransferContext
   size_t actualLength = 0;
 };
 
+enum EspUsbHostVendorTransferState : uint8_t
+{
+  ESP_USB_HOST_VENDOR_TRANSFER_WAITING = 0,
+  ESP_USB_HOST_VENDOR_TRANSFER_CALLBACK = 1,
+  ESP_USB_HOST_VENDOR_TRANSFER_ABANDONED = 2,
+};
+
+struct EspUsbHostVendorTransferContext
+{
+  SemaphoreHandle_t done = nullptr;
+  usb_transfer_status_t status = USB_TRANSFER_STATUS_ERROR;
+  size_t actualLength = 0;
+  std::atomic<uint8_t> state{ESP_USB_HOST_VENDOR_TRANSFER_WAITING};
+};
+
 struct EspUsbHostMscFatMount
 {
   bool inUse = false;
@@ -151,6 +167,27 @@ static void syncTransferCallback(usb_transfer_t *transfer)
   }
   context->status = transfer->status;
   context->actualLength = transfer->actual_num_bytes;
+  xSemaphoreGive(context->done);
+}
+
+static void vendorTransferCallback(usb_transfer_t *transfer)
+{
+  EspUsbHostVendorTransferContext *context = static_cast<EspUsbHostVendorTransferContext *>(transfer->context);
+  if (!context)
+  {
+    return;
+  }
+  context->status = transfer->status;
+  context->actualLength = transfer->actual_num_bytes;
+  const uint8_t previous = context->state.exchange(ESP_USB_HOST_VENDOR_TRANSFER_CALLBACK,
+                                                   std::memory_order_acq_rel);
+  if (previous == ESP_USB_HOST_VENDOR_TRANSFER_ABANDONED)
+  {
+    vSemaphoreDelete(context->done);
+    usb_host_transfer_free(transfer);
+    delete context;
+    return;
+  }
   xSemaphoreGive(context->done);
 }
 
@@ -2621,10 +2658,16 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
     return false;
   }
 
-  EspUsbHostSyncTransferContext context;
-  context.done = xSemaphoreCreateBinary();
-  if (!context.done)
+  EspUsbHostVendorTransferContext *context = new EspUsbHostVendorTransferContext();
+  if (!context)
   {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+  context->done = xSemaphoreCreateBinary();
+  if (!context->done)
+  {
+    delete context;
     setLastError(ESP_ERR_NO_MEM);
     return false;
   }
@@ -2636,7 +2679,8 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
   {
     ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor bulk OUT) failed: %s", esp_err_to_name(err));
     setLastError(err);
-    vSemaphoreDelete(context.done);
+    vSemaphoreDelete(context->done);
+    delete context;
     return false;
   }
 
@@ -2646,8 +2690,8 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
   }
   transfer->device_handle = device->handle;
   transfer->bEndpointAddress = device->usbVendorOutEndpointAddress;
-  transfer->callback = syncTransferCallback;
-  transfer->context = &context;
+  transfer->callback = vendorTransferCallback;
+  transfer->context = context;
   transfer->num_bytes = length;
 
   err = usb_host_transfer_submit(transfer);
@@ -2658,36 +2702,56 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
              esp_err_to_name(err));
     setLastError(err);
     usb_host_transfer_free(transfer);
-    vSemaphoreDelete(context.done);
+    vSemaphoreDelete(context->done);
+    delete context;
     return false;
   }
 
-  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(1000)) == pdTRUE;
-  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  bool done = xSemaphoreTake(context->done, pdMS_TO_TICKS(1000)) == pdTRUE;
+  bool callerOwnsTransfer = true;
+  if (!done)
+  {
+    const uint8_t previous = context->state.exchange(ESP_USB_HOST_VENDOR_TRANSFER_ABANDONED,
+                                                     std::memory_order_acq_rel);
+    if (previous == ESP_USB_HOST_VENDOR_TRANSFER_CALLBACK)
+    {
+      // The callback won the timeout race and owns no cleanup. Wait for its
+      // semaphore give, then keep the normal caller-owned cleanup path.
+      xSemaphoreTake(context->done, portMAX_DELAY);
+      done = true;
+    }
+    else
+    {
+      callerOwnsTransfer = false;
+    }
+  }
+  const bool ok = done && context->status == USB_TRANSFER_STATUS_COMPLETED;
   if (!done)
   {
     ESP_LOGW(TAG, "USB vendor bulk OUT timeout ep=0x%02x", device->usbVendorOutEndpointAddress);
     setLastError(ESP_ERR_TIMEOUT);
     // A submitted transfer remains owned by the HCD until its callback runs.
-    // Flush the endpoint and wait before freeing the transfer or its callback
-    // context. This also prevents a late callback from using stack memory that
-    // has already gone out of scope.
+    // Mark it abandoned before flushing; the eventual callback frees both the
+    // transfer and its heap context without blocking this caller indefinitely.
     usb_host_endpoint_halt(device->handle, device->usbVendorOutEndpointAddress);
     usb_host_endpoint_flush(device->handle, device->usbVendorOutEndpointAddress);
-    xSemaphoreTake(context.done, portMAX_DELAY);
     usb_host_endpoint_clear(device->handle, device->usbVendorOutEndpointAddress);
   }
   else if (!ok)
   {
     ESP_LOGW(TAG, "USB vendor bulk OUT failed ep=0x%02x status=%d actual=%u",
              device->usbVendorOutEndpointAddress,
-             context.status,
-             static_cast<unsigned>(context.actualLength));
+             context->status,
+             static_cast<unsigned>(context->actualLength));
     setLastError(ESP_FAIL);
   }
 
-  usb_host_transfer_free(transfer);
-  vSemaphoreDelete(context.done);
+  if (callerOwnsTransfer)
+  {
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context->done);
+    delete context;
+  }
   return ok;
 }
 
@@ -5244,6 +5308,13 @@ void EspUsbHost::clientTaskLoop()
     }
     for (DeviceState &device : devices_)
     {
+      if (device.inUse && device.disconnectPending)
+      {
+        finalizeDisconnectedDevice(device);
+      }
+    }
+    for (DeviceState &device : devices_)
+    {
       if (!device.inUse || !deviceHasKeyboard(device) || !device.keyboardLedDirty || device.keyboardLedPending)
       {
         continue;
@@ -5531,17 +5602,13 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   device->networkLinkUp = false;
   networkDrainTx(*device); // wait out an in-flight send before tearing down
   releaseEndpoints(*device, false);
-  releaseInterfaces(*device);
-  if (device->handle)
-  {
-    usb_host_device_close(clientHandle_, device->handle);
-  }
+  device->disconnectPending = true;
 
   if (deviceDisconnectedCallback_)
   {
     deviceDisconnectedCallback_(info);
   }
-  resetDeviceState(*device);
+  finalizeDisconnectedDevice(*device);
 }
 
 void EspUsbHost::refreshDeviceTopology(DeviceState &device)
@@ -9079,6 +9146,51 @@ void EspUsbHost::releaseInterfaces(DeviceState &device)
   }
   device.interfaceCount = 0;
   device.endpointChannelCount = 0;
+}
+
+bool EspUsbHost::finalizeDisconnectedDevice(DeviceState &device)
+{
+  if (!device.inUse || !device.disconnectPending)
+  {
+    return true;
+  }
+
+  // A DEV_GONE event can be delivered in the same client event pass as the
+  // canceled endpoint callbacks. ESP-IDF may temporarily refuse to release an
+  // interface until those callbacks have been fully dispatched. Keep the
+  // handle and claimed-interface numbers so the next client loop can retry;
+  // dropping them here leaves the gone address permanently open.
+  uint8_t remaining = 0;
+  for (uint8_t i = 0; i < device.interfaceCount; i++)
+  {
+    const uint8_t interfaceNumber = device.interfaces[i];
+    const esp_err_t err = usb_host_interface_release(clientHandle_, device.handle, interfaceNumber);
+    if (err != ESP_OK && err != ESP_ERR_NOT_FOUND)
+    {
+      device.interfaces[remaining++] = interfaceNumber;
+    }
+  }
+  for (uint8_t i = remaining; i < device.interfaceCount; i++)
+  {
+    device.interfaces[i] = 0;
+  }
+  device.interfaceCount = remaining;
+  if (remaining != 0)
+  {
+    return false;
+  }
+  device.endpointChannelCount = 0;
+
+  const esp_err_t closeErr = device.handle
+                                 ? usb_host_device_close(clientHandle_, device.handle)
+                                 : ESP_OK;
+  if (closeErr != ESP_OK && closeErr != ESP_ERR_NOT_FOUND)
+  {
+    return false;
+  }
+
+  resetDeviceState(device);
+  return true;
 }
 
 void EspUsbHost::clearParsedDescriptorState(DeviceState &device)

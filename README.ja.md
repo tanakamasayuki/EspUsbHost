@@ -276,7 +276,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | 汎用の非HID vendor-specificインターフェース：bulk IN/OUTとEP0 vendor control IN/OUT |
-| [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | Android ADBインターフェースを探し、vendor bulk上で `A_CNXN` ハンドシェイクを送る（骨子） |
+| [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | 汎用vendor bulk API上でAndroid ADB認証と単一shell streamを実行 |
 
 ## APIリファレンス
 

@@ -1,9 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
-
-- (EN) Add a manual Android ADB connection test that claims a real `ff/42/01` interface, sends `A_CNXN`, validates the first `CNXN` or `AUTH` response, and checks that the host remains stable. Defer the ADB example's synchronous bulk write out of the USB connection callback, reject `vendorWrite()` from the USB client task, and retain timed-out transfers until the HCD returns ownership to prevent `hcd_urb_dequeue` assertions.
-- (JA) Android実機の`ff/42/01` interfaceをclaimし、`A_CNXN`送信後の最初の`CNXN`または`AUTH`応答を検証してHostが安定動作を続けるADB接続manual testを追加しました。ADB exampleの同期bulk writeをUSB接続callback外へ遅延し、USB client taskからの`vendorWrite()`を拒否するとともに、timeoutしたtransferをHCDから返却されるまで保持して`hcd_urb_dequeue` assertを防止します。
+- (EN) Expand the example-local Android ADB template and real-device manual test through persistent RSA-2048 authorization and one complete shell stream (`OPEN`/`OKAY`/`WRTE`/`CLSE`). Correctly terminate max-packet-aligned payloads with a USB ZLP, use callback-driven receive buffering for long ADB messages, and document extension paths for interactive shell, multiple streams, shell v2, and `sync:`.
+- (JA) example内のAndroid ADBテンプレートと実機manual testを、RSA-2048鍵の永続認証と単一shell stream（`OPEN`/`OKAY`/`WRTE`/`CLSE`）完了まで拡張しました。max packet sizeの倍数となるpayloadをUSB ZLPで正しく終端し、長いADB messageにはcallback駆動の受信bufferを使い、対話shell・複数stream・shell v2・`sync:`への拡張方法も文書化しました。
+- (EN) Harden generic vendor-bulk teardown and timeout handling found during ADB testing: reject synchronous `vendorWrite()` calls from the USB client task, retain submitted transfers until the HCD callback returns ownership, and retry interface/device release after disconnect instead of losing the handle and leaking a USB address.
+- (JA) ADB試験で判明した汎用vendor bulkの切断・timeout処理を修正しました。USB client taskからの同期`vendorWrite()`を拒否し、submit済みtransferをHCD callbackが所有権を返すまで保持し、切断時のinterface/device解放が一時的に失敗してもhandleを失わず再試行してUSB addressのリークを防ぎます。
 
 ## 2.4.0
 - (EN) Add fixed-capacity, thread-safe listener APIs for parsed keyboard, keyboard-state, mouse, consumer-control, system-control, and gamepad input. Existing single `on*()` callbacks remain compatible and run first; listeners run in registration order from a per-event snapshot, can be removed by ID, and callback-time mutations take effect on the next event. Peer tests cover coexistence, listener-only delivery, capacity and invalid-operation failures, removal, and callback-time mutation.
