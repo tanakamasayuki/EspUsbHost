@@ -1,3 +1,8 @@
+import time
+
+from pexpect.exceptions import TIMEOUT
+
+
 def test_usb_serial_device_to_host(dut, peers):
     device = peers["device"]
 
@@ -33,3 +38,25 @@ def test_usb_serial_config_api(dut, peers):
     dut.expect_exact("SERIAL_BAUD 1")
     device.write("l")
     device.expect_exact("DEVICE_LINE_CODING seen=1 baud=115200 stop=1 parity=3 data=5")
+
+
+def test_usb_serial_end_rebegin_with_device_open(dut, peers):
+    device = peers["device"]
+
+    dut.write("x")
+    dut.expect_exact("HOST_END installed=0 clients=-1 devices=-1 ready=0")
+    dut.expect_exact("HOST_REBEGIN 1")
+
+    deadline = time.monotonic() + 15
+    while True:
+        device.write("d")
+        try:
+            dut.expect_exact("SERIAL_RX device to host", timeout=1)
+            break
+        except TIMEOUT:
+            if time.monotonic() >= deadline:
+                raise AssertionError("CDC device did not resume after host restart")
+
+    dut.write("h")
+    dut.expect_exact("SERIAL_TX 1")
+    device.expect_exact("DEVICE_RX host to serial")

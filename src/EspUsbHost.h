@@ -1545,6 +1545,9 @@ private:
   void releaseAllEndpoints(bool clearEndpoints);
   void releaseInterfaces(DeviceState &device);
   bool finalizeDisconnectedDevice(DeviceState &device);
+  bool drainClientTransfers(uint32_t timeoutMs);
+  bool releaseClientResources();
+  bool uninstallHostLibrary(uint32_t timeoutMs);
   void configureCdcAcm(DeviceState &device);
   void configureVendorSerial(DeviceState &device);
   bool submitInputTransfer(EndpointState &endpoint);

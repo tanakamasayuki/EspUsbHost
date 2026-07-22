@@ -1494,6 +1494,12 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
     ESP_LOGW(TAG, "begin() called while USB Host is already running");
     return true;
   }
+  if (taskHandle_ || clientTaskHandle_ || clientHandle_)
+  {
+    ESP_LOGW(TAG, "begin() called while USB Host shutdown is incomplete");
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
 
   config_ = config;
   running_ = true;
@@ -1528,38 +1534,39 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
 
 void EspUsbHost::end()
 {
-  if (!running_)
+  if (!running_ && !taskHandle_)
   {
     return;
   }
 
-  ESP_LOGI(TAG, "Stopping USB Host");
-  running_ = false;
-  if (clientTaskHandle_)
+  const TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
+  if (currentTask == taskHandle_ || currentTask == clientTaskHandle_)
   {
-    for (int i = 0; i < 200 && clientTaskHandle_; i++)
-    {
-      delay(1);
-    }
-    if (clientTaskHandle_)
-    {
-      vTaskDelete(clientTaskHandle_);
-      clientTaskHandle_ = nullptr;
-    }
+    ESP_LOGW(TAG, "end() cannot wait for shutdown from a USB Host task");
+    setLastError(ESP_ERR_INVALID_STATE);
+    return;
+  }
+
+  ESP_LOGI(TAG, "Stopping USB Host");
+  ready_ = false;
+  running_ = false;
+  const esp_err_t unblockErr = usb_host_lib_unblock();
+  if (unblockErr != ESP_OK && unblockErr != ESP_ERR_INVALID_STATE)
+  {
+    ESP_LOGW(TAG, "usb_host_lib_unblock() failed: %s", esp_err_to_name(unblockErr));
+    setLastError(unblockErr);
+  }
+
+  const uint32_t startedAtMs = millis();
+  while (taskHandle_ && millis() - startedAtMs < 3000)
+  {
+    delay(1);
   }
   if (taskHandle_)
   {
-    for (int i = 0; i < 200 && taskHandle_; i++)
-    {
-      delay(1);
-    }
-    if (taskHandle_)
-    {
-      vTaskDelete(taskHandle_);
-      taskHandle_ = nullptr;
-    }
+    ESP_LOGW(TAG, "USB Host shutdown timed out; tasks were left alive to avoid freeing in-flight transfers");
+    setLastError(ESP_ERR_TIMEOUT);
   }
-  ready_ = false;
 }
 
 bool EspUsbHost::ready() const
@@ -5244,6 +5251,12 @@ void EspUsbHost::taskLoop()
     ESP_LOGE(TAG, "Failed to create USB Host client task");
     setLastError(ESP_ERR_NO_MEM);
     running_ = false;
+    releaseClientResources();
+    uninstallHostLibrary(1000);
+    ready_ = false;
+    taskHandle_ = nullptr;
+    vTaskDelete(nullptr);
+    return;
   }
 
   ready_ = running_;
@@ -5263,32 +5276,20 @@ void EspUsbHost::taskLoop()
     }
   }
 
-  if (clientTaskHandle_)
+  const uint32_t clientStopStartedAtMs = millis();
+  while (clientTaskHandle_ && millis() - clientStopStartedAtMs < 2500)
   {
-    vTaskDelete(clientTaskHandle_);
-    clientTaskHandle_ = nullptr;
+    delay(1);
   }
-  releaseAllEndpoints(true);
-  for (DeviceState &device : devices_)
+  if (clientTaskHandle_ || clientHandle_)
   {
-    if (!device.inUse)
-    {
-      continue;
-    }
-    releaseInterfaces(device);
-    if (device.handle)
-    {
-      usb_host_device_close(clientHandle_, device.handle);
-    }
-    resetDeviceState(device);
+    ESP_LOGW(TAG, "USB Host client did not finish shutdown");
+    setLastError(ESP_ERR_TIMEOUT);
   }
-  if (clientHandle_)
+  else if (!uninstallHostLibrary(2000))
   {
-    usb_host_client_deregister(clientHandle_);
-    clientHandle_ = nullptr;
+    ESP_LOGW(TAG, "USB Host Library uninstall did not complete");
   }
-  usb_host_device_free_all();
-  usb_host_uninstall();
 
   ready_ = false;
   taskHandle_ = nullptr;
@@ -5403,6 +5404,24 @@ void EspUsbHost::clientTaskLoop()
       scanHostDevices();
     }
   }
+  if (drainClientTransfers(2000))
+  {
+    const uint32_t releaseStartedAtMs = millis();
+    while (!releaseClientResources() && millis() - releaseStartedAtMs < 1000)
+    {
+      usb_host_client_handle_events(clientHandle_, pdMS_TO_TICKS(5));
+    }
+    if (clientHandle_)
+    {
+      ESP_LOGW(TAG, "USB Host client resource release timed out");
+      setLastError(ESP_ERR_TIMEOUT);
+    }
+  }
+  else
+  {
+    ESP_LOGW(TAG, "USB Host transfer drain timed out; keeping client resources allocated");
+    setLastError(ESP_ERR_TIMEOUT);
+  }
   clientTaskHandle_ = nullptr;
   vTaskDelete(nullptr);
 }
@@ -5417,7 +5436,10 @@ void EspUsbHost::handleClientEvent(const usb_host_client_event_msg_t *eventMsg)
   switch (eventMsg->event)
   {
   case USB_HOST_CLIENT_EVENT_NEW_DEV:
-    handleNewDevice(eventMsg->new_dev.address);
+    if (running_)
+    {
+      handleNewDevice(eventMsg->new_dev.address);
+    }
     break;
   case USB_HOST_CLIENT_EVENT_DEV_GONE:
     handleDeviceGone(eventMsg->dev_gone.dev_hdl);
@@ -9062,6 +9084,228 @@ size_t EspUsbHost::estimatedHcdChannelCount(uint8_t address) const
 size_t EspUsbHost::maxEndpointChannelCount() const
 {
   return 8;
+}
+
+bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
+{
+  if (!clientHandle_)
+  {
+    return true;
+  }
+
+  // Stop every callback-driven producer before canceling its transfers. The
+  // callbacks still need the client task below to receive CANCELED completions,
+  // so do not free any transfer or deregister the client yet.
+  for (DeviceState &device : devices_)
+  {
+    if (device.inUse)
+    {
+      device.audioOutRunning = false;
+    }
+  }
+
+  for (EndpointState &endpoint : endpoints_)
+  {
+    if (!endpoint.inUse || !endpoint.transfer || !endpoint.transferSubmitted ||
+        !endpoint.deviceHandle)
+    {
+      continue;
+    }
+    const esp_err_t haltErr = usb_host_endpoint_halt(endpoint.deviceHandle, endpoint.address);
+    if (haltErr == ESP_OK || haltErr == ESP_ERR_INVALID_STATE)
+    {
+      const esp_err_t flushErr = usb_host_endpoint_flush(endpoint.deviceHandle, endpoint.address);
+      if (flushErr != ESP_OK && flushErr != ESP_ERR_INVALID_STATE && flushErr != ESP_ERR_NOT_FOUND)
+      {
+        ESP_LOGD(TAG, "usb_host_endpoint_flush(shutdown ep=0x%02x) failed: %s",
+                 endpoint.address,
+                 esp_err_to_name(flushErr));
+      }
+    }
+    else if (haltErr != ESP_ERR_NOT_FOUND)
+    {
+      ESP_LOGD(TAG, "usb_host_endpoint_halt(shutdown ep=0x%02x) failed: %s",
+               endpoint.address,
+               esp_err_to_name(haltErr));
+    }
+  }
+
+  // Managed audio OUT transfers are not EndpointState entries.
+  for (DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || device.audioOutEndpointAddress == 0)
+    {
+      continue;
+    }
+    bool hasAudioTransfer = false;
+    for (usb_transfer_t *transfer : device.audioOutTransfers)
+    {
+      hasAudioTransfer = hasAudioTransfer || transfer != nullptr;
+    }
+    if (hasAudioTransfer)
+    {
+      usb_host_endpoint_halt(device.handle, device.audioOutEndpointAddress);
+      usb_host_endpoint_flush(device.handle, device.audioOutEndpointAddress);
+    }
+  }
+
+  const uint32_t startedAtMs = millis();
+  while (millis() - startedAtMs < timeoutMs)
+  {
+    const esp_err_t eventErr = usb_host_client_handle_events(clientHandle_, pdMS_TO_TICKS(5));
+    if (eventErr != ESP_OK && eventErr != ESP_ERR_TIMEOUT)
+    {
+      ESP_LOGD(TAG, "usb_host_client_handle_events(shutdown) failed: %s", esp_err_to_name(eventErr));
+    }
+
+    bool idle = true;
+    for (const EndpointState &endpoint : endpoints_)
+    {
+      if (endpoint.inUse && endpoint.transferSubmitted)
+      {
+        idle = false;
+        break;
+      }
+    }
+    for (DeviceState &device : devices_)
+    {
+      if (!device.inUse)
+      {
+        continue;
+      }
+      for (usb_transfer_t *transfer : device.audioOutTransfers)
+      {
+        if (transfer)
+        {
+          idle = false;
+        }
+      }
+      if (device.networkTxLock)
+      {
+        if (xSemaphoreTake(device.networkTxLock, 0) == pdTRUE)
+        {
+          xSemaphoreGive(device.networkTxLock);
+        }
+        else
+        {
+          idle = false;
+        }
+      }
+    }
+    if (idle)
+    {
+      // Dispatch any final callbacks queued in the same client event batch.
+      usb_host_client_handle_events(clientHandle_, 0);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool EspUsbHost::releaseClientResources()
+{
+  bool allDevicesClosed = true;
+  for (DeviceState &device : devices_)
+  {
+    if (!device.inUse)
+    {
+      continue;
+    }
+    device.hasNetworkInterface = false;
+    device.networkLinkUp = false;
+    networkDrainTx(device);
+    releaseEndpoints(device, false);
+
+    uint8_t remainingInterfaces = 0;
+    for (uint8_t i = 0; i < device.interfaceCount; i++)
+    {
+      const uint8_t interfaceNumber = device.interfaces[i];
+      const esp_err_t releaseErr = usb_host_interface_release(clientHandle_, device.handle, interfaceNumber);
+      if (releaseErr != ESP_OK && releaseErr != ESP_ERR_NOT_FOUND)
+      {
+        device.interfaces[remainingInterfaces++] = interfaceNumber;
+      }
+    }
+    for (uint8_t i = remainingInterfaces; i < device.interfaceCount; i++)
+    {
+      device.interfaces[i] = 0;
+    }
+    device.interfaceCount = remainingInterfaces;
+    if (remainingInterfaces != 0)
+    {
+      allDevicesClosed = false;
+      continue;
+    }
+    device.endpointChannelCount = 0;
+
+    if (device.handle)
+    {
+      const esp_err_t closeErr = usb_host_device_close(clientHandle_, device.handle);
+      if (closeErr != ESP_OK && closeErr != ESP_ERR_NOT_FOUND)
+      {
+        allDevicesClosed = false;
+        continue;
+      }
+    }
+    resetDeviceState(device);
+  }
+
+  if (!allDevicesClosed)
+  {
+    return false;
+  }
+  if (clientHandle_)
+  {
+    const esp_err_t deregisterErr = usb_host_client_deregister(clientHandle_);
+    if (deregisterErr != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_client_deregister() failed: %s", esp_err_to_name(deregisterErr));
+      setLastError(deregisterErr);
+      return false;
+    }
+    clientHandle_ = nullptr;
+  }
+  return true;
+}
+
+bool EspUsbHost::uninstallHostLibrary(uint32_t timeoutMs)
+{
+  esp_err_t freeErr = usb_host_device_free_all();
+  bool allFree = freeErr == ESP_OK;
+  if (freeErr != ESP_OK && freeErr != ESP_ERR_NOT_FINISHED)
+  {
+    ESP_LOGW(TAG, "usb_host_device_free_all() failed: %s", esp_err_to_name(freeErr));
+    setLastError(freeErr);
+    return false;
+  }
+
+  const uint32_t startedAtMs = millis();
+  while (!allFree && millis() - startedAtMs < timeoutMs)
+  {
+    uint32_t eventFlags = 0;
+    const esp_err_t eventErr = usb_host_lib_handle_events(pdMS_TO_TICKS(10), &eventFlags);
+    if (eventErr != ESP_OK && eventErr != ESP_ERR_TIMEOUT)
+    {
+      ESP_LOGW(TAG, "usb_host_lib_handle_events(shutdown) failed: %s", esp_err_to_name(eventErr));
+      setLastError(eventErr);
+      return false;
+    }
+    allFree = (eventFlags & USB_HOST_LIB_EVENT_FLAGS_ALL_FREE) != 0;
+  }
+  if (!allFree)
+  {
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+
+  const esp_err_t uninstallErr = usb_host_uninstall();
+  if (uninstallErr != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_uninstall() failed: %s", esp_err_to_name(uninstallErr));
+    setLastError(uninstallErr);
+    return false;
+  }
+  return true;
 }
 
 size_t EspUsbHost::getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const

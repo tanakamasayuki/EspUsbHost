@@ -289,6 +289,12 @@ void end();
 bool ready() const;
 ```
 
+`end()`はclient/daemon taskを同期的に停止し、実行中のendpoint transferを
+cancelしてcallback返却まで待ち、clientをderegisterし、ESP-IDFの`ALL_FREE`
+handshake完了後にUSB Host Libraryをuninstallします。復帰後は同じ
+`EspUsbHost` objectを`begin()`で再開できます。`end()`はUSB event/data
+callback内ではなくapplication taskから呼び出してください。
+
 `EspUsbHostConfig`でバックグラウンドタスクのスタックサイズ・優先度・コアを調整できます：
 
 ```cpp
