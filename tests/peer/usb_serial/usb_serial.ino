@@ -50,6 +50,18 @@ void loop()
         {
             Serial.printf("SERIAL_BAUD %u\n", CdcSerial.setBaudRate(115200) ? 1 : 0);
         }
+        else if (command == 'x')
+        {
+            usb.end();
+            usb_host_lib_info_t info = {};
+            const esp_err_t infoResult = usb_host_lib_info(&info);
+            Serial.printf("HOST_END installed=%u clients=%d devices=%d ready=%u\n",
+                          infoResult == ESP_OK ? 1 : 0,
+                          infoResult == ESP_OK ? info.num_clients : -1,
+                          infoResult == ESP_OK ? info.num_devices : -1,
+                          usb.ready() ? 1 : 0);
+            Serial.printf("HOST_REBEGIN %u\n", usb.begin() ? 1 : 0);
+        }
     }
     if (CdcSerial.available() > 0)
     {

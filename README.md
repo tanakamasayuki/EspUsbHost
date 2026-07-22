@@ -293,6 +293,12 @@ void end();
 bool ready() const;
 ```
 
+`end()` synchronously stops the client and daemon tasks, cancels and drains
+in-flight endpoint transfers, deregisters the client, waits for the IDF
+`ALL_FREE` handshake, and uninstalls the USB Host Library. After it returns,
+the same `EspUsbHost` object can be started again with `begin()`. Call `end()`
+from the application task, not from a USB event/data callback.
+
 `EspUsbHostConfig` lets you adjust the background task stack size, priority, and core affinity:
 
 ```cpp

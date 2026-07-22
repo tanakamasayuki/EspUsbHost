@@ -228,6 +228,23 @@ void loop()
                     static_cast<unsigned>(actual),
                     found ? 1 : 0);
     }
+    else if (command == 'x')
+    {
+      usb.end();
+      usb_host_lib_info_t info = {};
+      const esp_err_t infoResult = usb_host_lib_info(&info);
+      Serial.printf("HOST_END installed=%u clients=%d devices=%d ready=%u\n",
+                    infoResult == ESP_OK ? 1 : 0,
+                    infoResult == ESP_OK ? info.num_clients : -1,
+                    infoResult == ESP_OK ? info.num_devices : -1,
+                    usb.ready() ? 1 : 0);
+
+      connected = false;
+      deviceAddress = 0;
+      vendorDataSeen = false;
+      memset(vendorData, 0, sizeof(vendorData));
+      Serial.printf("HOST_REBEGIN %u\n", usb.begin() ? 1 : 0);
+    }
   }
   delay(1);
 }
