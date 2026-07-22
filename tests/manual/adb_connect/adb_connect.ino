@@ -1,26 +1,256 @@
 #include "EspUsbHost.h"
 
+#include <Preferences.h>
+#include <esp_random.h>
+#include <mbedtls/base64.h>
+#include <mbedtls/bignum.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/rsa.h>
+
 static constexpr uint8_t ADB_CLASS = 0xff;
 static constexpr uint8_t ADB_SUBCLASS = 0x42;
 static constexpr uint8_t ADB_PROTOCOL = 0x01;
 
 static constexpr uint32_t A_CNXN = 0x4e584e43;
 static constexpr uint32_t A_AUTH = 0x48545541;
+static constexpr uint32_t A_OPEN = 0x4e45504f;
+static constexpr uint32_t A_OKAY = 0x59414b4f;
+static constexpr uint32_t A_CLSE = 0x45534c43;
+static constexpr uint32_t A_WRTE = 0x45545257;
+
+static constexpr uint32_t ADB_AUTH_TOKEN = 1;
+static constexpr uint32_t ADB_AUTH_SIGNATURE = 2;
+static constexpr uint32_t ADB_AUTH_RSAPUBLICKEY = 3;
 static constexpr uint32_t A_VERSION = 0x01000000;
 static constexpr uint32_t A_MAXDATA = 4096;
-static constexpr uint32_t TEST_TIMEOUT_MS = 30000;
+static constexpr uint32_t LOCAL_STREAM_ID = 1;
+static constexpr uint32_t TEST_TIMEOUT_MS = 120000;
+static constexpr uint32_t AUTHORIZATION_GRACE_MS = 30000;
 static constexpr uint32_t STABILITY_MS = 2000;
+static constexpr char SHELL_SERVICE[] = "shell:echo ESP_USB_HOST_ADB_OK";
+static constexpr char EXPECTED_OUTPUT[] = "ESP_USB_HOST_ADB_OK";
+
+class AdbKeyStore
+{
+public:
+    AdbKeyStore()
+    {
+        mbedtls_pk_init(&key_);
+    }
+
+    ~AdbKeyStore()
+    {
+        mbedtls_pk_free(&key_);
+    }
+
+    bool begin()
+    {
+        if (load())
+        {
+            Serial.println("ADB key: loaded from NVS");
+            return true;
+        }
+
+        Serial.println("ADB key: generating RSA-2048 key (first run only)...");
+        mbedtls_pk_free(&key_);
+        mbedtls_pk_init(&key_);
+        if (mbedtls_pk_setup(&key_, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0)
+        {
+            return false;
+        }
+
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(key_);
+        if (!rsa || mbedtls_rsa_gen_key(rsa, randomBytes, nullptr, 2048, 65537) != 0 ||
+            mbedtls_rsa_check_privkey(rsa) != 0)
+        {
+            return false;
+        }
+        if (!save())
+        {
+            return false;
+        }
+        Serial.println("ADB key: generated and saved to NVS");
+        return true;
+    }
+
+    bool signToken(const uint8_t *token, size_t length, uint8_t *signature, size_t capacity)
+    {
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(key_);
+        if (!rsa || !token || length != 20 || !signature || capacity < 256)
+        {
+            return false;
+        }
+        return mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa,
+                                                 randomBytes,
+                                                 nullptr,
+                                                 MBEDTLS_MD_SHA1,
+                                                 static_cast<unsigned int>(length),
+                                                 token,
+                                                 signature) == 0;
+    }
+
+    bool publicKey(uint8_t *output, size_t capacity, size_t &outputLength)
+    {
+        static constexpr size_t MODULUS_BYTES = 256;
+        struct __attribute__((packed)) AndroidRsaPublicKey
+        {
+            uint32_t modulusSizeWords;
+            uint32_t n0inv;
+            uint8_t modulus[MODULUS_BYTES];
+            uint8_t rr[MODULUS_BYTES];
+            uint32_t exponent;
+        } encoded = {};
+
+        outputLength = 0;
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(key_);
+        if (!rsa || mbedtls_rsa_get_len(rsa) != MODULUS_BYTES)
+        {
+            return false;
+        }
+
+        mbedtls_mpi modulus;
+        mbedtls_mpi exponent;
+        mbedtls_mpi rr;
+        mbedtls_mpi_init(&modulus);
+        mbedtls_mpi_init(&exponent);
+        mbedtls_mpi_init(&rr);
+
+        bool ok = mbedtls_rsa_export(rsa, &modulus, nullptr, nullptr, nullptr, &exponent) == 0 &&
+                  mbedtls_mpi_write_binary_le(&modulus, encoded.modulus, sizeof(encoded.modulus)) == 0 &&
+                  mbedtls_mpi_lset(&rr, 1) == 0 &&
+                  mbedtls_mpi_shift_l(&rr, MODULUS_BYTES * 16) == 0 &&
+                  mbedtls_mpi_mod_mpi(&rr, &rr, &modulus) == 0 &&
+                  mbedtls_mpi_write_binary_le(&rr, encoded.rr, sizeof(encoded.rr)) == 0;
+
+        encoded.modulusSizeWords = MODULUS_BYTES / sizeof(uint32_t);
+        const uint32_t modulusLowWord = static_cast<uint32_t>(encoded.modulus[0]) |
+                                        (static_cast<uint32_t>(encoded.modulus[1]) << 8) |
+                                        (static_cast<uint32_t>(encoded.modulus[2]) << 16) |
+                                        (static_cast<uint32_t>(encoded.modulus[3]) << 24);
+        uint32_t inverse = 1;
+        for (uint8_t i = 0; i < 5; i++)
+        {
+            inverse *= 2 - modulusLowWord * inverse;
+        }
+        encoded.n0inv = 0 - inverse;
+        encoded.exponent = 65537;
+
+        mbedtls_mpi_free(&rr);
+        mbedtls_mpi_free(&exponent);
+        mbedtls_mpi_free(&modulus);
+        if (!ok)
+        {
+            return false;
+        }
+
+        size_t base64Length = 0;
+        if (mbedtls_base64_encode(output,
+                                  capacity,
+                                  &base64Length,
+                                  reinterpret_cast<const uint8_t *>(&encoded),
+                                  sizeof(encoded)) != 0)
+        {
+            return false;
+        }
+
+        static constexpr char COMMENT[] = " espusbhost@esp32";
+        if (base64Length + sizeof(COMMENT) > capacity)
+        {
+            return false;
+        }
+        memcpy(output + base64Length, COMMENT, sizeof(COMMENT));
+        outputLength = base64Length + sizeof(COMMENT);
+        return true;
+    }
+
+private:
+    static int randomBytes(void *, unsigned char *output, size_t length)
+    {
+        esp_fill_random(output, length);
+        return 0;
+    }
+
+    bool load()
+    {
+        Preferences preferences;
+        if (!preferences.begin("esp-adb", true))
+        {
+            return false;
+        }
+        const size_t length = preferences.getBytesLength("rsa-key");
+        if (length == 0 || length > 1600)
+        {
+            preferences.end();
+            return false;
+        }
+
+        uint8_t *der = static_cast<uint8_t *>(malloc(length));
+        const bool read = der && preferences.getBytes("rsa-key", der, length) == length;
+        preferences.end();
+        if (!read)
+        {
+            free(der);
+            return false;
+        }
+
+        const int parsed = mbedtls_pk_parse_key(&key_, der, length, nullptr, 0, randomBytes, nullptr);
+        free(der);
+        mbedtls_rsa_context *rsa = parsed == 0 ? mbedtls_pk_rsa(key_) : nullptr;
+        return rsa && mbedtls_rsa_get_bitlen(rsa) == 2048 && mbedtls_rsa_check_privkey(rsa) == 0;
+    }
+
+    bool save()
+    {
+        uint8_t der[1600];
+        const int length = mbedtls_pk_write_key_der(&key_, der, sizeof(der));
+        if (length <= 0)
+        {
+            return false;
+        }
+
+        Preferences preferences;
+        if (!preferences.begin("esp-adb", false))
+        {
+            return false;
+        }
+        const uint8_t *start = der + sizeof(der) - length;
+        const bool saved = preferences.putBytes("rsa-key", start, length) == static_cast<size_t>(length);
+        preferences.end();
+        return saved;
+    }
+
+    mbedtls_pk_context key_;
+};
 
 EspUsbHost usb;
+AdbKeyStore adbKey;
 
 static volatile bool connectPending = false;
 static uint8_t deviceAddress = 0;
+static uint16_t adbOutPacketSize = 0;
 static bool adbOpen = false;
-static bool responseReceived = false;
+static bool online = false;
+static bool signatureSent = false;
+static bool publicKeySent = false;
+static bool publicKeyOffered = false;
+static bool streamOpening = false;
+static bool streamOpen = false;
+static bool shellDone = false;
 static bool finished = false;
-static uint32_t responseAtMs = 0;
-static uint8_t rxBuffer[512];
+static uint32_t remoteStreamId = 0;
+static uint32_t signatureSentAtMs = 0;
+static uint32_t publicKeySentAtMs = 0;
+static uint32_t shellDoneAtMs = 0;
+static portMUX_TYPE vendorRxMux = portMUX_INITIALIZER_UNLOCKED;
+static uint8_t vendorRxRing[(A_MAXDATA + 24) * 2];
+static size_t vendorRxHead = 0;
+static size_t vendorRxTail = 0;
+static size_t vendorRxCount = 0;
+static volatile bool vendorRxOverflow = false;
+static uint8_t rxBuffer[A_MAXDATA + 24];
 static size_t rxLength = 0;
+static char shellOutput[256];
+static size_t shellOutputLength = 0;
 
 static void putU32(uint8_t *p, uint32_t value)
 {
@@ -49,7 +279,7 @@ static uint32_t adbChecksum(const uint8_t *data, size_t length)
 }
 
 static bool adbSend(uint32_t command, uint32_t arg0, uint32_t arg1,
-                    const uint8_t *data, uint32_t length)
+                    const uint8_t *data = nullptr, uint32_t length = 0)
 {
     uint8_t header[24];
     putU32(header + 0, command);
@@ -58,12 +288,24 @@ static bool adbSend(uint32_t command, uint32_t arg0, uint32_t arg1,
     putU32(header + 12, length);
     putU32(header + 16, adbChecksum(data, length));
     putU32(header + 20, command ^ 0xffffffff);
-
     if (!usb.vendorWrite(header, sizeof(header), deviceAddress))
     {
         return false;
     }
-    return length == 0 || usb.vendorWrite(data, length, deviceAddress);
+    if (length == 0)
+    {
+        return true;
+    }
+    if (!usb.vendorWrite(data, length, deviceAddress))
+    {
+        return false;
+    }
+
+    // ADB sends its header and payload as separate USB transfers. If the
+    // payload ends exactly on a USB packet boundary, terminate that transfer
+    // with a ZLP so adbd does not consume the following ADB header as payload.
+    return adbOutPacketSize == 0 || length % adbOutPacketSize != 0 ||
+           usb.vendorWrite(nullptr, 0, deviceAddress);
 }
 
 static bool openAdbInterface(uint8_t address)
@@ -78,10 +320,83 @@ static bool openAdbInterface(uint8_t address)
             itf.interfaceProtocol == ADB_PROTOCOL)
         {
             Serial.printf("ADB interface found: address=%u number=%u\n", address, itf.number);
+            EspUsbHostEndpointInfo endpoints[ESP_USB_HOST_MAX_ENDPOINTS];
+            const size_t endpointCount = usb.getEndpoints(address, endpoints,
+                                                          ESP_USB_HOST_MAX_ENDPOINTS);
+            adbOutPacketSize = 0;
+            for (size_t endpointIndex = 0; endpointIndex < endpointCount; endpointIndex++)
+            {
+                const EspUsbHostEndpointInfo &endpoint = endpoints[endpointIndex];
+                const bool isBulk = (endpoint.attributes & 0x03) == 0x02;
+                if (endpoint.interfaceNumber == itf.number && isBulk &&
+                    (endpoint.address & 0x80) == 0)
+                {
+                    adbOutPacketSize = endpoint.maxPacketSize;
+                    break;
+                }
+            }
             return usb.vendorOpen(address, itf.number);
         }
     }
     return false;
+}
+
+static void resetConnectionState()
+{
+    online = false;
+    signatureSent = false;
+    publicKeySent = false;
+    streamOpening = false;
+    streamOpen = false;
+    shellDone = false;
+    remoteStreamId = 0;
+    signatureSentAtMs = 0;
+    publicKeySentAtMs = 0;
+    rxLength = 0;
+    portENTER_CRITICAL(&vendorRxMux);
+    vendorRxHead = 0;
+    vendorRxTail = 0;
+    vendorRxCount = 0;
+    vendorRxOverflow = false;
+    portEXIT_CRITICAL(&vendorRxMux);
+    shellOutputLength = 0;
+    shellOutput[0] = 0;
+}
+
+static void bufferVendorData(const EspUsbHostVendorData &event)
+{
+    if (!adbOpen || event.address != deviceAddress)
+    {
+        return;
+    }
+
+    portENTER_CRITICAL(&vendorRxMux);
+    for (size_t i = 0; i < event.length; i++)
+    {
+        if (vendorRxCount == sizeof(vendorRxRing))
+        {
+            vendorRxOverflow = true;
+            break;
+        }
+        vendorRxRing[vendorRxHead] = event.data[i];
+        vendorRxHead = (vendorRxHead + 1) % sizeof(vendorRxRing);
+        vendorRxCount++;
+    }
+    portEXIT_CRITICAL(&vendorRxMux);
+}
+
+static size_t drainVendorData(uint8_t *output, size_t capacity)
+{
+    size_t copied = 0;
+    portENTER_CRITICAL(&vendorRxMux);
+    while (copied < capacity && vendorRxCount > 0)
+    {
+        output[copied++] = vendorRxRing[vendorRxTail];
+        vendorRxTail = (vendorRxTail + 1) % sizeof(vendorRxRing);
+        vendorRxCount--;
+    }
+    portEXIT_CRITICAL(&vendorRxMux);
+    return copied;
 }
 
 static void fail(const char *reason)
@@ -93,23 +408,180 @@ static void fail(const char *reason)
     }
 }
 
+static bool sendConnect()
+{
+    static const char banner[] = "host::";
+    Serial.println("ADB send: CNXN");
+    return adbSend(A_CNXN, A_VERSION, A_MAXDATA,
+                   reinterpret_cast<const uint8_t *>(banner), sizeof(banner));
+}
+
+static bool sendAuthSignature(const uint8_t *token, size_t length)
+{
+    uint8_t signature[256];
+    if (!adbKey.signToken(token, length, signature, sizeof(signature)))
+    {
+        return false;
+    }
+    Serial.println("ADB send: AUTH SIGNATURE");
+    return adbSend(A_AUTH, ADB_AUTH_SIGNATURE, 0, signature, sizeof(signature));
+}
+
+static bool sendAuthPublicKey()
+{
+    uint8_t publicKey[768];
+    size_t length = 0;
+    if (!adbKey.publicKey(publicKey, sizeof(publicKey), length))
+    {
+        return false;
+    }
+    Serial.println("ADB send: AUTH RSAPUBLICKEY");
+    Serial.println("Approve the USB debugging dialog on the unlocked Android device.");
+    publicKeySent = true;
+    publicKeyOffered = true;
+    publicKeySentAtMs = millis();
+    return adbSend(A_AUTH, ADB_AUTH_RSAPUBLICKEY, 0, publicKey, length);
+}
+
+static bool openShell()
+{
+    Serial.printf("ADB send: OPEN %s\n", SHELL_SERVICE);
+    streamOpening = true;
+    return adbSend(A_OPEN,
+                   LOCAL_STREAM_ID,
+                   0,
+                   reinterpret_cast<const uint8_t *>(SHELL_SERVICE),
+                   sizeof(SHELL_SERVICE));
+}
+
+static void appendShellOutput(const uint8_t *data, size_t length)
+{
+    const size_t available = sizeof(shellOutput) - 1 - shellOutputLength;
+    const size_t copyLength = length < available ? length : available;
+    if (copyLength > 0)
+    {
+        memcpy(shellOutput + shellOutputLength, data, copyLength);
+        shellOutputLength += copyLength;
+        shellOutput[shellOutputLength] = 0;
+    }
+}
+
+static void handleMessage(uint32_t command, uint32_t arg0, uint32_t arg1,
+                          const uint8_t *payload, size_t length)
+{
+    if (command == A_AUTH)
+    {
+        if (arg0 != ADB_AUTH_TOKEN || length != 20)
+        {
+            fail("invalid AUTH TOKEN");
+            return;
+        }
+        if (!signatureSent)
+        {
+            if (!sendAuthSignature(payload, length))
+            {
+                fail("AUTH SIGNATURE send failed");
+            }
+            else
+            {
+                signatureSent = true;
+                signatureSentAtMs = millis();
+            }
+        }
+        else if (!publicKeyOffered)
+        {
+            if (!sendAuthPublicKey())
+            {
+                fail("AUTH RSAPUBLICKEY send failed");
+            }
+        }
+        else
+        {
+            Serial.println("ADB authorization is still pending on the Android device.");
+        }
+        return;
+    }
+
+    if (command == A_CNXN)
+    {
+        online = true;
+        Serial.printf("ADB connected: version=0x%08x maxdata=%u\n",
+                      static_cast<unsigned>(arg0), static_cast<unsigned>(arg1));
+        if (!openShell())
+        {
+            fail("OPEN send failed");
+        }
+        return;
+    }
+
+    if (command == A_OKAY && streamOpening && arg1 == LOCAL_STREAM_ID)
+    {
+        remoteStreamId = arg0;
+        streamOpening = false;
+        streamOpen = true;
+        Serial.printf("ADB stream open: local=%u remote=%u\n",
+                      static_cast<unsigned>(LOCAL_STREAM_ID),
+                      static_cast<unsigned>(remoteStreamId));
+        return;
+    }
+
+    if (command == A_WRTE && streamOpen && arg0 == remoteStreamId && arg1 == LOCAL_STREAM_ID)
+    {
+        appendShellOutput(payload, length);
+        Serial.print("ADB stream data: ");
+        Serial.write(payload, length);
+        if (length == 0 || payload[length - 1] != '\n')
+        {
+            Serial.println();
+        }
+        if (!adbSend(A_OKAY, LOCAL_STREAM_ID, remoteStreamId))
+        {
+            fail("OKAY send failed");
+        }
+        return;
+    }
+
+    if (command == A_CLSE && (streamOpening || streamOpen) &&
+        (arg1 == LOCAL_STREAM_ID || arg1 == 0))
+    {
+        Serial.println("ADB stream closed");
+        if (remoteStreamId != 0)
+        {
+            adbSend(A_CLSE, LOCAL_STREAM_ID, remoteStreamId);
+        }
+        streamOpening = false;
+        streamOpen = false;
+        remoteStreamId = 0;
+        if (strstr(shellOutput, EXPECTED_OUTPUT))
+        {
+            shellDone = true;
+            shellDoneAtMs = millis();
+        }
+        else
+        {
+            fail("shell output marker not received");
+        }
+    }
+}
+
 static void processReceived()
 {
     while (rxLength >= 24 && !finished)
     {
         const uint32_t command = getU32(rxBuffer + 0);
+        const uint32_t arg0 = getU32(rxBuffer + 4);
+        const uint32_t arg1 = getU32(rxBuffer + 8);
         const uint32_t dataLength = getU32(rxBuffer + 12);
         const uint32_t checksum = getU32(rxBuffer + 16);
         const uint32_t magic = getU32(rxBuffer + 20);
-
         if (magic != (command ^ 0xffffffff))
         {
             fail("ADB header magic mismatch");
             return;
         }
-        if (dataLength > sizeof(rxBuffer) - 24)
+        if (dataLength > A_MAXDATA)
         {
-            fail("ADB payload exceeds receive buffer");
+            fail("ADB payload exceeds negotiated maxdata");
             return;
         }
         if (rxLength < 24 + dataLength)
@@ -122,17 +594,7 @@ static void processReceived()
             return;
         }
 
-        Serial.printf("ADB response: command=%s length=%u\n",
-                      command == A_CNXN ? "CNXN" : command == A_AUTH ? "AUTH" : "other",
-                      static_cast<unsigned>(dataLength));
-        if (command != A_CNXN && command != A_AUTH)
-        {
-            fail("first ADB response was neither CNXN nor AUTH");
-            return;
-        }
-
-        responseReceived = true;
-        responseAtMs = millis();
+        handleMessage(command, arg0, arg1, rxBuffer + 24, dataLength);
         const size_t consumed = 24 + dataLength;
         memmove(rxBuffer, rxBuffer + consumed, rxLength - consumed);
         rxLength -= consumed;
@@ -145,6 +607,12 @@ void setup()
     Serial.begin(115200);
     delay(5000);
 
+    if (!adbKey.begin())
+    {
+        fail("ADB key initialization failed");
+        return;
+    }
+
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                           {
         Serial.printf("connected address=%u vid=%04x pid=%04x product=\"%s\"\n",
@@ -153,10 +621,7 @@ void setup()
         {
             deviceAddress = device.address;
             adbOpen = true;
-            responseReceived = false;
-            rxLength = 0;
-            // Do not call the synchronous vendorWrite() from this USB client
-            // callback. loop() sends A_CNXN from the Arduino task instead.
+            resetConnectionState();
             connectPending = true;
         } });
 
@@ -167,9 +632,13 @@ void setup()
         {
             adbOpen = false;
             connectPending = false;
-            responseReceived = false;
             deviceAddress = 0;
+            adbOutPacketSize = 0;
+            resetConnectionState();
         } });
+
+    usb.onVendorData([](const EspUsbHostVendorData &event)
+                     { bufferVendorData(event); });
 
     if (!usb.begin())
     {
@@ -187,23 +656,21 @@ void loop()
     if (!finished && adbOpen && connectPending)
     {
         connectPending = false;
-        static const char banner[] = "host::\0";
-        if (!adbSend(A_CNXN, A_VERSION, A_MAXDATA,
-                     reinterpret_cast<const uint8_t *>(banner), sizeof(banner)))
+        if (!sendConnect())
         {
-            fail("A_CNXN bulk OUT failed");
-        }
-        else
-        {
-            Serial.println("A_CNXN sent");
+            fail("CNXN send failed");
         }
     }
 
-    if (!finished && adbOpen && !responseReceived && rxLength < sizeof(rxBuffer))
+    if (!finished && vendorRxOverflow)
     {
-        const size_t received = usb.vendorRead(rxBuffer + rxLength,
-                                               sizeof(rxBuffer) - rxLength,
-                                               deviceAddress);
+        fail("ADB receive ring overflow");
+    }
+
+    if (!finished && adbOpen && rxLength < sizeof(rxBuffer))
+    {
+        const size_t received = drainVendorData(rxBuffer + rxLength,
+                                                sizeof(rxBuffer) - rxLength);
         if (received > 0)
         {
             rxLength += received;
@@ -211,15 +678,47 @@ void loop()
         }
     }
 
-    if (!finished && adbOpen && responseReceived && millis() - responseAtMs >= STABILITY_MS)
+    // Some devices do not send the second AUTH TOKEN described by the ADB
+    // handshake. Offer the key once after a quiet period; never repeat it on
+    // every USB re-enumeration because that can create a reconnect loop.
+    if (!finished && adbOpen && signatureSent && !publicKeySent &&
+        !publicKeyOffered && !online &&
+        millis() - signatureSentAtMs >= 1500)
+    {
+        if (!sendAuthPublicKey())
+        {
+            fail("AUTH RSAPUBLICKEY fallback send failed");
+        }
+    }
+
+    // After the key has been offered, wait for approval or for a re-enumerated
+    // transport to accept its signature. A missing dialog is reported clearly
+    // instead of continually resending the public key.
+    if (!finished && adbOpen && publicKeyOffered && !online)
+    {
+        const uint32_t waitingSince = publicKeySent
+                                          ? publicKeySentAtMs
+                                          : signatureSentAtMs;
+        if (waitingSince != 0 && millis() - waitingSince >= AUTHORIZATION_GRACE_MS)
+        {
+            fail("USB debugging authorization was not granted; revoke Android USB debugging authorizations and retry while unlocked");
+        }
+    }
+
+    if (!finished && shellDone && adbOpen && millis() - shellDoneAtMs >= STABILITY_MS)
     {
         finished = true;
+        Serial.printf("shell output: %s", shellOutput);
+        if (shellOutputLength == 0 || shellOutput[shellOutputLength - 1] != '\n')
+        {
+            Serial.println();
+        }
         Serial.println("[PASS]");
     }
 
     if (!finished && millis() - startedAtMs > TEST_TIMEOUT_MS)
     {
-        fail("ADB interface or response timeout");
+        fail("ADB authentication or shell timeout");
     }
 
     delay(10);

@@ -2,74 +2,50 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Skeleton for talking to an Android device over USB ADB. It locates the ADB interface, claims it through the generic vendor bulk APIs, sends the ADB `A_CNXN` handshake, and prints the device's first reply.
+A minimal practical ADB host template built only on the generic `EspUsbHost` vendor-bulk API. ADB remains example-local rather than becoming part of the library core. The example provides the common foundation most ADB applications need:
 
-**This is a starting point, not a full ADB client.** It stops at the first reply. A working client must implement `A_AUTH` (RSA token signing / the on-device "always allow" dialog) before it can `A_OPEN` shell/sync streams.
+- discovery and claiming of the `ff/42/01` ADB interface
+- ADB packet encoding, checksums, receive reassembly, and validation
+- first-run RSA-2048 key generation with NVS persistence
+- SHA-1/PKCS#1 v1.5 signing of `AUTH TOKEN`
+- public-key enrollment through Android's USB debugging dialog
+- one `OPEN` / `OKAY` / `WRTE` / `CLSE` stream
+- execution of `shell:echo ESP_USB_HOST_ADB_OK`
 
-## Hardware
+This is not a complete ADB client. Multiple streams, interactive shell I/O, `sync:`, shell v2, forwarding, and TLS are intentionally left as extensions.
 
-- ESP32-S3 (or another board supported by Arduino-ESP32 USB Host)
-- An Android device with **USB debugging enabled** (Developer options)
+## Requirements and first connection
 
-## How ADB rides on vendor-specific bulk
+Use an ESP32-S2/S3/P4 supported by Arduino-ESP32 USB Host, an Android device with USB debugging enabled, and a data-capable cable. Keep Android unlocked on the first connection and approve the USB debugging dialog.
 
-The ADB interface is a vendor-specific interface identified by:
+The key is stored as `rsa-key` in the `esp-adb` NVS namespace, so later connections authenticate with the same signature key. If the dialog does not appear, revoke USB debugging authorizations in Android Developer options, toggle USB debugging off and on, then reconnect while unlocked.
 
-| Field | Value |
-|-------|-------|
-| `bInterfaceClass` | `0xff` |
-| `bInterfaceSubClass` | `0x42` |
-| `bInterfaceProtocol` | `0x01` |
+## Important implementation details
 
-`vendorOpen()` selects vendor interfaces by class `0xff` and interface *number* only — it does not filter by subclass/protocol. So this sketch enumerates interfaces with `getInterfaces()`, finds the `ff/42/01` triple itself, and passes that interface number to `vendorOpen(address, number)`.
+`vendorWrite()` waits synchronously for completion. The connection callback therefore only sets a flag; `loop()` performs all ADB writes outside the USB client task.
 
-## What it does
+ADB sends its 24-byte header and payload as separate USB transfers. A payload whose length is an exact multiple of the Bulk OUT max-packet size must be followed by a zero-length packet (ZLP). This matters for a 256-byte RSA signature on a 64-byte full-speed endpoint; without the ZLP, adbd can wait for more payload and consume the next ADB header into the same USB transfer.
 
-1. On connect, finds the ADB interface number and claims it
-2. After leaving the USB callback, sends `A_CNXN` (`host::` banner) from `loop()`
-3. Reads bulk IN, reassembles ADB messages, and reports each one:
-   - `CNXN` reply → device is already authorized
-   - `AUTH` reply → device wants an RSA-signed token (not implemented here)
+Incoming data is copied from `onVendorData()` into a dedicated ring buffer. This avoids losing the beginning of a long `CNXN` banner when relying only on the generic API's small built-in read buffer.
 
-`vendorWrite()` waits synchronously for transfer completion, so it must not run in the connection callback on the USB client task. The callback only sets a pending flag and `loop()` performs the actual write.
+## Extension points
 
-## Serial commands
+- Change the command through `SHELL_SERVICE` and its completion marker through `EXPECTED_OUTPUT`.
+- For an interactive shell, keep the stream open, queue outgoing data, and send each next `WRTE` only after peer `OKAY`.
+- For multiple streams, replace the single IDs/state with a table keyed by local stream ID.
+- For shell v2, open `shell,v2,raw:` and decode its stdout, stderr, and exit packets inside the ADB stream.
+- For file transfer, open `sync:` and implement the SYNC `SEND`, `RECV`, `DATA`, and `DONE` subprotocol.
+- Services such as logcat use the same `A_OPEN` path but need long-lived stream and flow-control handling.
 
-| Command | Action |
-|---------|--------|
-| `r` | Re-send `A_CNXN` |
+Production use should also address encrypted or provisioned key storage, fingerprint display, timeouts, reconnection, and per-stream backpressure. This template advertises ADB version `0x01000000` to demonstrate legacy RSA AUTH and does not negotiate STLS/TLS.
 
-## ADB message format (24-byte header)
+## Validation
 
-| Offset | Field | Notes |
-|--------|-------|-------|
-| 0 | command | 4-byte tag, e.g. `CNXN` |
-| 4 | arg0 | version / id |
-| 8 | arg1 | maxdata / id |
-| 12 | data_length | payload length |
-| 16 | data_checksum | **plain byte sum**, not CRC32 |
-| 20 | magic | `command ^ 0xffffffff` |
+The matching real-device manual test is:
 
-## Expected Serial output (authorized device)
-
-```
-EspUsbHost ADB connect skeleton start
-connected: device: address=1 portId=0x01 vid=18d1 pid=4ee7 class=0x00(Device) speed=high product="Pixel"
-ADB interface found: number=1
-CNXN send: ok
-recv CNXN arg0=0x01000001 arg1=0x00100000 len=... banner=device::ro.product.name=...
--> device accepted connection (already authorized).
+```sh
+cd tests
+uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 ```
 
-On a device that has not authorized this host, expect an `AUTH` reply instead:
-
-```
-recv AUTH arg0=0x00000001 arg1=0x00000000 len=20
--> device requests AUTH (RSA token). Signing is not implemented in this skeleton.
-```
-
-## Next steps for a real client
-
-- Implement `A_AUTH`: sign the 20-byte token with an RSA-2048 key (reply type `2`), or send the public key (type `3`) to trigger the "allow USB debugging?" dialog
-- After the device sends `CNXN`, open a stream with `A_OPEN` (e.g. `"shell:ls\0"`) and pump `A_WRTE` / `A_OKAY`
-- Note the 512-byte per-device receive buffer: keep advertised `maxdata` small and drain bulk IN promptly
+It has been validated on a Pixel 6a through first authorization, saved-key authentication, one shell stream, echo output, and stream close.

@@ -1449,6 +1449,7 @@ private:
     uint8_t interfaceCount = 0;
     bool isHub = false;
     uint8_t hubIndex = 0;
+    bool disconnectPending = false;
   };
 
   static void taskEntry(void *arg);
@@ -1543,6 +1544,7 @@ private:
   void releaseEndpoints(DeviceState &device, bool clearEndpoints);
   void releaseAllEndpoints(bool clearEndpoints);
   void releaseInterfaces(DeviceState &device);
+  bool finalizeDisconnectedDevice(DeviceState &device);
   void configureCdcAcm(DeviceState &device);
   void configureVendorSerial(DeviceState &device);
   bool submitInputTransfer(EndpointState &endpoint);
