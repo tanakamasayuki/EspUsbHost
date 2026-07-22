@@ -535,7 +535,7 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
                       uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
 ```
 
-`vendorOpen()` explicitly claims the vendor-specific interface and starts bulk IN reception. `vendorRead()` is non-blocking and reads from a 512-byte per-device receive buffer. `onVendorData()` receives the same bulk IN payload as a callback; its data pointer is valid only during the callback.
+`vendorOpen()` explicitly claims the vendor-specific interface and starts bulk IN reception. `vendorWrite()` waits for transfer completion and therefore cannot be called from USB callbacks such as `onDeviceConnected()` or `onVendorData()`; record the send request in the callback and perform it from `loop()`. `vendorRead()` is non-blocking and reads from a 512-byte per-device receive buffer. `onVendorData()` receives the same bulk IN payload as a callback; its data pointer is valid only during the callback.
 
 `vendorControlIn()` uses `bmRequestType = 0xc0`; `vendorControlOut()` uses `bmRequestType = 0x40`.
 

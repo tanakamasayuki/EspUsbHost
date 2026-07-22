@@ -36,6 +36,7 @@ EspUsbHost usb;
 
 static uint8_t deviceAddress = 0;
 static bool adbOpen = false;
+static volatile bool connectPending = false;
 
 // en: Linear reassembly buffer for incoming bulk IN bytes.
 // ja: 受信bulk INバイトの再構成用リニアバッファ。
@@ -218,12 +219,16 @@ void setup()
                           adbOpen = openAdbInterface();
                           if (adbOpen)
                           {
-                            adbSendConnect();
+                            // vendorWrite() waits for a USB completion callback,
+                            // so defer it to loop() instead of blocking the USB
+                            // client task that is running this callback.
+                            connectPending = true;
                           } });
 
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              adbOpen = false;
+                             connectPending = false;
                              Serial.print("disconnected: ");
                              espUsbHostPrint(device); });
 
@@ -235,6 +240,12 @@ void setup()
 
 void loop()
 {
+  if (adbOpen && connectPending)
+  {
+    connectPending = false;
+    adbSendConnect();
+  }
+
   if (adbOpen)
   {
     // en: Drain bulk IN into the reassembly buffer, then parse whole messages.

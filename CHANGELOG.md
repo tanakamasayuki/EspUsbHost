@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Add a manual Android ADB connection test that claims a real `ff/42/01` interface, sends `A_CNXN`, validates the first `CNXN` or `AUTH` response, and checks that the host remains stable. Defer the ADB example's synchronous bulk write out of the USB connection callback, reject `vendorWrite()` from the USB client task, and retain timed-out transfers until the HCD returns ownership to prevent `hcd_urb_dequeue` assertions.
+- (JA) Android実機の`ff/42/01` interfaceをclaimし、`A_CNXN`送信後の最初の`CNXN`または`AUTH`応答を検証してHostが安定動作を続けるADB接続manual testを追加しました。ADB exampleの同期bulk writeをUSB接続callback外へ遅延し、USB client taskからの`vendorWrite()`を拒否するとともに、timeoutしたtransferをHCDから返却されるまで保持して`hcd_urb_dequeue` assertを防止します。
+
 ## 2.4.0
 - (EN) Add fixed-capacity, thread-safe listener APIs for parsed keyboard, keyboard-state, mouse, consumer-control, system-control, and gamepad input. Existing single `on*()` callbacks remain compatible and run first; listeners run in registration order from a per-event snapshot, can be removed by ID, and callback-time mutations take effect on the next event. Peer tests cover coexistence, listener-only delivery, capacity and invalid-operation failures, removal, and callback-time mutation.
 - (JA) パース済みkeyboard・keyboard state・mouse・consumer control・system control・gamepad入力に、固定容量でthread-safeなlistener APIを追加しました。既存の単一`on*()` callbackは互換性を維持して最初に呼ばれ、listenerはeventごとのsnapshotから登録順に呼ばれます。IDによる解除に対応し、callback内の追加・解除は次eventから反映します。peer testでcallbackとの共存、listener単独配送、上限・無効操作の失敗、解除、callback内変更を確認します。

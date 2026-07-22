@@ -139,6 +139,8 @@ bool vendorControlOut(uint8_t request,
 - 成功時 `true`
 - 未 open、対象なし、bulk OUT なし、転送投入失敗は `false`
 - `data == nullptr && length > 0` は `false`
+- 転送完了を同期的に待つため、USB task上のcallbackから呼んだ場合は`false`。callbackでは要求を記録し、`loop()`など別taskから送信する
+- timeout時はendpointをhalt/flushして完了callbackを待ち、HCDがtransferを返却してから解放する
 - `length == 0` はゼロ長 bulk OUT を送るかどうか実装時に確認する。ESP-IDF 側で扱いが安定しない場合は `false` として明記する
 
 戻り値は bool のままにする。送信 byte 数が必要になった場合は、後続で `vendorWriteAvailable()` または `vendorWrite(..., actualLength)` のような追加 API を検討する。

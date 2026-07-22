@@ -2615,6 +2615,11 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
     ESP_LOGW(TAG, "vendorWrite() called with null data");
     return false;
   }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "vendorWrite() cannot run from USB client task");
+    return false;
+  }
 
   EspUsbHostSyncTransferContext context;
   context.done = xSemaphoreCreateBinary();
@@ -2663,6 +2668,14 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
   {
     ESP_LOGW(TAG, "USB vendor bulk OUT timeout ep=0x%02x", device->usbVendorOutEndpointAddress);
     setLastError(ESP_ERR_TIMEOUT);
+    // A submitted transfer remains owned by the HCD until its callback runs.
+    // Flush the endpoint and wait before freeing the transfer or its callback
+    // context. This also prevents a late callback from using stack memory that
+    // has already gone out of scope.
+    usb_host_endpoint_halt(device->handle, device->usbVendorOutEndpointAddress);
+    usb_host_endpoint_flush(device->handle, device->usbVendorOutEndpointAddress);
+    xSemaphoreTake(context.done, portMAX_DELAY);
+    usb_host_endpoint_clear(device->handle, device->usbVendorOutEndpointAddress);
   }
   else if (!ok)
   {

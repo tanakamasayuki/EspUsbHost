@@ -66,7 +66,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | USB serial — CDC ACM | ✅ peer, line coding config | | |
 | USB serial — VCP (FTDI/CP210x/CH34x) | | ✅ manual, serial format configs | |
 | USB MIDI | ✅ peer | | |
-| Vendor-specific bulk/control | ✅ peer (usb_vendor) | | |
+| Vendor-specific bulk/control | ✅ peer (usb_vendor) | ✅ manual (Android ADB `A_CNXN` → `CNXN`/`AUTH`) | |
 | USB audio input/output | ✅ peer (bidirectional with standard `USBAudioCard`) | | ⬜ real USB microphones/audio interfaces |
 | USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, `fs::FS` wrapper, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, >32-bit-sector FatFs mount |
 | USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual (generic descriptor candidate detection across configurations) | ⬜ configuration selection, frame RX/TX, lwIP integration |

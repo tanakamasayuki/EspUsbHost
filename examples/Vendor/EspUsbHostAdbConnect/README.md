@@ -26,10 +26,12 @@ The ADB interface is a vendor-specific interface identified by:
 ## What it does
 
 1. On connect, finds the ADB interface number and claims it
-2. Sends `A_CNXN` (`host::` banner)
+2. After leaving the USB callback, sends `A_CNXN` (`host::` banner) from `loop()`
 3. Reads bulk IN, reassembles ADB messages, and reports each one:
    - `CNXN` reply → device is already authorized
    - `AUTH` reply → device wants an RSA-signed token (not implemented here)
+
+`vendorWrite()` waits synchronously for transfer completion, so it must not run in the connection callback on the USB client task. The callback only sets a pending flag and `loop()` performs the actual write.
 
 ## Serial commands
 
