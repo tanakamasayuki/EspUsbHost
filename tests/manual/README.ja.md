@@ -18,6 +18,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s
 uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
 uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
+uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 ```
 
 手動テストは常に `-s` を付けて実行します。シリアル出力とオペレーターへのプロンプトが端末に表示されます。
@@ -50,6 +51,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`usb_network_descriptor/`](usb_network_descriptor/) | configurationを横断して汎用CDC-ECM/CDC-NCM USB Ethernet descriptor候補を検出すること | CDC-ECMまたはCDC-NCM対応USB Ethernetアダプタ | ✅ |
 | [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得、LBA 0読み取り、FatFs/VFS mount、POSIXと`fs::FS` APIで一時ファイルのwrite/read/deleteを確認 | USBメモリ | ✅ |
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | mount中のUSBメモリを抜き、再接続後に同じFatFs/VFS pathへ再mountできることを確認 | USBメモリ | ✅ |
+| [`adb_connect/`](adb_connect/) | Android実機のADB interfaceをclaimし、`A_CNXN`に対する`CNXN`または`AUTH`応答を受信すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 
@@ -87,6 +89,7 @@ tests/.pytest-results/state.json
 | USBハブ（情報表示・電源管理） | 実機のUSBハブが必須。自動テスト環境でもハブを経由して複数デバイスを接続することは技術的には可能だが、ハブの動作自体が試験対象に含まれるためノイズになる。そのため自動テストではハブを使わず1対1接続に限定している |
 | USB Mass Storage | 実USBメモリごとのdescriptor、タイミング、SCSIコマンド応答差を確認する必要がある。peerテストだけでは実デバイス互換性を確認できない |
 | USB Ethernet | 実USB NICごとのdescriptorとconfiguration構成が必要。vendor、CDC-ECM、CDC-NCM、任意のstorage configurationが混在する製品差はpeerテストでは再現できない |
+| Android ADB | USBデバッグを有効にしたAndroid実機が必須。実機のdescriptor、ADB transport timing、認証状態はpeer deviceでは完全に再現できない |
 | ハブのカスケード（ハブ下にハブ） | 2段以上ネストしたUSBハブが必須。物理的に用意できないためソフトウェアでエミュレートできない |
 | 人間しか観測できない出力（オーディオ・MIDIなど） | 音声出力など、ソフトウェアから直接観測できない物理的な出力を伴う。オーディオループバック機器があれば自動化できるが、通常は人間による確認が必要 |
 

@@ -26,10 +26,12 @@ ADBインターフェースは以下で識別されるvendor-specificインタ�
 ## 動作内容
 
 1. 接続時にADBインターフェース番号を探してclaim
-2. `A_CNXN`（`host::` バナー）を送信
+2. USB callbackを抜けた後、`loop()`から`A_CNXN`（`host::` バナー）を送信
 3. bulk INを読み、ADBメッセージを再構成して逐次報告：
    - `CNXN` 応答 → デバイスは既に認証済み
    - `AUTH` 応答 → デバイスがRSA署名トークンを要求（本スケッチでは未実装）
+
+`vendorWrite()` は転送完了を同期的に待つため、USB client task上で実行される接続callbackからは呼び出しません。接続callbackは送信フラグを立てるだけにし、実際の送信は`loop()`へ遅延させています。
 
 ## シリアルコマンド
 
