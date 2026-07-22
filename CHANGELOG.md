@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.4.1
 - (EN) Fix `EspUsbHost::end()` so runtime shutdown fully releases the IDF USB Host Library and supports `begin()` again on the same object. Shutdown now unblocks the daemon, lets the client task cancel and drain in-flight transfers before freeing them, closes devices and deregisters the client, processes library events through `ALL_FREE`, and checks `usb_host_uninstall()`. Vendor-bulk and CDC peer tests verify complete uninstall, repeated restart, and post-restart communication with a device attached.
 - (JA) `EspUsbHost::end()`のruntime終了処理を修正し、ESP-IDF USB Host Libraryを完全に解放して同じobjectで再度`begin()`できるようにしました。daemonのblock解除、client taskによるin-flight transferのcancel・callback回収後の解放、device closeとclient deregister、`ALL_FREE`までのlibrary event処理、`usb_host_uninstall()`結果確認を行います。vendor bulkとCDCのpeer testで、device接続中の完全uninstall、繰り返し再開、再開後の通信を検証します。
 - (EN) Expand the example-local Android ADB template and real-device manual test through persistent RSA-2048 authorization and one complete shell stream (`OPEN`/`OKAY`/`WRTE`/`CLSE`). Correctly terminate max-packet-aligned payloads with a USB ZLP, use callback-driven receive buffering for long ADB messages, and document extension paths for interactive shell, multiple streams, shell v2, and `sync:`.
