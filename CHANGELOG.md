@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.5.0
 - (EN) Update for Arduino-ESP32 3.3.11. With CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK enabled, enum_filter_cb must be set.
 - (JA) Arduino-ESP32 3.3.11に対応。CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACKの有効化に伴い必ずenum_filter_cbを設定する必要がでた
 - (EN) Add setConfigurationSelector() to select the configuration required for USB NICs.
