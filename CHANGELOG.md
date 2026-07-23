@@ -1,6 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Update for Arduino-ESP32 3.3.11. With CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK enabled, enum_filter_cb must be set.
+- (JA) Arduino-ESP32 3.3.11に対応。CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACKの有効化に伴い必ずenum_filter_cbを設定する必要がでた
+- (EN) Add setConfigurationSelector() to select the configuration required for USB NICs.
+- (JA) USB NICで必須なconfiguration選択をするためにsetConfigurationSelector()を追加した
 
 ## 2.4.1
 - (EN) Fix `EspUsbHost::end()` so runtime shutdown fully releases the IDF USB Host Library and supports `begin()` again on the same object. Shutdown now unblocks the daemon, lets the client task cancel and drain in-flight transfers before freeing them, closes devices and deregisters the client, processes library events through `ALL_FREE`, and checks `usb_host_uninstall()`. Vendor-bulk and CDC peer tests verify complete uninstall, repeated restart, and post-restart communication with a device attached.
