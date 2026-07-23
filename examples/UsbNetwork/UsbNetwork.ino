@@ -14,7 +14,7 @@ EspUsbHost usb;
 
 // Set this to a reachable URL when an HTTP connectivity check is wanted.
 // "http://192.168.7.1/" is suitable for the EspUsbDevice UsbNetwork peer.
-static constexpr const char *HTTP_TEST_URL = nullptr;
+static constexpr const char *HTTP_TEST_URL = "https://httpbin.org/get";
 static uint8_t nicAddress = 0;
 static bool attached = false;
 static uint32_t lastPoll = 0;
@@ -43,16 +43,14 @@ void setup()
                         {
                           nicAddress = device.address;
                           Serial.printf("Device connected: address=%u vid=%04x pid=%04x\n",
-                                        device.address, device.vid, device.pid);
-                        });
+                                        device.address, device.vid, device.pid); });
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              (void)device;
                              nicAddress = 0;
                              attached = false;
                              httpTestDone = false;
-                             Serial.println("Device disconnected");
-                           });
+                             Serial.println("Device disconnected"); });
 
   if (!usb.begin())
   {
