@@ -191,6 +191,16 @@ static void vendorTransferCallback(usb_transfer_t *transfer)
   xSemaphoreGive(context->done);
 }
 
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+static bool allowUsbHostEnumeration(const usb_device_desc_t *deviceDescriptor,
+                                    uint8_t *configurationValue)
+{
+  (void)deviceDescriptor;
+  (void)configurationValue;
+  return true;
+}
+#endif
+
 static uint32_t readBe32(const uint8_t *data)
 {
   return (static_cast<uint32_t>(data[0]) << 24) |
@@ -5204,6 +5214,9 @@ void EspUsbHost::taskLoop()
   usb_host_config_t hostConfig = {};
   hostConfig.skip_phy_setup = false;
   hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+  hostConfig.enum_filter_cb = allowUsbHostEnumeration;
+#endif
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   hostConfig.peripheral_map = hostPeripheralMap(config_.port);
 #endif
