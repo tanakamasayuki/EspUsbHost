@@ -44,6 +44,7 @@ EspUsbHostListenerId	KEYWORD1
 begin	KEYWORD2
 end	KEYWORD2
 ready	KEYWORD2
+setConfigurationSelector	KEYWORD2
 onDeviceConnected	KEYWORD2
 onDeviceDisconnected	KEYWORD2
 onKeyboard	KEYWORD2

@@ -29,4 +29,9 @@ def test_usb_network_descriptor(dut):
     """
     dut.expect("usb_network_descriptor test start")
     print("\nConnect a USB Ethernet adapter with CDC-ECM or CDC-NCM support.")
+    device = dut.expect(
+        rb"device address=\d+ vid=([0-9a-fA-F]{4}) pid=([0-9a-fA-F]{4}) config=(\d+)"
+    )
+    if device.group(1).lower() == b"0b95" and device.group(2).lower() == b"1790":
+        assert device.group(3) == b"2", "AX88179A did not select CDC-NCM config 2"
     assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=30) == b"[PASS]"

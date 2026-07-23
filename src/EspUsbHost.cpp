@@ -191,16 +191,6 @@ static void vendorTransferCallback(usb_transfer_t *transfer)
   xSemaphoreGive(context->done);
 }
 
-#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
-static bool allowUsbHostEnumeration(const usb_device_desc_t *deviceDescriptor,
-                                    uint8_t *configurationValue)
-{
-  (void)deviceDescriptor;
-  (void)configurationValue;
-  return true;
-}
-#endif
-
 static uint32_t readBe32(const uint8_t *data)
 {
   return (static_cast<uint32_t>(data[0]) << 24) |
@@ -494,9 +484,9 @@ static const ff_diskio_impl_t MSC_FAT_DISKIO = {
     .ioctl = &mscFatDiskIoctl,
 };
 
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
 static unsigned hostPeripheralMap(EspUsbHostPort port)
 {
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
   switch (port)
   {
   case ESP_USB_HOST_PORT_HIGH_SPEED:
@@ -507,11 +497,8 @@ static unsigned hostPeripheralMap(EspUsbHostPort port)
   default:
     return 0;
   }
-#else
-  (void)port;
-  return 0;
-#endif
 }
+#endif
 
 static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
 {
@@ -1482,9 +1469,51 @@ EspUsbHost::EspUsbHost()
   hidCallbackMutex_ = xSemaphoreCreateMutex();
 }
 
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+EspUsbHost *EspUsbHost::enumerationHost_ = nullptr;
+
+bool EspUsbHost::enumerationFilterCallback(const usb_device_desc_t *deviceDescriptor,
+                                           uint8_t *configurationValue)
+{
+  EspUsbHost *host = enumerationHost_;
+  if (!host || !deviceDescriptor || !configurationValue || !host->configurationSelector_)
+  {
+    return true;
+  }
+
+  const uint8_t selected = host->configurationSelector_(*deviceDescriptor);
+  if (selected == 0)
+  {
+    return true;
+  }
+  if (selected > deviceDescriptor->bNumConfigurations)
+  {
+    ESP_LOGW(TAG, "Configuration selector returned invalid value=%u for %04x:%04x (count=%u)",
+             selected,
+             deviceDescriptor->idVendor,
+             deviceDescriptor->idProduct,
+             deviceDescriptor->bNumConfigurations);
+    return true;
+  }
+
+  *configurationValue = selected;
+  ESP_LOGI(TAG, "Selecting USB configuration=%u for %04x:%04x",
+           selected,
+           deviceDescriptor->idVendor,
+           deviceDescriptor->idProduct);
+  return true;
+}
+#endif
+
 EspUsbHost::~EspUsbHost()
 {
   end();
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+  if (enumerationHost_ == this)
+  {
+    enumerationHost_ = nullptr;
+  }
+#endif
   if (hidCallbackMutex_)
   {
     vSemaphoreDelete(hidCallbackMutex_);
@@ -1540,6 +1569,29 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
     delay(1);
   }
   return ready_;
+}
+
+bool EspUsbHost::setConfigurationSelector(ConfigurationSelector selector)
+{
+  if (running_)
+  {
+    ESP_LOGW(TAG, "setConfigurationSelector() must be called before begin()");
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+  configurationSelector_ = std::move(selector);
+  return true;
+#else
+  if (selector)
+  {
+    ESP_LOGW(TAG, "Configuration selection is not enabled by this Arduino-ESP32 core");
+    setLastError(ESP_ERR_NOT_SUPPORTED);
+    return false;
+  }
+  configurationSelector_ = ConfigurationSelector();
+  return true;
+#endif
 }
 
 void EspUsbHost::end()
@@ -5215,7 +5267,17 @@ void EspUsbHost::taskLoop()
   hostConfig.skip_phy_setup = false;
   hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
 #if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
-  hostConfig.enum_filter_cb = allowUsbHostEnumeration;
+  if (enumerationHost_ && enumerationHost_ != this)
+  {
+    ESP_LOGE(TAG, "Another EspUsbHost instance owns the enumeration callback");
+    setLastError(ESP_ERR_INVALID_STATE);
+    running_ = false;
+    taskHandle_ = nullptr;
+    vTaskDelete(nullptr);
+    return;
+  }
+  enumerationHost_ = this;
+  hostConfig.enum_filter_cb = enumerationFilterCallback;
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   hostConfig.peripheral_map = hostPeripheralMap(config_.port);
@@ -5226,6 +5288,12 @@ void EspUsbHost::taskLoop()
   {
     ESP_LOGE(TAG, "usb_host_install() failed: %s", esp_err_to_name(err));
     setLastError(err);
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+    if (enumerationHost_ == this)
+    {
+      enumerationHost_ = nullptr;
+    }
+#endif
     running_ = false;
     taskHandle_ = nullptr;
     vTaskDelete(nullptr);
@@ -5244,6 +5312,12 @@ void EspUsbHost::taskLoop()
     ESP_LOGE(TAG, "usb_host_client_register() failed: %s", esp_err_to_name(err));
     setLastError(err);
     usb_host_uninstall();
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+    if (enumerationHost_ == this)
+    {
+      enumerationHost_ = nullptr;
+    }
+#endif
     running_ = false;
     taskHandle_ = nullptr;
     vTaskDelete(nullptr);
@@ -5266,6 +5340,12 @@ void EspUsbHost::taskLoop()
     running_ = false;
     releaseClientResources();
     uninstallHostLibrary(1000);
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+    if (enumerationHost_ == this)
+    {
+      enumerationHost_ = nullptr;
+    }
+#endif
     ready_ = false;
     taskHandle_ = nullptr;
     vTaskDelete(nullptr);
@@ -5305,6 +5385,12 @@ void EspUsbHost::taskLoop()
   }
 
   ready_ = false;
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+  if (enumerationHost_ == this)
+  {
+    enumerationHost_ = nullptr;
+  }
+#endif
   taskHandle_ = nullptr;
   ESP_LOGI(TAG, "USB Host stopped");
   vTaskDelete(nullptr);
@@ -7327,10 +7413,10 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
         handleKeyboardBitmap(*endpoint, *device, transfer->data_buffer, transfer->actual_num_bytes);
       }
       else if (device &&
-          endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
-          transfer->actual_num_bytes >= 5 &&
-          transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE &&
-          hasHIDReportId(*device, endpoint->interfaceNumber, ESP_USB_HOST_HID_REPORT_ID_MOUSE))
+               endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
+               transfer->actual_num_bytes >= 5 &&
+               transfer->data_buffer[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE &&
+               hasHIDReportId(*device, endpoint->interfaceNumber, ESP_USB_HOST_HID_REPORT_ID_MOUSE))
       {
         handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
       }
@@ -7339,7 +7425,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
         handleKeyboard(*endpoint, transfer->data_buffer + 1, transfer->actual_num_bytes - 1, transfer->data_buffer, transfer->actual_num_bytes);
       }
       else if (endpoint->interfaceSubClass == HID_SUBCLASS_BOOT_VALUE &&
-          endpoint->interfaceProtocol == HID_PROTOCOL_KEYBOARD_VALUE)
+               endpoint->interfaceProtocol == HID_PROTOCOL_KEYBOARD_VALUE)
       {
         handleKeyboard(*endpoint, transfer->data_buffer, transfer->actual_num_bytes, transfer->data_buffer, transfer->actual_num_bytes);
       }
@@ -9568,8 +9654,8 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
     channelCount++;
   }
   device.endpointChannelCount = device.endpointChannelCount >= channelCount
-                                  ? static_cast<uint8_t>(device.endpointChannelCount - channelCount)
-                                  : 0;
+                                    ? static_cast<uint8_t>(device.endpointChannelCount - channelCount)
+                                    : 0;
   device.hasNetworkInterface = false;
   device.networkInterface = EspUsbHostNetworkInterfaceInfo();
   device.networkLinkUp = false;
@@ -10007,7 +10093,7 @@ size_t EspUsbHost::buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t
 {
   const size_t ndpOffset = ESP_USB_HOST_NCM_NTH16_LEN;      // 12
   const size_t ndpLength = ESP_USB_HOST_NCM_NDP16_MIN_LEN;  // 16
-  const size_t dgOffset = ncmAlign4(ndpOffset + ndpLength);  // 28
+  const size_t dgOffset = ncmAlign4(ndpOffset + ndpLength); // 28
   const size_t total = dgOffset + length;
   if (!out || !frame || length == 0 || total > outCapacity || total > 0xffff)
   {
@@ -10025,9 +10111,9 @@ size_t EspUsbHost::buildNcmFrame(uint8_t *out, size_t outCapacity, const uint8_t
   // NDP16: dwSignature(4) | wLength(2) | wNextNdpIndex(2) | datagram entries
   ncmWrite32(out + ndpOffset + 0, ESP_USB_HOST_NCM_NDP16_SIG);
   ncmWrite16(out + ndpOffset + 4, static_cast<uint16_t>(ndpLength));
-  ncmWrite16(out + ndpOffset + 6, 0); // wNextNdpIndex (0 = last NDP)
-  ncmWrite16(out + ndpOffset + 8, static_cast<uint16_t>(dgOffset));  // datagram[0].index
-  ncmWrite16(out + ndpOffset + 10, static_cast<uint16_t>(length));   // datagram[0].length
+  ncmWrite16(out + ndpOffset + 6, 0);                               // wNextNdpIndex (0 = last NDP)
+  ncmWrite16(out + ndpOffset + 8, static_cast<uint16_t>(dgOffset)); // datagram[0].index
+  ncmWrite16(out + ndpOffset + 10, static_cast<uint16_t>(length));  // datagram[0].length
   // datagram[1] entry at [12..16) stays zero -> null terminator
 
   memcpy(out + dgOffset, frame, length);
@@ -10352,15 +10438,18 @@ bool EspUsbHost::readNetworkMac(DeviceState &device, uint8_t mac[6])
 
   auto hexVal = [](uint8_t c) -> int
   {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= '0' && c <= '9')
+      return c - '0';
+    if (c >= 'A' && c <= 'F')
+      return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f')
+      return c - 'a' + 10;
     return -1;
   };
   for (int i = 0; i < 6; i++)
   {
-    const int hi = hexVal(buf[2 + 4 * i]);      // char (2i)   low byte
-    const int lo = hexVal(buf[2 + 4 * i + 2]);  // char (2i+1) low byte
+    const int hi = hexVal(buf[2 + 4 * i]);     // char (2i)   low byte
+    const int lo = hexVal(buf[2 + 4 * i + 2]); // char (2i+1) low byte
     if (hi < 0 || lo < 0)
     {
       return false;
