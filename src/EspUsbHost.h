@@ -938,6 +938,10 @@ public:
   using VendorDataCallback = std::function<void(const EspUsbHostVendorData &)>;
   using SystemControlCallback = std::function<void(const EspUsbHostSystemControlEvent &)>;
   using NetworkFrameCallback = std::function<void(const EspUsbHostNetworkFrame &)>;
+  // Return 0 to keep the device's default configuration, or a configuration
+  // value in the range 1..bNumConfigurations. Called from the USB Host library
+  // task during enumeration, so the callback must not block.
+  using ConfigurationSelector = std::function<uint8_t(const usb_device_desc_t &)>;
   static constexpr size_t MaxListenersPerEvent = ESP_USB_HOST_MAX_LISTENERS_PER_EVENT;
   static_assert(MaxListenersPerEvent > 0, "ESP_USB_HOST_MAX_LISTENERS_PER_EVENT must be greater than zero");
 
@@ -948,6 +952,7 @@ public:
   bool begin(const EspUsbHostConfig &config);
   void end();
   bool ready() const;
+  bool setConfigurationSelector(ConfigurationSelector selector);
 
   void onDeviceConnected(DeviceCallback callback);
   void onDeviceDisconnected(DeviceCallback callback);
@@ -1637,6 +1642,11 @@ private:
                               std::shared_ptr<Callback> *listenerSnapshots);
   EspUsbHostListenerId allocateListenerIdLocked();
   bool listenerIdInUseLocked(EspUsbHostListenerId listenerId) const;
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+  static bool enumerationFilterCallback(const usb_device_desc_t *deviceDescriptor,
+                                        uint8_t *configurationValue);
+  static EspUsbHost *enumerationHost_;
+#endif
 
   EspUsbHostConfig config_;
   TaskHandle_t taskHandle_ = nullptr;
@@ -1699,6 +1709,7 @@ private:
   VendorDataCallback vendorDataCallback_;
   std::shared_ptr<SystemControlCallback> systemControlCallback_;
   NetworkFrameCallback networkFrameCallback_;
+  ConfigurationSelector configurationSelector_;
   ListenerRegistry<KeyboardCallback> keyboardListeners_;
   ListenerRegistry<KeyboardStateCallback> keyboardStateListeners_;
   ListenerRegistry<MouseCallback> mouseListeners_;

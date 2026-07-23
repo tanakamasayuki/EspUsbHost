@@ -1,11 +1,9 @@
 # EspUsbHost USB Network API 仕様案
 
-> ⚠️ **現状: 本物のUSB NICではまだ使えない実験的機能。** CDC-NCM のフレーム送受信・
-> lwIP 統合・`iMACAddress` 採用まで実装・実機検証済みだが、それは兄弟ライブラリ
-> EspUsbDevice の NCM device（CDC-NCM が active configuration）相手に限る。実機NIC
-> (AX88179A 等) は CDC-NCM/ECM を active でない configuration に持ち、その選択が現行
-> Arduino-ESP32 core では不可（`CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` 無効）。
-> 有効化PRはマージ済みで、**次回 Arduino-ESP32 リリース以降に実機NIC対応予定**。
+> ⚠️ **現状: 実験的機能。** Arduino-ESP32 3.3.11以降では
+> `setConfigurationSelector()` により列挙時のconfiguration選択が可能。selectorにはdevice
+> descriptorだけが渡るため、configuration番号は事前調査して指定する。AX88179Aの
+> CDC-NCM configuration 2を選択する例を `examples/UsbNetwork` に実装済み。
 
 ## 目的
 
@@ -129,7 +127,7 @@ bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 `networkOpen(info)` は明示的に選んだ configuration / interface を開く。
 
-現在の実装は、candidate の `configurationValue` が現在 active な configuration と一致する場合だけ open する。active ではないconfigurationへの切り替えは行わない。
+現在の実装は、candidate の `configurationValue` が現在 active な configuration と一致する場合だけ open する。active configurationは`begin()`前に`setConfigurationSelector()`を登録して列挙時に選ぶ。
 
 open 時の処理:
 
@@ -140,7 +138,7 @@ open 時の処理:
 
 未実装:
 
-- 対象configurationがactiveになるようにenumeration時選択または再enumerationする
+- descriptor調査結果を保存して自動的に再enumerationする二段階選択
 - notification interrupt IN transfer
 - bulk IN transfer
 - protocol ごとの初期化 control request
@@ -389,11 +387,11 @@ AX88179A専用のVID/PID分岐にはしない。汎用実装としては、調�
 追加確認:
 Arduino-ESP32 3.3.10 の ESP32-S3 build では `sdkconfig` に `# CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set` があり、`usb_host_config_t::enum_filter_cb` は有効にならない。実機AX88179AでVID/PID指定によるconfiguration 2選択を試したが、deviceはconfig 1のまま列挙された。
 
-その後、Arduino-ESP32側へ `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` を有効化するPRを出し、採用された。3.3.10の次回リリース以降では、標準Arduino coreでも `enum_filter_cb` を使ったconfiguration選択を実装できる見込み。
+その後、Arduino-ESP32側へ `CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK` を有効化するPRを出し、採用された。Arduino-ESP32 3.3.11で有効化され、`setConfigurationSelector()`から`enum_filter_cb`を使うconfiguration選択を実装した。
 
-したがって、3.3.10時点では「activeではないconfigurationへ切り替えて、そのinterfaceをESP-IDF USB Host APIでclaimする」経路は標準Arduino core上で使えない。configuration選択の実装は、次回リリース以降のArduino coreを前提に進める。
+3.3.10時点では「activeではないconfigurationへ切り替えて、そのinterfaceをESP-IDF USB Host APIでclaimする」経路は標準Arduino core上で使えない。3.3.11以降ではselectorによる事前指定が利用できる。
 
-AX88179Aの標準CDC-NCM/ECM configurationを開くには、次回リリース以降で有効化される `enum_filter_cb` を使い、事前調査済みのconfiguration値をenumeration時に選択する必要がある。AX88179A専用のVID/PID分岐にはせず、汎用のconfiguration選択機構として実装する。
+AX88179Aの標準CDC-NCM/ECM configurationを開くには、`enum_filter_cb`を使い、事前調査済みのconfiguration値をenumeration時に選択する。ライブラリ本体にはAX88179A専用のVID/PID分岐を置かず、公開selector APIとして実装した。
 
 ### Phase 2: CDC-ECM raw frame
 
@@ -430,7 +428,7 @@ DHCP client 起動順序: netif は `action_start` → `action_connected`（リ�
 - EspUsbDevice レビュー由来の対策: attach 失敗時に `esp_netif_destroy`（リーク/キー再利用対策）
 - host netif MAC は CDC Ethernet FD の `iMACAddress`（GET_DESCRIPTOR STRING → 12桁hex）をそのまま採用。実 USB NIC の標準動作に合わせる。`iMACAddress` 未提供時のみローカル管理 MAC にフォールバック。
   - デバイス自身が同じ MAC で IP スタックを動かすと point-to-point で衝突するため、デバイス側は自 netif MAC を広告値と別（1ビット反転）にする必要がある。EspUsbDevice は対応済み。
-- 今後: 非 active configuration の選択（enum_filter_cb）、複数 NIC 同時対応
+- 今後: descriptor調査後の自動再enumeration、複数 NIC 同時対応
 
 ### Phase 5: routing / NAT / DHCP server
 

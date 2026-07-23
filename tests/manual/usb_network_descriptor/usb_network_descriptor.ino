@@ -65,6 +65,14 @@ void setup()
     Serial.begin(115200);
     delay(5000);
 
+    usb.setConfigurationSelector([](const usb_device_desc_t &device) -> uint8_t
+                                 {
+        if (device.idVendor == 0x0b95 && device.idProduct == 0x1790)
+        {
+            return 2;
+        }
+        return 0; });
+
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                           {
         printDeviceSummary(device);
