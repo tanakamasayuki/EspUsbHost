@@ -11,6 +11,13 @@
 #include <new>
 #include <utility>
 
+// Targets whose DMA-capable memory is cached (ESP32-P4 and later) need explicit
+// cache maintenance around USB DMA buffers.
+#if defined(CONFIG_CACHE_L1_CACHE_LINE_SIZE) && CONFIG_CACHE_L1_CACHE_LINE_SIZE > 0
+#include "esp_cache.h"
+#define ESP_USB_HOST_DMA_CACHE_SYNC 1
+#endif
+
 #if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
 #endif
@@ -318,6 +325,41 @@ static esp_err_t espUsbHostNetifTransmit(void *h, void *buffer, size_t length)
              : ESP_FAIL;
 }
 #endif
+
+// Write back the CPU cache lines covering an IN transfer's DMA buffer before it
+// is submitted.
+//
+// ESP-IDF's HCD only synchronizes an IN buffer when the transfer completes
+// (M2C invalidate in hcd_urb_dequeue()); it never writes back before the DMA
+// starts. usb_host_transfer_alloc() zeroes the buffer through the cache, and
+// the allocator writes its own bookkeeping into the same memory, so a freshly
+// allocated transfer carries dirty lines. Evicting one of them while the
+// controller is writing puts stale CPU data on top of received data. On
+// ESP32-P4 this reproduces as a fixed 16-byte block of wrong bytes inside
+// otherwise correct sectors (tests/manual/msc_cache_coherency). MSC reads are
+// hit hardest because every command allocates a fresh, fully dirty buffer.
+//
+// The buffer belongs to the transfer alone (IDF aligns it to the cache line),
+// so writing it back here cannot disturb anything else, and clean lines make
+// the call nearly free on later submits.
+static void espUsbHostCacheSyncBeforeInTransfer(usb_transfer_t *transfer)
+{
+#if defined(ESP_USB_HOST_DMA_CACHE_SYNC)
+  if (!transfer || !transfer->data_buffer || transfer->data_buffer_size == 0)
+  {
+    return;
+  }
+  const esp_err_t err = esp_cache_msync(transfer->data_buffer,
+                                        transfer->data_buffer_size,
+                                        ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "esp_cache_msync(IN buffer) failed: %s", esp_err_to_name(err));
+  }
+#else
+  (void)transfer;
+#endif
+}
 
 static int16_t audioClampVolumeRaw(int16_t volume, const EspUsbHostAudioVolumeRange &range)
 {
@@ -3852,6 +3894,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     transfer->context = &context;
     transfer->num_bytes = transferLength;
 
+    if ((endpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0)
+    {
+      espUsbHostCacheSyncBeforeInTransfer(transfer);
+    }
     err = usb_host_transfer_submit(transfer);
     if (err == ESP_ERR_INVALID_STATE)
     {
@@ -6835,6 +6881,8 @@ bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
       endpoint.transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
     }
   }
+
+  espUsbHostCacheSyncBeforeInTransfer(endpoint.transfer);
 
   esp_err_t err = usb_host_transfer_submit(endpoint.transfer);
   if (err != ESP_OK)

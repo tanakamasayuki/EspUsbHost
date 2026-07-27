@@ -181,6 +181,8 @@ Only the OTG ports are usable as USB Host ports. Some boards make it hard to tel
 
 The ESP-IDF USB Host stack can use only one host peripheral at a time. On ESP32-P4, choose either FS OTG or HS OTG with `EspUsbHostConfig::port`; you cannot run both as USB Host simultaneously. In Arduino-library use, the USB device function uses HS, and FS cannot be selected for that device role.
 
+On ESP32-P4 the DMA-capable memory used for USB transfers is cached, and ESP-IDF's host driver only invalidates an IN buffer after the transfer completes — it never writes the buffer back before the DMA starts. Cache lines left dirty by the allocator can therefore be evicted over data the controller is still writing. This library writes those lines back with `esp_cache_msync()` immediately before every IN submit, so no application-side workaround is needed; `tests/manual/msc_cache_coherency` verifies this on real hardware.
+
 High-speed OTG support is still limited in practice. USB hubs are effectively not usable on HS OTG in the current environment. This library has confirmed a USB keyboard working as USB Host on ESP32-P4, but detailed ESP32-P4 validation is still incomplete.
 
 ## Installation

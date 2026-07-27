@@ -177,6 +177,8 @@ USB Hostとして使えるのはOTGポートです。ボードによっては、
 
 ESP-IDFのUSB Hostスタックは、同時に1つのHost peripheralしか利用できません。ESP32-P4では、`EspUsbHostConfig::port`でFS OTGまたはHS OTGのどちらかを選択します。FS OTGとHS OTGを同時にUSB Hostとして使うことはできません。Arduinoライブラリとして使う場合、USBデバイス機能はHS側を使用し、FS側をデバイス機能として選択することはできません。
 
+ESP32-P4ではUSB転送に使うDMA可能メモリがキャッシュされます。ESP-IDFのHost driverはIN用bufferを転送完了後にinvalidateするだけで、DMA開始前のwrite backを行わないため、allocatorが残したdirty cache lineがコントローラの書き込み中にevictされ、受信データを上書きすることがあります。本ライブラリはIN転送のsubmit直前に`esp_cache_msync()`でwrite backするため、アプリ側の対処は不要です。実機での確認は`tests/manual/msc_cache_coherency`で行えます。
+
 現時点ではHS OTGの実用上の制限もあります。現在の環境では、HS OTGでUSBハブは実質的に利用できません。このライブラリではESP32-P4のUSB HostでUSBキーボードが動作することは確認済みですが、ESP32-P4向けの詳細な検証はまだ十分ではありません。
 
 ## インストール
