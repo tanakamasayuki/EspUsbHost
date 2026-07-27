@@ -1406,6 +1406,9 @@ private:
     uint8_t mscMaxLun = 0;
     bool hasMscMaxLun = false;
     uint8_t mscLun = 0;
+    // Latched when SYNCHRONIZE CACHE(10) fails once, so later calls skip the
+    // command instead of stalling the bulk pipes again on the same device.
+    bool mscSyncCacheUnsupported = false;
     bool hasNetworkInterface = false;
     EspUsbHostNetworkInterfaceInfo networkInterface;
     bool networkLinkUp = false;

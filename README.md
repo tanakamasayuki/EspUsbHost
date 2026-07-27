@@ -764,7 +764,7 @@ The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limit
 
 Do not call these MSC APIs from USB callbacks, because they wait for USB transfer completion. Removing a USB drive while files are open or writes are in progress may lose unwritten data. After reconnecting media, call `begin()` again.
 
-Some non-compliant MSC devices stall or disconnect when they receive SCSI `SYNCHRONIZE CACHE(10)` during FatFs sync. If that command fails during FatFs `CTRL_SYNC`, the mount automatically falls back to skipping it for the rest of that mount. For known-problem devices, call `usbMassStorage.setSkipSyncCache(true)` before `begin()`, or pass `skipSyncCache = true` to `begin()` / `mscMount()` to skip it from the start. This improves compatibility but relies on normal write completion instead of an explicit media flush.
+Some non-compliant MSC devices stall or disconnect when they receive SCSI `SYNCHRONIZE CACHE(10)` during FatFs sync. Whenever `SYNCHRONIZE CACHE(10)` fails — through FatFs `CTRL_SYNC` or a direct `mscSynchronizeCache()` call — the library clears the resulting bulk-pipe halt, remembers the failure for that device, and skips the command for the rest of that mount and for later `mscMount()` calls until the device is reconnected. For known-problem devices, call `usbMassStorage.setSkipSyncCache(true)` before `begin()`, or pass `skipSyncCache = true` to `begin()` / `mscMount()` to skip it from the start. This improves compatibility but relies on normal write completion instead of an explicit media flush.
 
 ### USB Hub
 

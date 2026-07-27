@@ -1,6 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Recover the MSC bulk pipes automatically after a failed SCSI command. A stalled status phase now clears the bulk-IN halt and re-reads the CSW (Bulk-Only Transport 6.7.2), commands excluded from full reset recovery (`SYNCHRONIZE CACHE(10)`) still clear both bulk halts, and a transfer that cannot be enqueued because a pipe is halted clears the halt and retries once. Previously a device that stalled `SYNCHRONIZE CACHE(10)` left the pipe halted, so every later transfer failed with `ESP_ERR_INVALID_STATE` and `mscMount()` timed out.
+- (JA) SCSIコマンド失敗後にMSCのbulk pipeを自動復旧するようにしました。status phaseがSTALLした場合はbulk-INのhaltを解除してCSWを読み直し（Bulk-Only Transport 6.7.2）、full reset recoveryの対象外コマンド（`SYNCHRONIZE CACHE(10)`）でも両方のbulk haltを解除し、pipeがhalt状態でenqueueできないtransferはhalt解除後に1回再試行します。従来は`SYNCHRONIZE CACHE(10)`をSTALLするデバイスでpipeがhaltしたまま残り、以後のtransferがすべて`ESP_ERR_INVALID_STATE`となって`mscMount()`がtimeoutしていました。
+- (EN) Latch `SYNCHRONIZE CACHE(10)` failures per device: once it fails, `mscSynchronizeCache()` returns false without touching the bus and `mscMount()` starts with `skipSyncCache` enabled. The latch is cleared when the device is reconnected.
+- (JA) `SYNCHRONIZE CACHE(10)`の失敗をデバイス単位で記憶するようにしました。一度失敗すると`mscSynchronizeCache()`はbusにアクセスせずfalseを返し、`mscMount()`は最初から`skipSyncCache`有効で動作します。この記憶はデバイスの再接続で解除されます。
 
 ## 2.5.0
 - (EN) Update for Arduino-ESP32 3.3.11. With CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK enabled, enum_filter_cb must be set.
