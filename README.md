@@ -59,6 +59,7 @@ Host/Device loopback tests.
 - **MIDI** — USB MIDI input and output
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
+- **USB network** — CDC-NCM / CDC-ECM USB Ethernet adapters, either as raw Ethernet frames or attached as an lwIP (`esp_netif`) interface so `NetworkClient` / `HTTPClient` run over USB with no Wi-Fi
 - **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT and EP0 vendor requests
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
@@ -75,6 +76,7 @@ Host/Device loopback tests.
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT, and EP0 vendor IN/OUT requests |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
+| CDC-NCM / CDC-ECM — USB Ethernet with raw frame access and lwIP netif attach | 🔲 Experimental. Peer-tested against the EspUsbDevice `UsbNetwork` sketch and an AX88179A adapter. Adapters whose network function is not in the default configuration need `setConfigurationSelector()` and two enumeration passes |
 | MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental. Basic read/write and FatFs mounting with a single MSC device are peer/manual tested. Non-compliant devices, multiple MSC devices/LUNs, and full abnormal BOT recovery need further validation |
 | UVC — USB camera | 💭 Under consideration |
 
@@ -277,6 +279,12 @@ void loop() {
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | Print MSC capacity and dump the first block |
 | [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | Mount MSC as Arduino `fs::FS`, list files, and run a small write/read/delete probe |
 
+### Network
+
+| Sketch | Description |
+|--------|-------------|
+| [UsbNetwork](examples/UsbNetwork/) | Bring up a CDC-NCM/ECM USB Ethernet adapter as a DHCP-client lwIP netif and run an `HTTPClient` GET over USB. Prints the CDC-ECM/NCM candidates found in every configuration on connect |
+
 ### Vendor
 
 | Sketch | Description |
@@ -293,7 +301,15 @@ bool begin();
 bool begin(const EspUsbHostConfig &config);
 void end();
 bool ready() const;
+bool setConfigurationSelector(ConfigurationSelector selector);
 ```
+
+`setConfigurationSelector()` is registered before `begin()` and returns the
+configuration value to activate for a given device descriptor (`0` keeps the
+device default). It runs on the USB Host task during enumeration and must not
+block. It requires Arduino-ESP32 3.3.11 or later (`enum_filter_cb`); on older
+cores it returns `false` with `ESP_ERR_NOT_SUPPORTED`. It is mainly needed by
+USB Ethernet adapters that hide CDC-NCM/ECM in a non-default configuration.
 
 `end()` synchronously stops the client and daemon tasks, cancels and drains
 in-flight endpoint transfers, deregisters the client, waits for the IDF
@@ -784,6 +800,53 @@ USB Hub support covers detection, simple topology reporting, hub descriptor quer
 Per-port power control is only safe when the hub reports PPPS (Per-Port Power Switching). On ganged-power hubs, a port power request may affect multiple ports or the whole hub. USB 3.x hubs and products implemented internally as cascaded hubs can be more complex, so a self-powered USB 2.0 hub is recommended for validation.
 
 This is not a complete hub class driver. It exposes user-facing information and explicit port power control. Clearing port change bits, cascaded hub behavior, USB 3.x hub compatibility, and ESP32-P4 FS/HS differences remain validation items. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.
+
+### USB network (CDC-NCM / CDC-ECM)
+
+```cpp
+size_t getNetworkInterfaces(uint8_t address,
+                            EspUsbHostNetworkInterfaceInfo *interfaces,
+                            size_t maxInterfaces);
+bool networkOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool networkOpen(const EspUsbHostNetworkInterfaceInfo &network);
+void networkClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool networkLinkUp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+// Raw Ethernet frames
+void onNetworkFrame(NetworkFrameCallback callback);
+bool   networkWriteFrame(const uint8_t *frame, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t networkReadFrame(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+// lwIP (esp_netif) integration
+bool      networkAttachNetif(const EspUsbHostNetworkConfig &config = EspUsbHostNetworkConfig(),
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool      networkDetachNetif(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+IPAddress networkLocalIP(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool      networkStats(EspUsbHostNetworkStats &stats, uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+```
+
+`networkAttachNetif()` opens the CDC-NCM/ECM interface (if not already open) and
+registers it as an `esp_netif` interface, so standard Arduino networking
+(`NetworkClient`, `HTTPClient`) runs over the USB NIC. `EspUsbHostNetworkConfig`
+defaults to a DHCP client; set `dhcpClient=false` and fill
+`ip`/`gateway`/`subnet`(`/dns1`/`dns2`) for a static address. For raw Ethernet
+frames instead of an IP stack, use `onNetworkFrame()` / `networkWriteFrame()` /
+`networkReadFrame()` and do not attach a netif. CDC-NCM is preferred over
+CDC-ECM when a device offers both.
+
+`getNetworkInterfaces()` walks *every* configuration (`usb_host_get_config_desc()`)
+and reports each candidate with its `configurationValue`, while `networkOpen()`
+only accepts a candidate in the **active** configuration. An adapter whose
+network function is not in its default configuration therefore needs
+`setConfigurationSelector()` and two enumeration passes — see
+[examples/UsbNetwork/](examples/UsbNetwork/) for the details and for how to
+automate the second pass.
+
+lwIP integration requires `esp_netif` in the build (it is present in the standard
+Arduino-ESP32 core). Without it, `networkAttachNetif()` returns `false` and the
+raw frame API can still be used. Call these APIs from the application task, not
+from a USB callback.
 
 ### Device discovery
 
