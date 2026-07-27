@@ -18,6 +18,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s
 uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
 uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
+uv run --env-file .env pytest manual/msc_cache_coherency/msc_cache_coherency.py -v -s
 uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 ```
 
@@ -51,6 +52,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`usb_network_descriptor/`](usb_network_descriptor/) | configurationを横断して汎用CDC-ECM/CDC-NCM USB Ethernet descriptor候補を検出すること | CDC-ECMまたはCDC-NCM対応USB Ethernetアダプタ | ✅ |
 | [`msc_block/`](msc_block/) | 実USBメモリのMSC容量取得、LBA 0読み取り、FatFs/VFS mount、POSIXと`fs::FS` APIで一時ファイルのwrite/read/deleteを確認 | USBメモリ | ✅ |
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | mount中のUSBメモリを抜き、再接続後に同じFatFs/VFS pathへ再mountできることを確認 | USBメモリ | ✅ |
+| [`msc_cache_coherency/`](msc_cache_coherency/) | 同じLBA範囲をcache負荷下でmulti-sector readし、single-sector referenceと比較してCPU cacheとUSB DMAの非coherencyを検出（read only） | ESP32-P4 + USBストレージ（ESP32-S3はネガティブコントロール） | ✅ |
 | [`adb_connect/`](adb_connect/) | Android実機のADBを許可・永続RSA鍵で認証し、単一shell echo streamを検証すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限

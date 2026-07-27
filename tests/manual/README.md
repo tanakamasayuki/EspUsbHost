@@ -18,6 +18,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s
 uv run --env-file .env pytest manual/vcp_ftdi/vcp_ftdi.py -v -s
 uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
 uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
+uv run --env-file .env pytest manual/msc_cache_coherency/msc_cache_coherency.py -v -s
 uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 ```
 
@@ -51,6 +52,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`usb_network_descriptor/`](usb_network_descriptor/) | Detects generic CDC-ECM/CDC-NCM USB Ethernet descriptor candidates across configurations | USB Ethernet adapter with CDC-ECM or CDC-NCM support | ✅ |
 | [`msc_block/`](msc_block/) | Query real USB flash-drive MSC capacity, read LBA 0, mount FatFs/VFS, and write/read/delete temporary probe files through POSIX and `fs::FS` APIs | USB flash drive | ✅ |
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | Unplug a USB flash drive while mounted and verify the same FatFs/VFS path can mount again after reconnect | USB flash drive | ✅ |
+| [`msc_cache_coherency/`](msc_cache_coherency/) | Re-read one static LBA range as multi-sector transfers under cache pressure and compare against a single-sector reference, catching CPU-cache/USB-DMA incoherency (read only) | ESP32-P4 + USB storage (ESP32-S3 is a negative control) | ✅ |
 | [`adb_connect/`](adb_connect/) | Authorize a real Android ADB transport, authenticate with a persisted RSA key, and verify one shell echo stream | Android device with USB debugging enabled + USB data cable | ✅ |
 
 ## ESP32-S3 HCD Channel Limits
