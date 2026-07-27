@@ -135,6 +135,16 @@ deviceは2パスになる。パス1で列挙して `getNetworkInterfaces()`（�
 `loop()`から `networkDetachNetif()`（netifは `if_key = "USB_NCM"` 固定で、`end()`経路は
 netifを破棄しない）→ `end()` → `begin()` の順でhost stackを再起動する。`end()`は
 `onDeviceDisconnected()`を呼ばないので、sketch側の状態は自前で戻す必要がある。
+
+これはUSB仕様の制約ではなくESP-IDF APIの制約。USB仕様上は
+`GET_DESCRIPTOR(CONFIGURATION, index)` はAddress stateでも全indexに応答する義務があり、
+activeでないconfigurationのdescriptorも読める（`getNetworkInterfaces()` がそうしている）。
+仕様が定めているのは「activeなconfigurationは1つ」「interfaceはactive configuration内の
+ものしかclaimできない」だけ。2パスになるのは、`enum_filter_cb` が device descriptor しか
+渡さず USB transfer 禁止（`usb/usb_types_stack.h`）、`usb_host_get_config_desc()` が
+device handle 必須で列挙後専用、`usb_host.h` に列挙後のconfiguration変更APIが無い、という
+3点の帰結。TinyUSBは無関係（host側はESP-IDF USB Host Library）。
+
 詳細は `examples/UsbNetwork/README.ja.md` の「2パス必要な理由」「パス2を自動化する場合」。
 
 open 時の処理:

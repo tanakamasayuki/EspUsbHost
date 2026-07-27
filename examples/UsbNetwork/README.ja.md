@@ -68,6 +68,31 @@ CDC-NCM/ECM 機能が既定 configuration に**無い**アダプタは、1回の
 再列挙する、という2段構えになる。本sketchでは、表示されたselectorルールを追加してから
 ボードをリセットする操作がパス2に相当する。
 
+### これはESP-IDF APIの制約で、USB仕様の制約ではない
+
+TinyUSBは無関係（TinyUSBはdevice側。ここでのhost側はESP-IDFのUSB Host Library）で、
+USB仕様も2パスを要求していない。`GET_DESCRIPTOR(CONFIGURATION, index)` は標準リクエストで、
+deviceはAddress stateでも**全index**について応答する義務があるため、activeでない
+configurationのdescriptorも普通に読める。実際、config 1がactiveな状態でも
+`getNetworkInterfaces()` が config 2 のCDC-NCMを報告できるのはこのため。USB仕様が
+定めているのは「activeなconfigurationは同時に1つ」「interfaceはactive configuration内の
+ものしかclaimできない」という点だけ。
+
+2パスになるのはESP-IDF側のAPIの都合（Arduino-ESP32 core同梱のIDFヘッダで確認）:
+
+- `enum_filter_cb` は `bool (*)(const usb_device_desc_t *dev_desc, uint8_t *bConfigurationValue)`
+  （`usb/usb_types_stack.h`）で、ドキュメントに non-blocking であることと
+  **USB transferを投げてはならない**ことが明記されている。つまりselector内で
+  configuration descriptorを取りに行けない。
+- `usb_host_get_config_desc()`（`usb/usb_host.h`）は client handle と device handle が必要、
+  すなわち列挙完了後＝configurationが確定した後にしか使えない。
+- `usb_host.h` には列挙済みdeviceのconfigurationを変える公開APIが無い
+  （`set_configuration` も再列挙も無い）。EP0へ自分でSET_CONFIGURATIONを投げると、
+  stackが把握しているclaim済みinterfaceやpipeの状態と不整合になる。
+
+filter callbackにconfiguration descriptorも渡されるようになれば1パスで済む。それまでは、
+値を判明させる列挙と、その値を使う列挙は別々になる。
+
 ## パス2を自動化する場合
 
 USB host stack を再起動すれば全deviceが再列挙されるので、パス2をsketchから起こせる。

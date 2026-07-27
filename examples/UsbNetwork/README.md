@@ -75,6 +75,36 @@ Hence: pass 1 enumerates with the default configuration and discovers the value;
 pass 2 enumerates again with the selector returning it. In this sketch pass 2 is
 the manual board reset after you add the printed selector rule.
 
+### It is an ESP-IDF API constraint, not a USB one
+
+This has nothing to do with TinyUSB (that is the device side; the host side here
+is the ESP-IDF USB Host Library), and the USB specification does not require two
+passes either. `GET_DESCRIPTOR(CONFIGURATION, index)` is a standard request that
+a device must answer for **every** index while in the Address state, so
+descriptors of non-active configurations are perfectly readable — which is why
+`getNetworkInterfaces()` can report a CDC-NCM interface in configuration 2 while
+configuration 1 is active. What the USB specification does say is only that one
+configuration is active at a time, and that an interface can be claimed only in
+the active one.
+
+The two passes come from the ESP-IDF host API surface (checked against the IDF
+headers bundled with the Arduino-ESP32 core):
+
+- `enum_filter_cb` is `bool (*)(const usb_device_desc_t *dev_desc, uint8_t *bConfigurationValue)`
+  (`usb/usb_types_stack.h`), and its documentation states it must be
+  non-blocking and **must not submit any USB transfers** — so a selector cannot
+  fetch configuration descriptors itself.
+- `usb_host_get_config_desc()` (`usb/usb_host.h`) needs a client handle and a
+  device handle, i.e. it only works after enumeration has finished and the
+  configuration is already chosen.
+- `usb_host.h` exposes no way to change the configuration of an enumerated device
+  (no `set_configuration`, no re-enumerate). Issuing SET_CONFIGURATION on EP0
+  manually would desynchronize the stack's claimed interfaces and pipes.
+
+If the filter callback were handed the configuration descriptors as well, one
+pass would be enough; until then, discovering the value and using it necessarily
+happen in different enumerations.
+
 ## Automating the Second Pass
 
 The second pass can be triggered from the sketch by restarting the USB host
