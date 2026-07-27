@@ -754,7 +754,7 @@ MSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF F
 
 これらのMSC APIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。書き込み中やファイルを開いたままUSBメモリを抜いた場合、未反映データが失われる可能性があります。抜き差しを扱う場合は、再接続後に再度`begin()`してください。
 
-一部の非準拠MSCデバイスは、FatFs同期時のSCSI `SYNCHRONIZE CACHE(10)`でSTALLまたは切断することがあります。FatFsの`CTRL_SYNC`中にこのコマンドが失敗した場合、そのmountでは以後このコマンドを自動的にスキップします。問題が分かっているデバイスでは、`begin()`前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶか、`begin()` / `mscMount()`へ`skipSyncCache = true`を渡すと最初からスキップできます。互換性は上がりますが、明示的なメディアflushではなく通常のwrite完了に依存します。
+一部の非準拠MSCデバイスは、FatFs同期時のSCSI `SYNCHRONIZE CACHE(10)`でSTALLまたは切断することがあります。FatFsの`CTRL_SYNC`経由でも`mscSynchronizeCache()`の直接呼び出しでも、`SYNCHRONIZE CACHE(10)`が失敗するとライブラリはbulk pipeのhaltを解除し、そのデバイスでの失敗を記憶して、以後そのmountおよび再接続までの`mscMount()`でこのコマンドを自動的にスキップします。問題が分かっているデバイスでは、`begin()`前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶか、`begin()` / `mscMount()`へ`skipSyncCache = true`を渡すと最初からスキップできます。互換性は上がりますが、明示的なメディアflushではなく通常のwrite完了に依存します。
 
 ### USB Hub
 

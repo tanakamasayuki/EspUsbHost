@@ -3853,6 +3853,16 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     transfer->num_bytes = transferLength;
 
     err = usb_host_transfer_submit(transfer);
+    if (err == ESP_ERR_INVALID_STATE)
+    {
+      // The pipe is still halted from an earlier failed command. Recover it
+      // here so one bad command cannot wedge every later MSC transfer.
+      ESP_LOGW(TAG, "MSC endpoint 0x%02x is halted, recovering before retry", endpointAddress);
+      if (mscClearEndpointHalt(device, endpointAddress, timeoutMs))
+      {
+        err = usb_host_transfer_submit(transfer);
+      }
+    }
     if (err != ESP_OK)
     {
       ESP_LOGW(TAG, "usb_host_transfer_submit(MSC ep=0x%02x) failed: %s", endpointAddress, esp_err_to_name(err));
@@ -3926,11 +3936,28 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   if (ok)
   {
     actual = 0;
-    const bool cswTransferOk = submitAndWait(device.mscInEndpointAddress,
-                                             nullptr,
-                                             reinterpret_cast<uint8_t *>(&csw),
-                                             sizeof(csw),
-                                             actual);
+    bool cswTransferOk = submitAndWait(device.mscInEndpointAddress,
+                                       nullptr,
+                                       reinterpret_cast<uint8_t *>(&csw),
+                                       sizeof(csw),
+                                       actual);
+    if (!cswTransferOk)
+    {
+      // Bulk-Only Transport 6.7.2: a stalled status phase is recovered by
+      // clearing the bulk-IN halt and reading the CSW once more. Do this even
+      // when the full reset recovery is suppressed, otherwise the halted pipe
+      // makes every later transfer fail to enqueue.
+      if (mscClearEndpointHalt(device, device.mscInEndpointAddress, timeoutMs))
+      {
+        actual = 0;
+        csw = EspUsbHostMscCsw();
+        cswTransferOk = submitAndWait(device.mscInEndpointAddress,
+                                      nullptr,
+                                      reinterpret_cast<uint8_t *>(&csw),
+                                      sizeof(csw),
+                                      actual);
+      }
+    }
     ok = cswTransferOk &&
          actual == sizeof(csw) &&
          csw.signature == USB_MSC_CSW_SIGNATURE &&
@@ -3940,6 +3967,10 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       if (allowResetRecovery)
       {
         mscResetRecovery(device, timeoutMs);
+      }
+      else
+      {
+        mscClearEndpointHalt(device, device.mscOutEndpointAddress, timeoutMs);
       }
     }
     if (cswTransferOk && !ok)
@@ -3953,6 +3984,11 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       if (allowResetRecovery)
       {
         mscResetRecovery(device, timeoutMs);
+      }
+      else
+      {
+        mscClearEndpointHalt(device, device.mscInEndpointAddress, timeoutMs);
+        mscClearEndpointHalt(device, device.mscOutEndpointAddress, timeoutMs);
       }
     }
     if (ok && csw.status != USB_MSC_CSW_STATUS_PASSED)
@@ -3985,6 +4021,12 @@ bool EspUsbHost::mscCommand(DeviceState &device,
     if (allowResetRecovery)
     {
       mscResetRecovery(device, timeoutMs);
+    }
+    else
+    {
+      // Still leave both bulk pipes usable for the next command.
+      mscClearEndpointHalt(device, device.mscInEndpointAddress, timeoutMs);
+      mscClearEndpointHalt(device, device.mscOutEndpointAddress, timeoutMs);
     }
   }
 
@@ -4505,9 +4547,24 @@ bool EspUsbHost::mscSynchronizeCache(uint8_t address, uint32_t timeoutMs)
     return false;
   }
 
+  if (device->mscSyncCacheUnsupported)
+  {
+    // Already known to fail on this device: reissuing it only stalls the bulk
+    // pipes again, so report the failure without touching the bus.
+    setLastError(ESP_ERR_NOT_SUPPORTED);
+    return false;
+  }
+
   uint8_t command[10] = {};
   command[0] = SCSI_CMD_SYNCHRONIZE_CACHE_10;
-  return mscCommand(*device, command, sizeof(command), nullptr, 0, false, timeoutMs);
+  if (mscCommand(*device, command, sizeof(command), nullptr, 0, false, timeoutMs))
+  {
+    return true;
+  }
+  ESP_LOGW(TAG, "MSC SYNCHRONIZE CACHE failed on addr=%u, skipping it for this device",
+           device->info.address);
+  device->mscSyncCacheUnsupported = true;
+  return false;
 }
 
 bool EspUsbHost::mscMount(const char *basePath,
@@ -4587,7 +4644,7 @@ bool EspUsbHost::mscMount(const char *basePath,
   mount->pdrv = pdrv;
   mount->blockCount = blockInfo.blockCount;
   mount->blockSize = blockInfo.blockSize;
-  mount->skipSyncCache = skipSyncCache;
+  mount->skipSyncCache = skipSyncCache || device->mscSyncCacheUnsupported;
   strncpy(mount->basePath, basePath, sizeof(mount->basePath) - 1);
   snprintf(mount->fatDrive, sizeof(mount->fatDrive), "%u:", static_cast<unsigned>(pdrv));
 
@@ -4612,6 +4669,16 @@ bool EspUsbHost::mscMount(const char *basePath,
   if (mountResult != FR_OK)
   {
     ESP_LOGW(TAG, "f_mount(%s) failed: %d", mount->fatDrive, mountResult);
+    if (mountResult == FR_NO_FILESYSTEM)
+    {
+      // FatFs derives the FAT type from the cluster count, so a volume
+      // formatted as FAT32 with fewer than 65525 clusters (large cluster size
+      // on a small medium) is rejected even though PCs mount it. Reformat with
+      // a smaller cluster size, or as FAT16/FAT12.
+      ESP_LOGW(TAG, "mscMount(%s): no FatFs-compatible volume (FAT12/16/32 only, "
+                    "and a FAT32 volume needs more than 65525 clusters)",
+               basePath);
+    }
     esp_vfs_fat_unregister_path(mount->basePath);
     ff_diskio_unregister(pdrv);
     *mount = EspUsbHostMscFatMount();
