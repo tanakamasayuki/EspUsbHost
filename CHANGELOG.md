@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.5.2
 - (EN) Fix silent data corruption on bulk/interrupt IN transfers on ESP32-P4. ESP-IDF's HCD only invalidates an IN DMA buffer when the transfer completes and never writes it back beforehand, so cache lines left dirty by `usb_host_transfer_alloc()` (which zeroes the buffer) or by heap bookkeeping in the same memory can be evicted while the controller is writing, overwriting received data. The library now writes those lines back with `esp_cache_msync()` immediately before every IN submit. The MSC path was hit hardest because it allocates a fresh transfer for each command. Verified on ESP32-P4 with the new `tests/manual/msc_cache_coherency` test: 50 of 64 multi-sector reads were corrupted before the fix, 0 of 64 after it (three consecutive runs). The change compiles out on targets without cached DMA memory such as ESP32-S3.
 - (JA) ESP32-P4でのbulk/interrupt IN転送のデータ化けを修正しました。ESP-IDFのHCDはIN用DMA bufferを転送完了時にinvalidateするだけで、DMA開始前のwrite backを行いません。そのため`usb_host_transfer_alloc()`のゼロクリアや同じメモリに対するheapの管理書き込みで残ったdirty cache lineがDMA中にevictされ、受信データを上書きすることがあります。本ライブラリはIN転送のsubmit直前に`esp_cache_msync()`でこれらのlineをwrite backするようにしました。MSCはコマンドごとにtransferを確保するため最も影響を受けていました。新規の`tests/manual/msc_cache_coherency`テストをESP32-P4実機で実行し、修正前は64回中50回のmulti-sector readが破損、修正後は3回連続で64回中0回であることを確認しています。ESP32-S3などDMAメモリがキャッシュされないターゲットでは、この処理はコンパイル時に除去されます。
 - (EN) Add the `msc_cache_coherency` manual test: it re-reads one static LBA range as 32 KiB multi-sector transfers under cache pressure and compares against a single-sector reference, reporting the offset of every corrupted run. The test only reads from the device.
