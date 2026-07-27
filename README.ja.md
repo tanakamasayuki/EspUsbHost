@@ -55,6 +55,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **MIDI** — USB MIDI入出力
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
+- **USBネットワーク** — CDC-NCM / CDC-ECMのUSB Ethernetアダプタに対応。生Ethernetフレームでも、lwIP（`esp_netif`）インターフェースとしてattachしてWi-Fi無しで`NetworkClient` / `HTTPClient`をUSB経由で動かすことも可能
 - **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUTとEP0 vendor request
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
@@ -71,6 +72,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT、EP0 vendor IN/OUT requestに対応 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
+| CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
 | MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的。単一MSCデバイスの基本read/writeとFatFsマウントはpeer/manual確認済み。非準拠デバイス、複数MSC・複数LUN、異常系BOT完全復旧は継続確認 |
 | UVC — USBカメラ | 💭 検討中 |
 
@@ -273,6 +275,12 @@ void loop() {
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | MSCの容量情報を表示し、先頭ブロックをダンプ |
 | [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | MSCをArduino `fs::FS`としてマウントし、ファイル一覧と小さなwrite/read/delete確認を行う |
 
+### Network
+
+| スケッチ | 説明 |
+|----------|------|
+| [UsbNetwork](examples/UsbNetwork/) | CDC-NCM/ECMのUSB EthernetアダプタをDHCPクライアントのlwIP netifとして立ち上げ、USB経由で`HTTPClient` GETを実行。接続時に全configurationのCDC-ECM/NCM候補を表示 |
+
 ### Vendor
 
 | スケッチ | 説明 |
@@ -289,7 +297,14 @@ bool begin();
 bool begin(const EspUsbHostConfig &config);
 void end();
 bool ready() const;
+bool setConfigurationSelector(ConfigurationSelector selector);
 ```
+
+`setConfigurationSelector()`は`begin()`より前に登録し、渡されたdevice descriptorに対して
+activeにするconfiguration値を返します（`0`はdevice既定値を維持）。列挙中にUSB Host task上で
+実行されるためブロックしてはいけません。Arduino-ESP32 3.3.11以降（`enum_filter_cb`）が必要で、
+それ以前のcoreでは`ESP_ERR_NOT_SUPPORTED`で`false`を返します。主に、CDC-NCM/ECMを既定以外の
+configurationに持つUSB Ethernetアダプタで必要になります。
 
 `end()`はclient/daemon taskを同期的に停止し、実行中のendpoint transferを
 cancelしてcallback返却まで待ち、clientをderegisterし、ESP-IDFの`ALL_FREE`
@@ -774,6 +789,49 @@ USB Hubは検出、簡易トポロジー表示、Hub descriptor取得、port sta
 ポート単位で安全に電源制御するには、HubがPPPS（Per-Port Power Switching）対応として報告される必要があります。ganged powerのHubでは、指定ポートだけでなく複数ポートまたはHub全体に影響する場合があります。USB 3.x Hubや内部で多段Hubになっている製品は挙動が複雑なため、確認用途ではセルフパワーのUSB 2.0 Hubを推奨します。
 
 現状はHub class driverとしての完全な管理ではなく、利用者向けの情報取得と明示的なポート電源制御を提供する段階です。port change bitのclear、複数段Hub、USB 3.x Hub互換性、ESP32-P4のFS/HS差分は継続確認項目です。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。
+
+### USBネットワーク（CDC-NCM / CDC-ECM）
+
+```cpp
+size_t getNetworkInterfaces(uint8_t address,
+                            EspUsbHostNetworkInterfaceInfo *interfaces,
+                            size_t maxInterfaces);
+bool networkOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool networkOpen(const EspUsbHostNetworkInterfaceInfo &network);
+void networkClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool networkLinkUp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+// 生Ethernetフレーム
+void onNetworkFrame(NetworkFrameCallback callback);
+bool   networkWriteFrame(const uint8_t *frame, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t networkReadFrame(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+// lwIP（esp_netif）統合
+bool      networkAttachNetif(const EspUsbHostNetworkConfig &config = EspUsbHostNetworkConfig(),
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool      networkDetachNetif(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+IPAddress networkLocalIP(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool      networkStats(EspUsbHostNetworkStats &stats, uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+```
+
+`networkAttachNetif()`はCDC-NCM/ECM interfaceを（未openなら）openし、`esp_netif`の
+インターフェースとして登録します。これにより標準のArduinoネットワーク（`NetworkClient`、
+`HTTPClient`）がUSB NIC経由で動作します。`EspUsbHostNetworkConfig`は既定でDHCPクライアントで、
+固定アドレスにするなら`dhcpClient=false`にして`ip`/`gateway`/`subnet`（`/dns1`/`dns2`）を
+設定します。IPスタックを使わず生Ethernetフレームを扱う場合は`onNetworkFrame()` /
+`networkWriteFrame()` / `networkReadFrame()`を使い、netifはattachしません。deviceが両方に
+対応している場合はCDC-NCMをCDC-ECMより優先します。
+
+`getNetworkInterfaces()`は**全**configurationを走査（`usb_host_get_config_desc()`）して候補を
+`configurationValue`付きで返しますが、`networkOpen()`は**active**なconfiguration内の候補しか
+受け付けません。したがって、network機能が既定configurationに無いアダプタでは
+`setConfigurationSelector()`と2パスの列挙が必要です。詳細と2パス目の自動化方法は
+[examples/UsbNetwork/](examples/UsbNetwork/)を参照してください。
+
+lwIP統合にはビルドに`esp_netif`が必要です（標準のArduino-ESP32 coreには含まれます）。無い場合
+`networkAttachNetif()`は`false`を返し、生フレームAPIは引き続き使えます。これらのAPIはUSB
+コールバック内ではなくapplication taskから呼び出してください。
 
 ### デバイス探索
 
