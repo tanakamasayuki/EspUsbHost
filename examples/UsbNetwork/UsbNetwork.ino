@@ -7,8 +7,15 @@
 //
 // Arduino-ESP32 3.3.11 and later can select a non-default USB configuration
 // during enumeration. The selector below chooses the CDC-NCM configuration of
-// an AX88179A. Add rules for other adapters after inspecting their descriptors
-// with tests/manual/usb_network_descriptor.
+// an AX88179A. For other adapters, plug the device in and read the "network
+// candidates" report this sketch prints on connect: it lists every CDC-ECM /
+// CDC-NCM interface found in *any* configuration, so the configuration value to
+// return from the selector can be read straight off the serial log.
+//
+// Adapters whose network function is not in the default configuration therefore
+// need two enumerations: one to discover the value, one to run with it (add the
+// printed rule, then reset the board). See README "Why Two Passes Are Needed"
+// for the reasons and for how to automate pass 2 with end() / begin().
 
 EspUsbHost usb;
 
@@ -16,9 +23,59 @@ EspUsbHost usb;
 // "http://192.168.7.1/" is suitable for the EspUsbDevice UsbNetwork peer.
 static constexpr const char *HTTP_TEST_URL = "https://httpbin.org/get";
 static uint8_t nicAddress = 0;
+static uint16_t nicVid = 0;
+static uint16_t nicPid = 0;
+static uint8_t nicConfiguration = 0;
+static uint32_t nicConnectedAt = 0;
+static bool candidatesReported = false;
 static bool attached = false;
 static uint32_t lastPoll = 0;
 static bool httpTestDone = false;
+
+// Print every CDC-ECM / CDC-NCM candidate the device exposes, in every
+// configuration, together with the configuration that is currently active.
+// networkOpen() only accepts a candidate from the active configuration, so this
+// is what tells you whether a selector rule is needed and which value to use.
+static void reportNetworkCandidates(uint8_t address)
+{
+  EspUsbHostNetworkInterfaceInfo networks[ESP_USB_HOST_MAX_NETWORK_INTERFACES];
+  const size_t count = usb.getNetworkInterfaces(address, networks, ESP_USB_HOST_MAX_NETWORK_INTERFACES);
+
+  Serial.printf("Network candidates: %u (active configuration=%u)\n",
+                static_cast<unsigned>(count), nicConfiguration);
+  if (count == 0)
+  {
+    Serial.println("  none - this device does not expose CDC-ECM or CDC-NCM");
+    return;
+  }
+
+  bool usable = false;
+  for (size_t i = 0; i < count; i++)
+  {
+    espUsbHostPrint(networks[i], Serial);
+    if (!networks[i].complete())
+    {
+      continue;
+    }
+    if (networks[i].configurationValue == nicConfiguration)
+    {
+      usable = true;
+    }
+    else
+    {
+      Serial.printf("  -> %s lives in configuration %u; add to the selector:\n",
+                    espUsbHostNetworkProtocolName(networks[i].protocol),
+                    networks[i].configurationValue);
+      Serial.printf("       if (device.idVendor == 0x%04x && device.idProduct == 0x%04x) return %u;\n",
+                    nicVid, nicPid, networks[i].configurationValue);
+    }
+  }
+
+  if (usable)
+  {
+    Serial.println("  -> a usable candidate is in the active configuration; no selector rule needed");
+  }
+}
 
 void setup()
 {
@@ -42,12 +99,18 @@ void setup()
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
                           nicAddress = device.address;
-                          Serial.printf("Device connected: address=%u vid=%04x pid=%04x\n",
-                                        device.address, device.vid, device.pid); });
+                          nicVid = device.vid;
+                          nicPid = device.pid;
+                          nicConfiguration = device.configurationValue;
+                          nicConnectedAt = millis();
+                          candidatesReported = false;
+                          Serial.printf("Device connected: address=%u vid=%04x pid=%04x config=%u\n",
+                                        device.address, device.vid, device.pid, device.configurationValue); });
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              (void)device;
                              nicAddress = 0;
+                             candidatesReported = false;
                              attached = false;
                              httpTestDone = false;
                              Serial.println("Device disconnected"); });
@@ -60,6 +123,14 @@ void setup()
 
 void loop()
 {
+  // Descriptor scanning must not run inside the USB client task, so the report
+  // is emitted here rather than from onDeviceConnected().
+  if (nicAddress && !candidatesReported && millis() - nicConnectedAt > 500)
+  {
+    candidatesReported = true;
+    reportNetworkCandidates(nicAddress);
+  }
+
   // Once a USB network adapter is enumerated, attach it as a DHCP-client netif.
   if (nicAddress && !attached)
   {

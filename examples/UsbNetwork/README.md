@@ -4,8 +4,9 @@
 
 > ⚠️ **Experimental.** Arduino-ESP32 3.3.11 and later can select the active USB
 > configuration during enumeration. This example selects CDC-NCM configuration
-> 2 for the AX88179A (`0b95:1790`). For another adapter, inspect it with
-> `tests/manual/usb_network_descriptor` and add a selector rule.
+> 2 for the AX88179A (`0b95:1790`). For another adapter, just plug it in: this
+> sketch prints the candidate list and the selector line to add on connect —
+> paste it in and reset the board (see "Why Two Passes Are Needed").
 
 Turns the board into a USB *host* for a USB Ethernet adapter (CDC-NCM / CDC-ECM)
 and brings it up as an lwIP network interface. Plug in a USB NIC — or a second
@@ -29,6 +30,9 @@ the network *host* that receives a `192.168.7.x` lease and can reach it.
 
 - Enumerates the USB device and, if it exposes a CDC-NCM/ECM interface, attaches
   it as a DHCP-client lwIP netif with `networkAttachNetif()`
+- Prints, on connect, every CDC-ECM / CDC-NCM candidate found in *any*
+  configuration along with the active configuration value, so the selector rule
+  for an unknown adapter can be read straight off the serial log
 - Prints the acquired IP address
 - Optionally performs an `HTTPClient` GET over USB when `HTTP_TEST_URL` is set
 
@@ -47,11 +51,92 @@ the network *host* that receives a `192.168.7.x` lease and can reach it.
 - For raw Ethernet frames instead of an IP stack, use `usb.onNetworkFrame()` /
   `usb.networkWriteFrame()` / `usb.networkReadFrame()` and do not attach a netif.
 
+## Why Two Passes Are Needed
+
+An adapter whose CDC-NCM/ECM function is *not* in its default configuration
+cannot be brought up in a single enumeration:
+
+1. `setConfigurationSelector()` is driven by the USB Host Library's
+   `enum_filter_cb`, which is called with **only the device descriptor**. No
+   device handle exists yet, so the configuration descriptors — the only place
+   the CDC-NCM/ECM interfaces are visible — cannot be read from inside the
+   selector. The number must already be known when the selector returns.
+2. Reading them requires an enumerated device: `usb.getNetworkInterfaces()`
+   fetches config `1..bNumConfigurations` with `usb_host_get_config_desc()` and
+   reports each candidate's `configurationValue`. This is what the sketch prints
+   on connect — but by then the device is already running some other
+   configuration.
+3. `networkOpen()` / `networkAttachNetif()` only accept a candidate whose
+   `configurationValue` equals the **active** configuration (an interface in a
+   non-active configuration cannot be claimed). So the discovered value only
+   takes effect on the *next* enumeration.
+
+Hence: pass 1 enumerates with the default configuration and discovers the value;
+pass 2 enumerates again with the selector returning it. In this sketch pass 2 is
+the manual board reset after you add the printed selector rule.
+
+## Automating the Second Pass
+
+The second pass can be triggered from the sketch by restarting the USB host
+stack, which re-enumerates every device. Do it from `loop()` — `end()` refuses
+to run on a USB Host task — and in this order:
+
+```cpp
+static uint16_t forcedVid = 0;
+static uint16_t forcedPid = 0;
+static uint8_t forcedConfiguration = 0;   // read by the selector on pass 2
+
+// setup(): registered once, before begin(). end() keeps it, so it does not have
+// to be re-registered on restart.
+usb.setConfigurationSelector([](const usb_device_desc_t &device) -> uint8_t {
+  if (forcedConfiguration && device.idVendor == forcedVid && device.idProduct == forcedPid) {
+    return forcedConfiguration;
+  }
+  return 0;
+});
+
+// loop(): after the candidate scan found a complete candidate in another
+// configuration (and only if no value is latched yet, so a wrong guess cannot
+// restart forever).
+if (!forcedConfiguration && candidate.configurationValue != nicConfiguration) {
+  forcedVid = nicVid;
+  forcedPid = nicPid;
+  forcedConfiguration = candidate.configurationValue;
+
+  usb.networkDetachNetif(nicAddress);  // REQUIRED before end(): the netif uses the
+                                       // fixed if_key "USB_NCM" and the end() path
+                                       // does not destroy it, so esp_netif_new()
+                                       // would fail on the next attach
+  usb.end();                           // ~up to 3 s; drains transfers, closes devices
+  nicAddress = 0;                      // end() does not fire onDeviceDisconnected(),
+  attached = false;                    // so the sketch resets its own state
+  candidatesReported = false;
+  usb.begin();                         // (or begin(cfg) with the same config as before)
+}
+```
+
+Notes on this approach:
+
+- The restart cycle costs roughly 1-2 s plus re-enumeration; it happens once per
+  unknown adapter, on first plug.
+- Storing `vid/pid → configurationValue` in `Preferences` (NVS) lets later boots
+  select the right configuration on pass 1, so the restart disappears.
+- Latch `forcedConfiguration` before restarting and never restart twice for the
+  same device, otherwise an adapter whose candidate never becomes active (or a
+  scan that returns nothing) turns into a restart loop.
+- The restart re-enumerates *all* attached devices, not just the adapter. When
+  the adapter is behind an external hub with per-port power switching,
+  `usb.setHubPortPower(hubAddress, port, false/true)` re-enumerates only that
+  port instead.
+
 ## Notes
 
 - Configuration selection requires Arduino-ESP32 3.3.11 or later.
 - The selector only receives the device descriptor, so the configuration number
-  must be determined beforehand.
+  cannot be discovered from inside the selector. The candidate report printed on
+  connect (via `usb.getNetworkInterfaces()`, which walks every configuration)
+  gives the value to hard-code in the selector; after adding the rule, reset the
+  board so the device is re-enumerated with that configuration.
 - CDC-NCM is preferred over CDC-ECM when a device offers both.
 - The interface is opened only from `loop()` context, never from the USB device
   callback (enumeration descriptor access is not allowed on the client task).

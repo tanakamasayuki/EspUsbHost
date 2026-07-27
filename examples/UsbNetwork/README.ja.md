@@ -4,8 +4,9 @@
 
 > ⚠️ **実験的機能です。** Arduino-ESP32 3.3.11以降では、列挙時にactive
 > configurationを選択できます。この例はAX88179A (`0b95:1790`) のCDC-NCM
-> configuration 2を選びます。他のアダプタでは `tests/manual/usb_network_descriptor`
-> でconfigurationを調査し、selectorへ規則を追加してください。
+> configuration 2を選びます。他のアダプタでは、そのまま接続すれば本sketchが接続時に
+> 候補一覧とselectorへ追加する1行を表示するので、それを貼ってリセットしてください
+> （→「2パス必要な理由」）。
 
 USB Ethernet アダプタ（CDC-NCM / CDC-ECM）に対する USB *ホスト* として動作し、
 lwIP のネットワークインターフェースとして立ち上げます。USB NIC、または兄弟ライブラリの
@@ -28,6 +29,9 @@ lwIP のネットワークインターフェースとして立ち上げます。
 
 - USB デバイスを列挙し、CDC-NCM/ECM interface があれば `networkAttachNetif()` で
   DHCP クライアントの lwIP netif として attach する
+- 接続時に、**すべての** configuration から見つかった CDC-ECM / CDC-NCM 候補と現在
+  active な configuration 値を表示する。未知のアダプタでも、selectorに書く値が
+  シリアルログからそのまま分かる
 - 取得した IP アドレスを表示する
 - 任意の `HTTP_TEST_URL` を設定した場合、`HTTPClient`でUSB経由のGETを実行する
 
@@ -44,10 +48,81 @@ lwIP のネットワークインターフェースとして立ち上げます。
 - IP スタックを使わず生の Ethernet フレームを扱う場合は `usb.onNetworkFrame()` /
   `usb.networkWriteFrame()` / `usb.networkReadFrame()` を使い、netif は attach しない。
 
+## 2パス必要な理由
+
+CDC-NCM/ECM 機能が既定 configuration に**無い**アダプタは、1回の列挙では接続できない。
+
+1. `setConfigurationSelector()` はUSB Host Libraryの `enum_filter_cb` で駆動され、
+   渡ってくるのは **device descriptorだけ**。この時点ではdevice handleが存在しないので、
+   CDC-NCM/ECM interfaceが見えるconfiguration descriptorをselector内から読むことは
+   できない。selectorが値を返す時点で番号は既知でなければならない。
+2. configuration descriptorを読むには列挙済みのdeviceが必要。`usb.getNetworkInterfaces()`
+   が `usb_host_get_config_desc()` で config `1..bNumConfigurations` を取得し、候補ごとの
+   `configurationValue` を返す（本sketchが接続時に表示しているもの）。ただしその時点で
+   deviceは既に別のconfigurationで動作している。
+3. `networkOpen()` / `networkAttachNetif()` は `configurationValue` が **active な**
+   configuration と一致する候補しか受け付けない（active でない configuration の
+   interface は claim できない）。よって判明した値が効くのは**次回の列挙**から。
+
+つまり、パス1で既定configurationで列挙して値を判明させ、パス2でselectorがその値を返して
+再列挙する、という2段構えになる。本sketchでは、表示されたselectorルールを追加してから
+ボードをリセットする操作がパス2に相当する。
+
+## パス2を自動化する場合
+
+USB host stack を再起動すれば全deviceが再列挙されるので、パス2をsketchから起こせる。
+`end()` はUSB Host task上では実行を拒否するので `loop()` から、かつ以下の順序で行う。
+
+```cpp
+static uint16_t forcedVid = 0;
+static uint16_t forcedPid = 0;
+static uint8_t forcedConfiguration = 0;   // パス2でselectorが参照する
+
+// setup(): begin()より前に1回だけ登録する。end()はselectorを保持するので
+// 再起動時の再登録は不要。
+usb.setConfigurationSelector([](const usb_device_desc_t &device) -> uint8_t {
+  if (forcedConfiguration && device.idVendor == forcedVid && device.idProduct == forcedPid) {
+    return forcedConfiguration;
+  }
+  return 0;
+});
+
+// loop(): 候補スキャンで、別configurationに complete な候補が見つかったとき
+// （値がまだ確定していない場合だけ。誤判定で無限に再起動しないため）
+if (!forcedConfiguration && candidate.configurationValue != nicConfiguration) {
+  forcedVid = nicVid;
+  forcedPid = nicPid;
+  forcedConfiguration = candidate.configurationValue;
+
+  usb.networkDetachNetif(nicAddress);  // end()の前に必須。netifは if_key "USB_NCM" 固定で、
+                                       // end()経路はnetifを破棄しないため、次回のattachで
+                                       // esp_netif_new()が失敗する
+  usb.end();                           // 最大3秒程度。transferをdrainしdeviceをcloseする
+  nicAddress = 0;                      // end()は onDeviceDisconnected() を呼ばないので、
+  attached = false;                    // sketch側の状態は自分で戻す
+  candidatesReported = false;
+  usb.begin();                         // （begin(cfg)を使っていたなら同じcfgで）
+}
+```
+
+この方式の注意点:
+
+- 再起動サイクルのコストは概ね1〜2秒＋再列挙。未知のアダプタの初回接続時に1回だけ発生する。
+- `vid/pid → configurationValue` を `Preferences`（NVS）に保存すれば、次回起動以降は
+  パス1で正しいconfigurationを選べるので再起動は消える。
+- 再起動前に `forcedConfiguration` をラッチし、同じdeviceで2回以上再起動しないこと。
+  候補がactiveにならないアダプタや候補ゼロの場合、再起動ループになる。
+- 再起動は接続中の**全**deviceを再列挙する。アダプタがper-port power switching対応の
+  外付けハブ配下にあるなら、`usb.setHubPortPower(hubAddress, port, false/true)` で
+  そのポートだけ再列挙する方法もある。
+
 ## 注意
 
 - configuration選択にはArduino-ESP32 3.3.11以降が必要。
-- selectorに渡されるのはdevice descriptorだけなので、configuration番号は事前調査が必要。
+- selectorに渡されるのはdevice descriptorだけなので、selector内でconfiguration番号を
+  調べることはできない。接続時に表示される候補一覧（全configurationを走査する
+  `usb.getNetworkInterfaces()`による）でselectorに書く値が分かるので、ルールを追加したら
+  ボードをリセットしてそのconfigurationで再列挙させる。
 - device が両方に対応している場合は CDC-NCM を CDC-ECM より優先する。
 - interface の open は必ず `loop()` 文脈で行い、USB device コールバック内では行わない
   （enumeration descriptor へのアクセスは client task 上では不可）。
