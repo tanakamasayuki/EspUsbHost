@@ -129,6 +129,14 @@ bool networkReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 現在の実装は、candidate の `configurationValue` が現在 active な configuration と一致する場合だけ open する。active configurationは`begin()`前に`setConfigurationSelector()`を登録して列挙時に選ぶ。
 
+selectorには device descriptor しか渡らないため、CDC-NCM/ECM が既定 configuration に無い
+deviceは2パスになる。パス1で列挙して `getNetworkInterfaces()`（全configurationを走査）で
+`configurationValue` を判明させ、パス2でselectorがその値を返して再列挙する。自動化する場合は
+`loop()`から `networkDetachNetif()`（netifは `if_key = "USB_NCM"` 固定で、`end()`経路は
+netifを破棄しない）→ `end()` → `begin()` の順でhost stackを再起動する。`end()`は
+`onDeviceDisconnected()`を呼ばないので、sketch側の状態は自前で戻す必要がある。
+詳細は `examples/UsbNetwork/README.ja.md` の「2パス必要な理由」「パス2を自動化する場合」。
+
 open 時の処理:
 
 1. candidate が active configuration 内にあることを確認
