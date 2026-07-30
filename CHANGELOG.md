@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add the `LICENSE` file (MIT License) and a License section to both READMEs. The license was previously unstated.
+- (JA) `LICENSE`ファイル（MIT License）と、README両版のライセンス節を追加しました。従来はライセンスが明示されていませんでした。
 
 ## 2.5.2
 - (EN) Fix silent data corruption on bulk/interrupt IN transfers on ESP32-P4. ESP-IDF's HCD only invalidates an IN DMA buffer when the transfer completes and never writes it back beforehand, so cache lines left dirty by `usb_host_transfer_alloc()` (which zeroes the buffer) or by heap bookkeeping in the same memory can be evicted while the controller is writing, overwriting received data. The library now writes those lines back with `esp_cache_msync()` immediately before every IN submit. The MSC path was hit hardest because it allocates a fresh transfer for each command. Verified on ESP32-P4 with the new `tests/manual/msc_cache_coherency` test: 50 of 64 multi-sector reads were corrupted before the fix, 0 of 64 after it (three consecutive runs). The change compiles out on targets without cached DMA memory such as ESP32-S3.

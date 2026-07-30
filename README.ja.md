@@ -934,3 +934,7 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
    - ライブラリの `.zip` アーカイブをビルド
    - `CHANGELOG.md` からリリースノートを抽出
    - アーカイブとリリースノートを添付した GitHub Release を作成
+
+## ライセンス
+
+MIT License です。[LICENSE](LICENSE) を参照してください。

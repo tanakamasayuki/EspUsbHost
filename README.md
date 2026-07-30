@@ -956,3 +956,7 @@ rather than library-version size trends.
    - Build a `.zip` archive of the library
    - Extract release notes from `CHANGELOG.md`
    - Create a GitHub release with the archive and release notes
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
