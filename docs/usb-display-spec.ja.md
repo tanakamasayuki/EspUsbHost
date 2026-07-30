@@ -585,8 +585,10 @@ ESP32-S3（FS）+ DL-165・1920x1080 の結果:
 - API リファレンスに非同期 bulk OUT / ZLP の節を追加（完了）
 - example README に参照元・商標表記・位置づけ・チューニング指針（完了）
 - `CHANGELOG.md`（完了）
-- README 対応表への「USB graphics adapter (DL-1xx bulk protocol)」追加（未）
-- `docs/FOOTPRINT.md` の probe 追加を検討（未）
+- README の USB class support 表に「USB graphics adapter (DL-1xx bulk protocol)」を追加（完了）。ライブラリ機能ではなく **example 限りの best effort** であることを status に明記し、他アダプタや高フレームレートの案内先も同じ行に置いた
+- `docs/FOOTPRINT.md` の probe: **Display probe は追加しない**（判断）。footprint probe はライブラリ単体のコードサイズを測るもので、外部ライブラリに依存しない構成になっている（`tools/footprint_sketches/*` はいずれも `EspUsbHost.h` のみ）。ディスプレイ処理は example 側にあるため Display probe を作っても測れるのは LovyanGFX のサイズであって本ライブラリの寄与ではない。代わりに **既存の `Vendor` probe を拡張**し、Phase 2 で追加した非同期 bulk OUT キューと ZLP API を参照するようにした。これで新しい本体コードの footprint が既存の列で追跡される
+
+**サポート範囲の方針。** これは参考実装であり、ライブラリのサポート対象機能ではない。DL-1xx 以外のアダプタ、高フレームレート、24bpp、回転、複数台といった要望には応えず、専用ライブラリを案内する。ゴールは「遅くてもよいので、まず楽に動くところまで」であり、そこは達成できている（ESP32-S3 単体で Full HD 表示、変化部分のみ更新で 91 fps）。この線引きを README の status 欄と「このサンプルの位置づけ」節の両方に書いた。
 
 **example の位置づけを明記した。** これは汎用 vendor bulk API の実装例であり、表示ライブラリではない。対応範囲を意図的に絞っている（1 チップファミリ、16bpp、同時 1 台、rotation 0、読み戻しなし）。他のアダプタ（MacroSilicon MS912x / MS913x、MCT Trigger 6）や高いフレームレート、メンテナンスされた表示スタックが必要な場合は [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp)（MIT）を使うよう README で案内している。両者は同じ公開プロトコル資料に対する独立した実装で、依存関係はない。
 

@@ -56,7 +56,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
 - **USBネットワーク** — CDC-NCM / CDC-ECMのUSB Ethernetアダプタに対応。生Ethernetフレームでも、lwIP（`esp_netif`）インターフェースとしてattachしてWi-Fi無しで`NetworkClient` / `HTTPClient`をUSB経由で動かすことも可能
-- **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUTとEP0 vendor request
+- **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUT、ゼロコピーバッファと自動ZLP処理を備えた非同期bulk OUTキュー、EP0 vendor request
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
 
@@ -69,7 +69,8 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
-| Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT、EP0 vendor IN/OUT requestに対応 |
+| Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT（同期と非同期キュー）、自動ZLP、EP0 vendor IN/OUT requestに対応 |
+| USBグラフィックスアダプタ（DL-1xx bulkプロトコル） | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) にvendor bulk API上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。1チップファミリ・16 bppの参考実装であり、他のアダプタや高いフレームレートが必要なら [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) のような専用ライブラリを使うこと |
 | UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |

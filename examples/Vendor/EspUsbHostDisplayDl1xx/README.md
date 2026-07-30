@@ -127,11 +127,13 @@ because there is no buffer to hide it:
 | Direct, clear and redraw everything | 5.75 | 679 KB/s | 60% |
 | Direct, repaint only the moving part | 692 | 1123 KB/s | 100% |
 
-Clearing and redrawing the whole screen every frame flickers badly at Full HD and
-is not usable for animation. Repainting only what moved does not flicker and is
-fast enough to saturate the bus, but you have to erase the old content yourself.
-The tiled path buys you the "just redraw everything" programming model at the cost
-of re-running the callback per band.
+There is no buffer between the drawing code and the screen, so a full clear is
+visible: at 5.75 fps the adapter shows the cleared background for a good part of
+each 174 ms frame, and the content is painted back over it. Expect tearing and
+flicker, and do not use this pattern for animation. Repainting only what moved
+avoids it entirely and is fast enough to saturate the bus, but you have to erase
+the old content yourself. The tiled path buys you the "just redraw everything"
+programming model at the cost of re-running the callback per band.
 
 **`setAutoClear(false)` changes little** (2.56 vs 2.53 fps) when the scene starts
 with its own `fillScreen`, and it is unsafe when it does not.
