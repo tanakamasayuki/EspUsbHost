@@ -536,7 +536,7 @@ Use `setAddress()` inside `onDeviceConnected` to bind a specific device when mul
 
 ### Vendor bulk/control
 
-For non-HID vendor-specific interfaces (`bInterfaceClass == 0xff`) with bulk IN / bulk OUT endpoints:
+For non-HID vendor-specific interfaces (`bInterfaceClass == 0xff`) with bulk endpoints:
 
 ```cpp
 void onVendorData(VendorDataCallback callback);
@@ -547,6 +547,10 @@ bool vendorWrite(const uint8_t *data, size_t length,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t vendorRead(uint8_t *buffer, size_t length,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint8_t vendorInEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 bool vendorControlIn(uint8_t request, uint16_t value, uint16_t index,
                      uint8_t *data, size_t length,
@@ -559,7 +563,11 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
                       uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
 ```
 
-`vendorOpen()` explicitly claims the vendor-specific interface and starts bulk IN reception. `vendorWrite()` waits for transfer completion and therefore cannot be called from USB callbacks such as `onDeviceConnected()` or `onVendorData()`; record the send request in the callback and perform it from `loop()`. `vendorRead()` is non-blocking and reads from a 512-byte per-device receive buffer. `onVendorData()` receives the same bulk IN payload as a callback; its data pointer is valid only during the callback.
+`vendorOpen()` explicitly claims the vendor-specific interface and starts bulk IN reception. An interface with both a bulk IN and a bulk OUT endpoint is preferred; an interface that only exposes a bulk OUT endpoint is also accepted, in which case no IN transfer is started and `vendorRead()` / `onVendorData()` never produce data. USB graphics adapters, for example, pair their bulk OUT with an interrupt IN that this API does not use.
+
+When an interface exposes several bulk endpoints in the same direction, the first one in descriptor order is selected. `vendorOutPacketSize()` / `vendorInPacketSize()` return the max packet size of the opened endpoints and `vendorOutEndpoint()` / `vendorInEndpoint()` their addresses (0 when not open). Callers need the packet size when a transfer must be terminated on a packet boundary, and the address to confirm which endpoint was chosen.
+
+`vendorWrite()` waits for transfer completion and therefore cannot be called from USB callbacks such as `onDeviceConnected()` or `onVendorData()`; record the send request in the callback and perform it from `loop()`. `vendorRead()` is non-blocking and reads from a 512-byte per-device receive buffer. `onVendorData()` receives the same bulk IN payload as a callback; its data pointer is valid only during the callback.
 
 `vendorControlIn()` uses `bmRequestType = 0xc0`; `vendorControlOut()` uses `bmRequestType = 0x40`.
 

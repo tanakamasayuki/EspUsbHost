@@ -2600,6 +2600,15 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
   EspUsbHostEndpointInfo inEndpoint;
   EspUsbHostEndpointInfo outEndpoint;
   bool found = false;
+  bool foundIn = false;
+
+  // A bulk IN / bulk OUT pair is preferred, but an interface that only exposes
+  // a bulk OUT endpoint is still usable for vendorWrite(). USB graphics
+  // adapters, for example, pair their bulk OUT with an interrupt IN that this
+  // API does not use. Remember the first such interface as a fallback.
+  uint8_t outOnlyInterface = 0;
+  EspUsbHostEndpointInfo outOnlyEndpoint;
+  bool outOnlyFound = false;
 
   for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
   {
@@ -2625,12 +2634,18 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
       {
         continue;
       }
+      // An interface can expose more than one bulk endpoint per direction; a
+      // USB graphics adapter, for example, has two bulk OUT endpoints. Keep the
+      // first one in descriptor order so the choice is predictable.
       if (ep.address & 0x80)
       {
-        candidateIn = ep;
-        hasIn = true;
+        if (!hasIn)
+        {
+          candidateIn = ep;
+          hasIn = true;
+        }
       }
-      else
+      else if (!hasOut)
       {
         candidateOut = ep;
         hasOut = true;
@@ -2643,13 +2658,27 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
       inEndpoint = candidateIn;
       outEndpoint = candidateOut;
       found = true;
+      foundIn = true;
       break;
     }
+    if (hasOut && !outOnlyFound)
+    {
+      outOnlyInterface = intf.number;
+      outOnlyEndpoint = candidateOut;
+      outOnlyFound = true;
+    }
+  }
+
+  if (!found && outOnlyFound)
+  {
+    selectedInterface = outOnlyInterface;
+    outEndpoint = outOnlyEndpoint;
+    found = true;
   }
 
   if (!found)
   {
-    ESP_LOGW(TAG, "vendorOpen() no bulk IN/OUT pair");
+    ESP_LOGW(TAG, "vendorOpen() no bulk OUT endpoint");
     return false;
   }
 
@@ -2682,7 +2711,8 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
     {
       device->interfaces[device->interfaceCount++] = selectedInterface;
     }
-    device->endpointChannelCount = static_cast<uint8_t>(device->endpointChannelCount + 2);
+    // Only the endpoints this API actually transfers on consume a host channel.
+    device->endpointChannelCount = static_cast<uint8_t>(device->endpointChannelCount + (foundIn ? 2 : 1));
   }
   else if (device->usbVendorInterfaceNumber != selectedInterface)
   {
@@ -2692,15 +2722,15 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
 
   device->hasUsbVendorInterface = true;
   device->usbVendorInterfaceNumber = selectedInterface;
-  device->hasUsbVendorInEndpoint = true;
-  device->usbVendorInEndpointAddress = inEndpoint.address;
-  device->usbVendorInPacketSize = inEndpoint.maxPacketSize;
+  device->hasUsbVendorInEndpoint = foundIn;
+  device->usbVendorInEndpointAddress = foundIn ? inEndpoint.address : 0;
+  device->usbVendorInPacketSize = foundIn ? inEndpoint.maxPacketSize : 0;
   device->hasUsbVendorOutEndpoint = true;
   device->usbVendorOutEndpointAddress = outEndpoint.address;
   device->usbVendorOutPacketSize = outEndpoint.maxPacketSize;
 
-  EndpointState *existingEndpoint = findEndpoint(device->handle, inEndpoint.address);
-  if (!existingEndpoint)
+  EndpointState *existingEndpoint = foundIn ? findEndpoint(device->handle, inEndpoint.address) : nullptr;
+  if (foundIn && !existingEndpoint)
   {
     EndpointState *endpoint = allocateEndpoint(*device);
     if (!endpoint)
@@ -2737,11 +2767,21 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
     }
   }
 
-  ESP_LOGI(TAG, "USB vendor bulk interface ready: address=%u iface=%u in=0x%02x out=0x%02x",
-           device->info.address,
-           selectedInterface,
-           inEndpoint.address,
-           outEndpoint.address);
+  if (foundIn)
+  {
+    ESP_LOGI(TAG, "USB vendor bulk interface ready: address=%u iface=%u in=0x%02x out=0x%02x",
+             device->info.address,
+             selectedInterface,
+             inEndpoint.address,
+             outEndpoint.address);
+  }
+  else
+  {
+    ESP_LOGI(TAG, "USB vendor bulk interface ready: address=%u iface=%u in=none out=0x%02x",
+             device->info.address,
+             selectedInterface,
+             outEndpoint.address);
+  }
   return true;
 }
 
@@ -2886,6 +2926,46 @@ size_t EspUsbHost::vendorRead(uint8_t *buffer, size_t length, uint8_t address)
     device->usbVendorRxCount--;
   }
   return copied;
+}
+
+uint16_t EspUsbHost::vendorOutPacketSize(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->hasUsbVendorOutEndpoint)
+  {
+    return 0;
+  }
+  return device->usbVendorOutPacketSize;
+}
+
+uint16_t EspUsbHost::vendorInPacketSize(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->hasUsbVendorInEndpoint)
+  {
+    return 0;
+  }
+  return device->usbVendorInPacketSize;
+}
+
+uint8_t EspUsbHost::vendorOutEndpoint(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->hasUsbVendorOutEndpoint)
+  {
+    return 0;
+  }
+  return device->usbVendorOutEndpointAddress;
+}
+
+uint8_t EspUsbHost::vendorInEndpoint(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->hasUsbVendorInEndpoint)
+  {
+    return 0;
+  }
+  return device->usbVendorInEndpointAddress;
 }
 
 bool EspUsbHost::vendorControlIn(uint8_t request,

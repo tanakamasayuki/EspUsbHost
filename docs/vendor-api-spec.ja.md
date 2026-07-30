@@ -125,7 +125,8 @@ bool vendorControlOut(uint8_t request,
 - `interfaceNumber == 0xff` の場合、最初に見つかった vendor-specific interface を使う
 - `interfaceNumber != 0xff` の場合、その interface number のみを対象にする
 - bulk IN と bulk OUT の両方がある interface を優先する
-- 片方向 endpoint しかない interface は、初期実装では `vendorOpen()` 失敗扱いにする
+- bulk OUT だけを持つ interface も受け付ける。この場合 IN 転送は開始せず、`vendorRead()` / `onVendorData()` にデータは届かない。USBグラフィックスアダプタのように bulk OUT と interrupt IN を組み合わせるデバイスが該当する（`usb-display-spec.ja.md` 参照）
+- bulk IN だけを持つ interface は `vendorOpen()` 失敗扱いにする
 - claim 済み interface に対する再呼び出しは成功扱いにする
 
 既存の HID vendor API との混同を避けるため、HID interface (`bInterfaceClass == 0x03`) は対象外にする。

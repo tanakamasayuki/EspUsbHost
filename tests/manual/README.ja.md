@@ -20,6 +20,7 @@ uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
 uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
 uv run --env-file .env pytest manual/msc_cache_coherency/msc_cache_coherency.py -v -s
 uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
+uv run --env-file .env pytest manual/vendor_bulk_out_only/vendor_bulk_out_only.py -v -s
 ```
 
 手動テストは常に `-s` を付けて実行します。シリアル出力とオペレーターへのプロンプトが端末に表示されます。
@@ -54,6 +55,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | mount中のUSBメモリを抜き、再接続後に同じFatFs/VFS pathへ再mountできることを確認 | USBメモリ | ✅ |
 | [`msc_cache_coherency/`](msc_cache_coherency/) | 同じLBA範囲をcache負荷下でmulti-sector readし、single-sector referenceと比較してCPU cacheとUSB DMAの非coherencyを検出（read only） | ESP32-P4 + USBストレージ（ESP32-S3はネガティブコントロール） | ✅ |
 | [`adb_connect/`](adb_connect/) | Android実機のADBを許可・永続RSA鍵で認証し、単一shell echo streamを検証すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
+| [`vendor_bulk_out_only/`](vendor_bulk_out_only/) | bulk OUTのみでbulk INを持たない0xff interfaceを `vendorOpen()` が受け付け、packet sizeとendpoint channelの計上がdescriptorと一致すること。interface/endpointの一覧も出力する | USBグラフィックスアダプタ（DisplayLink DL-1xx、VID 0x17e9）またはbulk OUTのみのvendorデバイス | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 

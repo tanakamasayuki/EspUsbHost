@@ -40,12 +40,17 @@ DL-1xx のプロトコル処理そのものはライブラリ本体に入れな�
 
 DL-1x0（"Alex"）と DL-1x5（"Ollie"）は同一プロトコル。VID `0x17E9`。
 
-USB 構成:
+USB 構成（手元の DL-165 実機で確認済み、`tests/manual/vendor_bulk_out_only` の出力より）:
 
-- vendor class (0xFF) インタフェース 1 本
-- bulk OUT EP 0x01: コマンド／ピクセルストリーム
-- interrupt IN EP: 本実装では使わない
-- Full-speed にフォールバックしても同じ構成が出る（ESP32-S3 で使える根拠）
+- VID:PID `17e9:0360`、manufacturer `DisplayLink`、product `USB to DVI-17`
+- vendor class (0xFF) インタフェース 1 本、endpoint 3 本
+  - bulk OUT `0x01` MPS 64: コマンド／ピクセルストリーム
+  - interrupt IN `0x82` MPS 8 interval 4: 本実装では使わない
+  - bulk OUT `0x0a` MPS 64: **2 本目の bulk OUT**。用途不明で本実装では使わない
+- bus-powered、max_power 500mA
+- Full-speed にフォールバックしても同じ構成が出る（ESP32-S3 で使える根拠）。ESP32-S3 のホストポートでは常に Full-speed になる
+
+bulk OUT が 2 本あるため、endpoint の選択規則が問題になる。`vendorOpen()` は descriptor 順で最初の bulk OUT（`0x01`）を選ぶ。
 
 control request:
 
@@ -107,7 +112,7 @@ bulk コマンド（すべて `0xAF` 始まり）:
 | 1920x1080x2 の必要フレームバッファ | 4,147,200 B = 0x3F4800 | OK（24bpp のデュアルプレーンでも 0x5EEC00 で収まる） |
 | レジスタ 0x1B（ピクセルクロック / 5kHz、16bit） | 148.5 MHz → 29700 | OK（16bit で 327 MHz 相当まで表現可） |
 | DL-1x5 の内蔵 DRAM | 16 MB | OK |
-| DL-165 の最大解像度 | ファミリ上限 2048x1152、製品実装は 1920x1080 / 1600x1200 | OK |
+| DL-165 の最大解像度 | ファミリ上限 2048x1152、製品実装は 1920x1080 / 1600x1200 | OK（手元の DL-165 + Full HD モニタで解像度的に問題ないことを確認済み） |
 | DL-120 / DL-160 の最大解像度 | 1600x1200 / 1680x1050 | Full HD 不可。低解像度の検証用に使う |
 
 Full-speed bulk OUT の実効を 0.7〜1.0 MB/s と仮定した転送量の見積り:
@@ -133,7 +138,7 @@ LGFXVirtualCanvas 1.2.0 以降を前提とする（差分転送 `setDiffMode(LGF
 
 ### 本体 API の不足点
 
-1. `vendorOpen()` が bulk IN / OUT のペアを必須にしている。[`EspUsbHost.cpp:2640`](../src/EspUsbHost.cpp#L2640) で `hasIn && hasOut` のみ採用し、[`:2650`](../src/EspUsbHost.cpp#L2650) で失敗する。DL-1xx は bulk OUT + interrupt IN で bulk IN を持たないため、現状では open できない。さらに [`:2702-2737`](../src/EspUsbHost.cpp#L2702-L2737) で bulk IN の継続転送を無条件に張っている
+1. ~~`vendorOpen()` が bulk IN / OUT のペアを必須にしている~~ → Phase 1 で対応済み。DL-1xx は bulk OUT + interrupt IN で bulk IN を持たないため open できなかった。あわせて、同一 interface に複数の bulk OUT があるとき descriptor 順で最後の endpoint を選んでしまう問題も修正した（手元の DL-165 は bulk OUT を 2 本持つため、`0x0a` が選ばれていた）
 2. `vendorWrite()` が完全同期。[`:2748-2867`](../src/EspUsbHost.cpp#L2748-L2867) は呼び出しごとに `usb_host_transfer_alloc()` → submit → セマフォで最大 1000ms 待ち → free で、USB client task から呼ぶと即 false。1 転送ずつのストア&フォワードになるため Full-speed の帯域が埋まらず、フレームあたり最大 4 MB の memcpy も発生する
 3. bulk OUT のパケット境界（ZLP）処理がユーザー側にある。[`EspUsbHostAdbConnect.ino:311-315`](../examples/Vendor/EspUsbHostAdbConnect/EspUsbHostAdbConnect.ino#L311-L315) が手書きの ZLP、[`:330-344`](../examples/Vendor/EspUsbHostAdbConnect/EspUsbHostAdbConnect.ino#L330-L344) が `getEndpoints()` を走査して bulk OUT の MPS を得ている
 4. 転送統計がない。スループット計測をユーザーコード側でしか組めない
@@ -294,13 +299,14 @@ void setup()
 
 void loop()
 {
-    usb.task();
     if (lcd.ready())
     {
         screen.render(drawScene);
     }
 }
 ```
+
+`EspUsbHost` は内部で USB client task を回すため、`loop()` 側でのポーリングは不要。
 
 `sketch.yaml` の libraries:
 
@@ -435,14 +441,16 @@ python 側は出力をパースして表形式で表示し、結果を README �
 - `LICENSE`（MIT）と README のライセンス節 — 完了
 - 命名・商標方針の確定 — 本文書
 
-### Phase 1: `vendorOpen()` の緩和
+### Phase 1: `vendorOpen()` の緩和 — 完了
 
 - bulk OUT のみのインタフェースを許可
 - bulk IN があるときのみ IN 転送を張る
-- `endpointChannelCount` の加算を実数に修正
-- `vendorOutPacketSize()` の追加
+- 同一 interface に複数の bulk endpoint があるとき descriptor 順で最初を選ぶ
+- `endpointChannelCount` の加算を実数に修正（OUT のみなら +1）
+- `vendorOutPacketSize()` / `vendorInPacketSize()` / `vendorOutEndpoint()` / `vendorInEndpoint()` の追加
 - `vendor-api-spec.ja.md` の該当記述を更新
-- 既存の `EspUsbHostVendorBulk` / `EspUsbHostAdbConnect` が回帰しないことを確認
+- `tests/manual/vendor_bulk_out_only` を追加し、DL-165 実機で PASS（`out_ep=0x01`、`in_mps=0`、channels 0→1、reopen 冪等）
+- `tests/peer/usb_vendor`（bulk IN/OUT ペア経路）3件と `examples/` の esp32s3 ビルドが回帰しないことを確認
 
 ### Phase 2: 非同期 bulk OUT キュー
 
@@ -508,13 +516,15 @@ example:
 
 ## 未確認事項・リスク
 
-1. **手元の DL-165 の vendor descriptor が申告する最大画素数**。SKU によってはチップ性能より低く（1600x1200 等に）制限されている。Full HD ゴールの成否がここで決まるため、Phase 4 の最初に確認する
+1. **手元の DL-165 の vendor descriptor が申告する最大画素数**。SKU によってはチップ性能より低く（1600x1200 等に）制限されている。Full HD モニタ接続時に解像度的に問題ないことは確認済みだが、descriptor の申告値そのものは未読なので Phase 4 の最初に確認する
 2. **ESP32-P4 の OUT バッファのキャッシュ書き戻し**。2.5.2 で IN 側の `esp_cache_msync()` 対応を入れたが、OUT 側（CPU 書き込み → DMA 読み出し）の write back が ESP-IDF 側で保証されているか未確認。高レートの OUT で P4 だけデータが化けるなら submit 直前に `esp_cache_msync(..., C2M)` が必要。ESP32-S3 は DMA メモリがキャッシュされないため影響なし
 3. **電源**。DL-1xx アダプタの消費電流は大きい。OTG コネクタから給電できないボードではセルフパワードハブか外部給電が必須
 4. **interrupt IN を開かないことによる副作用**。udl / udlfb も未使用なので問題ないと見ているが実機確認事項
 5. **モニタ側が 1920x1080 を EDID で申告しない場合**。テーブルからの強制設定も用意する
 6. **DL-120/160 世代での挙動差**。同一プロトコルとされているが、レジスタの一部やパディング要件に差がある可能性がある
 7. **Full-speed の実効スループット**。0.7〜1.0 MB/s は仮定値。`vendor_bulk_throughput` で確定させる
+8. **2 本目の bulk OUT（`0x0a`）の用途**。本実装では使わないが、`0x01` だけで足りることを Phase 4 で確認する
+9. **HCD チャネル**。DL アダプタ単体なら 1 チャネルで足りる（実測 0→1）。ただしハブ経由で他デバイスを足すと ESP32-S3 の 8 チャネルはすぐ枯渇する（hub + DL + hub + touchscreen の構成で `No more HCD channels available` を実測）。ディスプレイ検証時はアダプタを直結する
 
 ## 未決事項
 
