@@ -16,6 +16,14 @@ uv run --env-file .env pytest unit/
   International1 `/ ?` とnumpad comma、`keycode >= 0x80`の範囲ガード
   (`0x80..0x8f`に到達できるのはja_jp/pt_BRのみ)を固定する。
 
+- `dl1xx`: `examples/Vendor/EspUsbHostDisplayDl1xx` のDL-1xxプロトコル層
+  (`Dl1xxProtocol.hpp`、`Dl1xxModes.hpp`)を検証する。タイミングレジスタ値を
+  エンコードする16bit LFSR(参照値と、tap setを固定する最大長性質)、ピクセル
+  クロックのlow byte firstという例外を含むレジスタ書き込みのバイト順、RLE
+  ピクセルエンコーダ(仕様書に載っている単色256pxの10バイト形、最悪ケース519
+  バイト、独立実装のデコーダとのround trip、バッファ上限とcanaryによる範囲外
+  書き込み検出)、Full HDのモード設定レジスタ列を対象とする。
+
 ## 仕組み
 
 `src/EspUsbHostHid.cpp`は`Arduino.h`とESP USB hostスタックをincludeするため、host上で
