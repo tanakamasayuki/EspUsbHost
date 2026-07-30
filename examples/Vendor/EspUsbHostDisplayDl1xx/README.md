@@ -39,18 +39,102 @@ small sprite, so a Full HD surface needs no full-size buffer on the host — a f
 tens of KB is enough. Its diff transfer then skips bands that did not change,
 which pairs well with an adapter that holds its own image.
 
-Measured on an ESP32-S3 (full-speed USB) with a DL-165 adapter:
+As written, this sketch redraws everything every frame and reaches about 2.5 fps
+at 1920x1080 on an ESP32-S3, using a few percent of the USB bandwidth. USB is not
+the limit — drawing is. See [Making it faster](#making-it-faster) below.
 
-| | |
+## Scope: this is a vendor-protocol example, not a display library
+
+This example exists to show what the generic vendor bulk API can do, and to keep
+the DL-1xx protocol out of the library core. It deliberately covers one chip
+family, 16 bpp, one adapter at a time, rotation 0, and no read-back.
+
+**If you need more than that, use a library built for the job.**
+[Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) (MIT) supports several
+adapter families beyond DL-1xx (MacroSilicon MS912x / MS913x, MCT Trigger 6), has
+its own ESP32 backend, and is written for throughput rather than as a protocol
+demonstration. It is the better starting point when you want a different adapter,
+higher frame rates, or a maintained display stack. Nothing here depends on it;
+the two are independent implementations of the same published protocol notes.
+
+## Making it faster
+
+Numbers below are from `tests/manual/usb_display_throughput` on an ESP32-S3
+(full-speed USB) with a DL-165 at 1920x1080. "bus" is the share of the 1.098 MB/s
+full-speed ceiling measured by `tests/manual/vendor_bulk_throughput`.
+
+**Find out what is limiting you first.** With this adapter the answer flips
+depending on what you draw:
+
+| Scene | fps | USB | bus | Limited by |
+|---|---|---|---|---|
+| Solid fill | 3.65 | 28 KB/s | 2.5% | drawing |
+| Vertical gradient | 3.22 | 27 KB/s | 2.4% | drawing |
+| Text + color bars + moving circle | 2.52 | 70 KB/s | 6.3% | drawing |
+| Pseudo-random pixels | 0.27 | 1123 KB/s | 99.8% | USB |
+
+Anything the RLE encoder compresses well leaves the bus almost idle, and the
+limit is the draw callback. Only noise-like content saturates USB.
+
+**Redraw less.** This is worth more than every other knob combined. A
+`LGFXVirtualSprite` over just the part that changes:
+
+| | fps |
 |---|---|
-| Frame rate | 3 fps at 1920x1080 |
-| Diff transfer | 215,040 of 2,073,600 pixels pushed per frame (10.4%) |
-| USB throughput | about 42 KB/s, roughly 4% of the 1.098 MB/s full-speed ceiling |
+| Whole screen every frame | 2.52 |
+| 240x120 sprite over the moving area | **91.56** |
 
-USB is not the limit here — the draw callback is, because LGFXVirtualCanvas
-re-runs it for every band. To go faster, make the bands larger
-(`setMemoryLimit()`), update only what changed with `LGFXVirtualSprite`, or draw
-less per frame.
+**Use fewer, larger bands.** The draw callback re-runs per band, so band count is
+close to a direct multiplier on draw cost:
+
+| Tile budget | Bands | Band height | fps |
+|---|---|---|---|
+| default (~19 KB) | 216 | 5 px | 2.14 |
+| 32 KB | 135 | 8 px | 2.39 |
+| 64 KB | 64 | 17 px | **2.53** |
+| 96 KB / 128 KB | - | - | allocation fails |
+
+64 KB is about the ceiling for a single tile buffer in ESP32-S3 internal RAM at
+Full HD.
+
+**Skip double buffering when you are draw-bound.** It overlaps a band's transfer
+with the next band's drawing, which only helps if transfer is a real cost:
+
+| | fps |
+|---|---|
+| 32 KB, single buffer | 2.41 |
+| 32 KB, double buffer | 2.40 |
+
+At 6% bus use there is nothing to hide, and the second buffer doubles the tile
+RAM — memory that buys more with a larger single tile instead. Call
+`setDoubleBuffer(false)` explicitly; the default turns it on for any surface that
+needs two or more bands.
+
+**Keep diff transfer on.** The hash cost is small next to what it saves:
+
+| | fps | Pixels sent | USB |
+|---|---|---|---|
+| `setDiffMode(Tile)` | 2.52 | 13% of the screen | 70 KB/s |
+| `Off` | 1.66 | 100% | 187 KB/s |
+
+**Drawing straight to the panel is faster, but it flickers.** Without
+LGFXVirtualCanvas there is no per-band callback re-run, so a full redraw is
+quicker than the tiled path — except the screen is cleared in front of the viewer
+because there is no buffer to hide it:
+
+| | fps | USB | bus |
+|---|---|---|---|
+| Direct, clear and redraw everything | 5.75 | 679 KB/s | 60% |
+| Direct, repaint only the moving part | 692 | 1123 KB/s | 100% |
+
+Clearing and redrawing the whole screen every frame flickers badly at Full HD and
+is not usable for animation. Repainting only what moved does not flicker and is
+fast enough to saturate the bus, but you have to erase the old content yourself.
+The tiled path buys you the "just redraw everything" programming model at the cost
+of re-running the callback per band.
+
+**`setAutoClear(false)` changes little** (2.56 vs 2.53 fps) when the scene starts
+with its own `fillScreen`, and it is unsafe when it does not.
 
 ## Limitations
 
@@ -81,6 +165,12 @@ image persistence, mode resend):
 
 ```sh
 uv run --env-file .env pytest manual/usb_display_dl1xx/usb_display_dl1xx.py -v -s
+```
+
+The tuning sweep the numbers above come from:
+
+```sh
+uv run --env-file .env pytest manual/usb_display_throughput/usb_display_throughput.py -v -s
 ```
 
 The design, the phase breakdown and the measured figures are in
