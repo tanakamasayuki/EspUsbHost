@@ -287,6 +287,7 @@ void loop() {
 |----------|------|
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | 汎用の非HID vendor-specificインターフェース：bulk IN/OUTとEP0 vendor control IN/OUT |
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | 汎用vendor bulk API上でAndroid ADB認証と単一shell streamを実行 |
+| [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | USBグラフィックスアダプタ（DL-1xx bulkプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasでFull HD面を扱う |
 
 ## APIリファレンス
 

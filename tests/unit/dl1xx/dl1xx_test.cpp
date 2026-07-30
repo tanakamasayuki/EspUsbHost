@@ -363,6 +363,104 @@ void testRleRoundTrip()
   }
 }
 
+// The big-endian entry point must produce byte-identical output to the host-order
+// one, because that is the whole point: a LovyanGFX rgb565_2Byte buffer can go
+// out without per-pixel swapping.
+void testRleBigEndianSource()
+{
+  uint32_t seed = 999;
+  const auto next = [&seed]() {
+    seed = seed * 1103515245u + 12345u;
+    return (seed >> 16) & 0x7fff;
+  };
+
+  for (int pattern = 0; pattern < 100; pattern++)
+  {
+    std::vector<uint16_t> host;
+    const size_t target = 1 + (next() % 700);
+    while (host.size() < target)
+    {
+      const uint16_t value = static_cast<uint16_t>(next() & 0xffff);
+      const size_t run = (next() % 3 == 0) ? 1 + (next() % 300) : 1;
+      for (size_t i = 0; i < run && host.size() < target; i++)
+      {
+        host.push_back(value);
+      }
+    }
+
+    // Same pixels, stored as big-endian byte pairs.
+    std::vector<uint8_t> bigEndian;
+    for (uint16_t pixel : host)
+    {
+      bigEndian.push_back(static_cast<uint8_t>(pixel >> 8));
+      bigEndian.push_back(static_cast<uint8_t>(pixel & 0xff));
+    }
+
+    uint8_t bufferA[4096];
+    uint8_t bufferB[4096];
+    dl1xx::CommandBuffer outA(bufferA, sizeof(bufferA));
+    dl1xx::CommandBuffer outB(bufferB, sizeof(bufferB));
+
+    size_t offset = 0;
+    while (offset < host.size())
+    {
+      const uint32_t address = 0x0a13f5 + static_cast<uint32_t>(offset * 2);
+      const size_t consumedA = outA.writePixelsRle(address, host.data() + offset, host.size() - offset);
+      const size_t consumedB = outB.writePixelsRleBigEndian(address, bigEndian.data() + offset * 2,
+                                                            host.size() - offset);
+      checkEqual(consumedB, consumedA, "both pixel sources consume the same count");
+      if (consumedA == 0 || consumedA != consumedB)
+      {
+        failures++;
+        return;
+      }
+      offset += consumedA;
+    }
+    checkEqual(outB.length(), outA.length(), "both pixel sources emit the same length");
+    if (outA.length() != outB.length() || memcmp(bufferA, bufferB, outA.length()) != 0)
+    {
+      printf("FAIL: big-endian source produced different bytes (pattern %d)\n", pattern);
+      failures++;
+      return;
+    }
+
+    // And the stream must still decode back to the original pixels.
+    uint32_t address = 0;
+    std::vector<uint16_t> decoded;
+    std::vector<uint16_t> all;
+    size_t at = 0;
+    while (at < outB.length())
+    {
+      // Each command declares its own length, so find it by decoding greedily.
+      size_t tryLength = outB.length() - at;
+      bool decodedOne = false;
+      while (tryLength >= dl1xx::RLE_HEADER_BYTES + 1)
+      {
+        if (decodeRle(bufferB + at, tryLength, address, decoded))
+        {
+          all.insert(all.end(), decoded.begin(), decoded.end());
+          at += tryLength;
+          decodedOne = true;
+          break;
+        }
+        tryLength--;
+      }
+      if (!decodedOne)
+      {
+        printf("FAIL: big-endian stream did not decode (pattern %d)\n", pattern);
+        failures++;
+        return;
+      }
+    }
+    if (all.size() != host.size() || memcmp(all.data(), host.data(), host.size() * 2) != 0)
+    {
+      printf("FAIL: big-endian round trip mismatch (pattern %d)\n", pattern);
+      failures++;
+      return;
+    }
+  }
+}
+
 void testRleBufferLimits()
 {
   // A buffer too small for even one literal pixel must emit nothing and latch
@@ -598,6 +696,7 @@ int main()
   testRleSolidRun();
   testRleWorstCase();
   testRleRoundTrip();
+  testRleBigEndianSource();
   testRleBufferLimits();
   testModeTable();
   testModeSetSequence();

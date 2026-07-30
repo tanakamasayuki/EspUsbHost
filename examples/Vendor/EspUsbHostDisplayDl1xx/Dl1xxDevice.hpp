@@ -335,6 +335,40 @@ public:
     return writeSpan(pixelAddress(x, y), pixels, count);
   }
 
+  // Same as writeSpan() for pixels already stored as big-endian RGB565 byte
+  // pairs, which is LovyanGFX's rgb565_2Byte layout. No per-pixel conversion.
+  bool writeSpanBigEndian(uint32_t byteAddress, const uint8_t *pixels, size_t count)
+  {
+    if (address_ == 0 || !pixels)
+    {
+      return false;
+    }
+    size_t done = 0;
+    while (done < count)
+    {
+      if (!ensureBuffer(maxRleCommandBytes(1)))
+      {
+        return false;
+      }
+      const uint32_t at = byteAddress + static_cast<uint32_t>(done * 2);
+      size_t consumed = buffer_->writePixelsRleBigEndian(at, pixels + done * 2, count - done);
+      if (consumed == 0)
+      {
+        if (!submitBuffer() || !ensureBuffer(maxRleCommandBytes(1)))
+        {
+          return false;
+        }
+        consumed = buffer_->writePixelsRleBigEndian(at, pixels + done * 2, count - done);
+        if (consumed == 0)
+        {
+          return false;
+        }
+      }
+      done += consumed;
+    }
+    return true;
+  }
+
   // Fills a run with one color. The encoder turns 256 identical pixels into a
   // 10-byte command, so this is cheap on the wire.
   bool fillRun(uint32_t byteAddress, uint16_t color, size_t count)
@@ -366,28 +400,34 @@ public:
     return fillRun(0, color, static_cast<size_t>(mode_.width) * mode_.height);
   }
 
-  // Submits whatever is buffered, appends the device-side flush command and
-  // waits for the queue to drain.
-  bool flush()
+  // Submits whatever is buffered plus the device-side flush command, without
+  // waiting for completion. Keeps pixels moving without stalling the caller, so
+  // this is what a panel calls when it finishes a drawing operation.
+  bool push()
   {
     if (address_ == 0)
     {
       return false;
     }
-    if (buffer_ && buffer_->length() != 0)
-    {
-      if (buffer_->remaining() >= 2)
-      {
-        buffer_->flush();
-      }
-      if (!submitBuffer())
-      {
-        return false;
-      }
-    }
-    else
+    if (!buffer_ || buffer_->length() == 0)
     {
       releaseBuffer();
+      return true;
+    }
+    if (buffer_->remaining() >= 2)
+    {
+      buffer_->flush();
+    }
+    return submitBuffer();
+  }
+
+  // push() plus a wait for the queue to drain. Call this only where the caller
+  // genuinely needs the pixels to have landed.
+  bool flush()
+  {
+    if (!push())
+    {
+      return false;
     }
     return host_.vendorWriteFlush(FLUSH_TIMEOUT_MS, address_);
   }

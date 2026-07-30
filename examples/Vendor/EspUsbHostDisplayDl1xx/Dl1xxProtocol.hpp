@@ -182,7 +182,48 @@ public:
   // a repeat count of 0 would be required the command simply ends instead.
   size_t writePixelsRle(uint32_t byteAddress, const uint16_t *pixels, size_t count)
   {
-    if (!pixels || count == 0)
+    if (!pixels)
+    {
+      return 0;
+    }
+    return encodeRle(byteAddress, HostPixels{pixels}, count);
+  }
+
+  // Same, for pixels that are already stored as big-endian RGB565 byte pairs --
+  // which is exactly LovyanGFX's rgb565_2Byte memory layout, so a panel can hand
+  // its converted line buffer over without any per-pixel byte swapping.
+  size_t writePixelsRleBigEndian(uint32_t byteAddress, const uint8_t *pixels, size_t count)
+  {
+    if (!pixels)
+    {
+      return 0;
+    }
+    return encodeRle(byteAddress, BigEndianPixels{pixels}, count);
+  }
+
+private:
+  // Pixel accessors. Both return the value in wire order: the high byte is the
+  // first byte sent, so emitting high-then-low reproduces big-endian input
+  // byte for byte.
+  struct HostPixels
+  {
+    const uint16_t *pixels;
+    uint16_t operator[](size_t i) const { return pixels[i]; }
+  };
+
+  struct BigEndianPixels
+  {
+    const uint8_t *pixels;
+    uint16_t operator[](size_t i) const
+    {
+      return static_cast<uint16_t>((pixels[i * 2] << 8) | pixels[i * 2 + 1]);
+    }
+  };
+
+  template <typename Source>
+  size_t encodeRle(uint32_t byteAddress, Source pixels, size_t count)
+  {
+    if (count == 0)
     {
       return 0;
     }
@@ -265,7 +306,6 @@ public:
     return consumed;
   }
 
-private:
   bool reserve(size_t bytes)
   {
     if (remaining() < bytes)

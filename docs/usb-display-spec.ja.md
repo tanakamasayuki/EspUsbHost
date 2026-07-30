@@ -508,11 +508,30 @@ python 側は出力をパースして表形式で表示し、結果を README �
 
 ⚠️ **未確認: モニタに正しい画像が出ているかの目視判定。** 転送バイト数が予測と一致し、デバイスが stall せずに全バイトを受け取り、EDID も正常に読めているため、プロトコルの骨格は正しいと考えられる。ただし 16bit レジスタのバイト順（Phase 3 の未確定事項）が誤っていても転送自体は成功するため、**目視確認までは byte order の仮定が正しいと断定できない**。
 
-### Phase 5: LovyanGFX panel
+### Phase 5: LovyanGFX panel — 完了
 
 - `Panel_Dl1xx.hpp` / `LGFX_Dl1xx`
-- ready コールバックと世代カウンタ
-- HPD 復帰時のモード再送
+- 世代カウンタ（`invalidated()` / `acknowledgeInvalidation()`）
+- `EspUsbHostDisplayDl1xx.ino`（LGFXVirtualCanvas 込み）
+
+実装で確定した点:
+
+- **色深度は `rgb565_2Byte` 固定**。この深度のメモリ配置は `RRRRRGGG GGGBBBBB`（ビッグエンディアン RGB565）で、DL-1xx のワイヤ形式と完全一致する。`fp_copy` の出力をそのままエンコーダに渡せるため、**ピクセル単位のバイトスワップが不要**。この経路のために protocol 層へ `writePixelsRleBigEndian()` を追加した。単色 fill の raw color だけは 1 回スワップする（コマンド単位なのでコストは無視できる）
+- `endTransaction()` は `push()`（submit のみ、完了待ちなし）、`waitDisplay()` / `display()` は `flush()`（完了待ち）にした。描画ごとに完了を待つと帯域が死ぬため
+- 行変換用スクラッチを `init()` で 1 行分だけ確保する（Full HD で 3,840 バイト）。`fp_copy` は宛先バッファのピクセル添字で書き、透過時は `fp_skip` と交互になるため、行全体のバッファがあると添字がそのまま使えて実装が素直になる
+- **未対応**: 回転（write 経路がデバイスフレームバッファを線形にアドレスするため rotation 0 のみ。他の値は 0 に強制）、読み戻し（`isReadable()` = false）、ARGB 合成、画面内矩形コピー（`AF 6A` 未実装なので `copyRect()` は no-op）
+- `Panel_Device` は `setRotation()` を実装しておらず（`IPanel` で純粋仮想、`Panel_Device.hpp:224` の実装は `Panel_NULL` 側）、基底に委譲するとリンクエラーになる。自前で `_rotation` / `_internal_rotation` / `_width` / `_height` を設定する
+
+ESP32-S3 + DL-165 実機での実測（`EspUsbHostDisplayDl1xx` を 35 秒連続実行、転送エラー 0）:
+
+| 項目 | 実測 |
+|---|---|
+| フレームレート | 1920x1080 で **3 fps** |
+| 差分転送 | 2,073,600 px 中 **215,040 px（10.4%）** のみ送出 |
+| USB 転送量 | 約 42 KB/s（1 フレームあたり約 14 KB） |
+| 帯域使用率 | 実効上限 1.098 MB/s の **約 4%** |
+
+**律速は USB ではなく描画 CPU。** LGFXVirtualCanvas は描画コールバックをバンドごとに再実行するため（README にも明記されている性質）、`fillScreen` 以下の描画一式がバンド数だけ繰り返される。USB に 96% の余裕があるので、フレームレートを上げたい場合の打ち手は転送側ではなく描画側（バンドを大きくする、`LGFXVirtualSprite` で変化部分だけ更新する、描画内容を軽くする）になる。
 
 ### Phase 6: LGFXVirtualCanvas 統合とスループット計測
 
