@@ -75,6 +75,12 @@ the test. When the HTML report is enabled, findings are also appended to that
 test's expandable log. Complete serial logs remain available under
 `/tmp/pytest-embedded/`.
 
+A few messages are produced by healthy runs; those are listed in
+`_KNOWN_SERIAL_FINDINGS` in `conftest.py` and reported as `KNOWN:` with a reason
+instead of as unexpected findings. Each entry is pinned to the test and log it
+was observed in and capped at a maximum count, so the same message appearing in
+a different test, or more often than expected, is still reported.
+
 ## Test directories
 
 ### `peer/` — Two-board tests

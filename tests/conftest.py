@@ -1,4 +1,6 @@
 import re
+from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -17,21 +19,75 @@ _SERIAL_ERROR_PATTERNS = (
     re.compile(r"CORRUPT HEAP", re.IGNORECASE),
     re.compile(r"Brownout detector was triggered", re.IGNORECASE),
 )
+
+@dataclass(frozen=True)
+class _KnownSerialFinding:
+    nodeid_pattern: str
+    log_name: str
+    line_pattern: re.Pattern[str]
+    max_count: int
+    reason: str
+
+
+# Lines that a healthy run can legitimately produce. Each entry is pinned to the
+# test and log it was observed in and capped at max_count, so the same message
+# appearing somewhere new, or more often than expected, is still reported.
+_KNOWN_SERIAL_FINDINGS = (
+    _KnownSerialFinding(
+        nodeid_pattern="*peer/hid_mouse/test_hid_mouse.py::test_hid_mouse_move",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="transient disconnect while peer firmware is replaced",
+    ),
+    _KnownSerialFinding(
+        nodeid_pattern="*peer/usb_audio/test_usb_audio.py::test_usb_audio_bidirectional",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="transient disconnect while peer firmware is replaced",
+    ),
+)
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-_AUDIT_RESULTS_KEY = pytest.StashKey[list[tuple[str, str, list[str]]]]()
+_AUDIT_RESULTS_KEY = pytest.StashKey[
+    list[tuple[str, str, list[str], list[tuple[str, str]]]]
+]()
 _AUDIT_SECTION_KEY = pytest.StashKey[str]()
 _AUDIT_LOG_COUNT_KEY = pytest.StashKey[int]()
 _AUDIT_ROOTS_KEY = pytest.StashKey[set[str]]()
 
 
-def _serial_error_lines(log_path: Path) -> list[str]:
-    findings = []
+def _serial_error_lines(
+    nodeid: str, log_path: Path
+) -> tuple[list[str], list[tuple[str, str]]]:
+    unexpected = []
+    known = []
+    known_counts = [0] * len(_KNOWN_SERIAL_FINDINGS)
     text = log_path.read_text(encoding="utf-8", errors="replace")
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line = _ANSI_ESCAPE_RE.sub("", raw_line)
-        if any(pattern.search(line) for pattern in _SERIAL_ERROR_PATTERNS):
-            findings.append(f"{log_path.name}:{line_number}: {line}")
-    return findings
+        if not any(pattern.search(line) for pattern in _SERIAL_ERROR_PATTERNS):
+            continue
+
+        finding = f"{log_path.name}:{line_number}: {line}"
+        matched_rule = None
+        for index, rule in enumerate(_KNOWN_SERIAL_FINDINGS):
+            if (
+                known_counts[index] < rule.max_count
+                and fnmatch(nodeid, rule.nodeid_pattern)
+                and log_path.name == rule.log_name
+                and rule.line_pattern.search(line)
+            ):
+                known_counts[index] += 1
+                matched_rule = rule
+                break
+
+        if matched_rule:
+            known.append((finding, matched_rule.reason))
+        else:
+            unexpected.append(finding)
+
+    return unexpected, known
 
 
 @pytest.fixture(autouse=True)
@@ -45,17 +101,29 @@ def serial_log_audit(request, test_case_tempdir):
     if log_paths:
         request.config.stash[_AUDIT_ROOTS_KEY].add(str(log_dir.parent))
 
-    findings = []
+    unexpected = []
+    known = []
     for log_path in log_paths:
-        findings.extend(_serial_error_lines(log_path))
+        log_unexpected, log_known = _serial_error_lines(request.node.nodeid, log_path)
+        unexpected.extend(log_unexpected)
+        known.extend(log_known)
 
-    if not findings:
+    if not unexpected and not known:
         return
 
-    section = f"Log directory: {log_dir}\n" + "\n".join(findings)
+    section_lines = [f"Log directory: {log_dir}"]
+    if unexpected:
+        section_lines.append("Unexpected suspicious lines:")
+        section_lines.extend(unexpected)
+    if known:
+        section_lines.append("Known allowed lines:")
+        section_lines.extend(
+            f"{finding} [reason: {reason}]" for finding, reason in known
+        )
+    section = "\n".join(section_lines)
     request.node.stash[_AUDIT_SECTION_KEY] = section
     request.config.stash[_AUDIT_RESULTS_KEY].append(
-        (request.node.nodeid, str(log_dir), findings)
+        (request.node.nodeid, str(log_dir), unexpected, known)
     )
 
 
@@ -91,12 +159,29 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         )
         return
 
-    finding_count = sum(len(findings) for _, _, findings in results)
-    terminalreporter.write_line(
-        f"Found {finding_count} suspicious line(s) in {len(results)} test(s); tests were not failed."
-    )
-    for nodeid, log_dir, findings in results:
+    unexpected_count = sum(len(unexpected) for _, _, unexpected, _ in results)
+    unexpected_test_count = sum(bool(unexpected) for _, _, unexpected, _ in results)
+    known_count = sum(len(known) for _, _, _, known in results)
+    known_test_count = sum(bool(known) for _, _, _, known in results)
+    if unexpected_count:
+        terminalreporter.write_line(
+            f"Found {unexpected_count} unexpected suspicious line(s) in "
+            f"{unexpected_test_count} test(s); tests were not failed."
+        )
+    else:
+        terminalreporter.write_line(
+            f"No unexpected suspicious serial output found in {log_count} DUT/peer log(s)."
+        )
+    if known_count:
+        terminalreporter.write_line(
+            f"Found {known_count} known allowed line(s) in {known_test_count} test(s)."
+        )
+
+    for nodeid, log_dir, unexpected, known in results:
         terminalreporter.write_line(nodeid)
         terminalreporter.write_line(f"  Log directory: {log_dir}")
-        for finding in findings:
+        for finding in unexpected:
             terminalreporter.write_line(f"  {finding}")
+        for finding, reason in known:
+            terminalreporter.write_line(f"  KNOWN: {finding}")
+            terminalreporter.write_line(f"    Reason: {reason}")

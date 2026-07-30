@@ -65,6 +65,8 @@ uv run --env-file .env pytest --html=report.html --self-contained-html
 
 各テスト終了時に、Host側の `dut.log` とpeer側の `peer-*.log` が自動的に監査されます。ESP-IDFのエラーログ、`ESP_ERR_*`、panic、assert、watchdogなどの疑わしい行は、テストを失敗させずに端末の `serial log audit` サマリーへ集計されます。HTMLレポートを有効にしている場合は、該当テストの展開ログにも追加されます。完全なシリアルログは `/tmp/pytest-embedded/` 以下に保存されます。
 
+正常な実行でも出るメッセージは `conftest.py` の `_KNOWN_SERIAL_FINDINGS` に登録してあり、通常の検出結果ではなく理由付きで `KNOWN:` として報告されます。各エントリは観測されたテストとログファイルに紐付け、出現回数の上限も指定しているため、同じメッセージが別のテストで出た場合や想定より多く出た場合は引き続き報告されます。
+
 ## テストディレクトリ
 
 ### `peer/` — 2台構成テスト
