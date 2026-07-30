@@ -60,7 +60,7 @@ Host/Device loopback tests.
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
 - **USB network** — CDC-NCM / CDC-ECM USB Ethernet adapters, either as raw Ethernet frames or attached as an lwIP (`esp_netif`) interface so `NetworkClient` / `HTTPClient` run over USB with no Wi-Fi
-- **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT and EP0 vendor requests
+- **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT, an asynchronous bulk OUT queue with zero-copy buffers and automatic ZLP handling, and EP0 vendor requests
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
 
@@ -73,7 +73,8 @@ Host/Device loopback tests.
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
-| Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT, and EP0 vendor IN/OUT requests |
+| Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT (synchronous and an asynchronous queue), automatic ZLP, and EP0 vendor IN/OUT requests |
+| USB graphics adapter (DL-1xx bulk protocol) | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) on top of the vendor bulk API — nothing display-specific is in the library. A reference implementation for one chip family at 16 bpp; for other adapters or higher frame rates use a dedicated library such as [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | CDC-NCM / CDC-ECM — USB Ethernet with raw frame access and lwIP netif attach | 🔲 Experimental. Peer-tested against the EspUsbDevice `UsbNetwork` sketch and an AX88179A adapter. Adapters whose network function is not in the default configuration need `setConfigurationSelector()` and two enumeration passes |

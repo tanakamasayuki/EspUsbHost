@@ -59,6 +59,14 @@ jobs:
           restore-keys: |
             arduino-${{ runner.os }}-${{ matrix.profile }}-
 
+      - name: Update the Arduino library index
+        # sketch.yaml library versions are resolved against the library index. A
+        # cache restored through restore-keys can hold an index from before a
+        # dependency version was published, which fails as
+        # "Library '<name>' not found" and then a missing header. Refreshing after
+        # the cache restore keeps that independent of cache state.
+        run: arduino-cli lib update-index
+
       - name: Build examples (${{ matrix.profile }})
         # Every example declares its libraries (including external ones like
         # ESP8266Audio / PCMFlow) in sketch.yaml, so all of them build from a clean
