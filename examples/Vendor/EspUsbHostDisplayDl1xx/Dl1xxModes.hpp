@@ -47,6 +47,8 @@ static constexpr uint8_t COLOR_DEPTH_24BPP = 0x01;
 static constexpr uint8_t REG_COLOR_DEPTH = 0x00;
 static constexpr uint8_t REG_H_DISPLAY_START = 0x01;
 static constexpr uint8_t REG_H_DISPLAY_END = 0x03;
+static constexpr uint8_t REG_V_DISPLAY_START = 0x05;
+static constexpr uint8_t REG_V_DISPLAY_END = 0x07;
 static constexpr uint8_t REG_H_TOTAL = 0x09;
 static constexpr uint8_t REG_H_SYNC_START = 0x0b;
 static constexpr uint8_t REG_H_SYNC_END = 0x0d;
@@ -104,6 +106,8 @@ static inline bool writeModeSet(CommandBuffer &out, const Timing &timing)
   ok = ok && out.registerWrite(REG_COLOR_DEPTH, COLOR_DEPTH_16BPP);
   ok = ok && out.registerWrite16(REG_H_DISPLAY_START, lfsr16(hDisplayStart(timing)));
   ok = ok && out.registerWrite16(REG_H_DISPLAY_END, lfsr16(hDisplayEnd(timing)));
+  ok = ok && out.registerWrite16(REG_V_DISPLAY_START, lfsr16(vDisplayStart(timing)));
+  ok = ok && out.registerWrite16(REG_V_DISPLAY_END, lfsr16(vDisplayEnd(timing)));
   ok = ok && out.registerWrite16(REG_H_TOTAL, lfsr16(static_cast<uint16_t>(timing.hTotal - 1)));
   ok = ok && out.registerWrite16(REG_H_SYNC_START, lfsr16(1));
   ok = ok && out.registerWrite16(REG_H_SYNC_END,
@@ -124,9 +128,32 @@ static inline bool writeModeSet(CommandBuffer &out, const Timing &timing)
   return ok;
 }
 
-// Bytes writeModeSet() needs: 1 lock + 2 single-byte registers + 11 16-bit
-// registers + 2 24-bit registers + 1 unlock, at 4 bytes per register write.
-static constexpr size_t MODE_SET_BYTES = (1 + 2 + 11 * 2 + 2 * 3 + 1) * 4;
+// Every register writeModeSet() programs, in the order it writes them. Keeping
+// the list here lets a test assert that none is missed: an omitted timing
+// register still transfers fine but leaves the monitor without a valid signal.
+static constexpr uint8_t MODE_SET_REGISTERS[] = {
+    0xff,                                     // lock
+    0x00,                                     // color depth
+    0x01, 0x02, 0x03, 0x04,                   // horizontal display start / end
+    0x05, 0x06, 0x07, 0x08,                   // vertical display start / end
+    0x09, 0x0a,                               // horizontal total - 1
+    0x0b, 0x0c, 0x0d, 0x0e,                   // horizontal sync start / end
+    0x0f, 0x10,                               // horizontal pixel count
+    0x11, 0x12,                               // vertical total
+    0x13, 0x14, 0x15, 0x16,                   // vertical sync start / end
+    0x17, 0x18,                               // vertical line count
+    0x1b, 0x1c,                               // pixel clock
+    0x20, 0x21, 0x22,                         // base16 plane address
+    0x26, 0x27, 0x28,                         // base8 plane address
+    0x1f,                                     // blanking off
+    0xff,                                     // unlock (applies the mode)
+};
+
+static constexpr size_t MODE_SET_REGISTER_COUNT =
+    sizeof(MODE_SET_REGISTERS) / sizeof(MODE_SET_REGISTERS[0]);
+
+// Four bytes per register write.
+static constexpr size_t MODE_SET_BYTES = MODE_SET_REGISTER_COUNT * 4;
 
 // Largest mode whose frame buffer stays inside the 24-bit address space and that
 // the caller's pixel limit allows. maxPixels of 0 means no limit.
