@@ -41,7 +41,7 @@ ADB stream data: ESP_USB_HOST_ADB_OK
 
 `vendorWrite()` は同期的に完了を待つので、USB client task上の接続callbackから呼ばず、callbackではフラグだけを立てて`loop()`から送信します。
 
-ADBは24 byte headerとpayloadを別々のUSB transferで送ります。payload長がBulk OUT endpointのmax packet sizeの倍数なら、payload後にzero-length packet（ZLP）が必要です。RSA署名は256 byteなので、full-speedの64 byte endpointでは特に重要です。ZLPがないと端末が次のADB headerまで前のpayloadとして待ち、認証が進みません。
+ADBは24 byte headerとpayloadを別々のUSB transferで送ります。payload長がBulk OUT endpointのmax packet sizeの倍数なら、payload後にzero-length packet（ZLP）が必要です。RSA署名は256 byteなので、full-speedの64 byte endpointでは特に重要です。ZLPがないと端末が次のADB headerまで前のpayloadとして待ち、認証が進みません。このスケッチは `vendorOpen()` 後に `vendorSetAutoZlp(true)` を呼び、パケット境界で終わる書き込みにライブラリ側がZLPを付けるようにしています。
 
 受信には`onVendorData()`から専用ring bufferへコピーする方式を使います。汎用API内蔵の小さなread bufferだけに依存すると、長い`CNXN` bannerで古いbyteが失われる可能性があります。
 

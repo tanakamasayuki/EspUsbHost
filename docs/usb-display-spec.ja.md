@@ -115,16 +115,16 @@ bulk コマンド（すべて `0xAF` 始まり）:
 | DL-165 の最大解像度 | ファミリ上限 2048x1152、製品実装は 1920x1080 / 1600x1200 | OK（手元の DL-165 + Full HD モニタで解像度的に問題ないことを確認済み） |
 | DL-120 / DL-160 の最大解像度 | 1600x1200 / 1680x1050 | Full HD 不可。低解像度の検証用に使う |
 
-Full-speed bulk OUT の実効を 0.7〜1.0 MB/s と仮定した転送量の見積り:
+Full-speed bulk OUT の実効は **1.098 MB/s** と確定した（Phase 2 の `tests/manual/vendor_bulk_throughput`、ESP32-S3 + DL-165 実機。Full-speed bulk の理論上限 1.216 MB/s の約 90%）。これを基準にした転送量の見積り:
 
 | ケース | 転送量 | 時間 |
 |---|---|---|
-| 全画面単色（RLE 256px = 10B） | 約 81 KB | 0.1 s |
-| 一般的な UI 全画面（RLE で 5〜20 倍圧縮） | 0.2〜0.8 MB | 0.3〜1 s |
-| 全画面写真・ノイズ（519B / 256px） | 4.2 MB | 約 6 s |
-| 差分転送で 1〜2 タイルのみ更新 | 10〜20 KB | 0.03 s |
+| 全画面単色（RLE 256px = 10B） | 約 81 KB | 0.07 s |
+| 一般的な UI 全画面（RLE で 5〜20 倍圧縮） | 0.2〜0.8 MB | 0.2〜0.7 s |
+| 全画面写真・ノイズ（519B / 256px） | 4.2 MB | 約 3.8 s |
+| 差分転送で 1〜2 タイルのみ更新 | 10〜20 KB | 0.02 s |
 
-この見積りは仮定を含む。実測は「テスト方針」の manual test で確定させる。
+圧縮率だけが未実測の変数として残る。これは Phase 6 の `usb_display_throughput` で描画パターン別に確定させる。
 
 ### LGFXVirtualCanvas との組み合わせ
 
@@ -139,9 +139,9 @@ LGFXVirtualCanvas 1.2.0 以降を前提とする（差分転送 `setDiffMode(LGF
 ### 本体 API の不足点
 
 1. ~~`vendorOpen()` が bulk IN / OUT のペアを必須にしている~~ → Phase 1 で対応済み。DL-1xx は bulk OUT + interrupt IN で bulk IN を持たないため open できなかった。あわせて、同一 interface に複数の bulk OUT があるとき descriptor 順で最後の endpoint を選んでしまう問題も修正した（手元の DL-165 は bulk OUT を 2 本持つため、`0x0a` が選ばれていた）
-2. `vendorWrite()` が完全同期。[`:2748-2867`](../src/EspUsbHost.cpp#L2748-L2867) は呼び出しごとに `usb_host_transfer_alloc()` → submit → セマフォで最大 1000ms 待ち → free で、USB client task から呼ぶと即 false。1 転送ずつのストア&フォワードになるため Full-speed の帯域が埋まらず、フレームあたり最大 4 MB の memcpy も発生する
-3. bulk OUT のパケット境界（ZLP）処理がユーザー側にある。[`EspUsbHostAdbConnect.ino:311-315`](../examples/Vendor/EspUsbHostAdbConnect/EspUsbHostAdbConnect.ino#L311-L315) が手書きの ZLP、[`:330-344`](../examples/Vendor/EspUsbHostAdbConnect/EspUsbHostAdbConnect.ino#L330-L344) が `getEndpoints()` を走査して bulk OUT の MPS を得ている
-4. 転送統計がない。スループット計測をユーザーコード側でしか組めない
+2. ~~`vendorWrite()` が完全同期~~ → Phase 2 で対応済み。1 転送ずつのストア&フォワードのため、小さい転送で Full-speed の帯域が埋まらなかった（512 byte 転送で上限の 80%）
+3. ~~bulk OUT のパケット境界（ZLP）処理がユーザー側にある~~ → Phase 2 で auto ZLP をライブラリ責務にし、ADB example から手書き処理を削除
+4. ~~転送統計がない~~ → Phase 2 で `vendorWriteStats()` を追加
 
 control transfer は追加不要。DL-1xx のチャネルキー送信は `vendorControlOut(0x12, 0, 0, key, 16)`、EDID 読み出しは `vendorControlIn(0x02, i << 8, 0xA1, buf, 2)` で既存 API のまま通る。
 
@@ -452,14 +452,20 @@ python 側は出力をパースして表形式で表示し、結果を README �
 - `tests/manual/vendor_bulk_out_only` を追加し、DL-165 実機で PASS（`out_ep=0x01`、`in_mps=0`、channels 0→1、reopen 冪等）
 - `tests/peer/usb_vendor`（bulk IN/OUT ペア経路）3件と `examples/` の esp32s3 ビルドが回帰しないことを確認
 
-### Phase 2: 非同期 bulk OUT キュー
+### Phase 2: 非同期 bulk OUT キュー — 完了
 
 - 転送プール、acquire / submit / release、`vendorWriteAsync()`
-- 統計、flush、pending / free
-- auto-ZLP と `vendorWriteZlp()`
-- `tests/manual/vendor_bulk_throughput` で実効スループットを確定
-- `tests/peer/usb_vendor` に正常系を追加
-- `EspUsbHostAdbConnect` の ZLP 処理を新 API に移行
+- 統計（`vendorWriteStats()`）、`vendorWriteFlush()`、`vendorWritePending()` / `vendorWriteQueueFree()`
+- auto-ZLP（`vendorSetAutoZlp()`）と `vendorWriteZlp()`
+- `tests/manual/vendor_bulk_throughput` で実効スループットを確定 → **1.098 MB/s（FS 上限の約 90%）、depth 2 で全転送サイズが上限に張り付く**
+- `EspUsbHostAdbConnect` と `tests/manual/adb_connect` の ZLP 処理を auto ZLP に移行（Android 実機での確認は未実施）
+- `tests/peer/usb_vendor` への非同期経路の追加は未実施（既存 3 件の回帰は確認済み）
+
+実測から得られた設計上の指針:
+
+- **depth 2 で十分**。depth 4 / 8 は Full-speed では改善しない。メモリはバッファサイズに回すべき
+- **転送サイズを小さくしても帯域が落ちない**のがキューの本質的な利点。同期版は 512 byte で 0.88 MB/s（上限の 80%）まで落ちるが、キューは 512 byte でも 1.098 MB/s を維持する。DL-1xx の RLE コマンド列はチャンクが小さくなりがちなので、この性質が直接効く
+- 計測時の `queue_empty_pct` は 0〜6%、`queue_full` は多数。producer（CPU）ではなくバスが律速という理想的な状態にある
 
 ### Phase 3: DL-1xx プロトコル層
 
@@ -522,7 +528,7 @@ example:
 4. **interrupt IN を開かないことによる副作用**。udl / udlfb も未使用なので問題ないと見ているが実機確認事項
 5. **モニタ側が 1920x1080 を EDID で申告しない場合**。テーブルからの強制設定も用意する
 6. **DL-120/160 世代での挙動差**。同一プロトコルとされているが、レジスタの一部やパディング要件に差がある可能性がある
-7. **Full-speed の実効スループット**。0.7〜1.0 MB/s は仮定値。`vendor_bulk_throughput` で確定させる
+7. ~~**Full-speed の実効スループット**~~ → 1.098 MB/s と実測確定（Phase 2）
 8. **2 本目の bulk OUT（`0x0a`）の用途**。本実装では使わないが、`0x01` だけで足りることを Phase 4 で確認する
 9. **HCD チャネル**。DL アダプタ単体なら 1 チャネルで足りる（実測 0→1）。ただしハブ経由で他デバイスを足すと ESP32-S3 の 8 チャネルはすぐ枯渇する（hub + DL + hub + touchscreen の構成で `No more HCD channels available` を実測）。ディスプレイ検証時はアダプタを直結する
 

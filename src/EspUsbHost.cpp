@@ -2903,6 +2903,18 @@ bool EspUsbHost::vendorWrite(const uint8_t *data, size_t length, uint8_t address
     vSemaphoreDelete(context->done);
     delete context;
   }
+
+  // A transfer that ends on a packet boundary does not terminate the USB
+  // transfer, so protocols that need one get the ZLP here. The length guard also
+  // keeps this from recursing on the ZLP itself.
+  if (ok && device->usbVendorAutoZlp && length != 0 && device->usbVendorOutPacketSize != 0 &&
+      (length % device->usbVendorOutPacketSize) == 0)
+  {
+    if (vendorWrite(nullptr, 0, address))
+    {
+      device->usbVendorWriteStats.zlp++;
+    }
+  }
   return ok;
 }
 
@@ -2926,6 +2938,608 @@ size_t EspUsbHost::vendorRead(uint8_t *buffer, size_t length, uint8_t address)
     device->usbVendorRxCount--;
   }
   return copied;
+}
+
+namespace
+{
+constexpr uint8_t VENDOR_OUT_SLOT_FREE = 0;
+constexpr uint8_t VENDOR_OUT_SLOT_ACQUIRED = 1;
+constexpr uint8_t VENDOR_OUT_SLOT_INFLIGHT = 2;
+// Bounded wait used when an automatic ZLP needs a slot of its own. The ZLP must
+// follow its data transfer, so this waits instead of failing immediately.
+constexpr uint32_t VENDOR_OUT_ZLP_WAIT_MS = 100;
+} // namespace
+
+int EspUsbHost::vendorOutSlotOf(const DeviceState &device, const uint8_t *buffer) const
+{
+  if (!buffer)
+  {
+    return -1;
+  }
+  for (uint8_t i = 0; i < device.usbVendorOutQueueDepth; i++)
+  {
+    const usb_transfer_t *transfer = device.usbVendorOutTransfers[i];
+    if (transfer && transfer->data_buffer == buffer)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int EspUsbHost::vendorOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
+{
+  for (uint8_t i = 0; i < device.usbVendorOutQueueDepth; i++)
+  {
+    if (device.usbVendorOutTransfers[i] == transfer)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+bool EspUsbHost::vendorWriteQueueBegin(size_t depth, size_t bufferBytes, uint8_t address)
+{
+  if (depth == 0 || depth > ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH || bufferBytes == 0)
+  {
+    ESP_LOGW(TAG, "vendorWriteQueueBegin() invalid depth=%u bufferBytes=%u",
+             static_cast<unsigned>(depth),
+             static_cast<unsigned>(bufferBytes));
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "vendorWriteQueueBegin() called before vendorOpen()");
+    return false;
+  }
+  if (!device->hasUsbVendorOutEndpoint)
+  {
+    ESP_LOGW(TAG, "vendorWriteQueueBegin() no bulk OUT endpoint");
+    return false;
+  }
+
+  if (device->usbVendorOutQueueActive)
+  {
+    // Re-begin with the same shape is a no-op; changing the shape requires an
+    // explicit end so in-flight transfers are drained first.
+    if (device->usbVendorOutQueueDepth == depth && device->usbVendorOutBufferBytes == bufferBytes)
+    {
+      return true;
+    }
+    ESP_LOGW(TAG, "vendorWriteQueueBegin() already active with depth=%u bufferBytes=%u",
+             static_cast<unsigned>(device->usbVendorOutQueueDepth),
+             static_cast<unsigned>(device->usbVendorOutBufferBytes));
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
+
+  device->usbVendorOutFreeSlots = xSemaphoreCreateCounting(depth, depth);
+  if (!device->usbVendorOutFreeSlots)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  for (size_t i = 0; i < depth; i++)
+  {
+    usb_transfer_t *transfer = nullptr;
+    const esp_err_t err = usb_host_transfer_alloc(bufferBytes, 0, &transfer);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor bulk OUT queue) failed: %s", esp_err_to_name(err));
+      setLastError(err);
+      for (size_t j = 0; j < i; j++)
+      {
+        usb_host_transfer_free(device->usbVendorOutTransfers[j]);
+        device->usbVendorOutTransfers[j] = nullptr;
+      }
+      vSemaphoreDelete(device->usbVendorOutFreeSlots);
+      device->usbVendorOutFreeSlots = nullptr;
+      return false;
+    }
+    transfer->device_handle = device->handle;
+    transfer->bEndpointAddress = device->usbVendorOutEndpointAddress;
+    transfer->callback = vendorOutTransferCallback;
+    transfer->context = this;
+    device->usbVendorOutTransfers[i] = transfer;
+    device->usbVendorOutSlotState[i] = VENDOR_OUT_SLOT_FREE;
+  }
+
+  device->usbVendorOutQueueDepth = static_cast<uint8_t>(depth);
+  device->usbVendorOutBufferBytes = bufferBytes;
+  device->usbVendorOutHalted = false;
+  device->usbVendorWriteStats = EspUsbHostVendorWriteStats();
+  device->usbVendorOutQueueActive = true;
+
+  ESP_LOGI(TAG, "USB vendor bulk OUT queue ready: address=%u ep=0x%02x depth=%u buffer=%u",
+           device->info.address,
+           device->usbVendorOutEndpointAddress,
+           static_cast<unsigned>(depth),
+           static_cast<unsigned>(bufferBytes));
+  return true;
+}
+
+void EspUsbHost::vendorWriteQueueEnd(uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->usbVendorOutQueueActive)
+  {
+    return;
+  }
+  // Stop accepting new work before draining so pending() can reach zero.
+  device->usbVendorOutQueueActive = false;
+  vendorDrainOut(*device);
+}
+
+// Wait for in-flight transfers to complete, then free the pool. Freeing a
+// transfer the HCD still owns is a use-after-free in the driver, so a wedged
+// transfer intentionally leaks its slot instead (same tradeoff as
+// networkDrainTx()).
+void EspUsbHost::vendorDrainOut(DeviceState &device)
+{
+  if (xTaskGetCurrentTaskHandle() != clientTaskHandle_)
+  {
+    const uint32_t deadline = millis() + 2000;
+    while (millis() < deadline)
+    {
+      bool inFlight = false;
+      portENTER_CRITICAL(&vendorOutMux_);
+      for (uint8_t i = 0; i < device.usbVendorOutQueueDepth; i++)
+      {
+        if (device.usbVendorOutSlotState[i] == VENDOR_OUT_SLOT_INFLIGHT)
+        {
+          inFlight = true;
+          break;
+        }
+      }
+      portEXIT_CRITICAL(&vendorOutMux_);
+      if (!inFlight)
+      {
+        break;
+      }
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+  releaseVendorOutQueue(device);
+}
+
+void EspUsbHost::releaseVendorOutQueue(DeviceState &device)
+{
+  device.usbVendorOutQueueActive = false;
+  for (uint8_t i = 0; i < device.usbVendorOutQueueDepth; i++)
+  {
+    usb_transfer_t *transfer = device.usbVendorOutTransfers[i];
+    const bool inFlight = device.usbVendorOutSlotState[i] == VENDOR_OUT_SLOT_INFLIGHT;
+    device.usbVendorOutTransfers[i] = nullptr;
+    device.usbVendorOutSlotState[i] = VENDOR_OUT_SLOT_FREE;
+    if (!transfer)
+    {
+      continue;
+    }
+    if (inFlight)
+    {
+      ESP_LOGW(TAG, "vendor bulk OUT slot %u still in flight; leaking it to avoid a use-after-free",
+               static_cast<unsigned>(i));
+      continue;
+    }
+    usb_host_transfer_free(transfer);
+  }
+  device.usbVendorOutQueueDepth = 0;
+  device.usbVendorOutBufferBytes = 0;
+  device.usbVendorOutHalted = false;
+  if (device.usbVendorOutFreeSlots)
+  {
+    vSemaphoreDelete(device.usbVendorOutFreeSlots);
+    device.usbVendorOutFreeSlots = nullptr;
+  }
+}
+
+bool EspUsbHost::vendorWriteQueueReady(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  return device && device->usbVendorOutQueueActive;
+}
+
+uint8_t *EspUsbHost::vendorWriteAcquire(size_t *capacity, uint32_t timeoutMs, uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->usbVendorOutQueueActive || !device->usbVendorOutFreeSlots)
+  {
+    ESP_LOGW(TAG, "vendorWriteAcquire() called before vendorWriteQueueBegin()");
+    return nullptr;
+  }
+
+  if (xSemaphoreTake(device->usbVendorOutFreeSlots, 0) != pdTRUE)
+  {
+    device->usbVendorWriteStats.queueFullEvents++;
+    if (timeoutMs == 0 ||
+        xSemaphoreTake(device->usbVendorOutFreeSlots, pdMS_TO_TICKS(timeoutMs)) != pdTRUE)
+    {
+      setLastError(ESP_ERR_TIMEOUT);
+      return nullptr;
+    }
+  }
+
+  uint8_t *buffer = nullptr;
+  portENTER_CRITICAL(&vendorOutMux_);
+  for (uint8_t i = 0; i < device->usbVendorOutQueueDepth; i++)
+  {
+    if (device->usbVendorOutSlotState[i] == VENDOR_OUT_SLOT_FREE && device->usbVendorOutTransfers[i])
+    {
+      device->usbVendorOutSlotState[i] = VENDOR_OUT_SLOT_ACQUIRED;
+      buffer = device->usbVendorOutTransfers[i]->data_buffer;
+      break;
+    }
+  }
+  portEXIT_CRITICAL(&vendorOutMux_);
+
+  if (!buffer)
+  {
+    // The semaphore count and the slot states disagree, which should not happen.
+    xSemaphoreGive(device->usbVendorOutFreeSlots);
+    setLastError(ESP_FAIL);
+    return nullptr;
+  }
+
+  if (capacity)
+  {
+    *capacity = device->usbVendorOutBufferBytes;
+  }
+  return buffer;
+}
+
+void EspUsbHost::vendorWriteRelease(uint8_t *buffer, uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->usbVendorOutQueueActive)
+  {
+    return;
+  }
+  const int slot = vendorOutSlotOf(*device, buffer);
+  if (slot < 0)
+  {
+    return;
+  }
+
+  bool released = false;
+  portENTER_CRITICAL(&vendorOutMux_);
+  if (device->usbVendorOutSlotState[slot] == VENDOR_OUT_SLOT_ACQUIRED)
+  {
+    device->usbVendorOutSlotState[slot] = VENDOR_OUT_SLOT_FREE;
+    released = true;
+  }
+  portEXIT_CRITICAL(&vendorOutMux_);
+
+  if (released && device->usbVendorOutFreeSlots)
+  {
+    xSemaphoreGive(device->usbVendorOutFreeSlots);
+  }
+}
+
+bool EspUsbHost::submitVendorOutSlot(DeviceState &device, int slot, size_t length)
+{
+  usb_transfer_t *transfer = device.usbVendorOutTransfers[slot];
+  if (!transfer)
+  {
+    return false;
+  }
+
+  // A previous transfer error halts the pipe; ESP-IDF then refuses every submit
+  // until the halt is cleared. Clearing can block, so it happens here on the
+  // caller task rather than in the completion callback.
+  if (device.usbVendorOutHalted)
+  {
+    if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+    {
+      ESP_LOGW(TAG, "vendor bulk OUT halted; cannot recover from the USB client task");
+      setLastError(ESP_ERR_INVALID_STATE);
+      return false;
+    }
+    usb_host_endpoint_clear(device.handle, device.usbVendorOutEndpointAddress);
+    device.usbVendorOutHalted = false;
+  }
+
+  transfer->num_bytes = static_cast<int>(length);
+
+  portENTER_CRITICAL(&vendorOutMux_);
+  device.usbVendorOutSlotState[slot] = VENDOR_OUT_SLOT_INFLIGHT;
+  portEXIT_CRITICAL(&vendorOutMux_);
+
+  const esp_err_t err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(vendor bulk OUT ep=0x%02x len=%u) failed: %s",
+             device.usbVendorOutEndpointAddress,
+             static_cast<unsigned>(length),
+             esp_err_to_name(err));
+    setLastError(err);
+    portENTER_CRITICAL(&vendorOutMux_);
+    device.usbVendorOutSlotState[slot] = VENDOR_OUT_SLOT_FREE;
+    portEXIT_CRITICAL(&vendorOutMux_);
+    if (device.usbVendorOutFreeSlots)
+    {
+      xSemaphoreGive(device.usbVendorOutFreeSlots);
+    }
+    return false;
+  }
+
+  device.usbVendorWriteStats.submitted++;
+  if (length == 0)
+  {
+    device.usbVendorWriteStats.zlp++;
+  }
+  return true;
+}
+
+bool EspUsbHost::submitVendorOutZlp(DeviceState &device)
+{
+  size_t capacity = 0;
+  uint8_t *buffer = vendorWriteAcquire(&capacity, VENDOR_OUT_ZLP_WAIT_MS, device.info.address);
+  if (!buffer)
+  {
+    ESP_LOGW(TAG, "no vendor bulk OUT slot for the automatic ZLP; increase the queue depth");
+    return false;
+  }
+  const int slot = vendorOutSlotOf(device, buffer);
+  if (slot < 0)
+  {
+    vendorWriteRelease(buffer, device.info.address);
+    return false;
+  }
+  return submitVendorOutSlot(device, slot, 0);
+}
+
+bool EspUsbHost::vendorWriteSubmit(uint8_t *buffer, size_t length, uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->usbVendorOutQueueActive)
+  {
+    ESP_LOGW(TAG, "vendorWriteSubmit() called before vendorWriteQueueBegin()");
+    return false;
+  }
+  if (length > device->usbVendorOutBufferBytes)
+  {
+    ESP_LOGW(TAG, "vendorWriteSubmit() length=%u exceeds the slot buffer size %u",
+             static_cast<unsigned>(length),
+             static_cast<unsigned>(device->usbVendorOutBufferBytes));
+    setLastError(ESP_ERR_INVALID_SIZE);
+    return false;
+  }
+  const int slot = vendorOutSlotOf(*device, buffer);
+  if (slot < 0 || device->usbVendorOutSlotState[slot] != VENDOR_OUT_SLOT_ACQUIRED)
+  {
+    ESP_LOGW(TAG, "vendorWriteSubmit() buffer was not acquired from this queue");
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+
+  if (!submitVendorOutSlot(*device, slot, length))
+  {
+    return false;
+  }
+
+  if (device->usbVendorAutoZlp && length != 0 && device->usbVendorOutPacketSize != 0 &&
+      (length % device->usbVendorOutPacketSize) == 0)
+  {
+    submitVendorOutZlp(*device);
+  }
+  return true;
+}
+
+bool EspUsbHost::vendorWriteAsync(const uint8_t *data, size_t length, uint8_t address)
+{
+  if (length > 0 && !data)
+  {
+    ESP_LOGW(TAG, "vendorWriteAsync() called with null data");
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+
+  size_t capacity = 0;
+  uint8_t *buffer = vendorWriteAcquire(&capacity, 0, address);
+  if (!buffer)
+  {
+    return false;
+  }
+  if (length > capacity)
+  {
+    ESP_LOGW(TAG, "vendorWriteAsync() length=%u exceeds the slot buffer size %u",
+             static_cast<unsigned>(length),
+             static_cast<unsigned>(capacity));
+    setLastError(ESP_ERR_INVALID_SIZE);
+    vendorWriteRelease(buffer, address);
+    return false;
+  }
+  if (length > 0)
+  {
+    memcpy(buffer, data, length);
+  }
+  return vendorWriteSubmit(buffer, length, address);
+}
+
+size_t EspUsbHost::vendorWritePending(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+  size_t pending = 0;
+  for (uint8_t i = 0; i < device->usbVendorOutQueueDepth; i++)
+  {
+    if (device->usbVendorOutSlotState[i] == VENDOR_OUT_SLOT_INFLIGHT)
+    {
+      pending++;
+    }
+  }
+  return pending;
+}
+
+size_t EspUsbHost::vendorWriteQueueFree(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+  size_t free = 0;
+  for (uint8_t i = 0; i < device->usbVendorOutQueueDepth; i++)
+  {
+    if (device->usbVendorOutSlotState[i] == VENDOR_OUT_SLOT_FREE)
+    {
+      free++;
+    }
+  }
+  return free;
+}
+
+bool EspUsbHost::vendorWriteFlush(uint32_t timeoutMs, uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    // Completion callbacks run on this task, so waiting here can never progress.
+    ESP_LOGW(TAG, "vendorWriteFlush() cannot run from the USB client task");
+    return false;
+  }
+
+  const uint32_t deadline = millis() + timeoutMs;
+  while (vendorWritePending(address) != 0)
+  {
+    if (millis() >= deadline)
+    {
+      setLastError(ESP_ERR_TIMEOUT);
+      return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+  return true;
+}
+
+EspUsbHostVendorWriteStats EspUsbHost::vendorWriteStats(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    return EspUsbHostVendorWriteStats();
+  }
+  // The USB client task updates these counters concurrently. Re-read until two
+  // consecutive snapshots agree so a 64-bit byte count cannot be torn.
+  EspUsbHostVendorWriteStats stats = device->usbVendorWriteStats;
+  for (int i = 0; i < 4; i++)
+  {
+    const EspUsbHostVendorWriteStats again = device->usbVendorWriteStats;
+    if (again.bytes == stats.bytes && again.completed == stats.completed)
+    {
+      break;
+    }
+    stats = again;
+  }
+  return stats;
+}
+
+void EspUsbHost::vendorWriteStatsReset(uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (device)
+  {
+    device->usbVendorWriteStats = EspUsbHostVendorWriteStats();
+  }
+}
+
+bool EspUsbHost::vendorWriteZlp(uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device || !device->hasUsbVendorOutEndpoint)
+  {
+    return false;
+  }
+  if (device->usbVendorOutQueueActive)
+  {
+    return submitVendorOutZlp(*device);
+  }
+  return vendorWrite(nullptr, 0, address);
+}
+
+void EspUsbHost::vendorSetAutoZlp(bool enable, uint8_t address)
+{
+  DeviceState *device = findUsbVendorDevice(address);
+  if (device)
+  {
+    device->usbVendorAutoZlp = enable;
+  }
+}
+
+bool EspUsbHost::vendorAutoZlp(uint8_t address) const
+{
+  const DeviceState *device = findUsbVendorDevice(address);
+  return device && device->usbVendorAutoZlp;
+}
+
+void EspUsbHost::vendorOutTransferCallback(usb_transfer_t *transfer)
+{
+  EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
+  if (!host)
+  {
+    usb_host_transfer_free(transfer);
+    return;
+  }
+
+  // Pool membership, not the device handle, decides ownership: on disconnect the
+  // device slot can already be reset by the time these canceled transfers are
+  // dispatched.
+  DeviceState *device = nullptr;
+  int slot = -1;
+  for (DeviceState &candidate : host->devices_)
+  {
+    const int found = host->vendorOutSlotOfTransfer(candidate, transfer);
+    if (found >= 0)
+    {
+      device = &candidate;
+      slot = found;
+      break;
+    }
+  }
+  if (!device)
+  {
+    // The pool was released while this transfer was in flight. releaseVendorOutQueue()
+    // deliberately leaked the transfer, so free it now that the driver is done.
+    usb_host_transfer_free(transfer);
+    return;
+  }
+
+  EspUsbHostVendorWriteStats &stats = device->usbVendorWriteStats;
+  stats.completed++;
+  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+  {
+    stats.bytes += static_cast<uint64_t>(transfer->actual_num_bytes);
+  }
+  else
+  {
+    stats.errors++;
+    ESP_LOGD(TAG, "vendor bulk OUT status=%d ep=0x%02x", transfer->status, transfer->bEndpointAddress);
+    host->setLastError(ESP_FAIL);
+    if (transfer->status != USB_TRANSFER_STATUS_CANCELED)
+    {
+      device->usbVendorOutHalted = true;
+    }
+  }
+
+  portENTER_CRITICAL(&host->vendorOutMux_);
+  device->usbVendorOutSlotState[slot] = VENDOR_OUT_SLOT_FREE;
+  portEXIT_CRITICAL(&host->vendorOutMux_);
+  if (device->usbVendorOutFreeSlots)
+  {
+    xSemaphoreGive(device->usbVendorOutFreeSlots);
+  }
 }
 
 uint16_t EspUsbHost::vendorOutPacketSize(uint8_t address) const
@@ -5915,6 +6529,7 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   device->hasNetworkInterface = false;
   device->networkLinkUp = false;
   networkDrainTx(*device); // wait out an in-flight send before tearing down
+  vendorDrainOut(*device); // same for queued vendor bulk OUT transfers
   releaseEndpoints(*device, false);
   device->disconnectPending = true;
 
@@ -9395,6 +10010,7 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
     if (device.inUse)
     {
       device.audioOutRunning = false;
+      device.usbVendorOutQueueActive = false;
     }
   }
 
@@ -9443,6 +10059,20 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
     }
   }
 
+  // Queued vendor bulk OUT transfers are not EndpointState entries either.
+  for (DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || device.usbVendorOutEndpointAddress == 0)
+    {
+      continue;
+    }
+    if (vendorWritePending(device.info.address) != 0)
+    {
+      usb_host_endpoint_halt(device.handle, device.usbVendorOutEndpointAddress);
+      usb_host_endpoint_flush(device.handle, device.usbVendorOutEndpointAddress);
+    }
+  }
+
   const uint32_t startedAtMs = millis();
   while (millis() - startedAtMs < timeoutMs)
   {
@@ -9472,6 +10102,14 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
         if (transfer)
         {
           idle = false;
+        }
+      }
+      for (uint8_t i = 0; i < device.usbVendorOutQueueDepth; i++)
+      {
+        if (device.usbVendorOutSlotState[i] == VENDOR_OUT_SLOT_INFLIGHT)
+        {
+          idle = false;
+          break;
         }
       }
       if (device.networkTxLock)
@@ -9640,6 +10278,7 @@ void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
 void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)
 {
   releaseAudioOutputTransfers(device);
+  releaseVendorOutQueue(device);
   for (EndpointState &endpoint : endpoints_)
   {
     if (!endpoint.inUse || endpoint.deviceHandle != device.handle)

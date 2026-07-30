@@ -30,6 +30,7 @@ EspUsbHostKeyboardLayout	KEYWORD1
 EspUsbHostHIDVendorInput	KEYWORD1
 EspUsbHostVendorInterface	KEYWORD1
 EspUsbHostVendorData	KEYWORD1
+EspUsbHostVendorWriteStats	KEYWORD1
 EspUsbHostNetworkProtocol	KEYWORD1
 EspUsbHostNetworkInterfaceInfo	KEYWORD1
 EspUsbHostNetworkFrame	KEYWORD1
@@ -132,6 +133,21 @@ vendorOutPacketSize	KEYWORD2
 vendorInPacketSize	KEYWORD2
 vendorOutEndpoint	KEYWORD2
 vendorInEndpoint	KEYWORD2
+vendorWriteQueueBegin	KEYWORD2
+vendorWriteQueueEnd	KEYWORD2
+vendorWriteQueueReady	KEYWORD2
+vendorWriteAcquire	KEYWORD2
+vendorWriteSubmit	KEYWORD2
+vendorWriteRelease	KEYWORD2
+vendorWriteAsync	KEYWORD2
+vendorWritePending	KEYWORD2
+vendorWriteQueueFree	KEYWORD2
+vendorWriteFlush	KEYWORD2
+vendorWriteStats	KEYWORD2
+vendorWriteStatsReset	KEYWORD2
+vendorWriteZlp	KEYWORD2
+vendorSetAutoZlp	KEYWORD2
+vendorAutoZlp	KEYWORD2
 vendorControlIn	KEYWORD2
 vendorControlOut	KEYWORD2
 setKeyboardLeds	KEYWORD2
@@ -178,6 +194,7 @@ ESP_USB_HOST_MOUSE_BACK	LITERAL1
 ESP_USB_HOST_MOUSE_FORWARD	LITERAL1
 ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE	LITERAL1
 ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS	LITERAL1
+ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH	LITERAL1
 ESP_USB_HOST_MAX_NETWORK_INTERFACES	LITERAL1
 ESP_USB_HOST_NETWORK_PROTOCOL_NONE	LITERAL1
 ESP_USB_HOST_NETWORK_PROTOCOL_CDC_ECM	LITERAL1

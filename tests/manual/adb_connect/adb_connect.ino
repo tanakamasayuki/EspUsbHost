@@ -227,7 +227,6 @@ AdbKeyStore adbKey;
 
 static volatile bool connectPending = false;
 static uint8_t deviceAddress = 0;
-static uint16_t adbOutPacketSize = 0;
 static bool adbOpen = false;
 static bool online = false;
 static bool signatureSent = false;
@@ -301,11 +300,7 @@ static bool adbSend(uint32_t command, uint32_t arg0, uint32_t arg1,
         return false;
     }
 
-    // ADB sends its header and payload as separate USB transfers. If the
-    // payload ends exactly on a USB packet boundary, terminate that transfer
-    // with a ZLP so adbd does not consume the following ADB header as payload.
-    return adbOutPacketSize == 0 || length % adbOutPacketSize != 0 ||
-           usb.vendorWrite(nullptr, 0, deviceAddress);
+    return true;
 }
 
 static bool openAdbInterface(uint8_t address)
@@ -320,22 +315,17 @@ static bool openAdbInterface(uint8_t address)
             itf.interfaceProtocol == ADB_PROTOCOL)
         {
             Serial.printf("ADB interface found: address=%u number=%u\n", address, itf.number);
-            EspUsbHostEndpointInfo endpoints[ESP_USB_HOST_MAX_ENDPOINTS];
-            const size_t endpointCount = usb.getEndpoints(address, endpoints,
-                                                          ESP_USB_HOST_MAX_ENDPOINTS);
-            adbOutPacketSize = 0;
-            for (size_t endpointIndex = 0; endpointIndex < endpointCount; endpointIndex++)
+            if (!usb.vendorOpen(address, itf.number))
             {
-                const EspUsbHostEndpointInfo &endpoint = endpoints[endpointIndex];
-                const bool isBulk = (endpoint.attributes & 0x03) == 0x02;
-                if (endpoint.interfaceNumber == itf.number && isBulk &&
-                    (endpoint.address & 0x80) == 0)
-                {
-                    adbOutPacketSize = endpoint.maxPacketSize;
-                    break;
-                }
+                return false;
             }
-            return usb.vendorOpen(address, itf.number);
+            // ADB sends its header and payload as separate USB transfers. If one
+            // ends exactly on a USB packet boundary, it must be terminated with a
+            // ZLP so adbd does not consume the following ADB header as payload.
+            usb.vendorSetAutoZlp(true, address);
+            Serial.printf("ADB bulk OUT: ep=0x%02x mps=%u auto ZLP enabled\n",
+                          usb.vendorOutEndpoint(address), usb.vendorOutPacketSize(address));
+            return true;
         }
     }
     return false;
@@ -633,7 +623,6 @@ void setup()
             adbOpen = false;
             connectPending = false;
             deviceAddress = 0;
-            adbOutPacketSize = 0;
             resetConnectionState();
         } });
 

@@ -24,7 +24,7 @@ The key is stored as `rsa-key` in the `esp-adb` NVS namespace, so later connecti
 
 `vendorWrite()` waits synchronously for completion. The connection callback therefore only sets a flag; `loop()` performs all ADB writes outside the USB client task.
 
-ADB sends its 24-byte header and payload as separate USB transfers. A payload whose length is an exact multiple of the Bulk OUT max-packet size must be followed by a zero-length packet (ZLP). This matters for a 256-byte RSA signature on a 64-byte full-speed endpoint; without the ZLP, adbd can wait for more payload and consume the next ADB header into the same USB transfer.
+ADB sends its 24-byte header and payload as separate USB transfers. A payload whose length is an exact multiple of the Bulk OUT max-packet size must be followed by a zero-length packet (ZLP). This matters for a 256-byte RSA signature on a 64-byte full-speed endpoint; without the ZLP, adbd can wait for more payload and consume the next ADB header into the same USB transfer. The sketch enables `vendorSetAutoZlp(true)` after `vendorOpen()`, so the library appends the ZLP whenever a write ends on a packet boundary.
 
 Incoming data is copied from `onVendorData()` into a dedicated ring buffer. This avoids losing the beginning of a long `CNXN` banner when relying only on the generic API's small built-in read buffer.
 

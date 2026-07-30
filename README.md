@@ -571,6 +571,41 @@ When an interface exposes several bulk endpoints in the same direction, the firs
 
 `vendorControlIn()` uses `bmRequestType = 0xc0`; `vendorControlOut()` uses `bmRequestType = 0x40`.
 
+The asynchronous bulk OUT queue keeps several transfers in flight, so the bus does not go idle between them:
+
+```cpp
+bool vendorWriteQueueBegin(size_t depth, size_t bufferBytes,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+uint8_t *vendorWriteAcquire(size_t *capacity, uint32_t timeoutMs = 0,
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorWriteSubmit(uint8_t *buffer, size_t length,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorWriteAsync(const uint8_t *data, size_t length,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+size_t vendorWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t vendorWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool vendorWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+EspUsbHostVendorWriteStats vendorWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void vendorWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+bool vendorWriteZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorSetAutoZlp(bool enable, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorAutoZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+```
+
+`vendorWriteQueueBegin()` preallocates `depth` reusable transfers of `bufferBytes` each (max depth `ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH`). The preferred sequence is zero-copy: `vendorWriteAcquire()` lends you a pooled DMA buffer, you write the payload into it, and `vendorWriteSubmit()` sends it. `vendorWriteAsync()` is the copying convenience form and fails if `length` exceeds the slot size rather than splitting. `vendorWriteRelease()` returns a slot you acquired but decided not to send.
+
+None of these wait for completion, so unlike `vendorWrite()` they may be called from USB callbacks. Completion state is observed through `vendorWritePending()` / `vendorWriteFlush()` / `vendorWriteStats()`. `vendorWriteFlush()` cannot be called from the USB client task, because that is where completion callbacks run.
+
+Measured on an ESP32-S3 (full-speed OTG) with `tests/manual/vendor_bulk_throughput`: the queue reaches 1.098 MB/s, about 90% of the 1.216 MB/s full-speed bulk ceiling, and a depth of 2 is enough to stay there at any transfer size. Synchronous `vendorWrite()` reaches the same figure only with large transfers and drops to 0.88 MB/s at 512 bytes, where per-transfer latency dominates. Depths beyond 2 did not help on full speed.
+
+A bulk OUT transfer whose length is a multiple of the endpoint max packet size does not terminate the USB transfer by itself. `vendorSetAutoZlp(true)` makes the library append the required zero-length packet; `vendorWriteZlp()` sends one explicitly. Auto ZLP is off by default and consumes a second queue slot, so use a depth of at least 2 with it.
+
 ### MIDI
 
 ```cpp
