@@ -495,6 +495,8 @@ void testModeSetSequence()
   reg(0x00, 0x00); // 16 bpp
   reg16(0x01, dl1xx::lfsr16(192));
   reg16(0x03, dl1xx::lfsr16(2112));
+  reg16(0x05, dl1xx::lfsr16(41));
+  reg16(0x07, dl1xx::lfsr16(1121));
   reg16(0x09, dl1xx::lfsr16(2199));
   reg16(0x0b, dl1xx::lfsr16(1));
   reg16(0x0d, dl1xx::lfsr16(45));
@@ -515,6 +517,60 @@ void testModeSetSequence()
   reg(0xff, 0xff); // unlock (applies the mode)
 
   checkBytes(buffer, out.length(), expected, "the Full HD mode-set register stream");
+
+  // Structural check: walk the emitted stream and confirm it programs exactly the
+  // registers MODE_SET_REGISTERS lists, in order. A hand-written expected stream
+  // cannot catch a register that was left out of both the code and the
+  // expectation -- and an omitted timing register still transfers fine, it just
+  // leaves the monitor without a valid signal.
+  {
+    std::vector<uint8_t> written;
+    for (size_t at = 0; at + 4 <= out.length(); at += 4)
+    {
+      checkEqual(buffer[at], 0xaf, "every mode-set element is a command");
+      checkEqual(buffer[at + 1], 0x20, "every mode-set element is a register write");
+      written.push_back(buffer[at + 2]);
+    }
+    checkEqual(written.size(), dl1xx::MODE_SET_REGISTER_COUNT,
+               "the stream holds one write per listed register");
+    for (size_t i = 0; i < written.size() && i < dl1xx::MODE_SET_REGISTER_COUNT; i++)
+    {
+      if (written[i] != dl1xx::MODE_SET_REGISTERS[i])
+      {
+        printf("FAIL: mode-set register %zu is 0x%02x, expected 0x%02x\n", i, written[i],
+               dl1xx::MODE_SET_REGISTERS[i]);
+        failures++;
+      }
+    }
+    // Both halves of every 16-bit timing register must be present. The high half
+    // is listed, so its neighbour must be too.
+    static const uint8_t TIMING_REGISTERS[] = {0x01, 0x03, 0x05, 0x07, 0x09,
+                                               0x0b, 0x0d, 0x0f, 0x11, 0x13,
+                                               0x15, 0x17, 0x1b};
+    for (uint8_t reg : TIMING_REGISTERS)
+    {
+      size_t low = 0;
+      size_t high = 0;
+      for (uint8_t seen : written)
+      {
+        if (seen == reg)
+        {
+          high++;
+        }
+        if (seen == static_cast<uint8_t>(reg + 1))
+        {
+          low++;
+        }
+      }
+      if (high != 1 || low != 1)
+      {
+        printf("FAIL: register 0x%02x written %zu time(s) and 0x%02x %zu time(s); each 16-bit "
+               "timing register needs both halves exactly once\n",
+               reg, high, static_cast<uint8_t>(reg + 1), low);
+        failures++;
+      }
+    }
+  }
 
   // Every mode must fit the same buffer, and the last write must be the unlock.
   for (size_t i = 0; i < dl1xx::MODE_COUNT; i++)

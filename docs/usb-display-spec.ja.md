@@ -485,11 +485,28 @@ python 側は出力をパースして表形式で表示し、結果を README �
 
 - **16bit レジスタのバイト順**。レジスタ 0x0F は仕様書に「生 BE」、0x1B は「生 LE」と明記があるが、LFSR16 系のレジスタには注記がない。0x0F が BE で 0x1B だけが例外という読み方をして、LFSR16 系も high byte first で実装した。`CommandBuffer::registerWrite16()` / `registerWrite16LowFirst()` の使い分け 1 箇所で切り替えられるようにしてある。**Phase 4 の実機で最初に確認すべき項目**
 
-### Phase 4: デバイス層
+### Phase 4: デバイス層 — 実装完了、目視確認待ち
 
-- `Dl1xxDevice.hpp`: 検出、claim、チャネルキー、vendor descriptor、EDID、モード設定、ピクセル送出
-- `tests/manual/usb_display_dl1xx` で実機に画を出す
-- ここで「ESP32-S3 から Full HD が出る」ことを確認する
+- `Dl1xxDevice.hpp`: 検出、claim、チャネルキー、EDID、モード設定、ピクセル送出、generation カウンタ、`resendMode()`
+- `tests/manual/usb_display_dl1xx` で実機実行
+
+**vendor descriptor の読み出しは取りやめた。** type 0x5F の標準 GET_DESCRIPTOR（`bmRequestType 0x80`）が必要で、`vendorControlIn()` は `0xC0` 固定のため表現できない。加えて参照している公開資料にレイアウトの記載がないため、フォーマットを推測することになる。解像度は資料に明記のある EDID（`0xC0/0x02`、`wIndex=0xA1`）から決める方針に変更した。実機で Full HD が出ることは確認済みなので、当初のリスク 1 は実質的に解消している。
+
+実機で確認できたこと（ESP32-S3 + DL-165、転送エラー 0 で完走）:
+
+| 項目 | 実測 | 事前予測 |
+|---|---|---|
+| EDID 読み出し | `read=1 valid=1 checksum=1`、manufacturer=RTK、preferred=1920x1080 / 148,500 kHz | - |
+| モード設定 | 130 バイト（`MODE_SET_BYTES` 128 + flush 2）/ 2.1 ms | - |
+| 全画面単色塗り | 81,002 バイト / 139.7 ms | 約 81 KB |
+| カラーバー | 116,598 バイト / 143.6 ms | - |
+| 1px 市松（RLE 最悪） | 4,209,523 バイト / 3.87 s / 1.037 MB/s | 4.2 MB / 約 3.8 s |
+| 無通信での表示保持 | 3 秒間の完全無通信後も表示継続 | 保持する |
+| モード再送 | 成功（130 バイト / 2.0 ms） | HPD 復帰手段 |
+
+**モニタ自身の EDID 優先タイミング（1920x1080、148,500 kHz）がハードコードした表の値と一致した。** これはモード表の数値に対する独立した裏付けになる。
+
+⚠️ **未確認: モニタに正しい画像が出ているかの目視判定。** 転送バイト数が予測と一致し、デバイスが stall せずに全バイトを受け取り、EDID も正常に読めているため、プロトコルの骨格は正しいと考えられる。ただし 16bit レジスタのバイト順（Phase 3 の未確定事項）が誤っていても転送自体は成功するため、**目視確認までは byte order の仮定が正しいと断定できない**。
 
 ### Phase 5: LovyanGFX panel
 

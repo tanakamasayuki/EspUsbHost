@@ -22,6 +22,7 @@ uv run --env-file .env pytest manual/msc_cache_coherency/msc_cache_coherency.py 
 uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 uv run --env-file .env pytest manual/vendor_bulk_out_only/vendor_bulk_out_only.py -v -s
 uv run --env-file .env pytest manual/vendor_bulk_throughput/vendor_bulk_throughput.py -v -s
+uv run --env-file .env pytest manual/usb_display_dl1xx/usb_display_dl1xx.py -v -s
 ```
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
@@ -58,6 +59,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`adb_connect/`](adb_connect/) | Authorize a real Android ADB transport, authenticate with a persisted RSA key, and verify one shell echo stream | Android device with USB debugging enabled + USB data cable | ✅ |
 | [`vendor_bulk_out_only/`](vendor_bulk_out_only/) | `vendorOpen()` accepts a 0xff interface with a bulk OUT but no bulk IN; packet sizes and endpoint channel accounting match the descriptor. Also dumps the interface/endpoint layout | USB graphics adapter (DisplayLink DL-1xx, VID 0x17e9) or another bulk-OUT-only vendor device | ✅ |
 | [`vendor_bulk_throughput/`](vendor_bulk_throughput/) | Effective bulk OUT throughput: synchronous `vendorWrite()` against the async queue at depths 1/2/4/8 and transfer sizes 512 B–16 KB, plus queue slot accounting and reuse. Establishes the practical full-speed ceiling | Any device with a vendor-specific (0xff) bulk OUT endpoint | ✅ |
+| [`usb_display_dl1xx/`](usb_display_dl1xx/) | DL-1xx bring-up: EDID read, 1920x1080 mode set, solid fills, color bars, 1px checkerboard, image persistence with no traffic, and mode resend. The images must be judged on the monitor | USB graphics adapter (DisplayLink DL-1xx, VID 0x17e9) + a 1920x1080 monitor | ✅ |
 
 ## ESP32-S3 HCD Channel Limits
 
