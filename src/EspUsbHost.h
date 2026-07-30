@@ -139,6 +139,10 @@ static constexpr size_t ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE = 512;
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
 static constexpr uint32_t ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
+// Upper bound for vendorWriteQueueBegin(depth, ...). Each slot holds one
+// preallocated transfer, so the practical depth is limited by DMA memory rather
+// than by this constant.
+static constexpr size_t ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH = 8;
 
 struct EspUsbHostConfig
 {
@@ -348,6 +352,20 @@ struct EspUsbHostVendorData
   uint8_t endpoint = 0;
   const uint8_t *data = nullptr;
   size_t length = 0;
+};
+
+// Diagnostic snapshot of the asynchronous vendor bulk OUT queue. Counters are
+// updated from the caller task (submitted, queueFullEvents) and from the USB
+// client task (completed, errors, bytes, zlp), so the snapshot is consistent per
+// field but not necessarily taken at a single instant.
+struct EspUsbHostVendorWriteStats
+{
+  uint32_t submitted = 0;       // transfers handed to the USB driver
+  uint32_t completed = 0;       // completion callbacks received
+  uint32_t errors = 0;          // completions with a status other than COMPLETED
+  uint32_t queueFullEvents = 0; // acquires that had to wait for a free slot
+  uint32_t zlp = 0;             // zero-length transfers sent
+  uint64_t bytes = 0;           // bytes of completed transfers
 };
 
 struct EspUsbHostHIDReportDescriptor
@@ -1002,6 +1020,46 @@ public:
   // requires a specific one needs to check which was chosen.
   uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   uint8_t vendorInEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+  // Asynchronous bulk OUT queue. vendorWrite() waits for each transfer to
+  // complete, which leaves the bus idle between transfers; the queue keeps
+  // several transfers in flight instead. Unlike vendorWrite(), these calls never
+  // wait for completion and may be used from USB callbacks.
+  //
+  // Preferred (zero-copy) sequence: acquire a pooled DMA buffer, write the
+  // payload into it, then submit it.
+  //
+  //   size_t capacity = 0;
+  //   uint8_t *buffer = usb.vendorWriteAcquire(&capacity, 100);
+  //   if (buffer) { size_t n = encode(buffer, capacity); usb.vendorWriteSubmit(buffer, n); }
+  bool vendorWriteQueueBegin(size_t depth,
+                             size_t bufferBytes,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  void vendorWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool vendorWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint8_t *vendorWriteAcquire(size_t *capacity,
+                              uint32_t timeoutMs = 0,
+                              uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool vendorWriteSubmit(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  void vendorWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Copies into a pooled buffer and submits it. Fails when length exceeds the
+  // per-slot buffer size; the caller decides how to split.
+  bool vendorWriteAsync(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  size_t vendorWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t vendorWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool vendorWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  EspUsbHostVendorWriteStats vendorWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  void vendorWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+  // Bulk OUT packet boundaries. A transfer whose length is a multiple of the
+  // endpoint max packet size does not terminate the USB transfer by itself; some
+  // protocols (ADB, CDC-NCM) require a following zero-length packet.
+  bool vendorWriteZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Off by default. When enabled, every vendor bulk OUT write whose length is a
+  // non-zero multiple of the max packet size is followed by a ZLP. With the
+  // async queue this consumes a second slot, so use a depth of at least 2.
+  void vendorSetAutoZlp(bool enable, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool vendorAutoZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool vendorControlIn(uint8_t request,
                        uint16_t value,
                        uint16_t index,
@@ -1369,6 +1427,18 @@ private:
     size_t usbVendorRxHead = 0;
     size_t usbVendorRxTail = 0;
     size_t usbVendorRxCount = 0;
+    // Asynchronous bulk OUT queue. Slots are preallocated by
+    // vendorWriteQueueBegin() and reused; usbVendorOutFreeSlots counts the slots
+    // that are neither acquired nor in flight.
+    bool usbVendorOutQueueActive = false;
+    uint8_t usbVendorOutQueueDepth = 0;
+    size_t usbVendorOutBufferBytes = 0;
+    usb_transfer_t *usbVendorOutTransfers[ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH] = {};
+    uint8_t usbVendorOutSlotState[ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH] = {};
+    SemaphoreHandle_t usbVendorOutFreeSlots = nullptr;
+    bool usbVendorOutHalted = false;
+    bool usbVendorAutoZlp = false;
+    EspUsbHostVendorWriteStats usbVendorWriteStats;
     bool hasMidiInterface = false;
     uint8_t midiInterfaceNumber = 0;
     bool hasMidiOutEndpoint = false;
@@ -1478,6 +1548,7 @@ private:
   static void hidReportDescriptorTransferCallback(usb_transfer_t *transfer);
   static void outputTransferCallback(usb_transfer_t *transfer);
   static void serialOutTransferCallback(usb_transfer_t *transfer);
+  static void vendorOutTransferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
   void clientTaskLoop();
@@ -1557,6 +1628,12 @@ private:
   DeviceState *findUsbVendorDevice(uint8_t address);
   const DeviceState *findUsbVendorDevice(uint8_t address) const;
   DeviceState *findUsbVendorCandidate(uint8_t address, uint8_t interfaceNumber);
+  int vendorOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
+  int vendorOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
+  bool submitVendorOutSlot(DeviceState &device, int slot, size_t length);
+  bool submitVendorOutZlp(DeviceState &device);
+  void releaseVendorOutQueue(DeviceState &device);
+  void vendorDrainOut(DeviceState &device);
   DeviceState *findNetworkDevice(uint8_t address);
   const DeviceState *findNetworkDevice(uint8_t address) const;
   void releaseEndpoints(DeviceState &device, bool clearEndpoints);
@@ -1720,6 +1797,9 @@ private:
   std::shared_ptr<GamepadCallback> gamepadCallback_;
   HIDVendorInputCallback hidVendorInputCallback_;
   VendorDataCallback vendorDataCallback_;
+  // Guards the vendor bulk OUT slot-state scan against concurrent callers and
+  // against the completion callback on the USB client task.
+  portMUX_TYPE vendorOutMux_ = portMUX_INITIALIZER_UNLOCKED;
   std::shared_ptr<SystemControlCallback> systemControlCallback_;
   NetworkFrameCallback networkFrameCallback_;
   ConfigurationSelector configurationSelector_;

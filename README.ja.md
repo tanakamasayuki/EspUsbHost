@@ -560,6 +560,41 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
 
 `vendorControlIn()` は `bmRequestType = 0xc0`、`vendorControlOut()` は `bmRequestType = 0x40` を使います。
 
+非同期 bulk OUT キューは複数の転送を同時に飛ばし続けるため、転送間でバスがアイドルになりません。
+
+```cpp
+bool vendorWriteQueueBegin(size_t depth, size_t bufferBytes,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+uint8_t *vendorWriteAcquire(size_t *capacity, uint32_t timeoutMs = 0,
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorWriteSubmit(uint8_t *buffer, size_t length,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorWriteAsync(const uint8_t *data, size_t length,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+size_t vendorWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t vendorWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool vendorWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+EspUsbHostVendorWriteStats vendorWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void vendorWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+bool vendorWriteZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorSetAutoZlp(bool enable, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorAutoZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+```
+
+`vendorWriteQueueBegin()` は `bufferBytes` サイズの再利用可能な transfer を `depth` 個だけ事前確保します（depthの上限は `ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH`）。推奨する使い方はゼロコピー経路です。`vendorWriteAcquire()` がプールのDMAバッファを貸し出し、そこへ直接payloadを書き、`vendorWriteSubmit()` で送出します。`vendorWriteAsync()` はコピーする簡易版で、`length` がスロットサイズを超える場合は分割せず失敗します。acquireしたが送らないことにしたスロットは `vendorWriteRelease()` で返します。
+
+いずれも転送完了を待たないため、`vendorWrite()` と違ってUSB callback内からも呼び出せます。完了状況は `vendorWritePending()` / `vendorWriteFlush()` / `vendorWriteStats()` で観測します。`vendorWriteFlush()` は完了callbackが動くtaskそのものであるUSB client taskからは呼び出せません。
+
+ESP32-S3（full-speed OTG）での `tests/manual/vendor_bulk_throughput` 実測値: キューは1.098 MB/sに達し、これはfull-speed bulkの上限1.216 MB/sの約90%です。depth 2あれば転送サイズに関係なくこの上限に張り付きます。同期の `vendorWrite()` が同じ値に届くのは大きな転送のときだけで、転送ごとのレイテンシが支配的になる512 byteでは0.88 MB/sまで落ちます。full-speedではdepthを2より増やしても改善しませんでした。
+
+bulk OUTの転送長がendpointのmax packet sizeの倍数になった場合、その転送だけではUSB転送が終端されません。`vendorSetAutoZlp(true)` にするとライブラリが必要なzero-length packetを付加し、`vendorWriteZlp()` は明示的に1つ送ります。auto ZLPは既定で無効で、有効時はキューのスロットをもう1つ消費するためdepthは2以上にしてください。
+
 ### MIDI
 
 ```cpp
