@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.5.3
 - (EN) Manage expected serial-log findings with a known list in `tests/conftest.py`, matching the sibling EspUsbDevice library. Each entry pins a line pattern to the test and log file it was observed in with a maximum count and a reason, and matches are reported as `KNOWN:` separately from unexpected findings. The first entry covers the single `USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE` that ESP-IDF logs when a transfer submission races the peer board re-enumerating while its firmware is replaced; the library takes its normal submit-failure path and the device is cleaned up by the following disconnect event.
 - (JA) シリアルログ監査で想定済みの検出結果をknownリストで管理するようにしました（`tests/conftest.py`、兄弟ライブラリEspUsbDeviceと同じ方式）。各エントリは行パターンを観測されたテストとログファイルに紐付け、出現回数の上限と理由を持ち、一致した行は想定外の検出結果とは分けて `KNOWN:` として報告されます。最初のエントリは、peerボードのファームウェア書き換えによる再列挙とtransferのsubmitが競合したときにESP-IDFが1行出力する `USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE` です。ライブラリ側は通常のsubmit失敗パスを通り、デバイスは後続の切断イベントで解放されます。
 - (EN) Refresh the Arduino library index in the Build Check workflow before compiling. The cache is restored through `restore-keys`, so a run could pick up a library index from before a `sketch.yaml` dependency version was published and fail with "Library '<name>' not found" followed by a missing header.
