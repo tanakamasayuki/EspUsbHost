@@ -1,6 +1,14 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Accept a vendor-specific interface that only exposes a bulk OUT endpoint in `vendorOpen()`. An interface with both a bulk IN and a bulk OUT endpoint is still preferred; when only a bulk OUT is present, no IN transfer is started and the endpoint channel count grows by 1 instead of 2. Previously such an interface failed with "no bulk IN/OUT pair", which blocked devices that pair their bulk OUT with an interrupt IN, such as USB graphics adapters. An interface with only a bulk IN endpoint still fails.
+- (JA) `vendorOpen()` が bulk OUT だけを持つ vendor-specific interface を受け付けるようにしました。bulk IN と bulk OUT の両方を持つ interface を優先する点は従来どおりで、bulk OUT のみの場合は IN 転送を開始せず、endpoint channel のカウントも2ではなく1だけ増やします。従来は「no bulk IN/OUT pair」で失敗し、USBグラフィックスアダプタのように bulk OUT と interrupt IN を組み合わせるデバイスが open できませんでした。bulk IN のみの interface は引き続き失敗扱いです。
+- (EN) Select the first bulk endpoint in descriptor order in `vendorOpen()` when an interface exposes several in the same direction. Previously the last one won, so on a device with two bulk OUT endpoints the wrong endpoint was opened. A real DisplayLink DL-165 adapter (17e9:0360) has bulk OUT 0x01, interrupt IN 0x82, and a second bulk OUT 0x0a on one 0xff interface, and its protocol requires endpoint 0x01.
+- (JA) 同じ方向の bulk endpoint が複数ある interface で、`vendorOpen()` が descriptor 順で最初の endpoint を選ぶようにしました。従来は最後の endpoint が選ばれるため、bulk OUT を2本持つデバイスでは意図しない endpoint が open されていました。実機の DisplayLink DL-165 アダプタ（17e9:0360）は1本の 0xff interface に bulk OUT 0x01、interrupt IN 0x82、2本目の bulk OUT 0x0a を持ち、プロトコル上は 0x01 が必要です。
+- (EN) Add `vendorOutPacketSize()` / `vendorInPacketSize()` / `vendorOutEndpoint()` / `vendorInEndpoint()`, which report the max packet size and address of the endpoints opened by `vendorOpen()` (0 when not open). Callers that must terminate a transfer on a packet boundary, or that need to know which endpoint was chosen, previously had to walk `getEndpoints()` themselves.
+- (JA) `vendorOpen()` で open した endpoint の max packet size とアドレスを返す `vendorOutPacketSize()` / `vendorInPacketSize()` / `vendorOutEndpoint()` / `vendorInEndpoint()` を追加しました（未openは0）。転送をパケット境界で終わらせる場合や、どの endpoint が選ばれたかを知りたい場合、従来は `getEndpoints()` を自前で走査する必要がありました。
+- (EN) Add the `vendor_bulk_out_only` manual test: it dumps the interface/endpoint layout of the attached device and verifies the OUT-only open path, the reported packet sizes and endpoint addresses, the endpoint channel accounting, and that reopening is idempotent. Verified on a DisplayLink DL-165 adapter.
+- (JA) manual test `vendor_bulk_out_only` を追加しました。接続デバイスの interface/endpoint 構成を出力し、bulk OUT のみでの open、報告される packet size と endpoint アドレス、endpoint channel の計上、再 open の冪等性を検証します。DisplayLink DL-165 アダプタで動作確認済みです。
 - (EN) Add the `LICENSE` file (MIT License) and a License section to both READMEs. The license was previously unstated.
 - (JA) `LICENSE`ファイル（MIT License）と、README両版のライセンス節を追加しました。従来はライセンスが明示されていませんでした。
 

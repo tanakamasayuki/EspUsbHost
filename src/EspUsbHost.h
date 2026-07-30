@@ -992,6 +992,16 @@ public:
   bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t interfaceNumber = 0xff);
   bool vendorWrite(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   size_t vendorRead(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Max packet size of the bulk OUT endpoint opened by vendorOpen(), or 0 when
+  // no vendor interface is open. Callers that must terminate a transfer on a
+  // packet boundary need this value.
+  uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Address of the endpoints vendorOpen() selected, or 0 when none is open. An
+  // interface can expose several bulk endpoints per direction, so a caller that
+  // requires a specific one needs to check which was chosen.
+  uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint8_t vendorInEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool vendorControlIn(uint8_t request,
                        uint16_t value,
                        uint16_t index,

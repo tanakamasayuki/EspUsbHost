@@ -20,6 +20,7 @@ uv run --env-file .env pytest manual/msc_block/msc_block.py -v -s
 uv run --env-file .env pytest manual/msc_hotplug_mount/msc_hotplug_mount.py -v -s
 uv run --env-file .env pytest manual/msc_cache_coherency/msc_cache_coherency.py -v -s
 uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
+uv run --env-file .env pytest manual/vendor_bulk_out_only/vendor_bulk_out_only.py -v -s
 ```
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
@@ -54,6 +55,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`msc_hotplug_mount/`](msc_hotplug_mount/) | Unplug a USB flash drive while mounted and verify the same FatFs/VFS path can mount again after reconnect | USB flash drive | ✅ |
 | [`msc_cache_coherency/`](msc_cache_coherency/) | Re-read one static LBA range as multi-sector transfers under cache pressure and compare against a single-sector reference, catching CPU-cache/USB-DMA incoherency (read only) | ESP32-P4 + USB storage (ESP32-S3 is a negative control) | ✅ |
 | [`adb_connect/`](adb_connect/) | Authorize a real Android ADB transport, authenticate with a persisted RSA key, and verify one shell echo stream | Android device with USB debugging enabled + USB data cable | ✅ |
+| [`vendor_bulk_out_only/`](vendor_bulk_out_only/) | `vendorOpen()` accepts a 0xff interface with a bulk OUT but no bulk IN; packet sizes and endpoint channel accounting match the descriptor. Also dumps the interface/endpoint layout | USB graphics adapter (DisplayLink DL-1xx, VID 0x17e9) or another bulk-OUT-only vendor device | ✅ |
 
 ## ESP32-S3 HCD Channel Limits
 

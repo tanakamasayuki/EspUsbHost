@@ -525,7 +525,7 @@ void    clearAddress();
 
 ### Vendor bulk/control
 
-HIDではないvendor-specific interface（`bInterfaceClass == 0xff`）で、bulk IN / bulk OUT endpointを持つデバイス向けのAPIです。
+HIDではないvendor-specific interface（`bInterfaceClass == 0xff`）で、bulk endpointを持つデバイス向けのAPIです。
 
 ```cpp
 void onVendorData(VendorDataCallback callback);
@@ -536,6 +536,10 @@ bool vendorWrite(const uint8_t *data, size_t length,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t vendorRead(uint8_t *buffer, size_t length,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint8_t vendorInEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 bool vendorControlIn(uint8_t request, uint16_t value, uint16_t index,
                      uint8_t *data, size_t length,
@@ -548,7 +552,11 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
                       uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
 ```
 
-`vendorOpen()` は vendor-specific interface を明示的に claim し、bulk IN 受信を開始します。`vendorWrite()` は転送完了を待つため、`onDeviceConnected()` や `onVendorData()` などUSB callback内では呼び出せません。callbackでは送信要求だけを記録し、`loop()` から呼び出してください。`vendorRead()` はノンブロッキングで、deviceごとの512 byte受信バッファから読み出します。`onVendorData()` の `data` ポインタはcallback中だけ有効です。
+`vendorOpen()` は vendor-specific interface を明示的に claim し、bulk IN 受信を開始します。bulk IN と bulk OUT の両方を持つ interface を優先しますが、bulk OUT だけを持つ interface も受け付けます。その場合 IN 転送は開始されず、`vendorRead()` / `onVendorData()` にデータは届きません。たとえばUSBグラフィックスアダプタは bulk OUT と interrupt IN の組み合わせで、このAPIは interrupt IN を使いません。
+
+同じ方向の bulk endpoint が複数ある interface では、descriptor 順で最初の endpoint を選びます。`vendorOutPacketSize()` / `vendorInPacketSize()` は open 済み endpoint の max packet size、`vendorOutEndpoint()` / `vendorInEndpoint()` はそのアドレスを返します（未openは0）。max packet size は転送をパケット境界で終わらせる場合、アドレスはどの endpoint が選ばれたかを確認する場合に使います。
+
+`vendorWrite()` は転送完了を待つため、`onDeviceConnected()` や `onVendorData()` などUSB callback内では呼び出せません。callbackでは送信要求だけを記録し、`loop()` から呼び出してください。`vendorRead()` はノンブロッキングで、deviceごとの512 byte受信バッファから読み出します。`onVendorData()` の `data` ポインタはcallback中だけ有効です。
 
 `vendorControlIn()` は `bmRequestType = 0xc0`、`vendorControlOut()` は `bmRequestType = 0x40` を使います。
 
