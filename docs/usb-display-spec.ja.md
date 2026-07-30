@@ -467,11 +467,23 @@ python 側は出力をパースして表形式で表示し、結果を README �
 - **転送サイズを小さくしても帯域が落ちない**のがキューの本質的な利点。同期版は 512 byte で 0.88 MB/s（上限の 80%）まで落ちるが、キューは 512 byte でも 1.098 MB/s を維持する。DL-1xx の RLE コマンド列はチャンクが小さくなりがちなので、この性質が直接効く
 - 計測時の `queue_empty_pct` は 0〜6%、`queue_full` は多数。producer（CPU）ではなくバスが律速という理想的な状態にある
 
-### Phase 3: DL-1xx プロトコル層
+### Phase 3: DL-1xx プロトコル層 — 完了
 
-- `Dl1xxProtocol.hpp`（LFSR16、RLE、コマンド生成）
-- `Dl1xxModes.hpp`（1920x1080 / 1280x720 / 1024x768 / 800x600 @60）
-- `tests/unit/dl1xx`
+- `Dl1xxProtocol.hpp`（LFSR16、RLE エンコーダ、レジスタ／flush／padding コマンド生成）
+- `Dl1xxModes.hpp`（1920x1080 / 1280x720 / 1024x768 / 800x600 @60、モード設定列、`selectMode()`）
+- `tests/unit/dl1xx`（g++ ホストテスト。extraction 不要で production ヘッダを直接コンパイル）
+
+検証で確定した点:
+
+- 仕様書記載の「単色 256px = `AF 6B 00 00 00 00 01 F8 00 FF`（10 バイト）」とバイト単位で一致した。これが RLE 形式に対する唯一の外部オラクルで、raw run / repeat run の意味づけが正しいことの裏付けになる
+- 最悪ケースは 519 バイト（= `maxRleCommandBytes(256)`）で一致
+- LFSR の tap set（15, 4, 2, 1）は primitive。周期 65535 で 0 に落ちない
+- 24bit アドレスは Full HD 最終ピクセル 0x3F47FE まで収まる
+- ミューテーションテストで 13 パターンを検証し、意味的に等価な 1 件（`static_cast<uint8_t>(256)` が 0 になるため 256→0 エンコードの三項演算子は冗長）を除く 12 件を検出できることを確認した
+
+未確定のまま残した設計判断:
+
+- **16bit レジスタのバイト順**。レジスタ 0x0F は仕様書に「生 BE」、0x1B は「生 LE」と明記があるが、LFSR16 系のレジスタには注記がない。0x0F が BE で 0x1B だけが例外という読み方をして、LFSR16 系も high byte first で実装した。`CommandBuffer::registerWrite16()` / `registerWrite16LowFirst()` の使い分け 1 箇所で切り替えられるようにしてある。**Phase 4 の実機で最初に確認すべき項目**
 
 ### Phase 4: デバイス層
 
