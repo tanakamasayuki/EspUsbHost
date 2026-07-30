@@ -291,6 +291,7 @@ void loop() {
 |--------|-------------|
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | Generic non-HID vendor-specific interface: bulk IN/OUT and EP0 vendor control IN/OUT |
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | Authenticate Android ADB and run one shell stream over the generic vendor-bulk API |
+| [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | Drive a USB graphics adapter (DL-1xx bulk protocol) as a LovyanGFX panel, with LGFXVirtualCanvas for a Full HD surface |
 
 ## API reference
 
