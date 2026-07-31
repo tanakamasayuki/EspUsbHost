@@ -75,8 +75,8 @@ depending on what you draw:
 |---|---|---|---|---|
 | Solid fill | 3.65 | 28 KB/s | 2.5% | drawing |
 | Vertical gradient | 3.22 | 27 KB/s | 2.4% | drawing |
-| Text + color bars + moving circle | 2.52 | 70 KB/s | 6.3% | drawing |
-| Pseudo-random pixels | 0.27 | 1123 KB/s | 99.8% | USB |
+| Text + color bars + moving circle | 2.53 | 70 KB/s | 6.2% | drawing |
+| Pseudo-random pixels | 0.27 | 1122 KB/s | 99.8% | USB |
 
 Anything the RLE encoder compresses well leaves the bus almost idle, and the
 limit is the draw callback. Only noise-like content saturates USB.
@@ -86,21 +86,25 @@ limit is the draw callback. Only noise-like content saturates USB.
 
 | | fps |
 |---|---|
-| Whole screen every frame | 2.52 |
-| 240x120 sprite over the moving area | **91.56** |
+| Whole screen every frame | 2.53 |
+| 240x120 sprite over the moving area | **91.64** |
 
 **Use fewer, larger bands.** The draw callback re-runs per band, so band count is
 close to a direct multiplier on draw cost:
 
 | Tile budget | Bands | Band height | fps |
 |---|---|---|---|
-| default (~19 KB) | 216 | 5 px | 2.14 |
-| 32 KB | 135 | 8 px | 2.39 |
-| 64 KB | 64 | 17 px | **2.53** |
-| 96 KB / 128 KB | - | - | allocation fails |
+| default (~19 KB) | 216 | 5 px | 2.15 |
+| 32 KB | 135 | 8 px | 2.41 |
+| 64 KB | 64 | 17 px | 2.53 |
+| 96 KB | 44 | 25 px | **2.57** |
+| 128 KB | - | - | allocation fails |
 
-64 KB is about the ceiling for a single tile buffer in ESP32-S3 internal RAM at
-Full HD.
+Somewhere between 96 and 128 KB is the ceiling for a single tile buffer in ESP32-S3
+internal RAM at Full HD, and it moves with how much else the sketch has allocated —
+an earlier build of this same sweep could not fit 96 KB either. The gain flattens
+out well before that ceiling (64 KB to 96 KB buys 1.6%), so there is no reason to
+sit right at the edge.
 
 **Skip double buffering when you are draw-bound.** It overlaps a band's transfer
 with the next band's drawing, which only helps if transfer is a real cost:
@@ -108,7 +112,7 @@ with the next band's drawing, which only helps if transfer is a real cost:
 | | fps |
 |---|---|
 | 32 KB, single buffer | 2.41 |
-| 32 KB, double buffer | 2.40 |
+| 32 KB, double buffer | 2.41 |
 
 At 6% bus use there is nothing to hide, and the second buffer doubles the tile
 RAM — memory that buys more with a larger single tile instead. Call
@@ -119,7 +123,7 @@ needs two or more bands.
 
 | | fps | Pixels sent | USB |
 |---|---|---|---|
-| `setDiffMode(Tile)` | 2.52 | 13% of the screen | 70 KB/s |
+| `setDiffMode(Tile)` | 2.53 | 14% of the screen | 70 KB/s |
 | `Off` | 1.66 | 100% | 187 KB/s |
 
 **Drawing straight to the panel is faster, but it flickers.** Without
@@ -140,7 +144,7 @@ avoids it entirely and is fast enough to saturate the bus, but you have to erase
 the old content yourself. The tiled path buys you the "just redraw everything"
 programming model at the cost of re-running the callback per band.
 
-**`setAutoClear(false)` changes little** (2.56 vs 2.53 fps) when the scene starts
+**`setAutoClear(false)` changes little** (2.56 vs 2.52 fps) when the scene starts
 with its own `fillScreen`, and it is unsafe when it does not.
 
 ### On an ESP32-P4 the bus stops mattering
@@ -151,7 +155,7 @@ The same sweep on an ESP32-P4 runs the adapter at high speed, where
 | Condition | fps (S3) | fps (P4) | P4 USB | P4 bus |
 |---|---|---|---|---|
 | Whole screen, 64 KB tiles | 2.53 | 5.76 | 119 KB/s | 0.3% |
-| Sprite over the moving area | 91.56 | 185.96 | 336 KB/s | 0.9% |
+| Sprite over the moving area | 91.64 | 185.96 | 336 KB/s | 0.9% |
 | Direct, clear and redraw everything | 5.75 | 12.24 | 1445 KB/s | 3.9% |
 | Direct, repaint only the moving part | 692 | ~1000 | 1623 KB/s | 4.4% |
 | Pseudo-random pixels | 0.27 | 1.55 | 6392 KB/s | 17.1% |
