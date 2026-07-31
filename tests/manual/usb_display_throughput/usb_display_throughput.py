@@ -33,14 +33,33 @@ Setup:
        the prompts describe.
 
 Notes:
-    The whole sweep takes about 70 seconds. usb_bps can be compared against the
-    1.098 MB/s full-speed ceiling measured by manual/vendor_bulk_throughput to see
-    how much bandwidth is left.
+    The whole sweep takes about 70 seconds. usb_bps is reported as a share of the
+    bulk OUT ceiling measured by manual/vendor_bulk_throughput on the same board,
+    selected from --profile: 1.098 MB/s for full speed (ESP32-S3) and 36.4 MB/s
+    for high speed (ESP32-P4).
+
+    The ESP32-P4 run needs a self-powered hub -- the host port did not supply
+    enough current for the adapter here -- but nothing else may share that hub. A
+    device on it that fails its downstream port reset (a full-speed touch panel,
+    in our case) makes ESP-IDF's own ext_port driver abort the whole host with
+    "assert failed: handle_recycle ext_port.c" right after begin(). Nothing in
+    this library can intercept that.
 """
 
 import re
 
-CEILING_BPS = 1151434  # 1.098 MB/s, measured on ESP32-S3 full speed
+# Bulk OUT ceilings measured by manual/vendor_bulk_throughput on the same boards.
+# The "bus" share is meaningless against the wrong one: an ESP32-P4 runs the
+# adapter at high speed and exceeds the full-speed ceiling several times over.
+CEILING_BPS_FULL_SPEED = 1151434  # 1.098 MB/s, ESP32-S3
+CEILING_BPS_HIGH_SPEED = 38191924  # 36.4 MB/s, ESP32-P4
+
+
+def _ceiling_bps(config) -> tuple[int, str]:
+    profile = config.getoption("profile") or ""
+    if "p4" in profile:
+        return CEILING_BPS_HIGH_SPEED, "high speed"
+    return CEILING_BPS_FULL_SPEED, "full speed"
 
 SKIP = re.compile(
     r'DISPLAY_TUNE_SKIP id=(\S+) label="([^"]*)" reason=(\w+) mem=(\d+) dbuf=(\d)'
@@ -53,7 +72,7 @@ TUNE = re.compile(
 )
 
 
-def test_usb_display_throughput(dut):
+def test_usb_display_throughput(dut, request):
     """
     Expected result (pass):  Every condition completes with errors=0 and the
                              sketch prints "[PASS]". The table is printed for the
@@ -69,9 +88,12 @@ def test_usb_display_throughput(dut):
     print("\nAttach a monitor to a DL-1xx adapter (VID 0x17e9) and connect it to the host port.")
     print("Watch the monitor during group F: a full clear and redraw should flicker.")
 
+    ceiling_bps, ceiling_name = _ceiling_bps(request.config)
+
     ready = dut.expect(r"DISPLAY_TUNE_READY (\d+)x(\d+)", timeout=90)
     width, height = (int(g) for g in ready.groups())
     print(f"\npanel: {width}x{height}")
+    print(f"bus share is against {ceiling_bps / 1024 / 1024:.1f} MB/s ({ceiling_name})")
 
     # A condition whose tile buffer does not fit reports SKIP instead of a result;
     # the memory ceiling is one of the things this sweep establishes.
@@ -92,7 +114,7 @@ def test_usb_display_throughput(dut):
     for (cid, label, _mode, tiles, tile_h, _diff, _clear, _dbuf, _frames, _sec, fps,
          pushed, total, _bytes, bps, errors) in rows:
         share = f"{100.0 * int(pushed) / int(total):6.1f}" if int(total) else "     -"
-        bus = 100.0 * int(bps) / CEILING_BPS
+        bus = 100.0 * int(bps) / ceiling_bps
         print(f"{cid:3} {label:20} {tiles:>5}  {tile_h:>3}  {float(fps):5.2f}  {share}   "
               f"{int(bps) / 1024:8.1f}  {bus:4.1f}  {errors:>3}")
 

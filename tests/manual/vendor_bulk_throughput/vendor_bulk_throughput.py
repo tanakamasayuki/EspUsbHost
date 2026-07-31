@@ -7,8 +7,11 @@ Purpose:
     checks the queue's slot accounting, oversized-payload rejection, and reuse
     after vendorWriteQueueEnd().
 
-    The number this run establishes -- the practical full-speed ceiling -- is
-    what later display work is normalized against, so record the table.
+    The number this run establishes -- the practical bulk OUT ceiling of the
+    board -- is what later display work is normalized against, so record the
+    table. Measured peaks: 1.098 MB/s on an ESP32-S3 (full speed, from a queue
+    depth of 2 at every transfer size) and 36.4 MB/s on an ESP32-P4 (high speed,
+    async depth 2 with 8 KB transfers).
 
 Why manual:
     Requires a physical device with a vendor-specific bulk OUT endpoint, and the

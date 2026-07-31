@@ -25,7 +25,12 @@ Required hardware:
 Setup:
     1. Connect the host board to the PC.
     2. Attach the monitor to the adapter and the adapter to the board's USB host
-       port. Avoid hubs where possible; the ESP32-S3 has only 8 host channels.
+       port. Keep the chain minimal: the ESP32-S3 has only 8 host channels, and a
+       hub adds one device of its own. When the adapter needs a self-powered hub
+       for current -- required on the ESP32-P4 board here -- give it that hub to
+       itself. A device on the same hub that fails its downstream port reset (a
+       full-speed touch panel, in our case) makes ESP-IDF's ext_port driver abort
+       the host with "assert failed: handle_recycle ext_port.c".
     3. Set TEST_SERIAL_PORT_ESP32S3 in .env to the host board's serial port.
     4. Run: uv run --env-file .env pytest manual/usb_display_dl1xx/usb_display_dl1xx.py -v -s
     5. Watch the monitor while the test runs and confirm what the prompts describe.

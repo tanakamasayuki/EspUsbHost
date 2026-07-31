@@ -399,8 +399,10 @@ void loop()
             Serial.println("[FAIL] could not program a mode");
             return;
         }
-        Serial.printf("DISPLAY_TUNE_READY %dx%d mode=%s ceiling_bps=%u\n", lcd.width(), lcd.height(),
-                      mode->name, 1151434u); // 1.098 MB/s measured on full speed
+        // The bus ceiling is a property of the board (full speed on an ESP32-S3,
+        // high speed on an ESP32-P4), so the test picks it from the profile
+        // instead of the sketch claiming one number for every target.
+        Serial.printf("DISPLAY_TUNE_READY %dx%d mode=%s\n", lcd.width(), lcd.height(), mode->name);
         return;
     }
 
