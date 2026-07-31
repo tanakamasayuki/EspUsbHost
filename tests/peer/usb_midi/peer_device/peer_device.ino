@@ -57,6 +57,16 @@ void loop()
             MIDI.controlChange(74, 64, 0);
             Serial.println("DEVICE_TX_CC");
         }
+        else if (command == 'z')
+        {
+            // Rebooting detaches USB and re-attaches after boot, which is the
+            // only way this board can hand the host a real disconnect followed
+            // by a reconnect. The core has no USB detach API.
+            Serial.println("DEVICE_REBOOT");
+            Serial.flush();
+            delay(50);
+            ESP.restart();
+        }
     }
 
     midiEventPacket_t packet = {0, 0, 0, 0};

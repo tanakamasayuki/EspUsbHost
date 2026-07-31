@@ -333,6 +333,9 @@ ESP32-P4で特定のOTG peripheralを選びたい場合は、`port`に`ESP_USB_H
 ```cpp
 void onDeviceConnected(DeviceCallback callback);
 void onDeviceDisconnected(DeviceCallback callback);
+EspUsbHostListenerId addDeviceConnectedListener(DeviceCallback callback);
+EspUsbHostListenerId addDeviceDisconnectedListener(DeviceCallback callback);
+bool removeListener(EspUsbHostListenerId listenerId);
 void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 ```
 
@@ -340,6 +343,13 @@ void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 `espUsbHostPrint(device)`は1行サマリを出力します。`connected:`や`disconnected:`などのイベント文脈はコールバック側で付けてください。
 
 `portId`はデバイスの接続位置を表します。`0x01`はルートポート直結です。ハブ配下のデバイスでは上位ニブルが検出順に割り当てられたハブ番号、下位ニブルがそのハブのポート番号です。例えば`0x12`は「ハブ#1のポート2」を表します。
+
+listenerの契約は後述の[HID入力](#hid入力)のlistenerと同じです。ただし上限は独立で、
+既定8件（`EspUsbHost::MaxLifecycleListeners`、`ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS`で変更可）です。
+lifecycleはデバイスを追跡するすべてのサブシステムが購読するため、必要数は単一の入力eventのように
+頭打ちにならず、stack上に載せたサブシステムの数に比例して増えるためです。
+接続eventは未サポートのデバイスでも発火するので、listenerはデバイスと通信できると仮定する前に
+`device.supported`を確認してください。
 
 ### HID入力
 
@@ -369,7 +379,8 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage);
 `add*Listener()`を使うと、アダプタとスケッチが互いを上書きせず、同じパース済みHIDイベントを
 受信できます。登録成功時は0以外の`EspUsbHostListenerId`を返します。0
 （`ESP_USB_HOST_INVALID_LISTENER_ID`）は空callbackまたはeventのlistener上限到達を表します。
-`removeListener()`は6種のどのlistener IDも受け取り、解除できたかを返します。
+`removeListener()`はHID入力・[デバイスlifecycle](#デバイスイベント)・[MIDI](#midi)の
+どのlistener IDも受け取り、解除できたかを返します。
 
 listenerはeventごとに既定4件（`EspUsbHost::MaxListenersPerEvent`）で、コンパイル時に
 `ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`で変更できます。単一`on*()` callbackを最初に呼び、
@@ -602,6 +613,7 @@ bulk OUTの転送長がendpointのmax packet sizeの倍数になった場合、�
 
 ```cpp
 void onMidiMessage(MidiCallback callback);   // 受信
+EspUsbHostListenerId addMidiMessageListener(MidiCallback callback);
 
 bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool midiSend(const uint8_t *data, size_t length,
@@ -627,6 +639,11 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 ```
 
 `onMidiMessage`コールバックは`const EspUsbHostMidiMessage &message`を受け取ります。フィールド：`cable`、`codeIndex`、`status`、`data1`、`data2`。
+
+`addMidiMessageListener()`は[HID入力](#hid入力)のlistenerと同じ契約で受信先を追加し、上限は
+`ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`を共有します。1回のbulk転送は複数の4 byteパケットを
+運ぶことがあり、登録済みcallbackはパケットごとに順番に呼ばれます。`message.raw`は転送バッファを
+指すため、callbackの復帰後も保持したいデータはコピーしてください。
 
 ### USBオーディオ
 

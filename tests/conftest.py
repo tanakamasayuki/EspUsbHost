@@ -47,6 +47,13 @@ _KNOWN_SERIAL_FINDINGS = (
         max_count=1,
         reason="transient disconnect while peer firmware is replaced",
     ),
+    _KnownSerialFinding(
+        nodeid_pattern="*peer/usb_midi/test_usb_midi.py::test_usb_midi_lifecycle_listeners_on_peer_reboot",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="the test reboots the peer on purpose to produce a disconnect, so an in-flight transfer can race it",
+    ),
 )
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _AUDIT_RESULTS_KEY = pytest.StashKey[

@@ -122,3 +122,22 @@ OUT/IN は標準Arduino `USBAudioCard` のpeerで送受信確認済み、実USB�
 USB HSだとUSB HUBが実質使えない
 FS側だと使える
 ループバックテストでデバイスとHOST両方でどこまで動いているか個別確認をする
+
+# device lifecycle / MIDI の listener API
+
+状態:
+2.4.0で入力系6種（keyboard / keyboard state / mouse / consumer control / system control / gamepad）にlistener APIを追加済み。`onDeviceConnected` / `onDeviceDisconnected` / `onMidiMessage`は単一slotのまま。
+統合ライブラリESP32KeyBridgeは、この3つを共有するために自前の共有ハブ（約150行）を持っている。ハブが使う6フックのうち4つは2.4.0のlistenerで置き換え可能になっており、残り2つ（`onDeviceDisconnected`、`onMidiMessage`）のためだけにハブ全体が残っている。
+
+仕様案: docs/lifecycle-listener-proposal.ja.md
+
+対応済み（Unreleased）:
+`addDeviceConnectedListener()` / `addDeviceDisconnectedListener()` / `addMidiMessageListener()` を2.4.0と同じ契約で追加した
+listener容量は案Aを採用。lifecycle専用の `ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS`（既定8、`EspUsbHost::MaxLifecycleListeners`）を分けた
+peer test項目を `tests/peer/usb_midi` に追加した。接続eventはDUTの `end()`+`begin()` による再列挙、切断→再接続はpeerの再起動で作る
+`onAudioOutputRequest`は応答系なので単一slotのまま。非const参照＝応答系＝単一slot、const参照＝観測系＝listener化可、という判定基準を仕様案に残した
+
+残作業:
+実機でのpeer test実行（`tests/peer/usb_midi`、未実行。ホストPCに繋いだ実機が必要）
+ESP32KeyBridge側の共有ハブ `EspUsbHostHub`（約150行）と `forStack()` singleton索引の削除、examplesの `sketch.yaml` のEspUsbHostバージョン更新
+リリース時に footprint matrix を再生成する（listener slotの追加でRAMが数百バイト増える）
