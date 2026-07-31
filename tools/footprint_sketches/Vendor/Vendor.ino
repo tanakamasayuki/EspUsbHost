@@ -2,6 +2,20 @@
 
 EspUsbHost usb;
 
+struct VendorWriteZlpIfAvailable
+{
+  template <typename THost>
+  static auto call(THost &host, int) -> decltype(host.vendorWriteZlp(), void())
+  {
+    host.vendorWriteZlp();
+  }
+
+  template <typename THost>
+  static void call(THost &, long)
+  {
+  }
+};
+
 void setup()
 {
   usb.onVendorData([](const EspUsbHostVendorData &data)
@@ -29,7 +43,7 @@ void loop()
         usb.vendorWriteSubmit(buffer, 1);
       }
       usb.vendorWriteAsync(payload, sizeof(payload));
-      usb.vendorWriteZlp();
+      VendorWriteZlpIfAvailable::call(usb, 0);
       usb.vendorWriteFlush(100);
       const EspUsbHostVendorWriteStats stats = usb.vendorWriteStats();
       (void)stats.bytes;
