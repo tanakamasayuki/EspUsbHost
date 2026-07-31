@@ -1,20 +1,7 @@
 #include "EspUsbHost.h"
+#include "espusbhost_version.h"
 
 EspUsbHost usb;
-
-struct VendorWriteZlpIfAvailable
-{
-  template <typename THost>
-  static auto call(THost &host, int) -> decltype(host.vendorWriteZlp(), void())
-  {
-    host.vendorWriteZlp();
-  }
-
-  template <typename THost>
-  static void call(THost &, long)
-  {
-  }
-};
 
 void setup()
 {
@@ -30,6 +17,9 @@ void loop()
   {
     usb.vendorWrite(payload, sizeof(payload));
 
+#if ESPUSBHOST_VERSION_MAJOR > 2 || \
+    (ESPUSBHOST_VERSION_MAJOR == 2 && ESPUSBHOST_VERSION_MINOR > 5) || \
+    (ESPUSBHOST_VERSION_MAJOR == 2 && ESPUSBHOST_VERSION_MINOR == 5 && ESPUSBHOST_VERSION_PATCH >= 3)
     // Reference the asynchronous bulk OUT queue and ZLP handling too, so this
     // probe keeps covering the whole vendor bulk surface.
     usb.vendorSetAutoZlp(true);
@@ -43,7 +33,7 @@ void loop()
         usb.vendorWriteSubmit(buffer, 1);
       }
       usb.vendorWriteAsync(payload, sizeof(payload));
-      VendorWriteZlpIfAvailable::call(usb, 0);
+      usb.vendorWriteZlp();
       usb.vendorWriteFlush(100);
       const EspUsbHostVendorWriteStats stats = usb.vendorWriteStats();
       (void)stats.bytes;
@@ -53,6 +43,7 @@ void loop()
       (void)usb.vendorOutEndpoint();
       usb.vendorWriteQueueEnd();
     }
+#endif
   }
   delay(1000);
 }
