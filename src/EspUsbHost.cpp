@@ -1680,12 +1680,12 @@ bool EspUsbHost::ready() const
 
 void EspUsbHost::onDeviceConnected(DeviceCallback callback)
 {
-  deviceConnectedCallback_ = callback;
+  setHIDCallback(deviceConnectedCallback_, std::move(callback));
 }
 
 void EspUsbHost::onDeviceDisconnected(DeviceCallback callback)
 {
-  deviceDisconnectedCallback_ = callback;
+  setHIDCallback(deviceDisconnectedCallback_, std::move(callback));
 }
 
 void EspUsbHost::onKeyboard(KeyboardCallback callback)
@@ -1720,7 +1720,7 @@ void EspUsbHost::onSerialData(SerialDataCallback callback)
 
 void EspUsbHost::onMidiMessage(MidiMessageCallback callback)
 {
-  midiMessageCallback_ = callback;
+  setHIDCallback(midiMessageCallback_, std::move(callback));
 }
 
 void EspUsbHost::onAudioData(AudioDataCallback callback)
@@ -1781,8 +1781,8 @@ void EspUsbHost::setHIDCallback(std::shared_ptr<Callback> &target, Callback call
   xSemaphoreGive(hidCallbackMutex_);
 }
 
-template <typename Callback>
-EspUsbHostListenerId EspUsbHost::addHIDListener(ListenerRegistry<Callback> &registry, Callback callback)
+template <typename Callback, size_t Capacity>
+EspUsbHostListenerId EspUsbHost::addHIDListener(ListenerRegistry<Callback, Capacity> &registry, Callback callback)
 {
   if (!callback || !hidCallbackMutex_)
   {
@@ -1791,7 +1791,7 @@ EspUsbHostListenerId EspUsbHost::addHIDListener(ListenerRegistry<Callback> &regi
   std::shared_ptr<Callback> stored = std::make_shared<Callback>(std::move(callback));
 
   xSemaphoreTake(hidCallbackMutex_, portMAX_DELAY);
-  if (registry.count >= MaxListenersPerEvent)
+  if (registry.count >= Capacity)
   {
     xSemaphoreGive(hidCallbackMutex_);
     return ESP_USB_HOST_INVALID_LISTENER_ID;
@@ -1810,8 +1810,8 @@ EspUsbHostListenerId EspUsbHost::addHIDListener(ListenerRegistry<Callback> &regi
   return listenerId;
 }
 
-template <typename Callback>
-bool EspUsbHost::removeHIDListenerLocked(ListenerRegistry<Callback> &registry,
+template <typename Callback, size_t Capacity>
+bool EspUsbHost::removeHIDListenerLocked(ListenerRegistry<Callback, Capacity> &registry,
                                          EspUsbHostListenerId listenerId)
 {
   for (size_t i = 0; i < registry.count; i++)
@@ -1831,8 +1831,8 @@ bool EspUsbHost::removeHIDListenerLocked(ListenerRegistry<Callback> &registry,
   return false;
 }
 
-template <typename Callback>
-bool EspUsbHost::listenerIdInUseLocked(const ListenerRegistry<Callback> &registry,
+template <typename Callback, size_t Capacity>
+bool EspUsbHost::listenerIdInUseLocked(const ListenerRegistry<Callback, Capacity> &registry,
                                        EspUsbHostListenerId listenerId) const
 {
   for (size_t i = 0; i < registry.count; i++)
@@ -1852,7 +1852,10 @@ bool EspUsbHost::listenerIdInUseLocked(EspUsbHostListenerId listenerId) const
          listenerIdInUseLocked(mouseListeners_, listenerId) ||
          listenerIdInUseLocked(consumerControlListeners_, listenerId) ||
          listenerIdInUseLocked(systemControlListeners_, listenerId) ||
-         listenerIdInUseLocked(gamepadListeners_, listenerId);
+         listenerIdInUseLocked(gamepadListeners_, listenerId) ||
+         listenerIdInUseLocked(midiMessageListeners_, listenerId) ||
+         listenerIdInUseLocked(deviceConnectedListeners_, listenerId) ||
+         listenerIdInUseLocked(deviceDisconnectedListeners_, listenerId);
 }
 
 EspUsbHostListenerId EspUsbHost::allocateListenerIdLocked()
@@ -1878,9 +1881,9 @@ EspUsbHostListenerId EspUsbHost::allocateListenerIdLocked()
   return ESP_USB_HOST_INVALID_LISTENER_ID;
 }
 
-template <typename Callback>
+template <typename Callback, size_t Capacity>
 size_t EspUsbHost::snapshotHIDCallbacks(const std::shared_ptr<Callback> &single,
-                                        const ListenerRegistry<Callback> &registry,
+                                        const ListenerRegistry<Callback, Capacity> &registry,
                                         std::shared_ptr<Callback> &singleSnapshot,
                                         std::shared_ptr<Callback> *listenerSnapshots)
 {
@@ -1935,6 +1938,56 @@ EspUsbHostListenerId EspUsbHost::addGamepadListener(GamepadCallback callback)
   return addHIDListener(gamepadListeners_, std::move(callback));
 }
 
+EspUsbHostListenerId EspUsbHost::addDeviceConnectedListener(DeviceCallback callback)
+{
+  return addHIDListener(deviceConnectedListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addDeviceDisconnectedListener(DeviceCallback callback)
+{
+  return addHIDListener(deviceDisconnectedListeners_, std::move(callback));
+}
+
+EspUsbHostListenerId EspUsbHost::addMidiMessageListener(MidiMessageCallback callback)
+{
+  return addHIDListener(midiMessageListeners_, std::move(callback));
+}
+
+// Connect is reported from two places — normal enumeration and the hub address
+// scan that picks up devices the enumeration event missed — so both go through
+// here to keep the two paths from drifting apart.
+void EspUsbHost::dispatchDeviceConnected(const EspUsbHostDeviceInfo &info)
+{
+  std::shared_ptr<DeviceCallback> singleCallback;
+  std::shared_ptr<DeviceCallback> listeners[ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS];
+  const size_t listenerCount =
+      snapshotHIDCallbacks(deviceConnectedCallback_, deviceConnectedListeners_, singleCallback, listeners);
+  if (singleCallback)
+  {
+    (*singleCallback)(info);
+  }
+  for (size_t i = 0; i < listenerCount; i++)
+  {
+    (*listeners[i])(info);
+  }
+}
+
+void EspUsbHost::dispatchDeviceDisconnected(const EspUsbHostDeviceInfo &info)
+{
+  std::shared_ptr<DeviceCallback> singleCallback;
+  std::shared_ptr<DeviceCallback> listeners[ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS];
+  const size_t listenerCount =
+      snapshotHIDCallbacks(deviceDisconnectedCallback_, deviceDisconnectedListeners_, singleCallback, listeners);
+  if (singleCallback)
+  {
+    (*singleCallback)(info);
+  }
+  for (size_t i = 0; i < listenerCount; i++)
+  {
+    (*listeners[i])(info);
+  }
+}
+
 bool EspUsbHost::removeListener(EspUsbHostListenerId listenerId)
 {
   if (listenerId == ESP_USB_HOST_INVALID_LISTENER_ID || !hidCallbackMutex_)
@@ -1963,6 +2016,18 @@ bool EspUsbHost::removeListener(EspUsbHostListenerId listenerId)
   if (!removed)
   {
     removed = removeHIDListenerLocked(gamepadListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(midiMessageListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(deviceConnectedListeners_, listenerId);
+  }
+  if (!removed)
+  {
+    removed = removeHIDListenerLocked(deviceDisconnectedListeners_, listenerId);
   }
   xSemaphoreGive(hidCallbackMutex_);
   return removed;
@@ -6481,10 +6546,7 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   const bool hasMsc = device->hasMscInterface && device->hasMscInEndpoint && device->hasMscOutEndpoint;
   device->info.supported = isHub || hasHid || hasCdc || hasAudio || hasMsc || device->vendorSerialSupported;
   device->info.isHub = isHub;
-  if (deviceConnectedCallback_)
-  {
-    deviceConnectedCallback_(device->info);
-  }
+  dispatchDeviceConnected(device->info);
   if (!device->info.supported)
   {
     ESP_LOGI(TAG, "Unsupported device kept for info: address=%u VID=%04x PID=%04x",
@@ -6533,10 +6595,7 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   releaseEndpoints(*device, false);
   device->disconnectPending = true;
 
-  if (deviceDisconnectedCallback_)
-  {
-    deviceDisconnectedCallback_(info);
-  }
+  dispatchDeviceDisconnected(info);
   finalizeDisconnectedDevice(*device);
 }
 
@@ -6672,10 +6731,7 @@ void EspUsbHost::scanHostDevices()
              device->info.parentAddress,
              device->info.portId);
 
-    if (deviceConnectedCallback_)
-    {
-      deviceConnectedCallback_(device->info);
-    }
+    dispatchDeviceConnected(device->info);
   }
 
   for (DeviceState &device : devices_)
@@ -8828,7 +8884,18 @@ void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size
 
 void EspUsbHost::handleMidi(EndpointState &endpoint, const uint8_t *data, size_t length)
 {
-  if (!midiMessageCallback_ || !data || length < 4)
+  if (!data || length < 4)
+  {
+    return;
+  }
+
+  // Snapshot once per transfer, not per 4-byte packet: a bulk MIDI transfer can
+  // carry many packets and taking the mutex for each one is pure overhead.
+  std::shared_ptr<MidiMessageCallback> singleCallback;
+  std::shared_ptr<MidiMessageCallback> listeners[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+  const size_t listenerCount =
+      snapshotHIDCallbacks(midiMessageCallback_, midiMessageListeners_, singleCallback, listeners);
+  if (!singleCallback && listenerCount == 0)
   {
     return;
   }
@@ -8854,7 +8921,14 @@ void EspUsbHost::handleMidi(EndpointState &endpoint, const uint8_t *data, size_t
              message.status,
              message.data1,
              message.data2);
-    midiMessageCallback_(message);
+    if (singleCallback)
+    {
+      (*singleCallback)(message);
+    }
+    for (size_t i = 0; i < listenerCount; i++)
+    {
+      (*listeners[i])(message);
+    }
   }
 }
 

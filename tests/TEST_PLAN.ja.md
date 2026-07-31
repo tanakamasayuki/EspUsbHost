@@ -61,6 +61,8 @@ tests/
 | USBシリアル — CDC ACM | ✅ peer、line coding設定、`end()`/再開 | | |
 | USBシリアル — VCP（FTDI・CP210x・CH34x） | | ✅ manual、シリアル形式設定 | |
 | USB MIDI | ✅ peer | | |
+| MIDI複数listener配送 | ✅ peer（単一callbackとの共存、listener単独配送、順序、上限、解除、callback内変更） | | |
+| device lifecycle複数listener配送 | ✅ peer（`end()`/再開による接続event、peer再起動による切断→再接続、単一callbackとの共存、順序、専用上限8、解除） | | |
 | Vendor-specific bulk/control | ✅ peer（usb_vendor、`end()`/再開を含む） | ✅ manual（Android ADB認証＋shell stream） | |
 | USBオーディオ入出力 | ✅ peer（標準`USBAudioCard`で双方向） | | ⬜ 実USBマイク・オーディオIF |
 | USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否、write失敗検出） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、`fs::FS` wrapper、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ data phase失敗後の完全なBOT復旧、複数LUN、32-bit sector超のFatFs mount |

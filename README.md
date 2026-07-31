@@ -338,6 +338,9 @@ On ESP32-P4, set `port` to `ESP_USB_HOST_PORT_FULL_SPEED` or `ESP_USB_HOST_PORT_
 ```cpp
 void onDeviceConnected(DeviceCallback callback);
 void onDeviceDisconnected(DeviceCallback callback);
+EspUsbHostListenerId addDeviceConnectedListener(DeviceCallback callback);
+EspUsbHostListenerId addDeviceDisconnectedListener(DeviceCallback callback);
+bool removeListener(EspUsbHostListenerId listenerId);
 void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 ```
 
@@ -345,6 +348,15 @@ Callbacks receive `const EspUsbHostDeviceInfo &device`. Key fields: `address`, `
 Use `espUsbHostPrint(device)` for a one-line summary. Add event context such as `connected:` or `disconnected:` in your callback.
 
 `portId` identifies where the device is attached. `0x01` means the root port. For hub-attached devices, the upper nibble is the hub index assigned in detection order and the lower nibble is the hub port number, for example `0x12` means hub #1 port 2.
+
+The listener functions follow the same contract as the [HID input](#hid-input)
+listeners described below. Lifecycle has its own capacity, eight by default
+(`EspUsbHost::MaxLifecycleListeners`, configurable with
+`ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS`), because every subsystem that tracks
+devices subscribes to it, so the number needed grows with how many subsystems
+are built on the stack rather than plateauing the way a single input event does.
+The connect event fires for unsupported devices too, so a listener must check
+`device.supported` before assuming it can talk to the device.
 
 ### HID input
 
@@ -376,7 +388,8 @@ parsed HID event without replacing one another. A successful registration
 returns a nonzero `EspUsbHostListenerId`; zero
 (`ESP_USB_HOST_INVALID_LISTENER_ID`) means that the callback was empty or the
 event's listener capacity was reached. `removeListener()` accepts an ID from any
-of the six listener types and returns whether it removed one.
+listener type — HID input, [device lifecycle](#device-events) or
+[MIDI](#midi) — and returns whether it removed one.
 
 There are four listeners per event by default (`EspUsbHost::MaxListenersPerEvent`),
 configurable at compile time with `ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`. The
@@ -613,6 +626,7 @@ A bulk OUT transfer whose length is a multiple of the endpoint max packet size d
 
 ```cpp
 void onMidiMessage(MidiCallback callback);   // receive
+EspUsbHostListenerId addMidiMessageListener(MidiCallback callback);
 
 bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool midiSend(const uint8_t *data, size_t length,
@@ -638,6 +652,13 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 ```
 
 `onMidiMessage` callback receives `const EspUsbHostMidiMessage &message` with fields `cable`, `codeIndex`, `status`, `data1`, `data2`.
+
+`addMidiMessageListener()` registers an additional receiver under the same
+contract as the [HID input](#hid-input) listeners, sharing
+`ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`. One bulk transfer can carry several
+4-byte packets; every registered callback is invoked for each packet in turn, and
+`message.raw` points into the transfer buffer, so a callback must copy anything it
+keeps past its return.
 
 ### USB audio
 

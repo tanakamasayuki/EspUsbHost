@@ -103,6 +103,16 @@ static constexpr EspUsbHostListenerId ESP_USB_HOST_INVALID_LISTENER_ID = 0;
 #ifndef ESP_USB_HOST_MAX_LISTENERS_PER_EVENT
 #define ESP_USB_HOST_MAX_LISTENERS_PER_EVENT 4
 #endif
+// Device lifecycle (connect / disconnect) has its own capacity because the
+// number of listeners it needs grows differently from the parsed-input events.
+// An input event is watched by however many observers care about that one
+// event, which plateaus; lifecycle is watched by *every* subsystem that tracks
+// devices, so the count scales with the number of subsystems built on the
+// stack. Sharing one macro would force either an input-event slot count nobody
+// needs or a lifecycle count that overflows.
+#ifndef ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS
+#define ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS 8
+#endif
 // Maximum number of concurrently-tracked USB devices. Each slot is a sizable
 // static DeviceState (several KB — RX ring, NTB reassembly buffer, HID field
 // tables, etc.), so this constant dominates the library's static RAM use. The
@@ -962,6 +972,8 @@ public:
   using ConfigurationSelector = std::function<uint8_t(const usb_device_desc_t &)>;
   static constexpr size_t MaxListenersPerEvent = ESP_USB_HOST_MAX_LISTENERS_PER_EVENT;
   static_assert(MaxListenersPerEvent > 0, "ESP_USB_HOST_MAX_LISTENERS_PER_EVENT must be greater than zero");
+  static constexpr size_t MaxLifecycleListeners = ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS;
+  static_assert(MaxLifecycleListeners > 0, "ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS must be greater than zero");
 
   EspUsbHost();
   ~EspUsbHost();
@@ -995,6 +1007,14 @@ public:
   EspUsbHostListenerId addConsumerControlListener(ConsumerControlCallback callback);
   EspUsbHostListenerId addSystemControlListener(SystemControlCallback callback);
   EspUsbHostListenerId addGamepadListener(GamepadCallback callback);
+  // Device lifecycle and MIDI listeners. Same contract as the input listeners
+  // above: the single on*() callback stays compatible and runs first, listeners
+  // run in registration order from a per-event snapshot, removal is by id, and
+  // add / remove from inside a callback takes effect on the next event.
+  // Lifecycle listeners share the ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS budget.
+  EspUsbHostListenerId addDeviceConnectedListener(DeviceCallback callback);
+  EspUsbHostListenerId addDeviceDisconnectedListener(DeviceCallback callback);
+  EspUsbHostListenerId addMidiMessageListener(MidiMessageCallback callback);
   bool removeListener(EspUsbHostListenerId listenerId);
 
   void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
@@ -1293,10 +1313,10 @@ private:
     std::shared_ptr<Callback> callback;
   };
 
-  template <typename Callback>
+  template <typename Callback, size_t Capacity = ESP_USB_HOST_MAX_LISTENERS_PER_EVENT>
   struct ListenerRegistry
   {
-    ListenerSlot<Callback> slots[ESP_USB_HOST_MAX_LISTENERS_PER_EVENT];
+    ListenerSlot<Callback> slots[Capacity];
     size_t count = 0;
   };
 
@@ -1719,17 +1739,20 @@ private:
 
   template <typename Callback>
   void setHIDCallback(std::shared_ptr<Callback> &target, Callback callback);
-  template <typename Callback>
-  EspUsbHostListenerId addHIDListener(ListenerRegistry<Callback> &registry, Callback callback);
-  template <typename Callback>
-  bool removeHIDListenerLocked(ListenerRegistry<Callback> &registry, EspUsbHostListenerId listenerId);
-  template <typename Callback>
-  bool listenerIdInUseLocked(const ListenerRegistry<Callback> &registry, EspUsbHostListenerId listenerId) const;
-  template <typename Callback>
+  template <typename Callback, size_t Capacity>
+  EspUsbHostListenerId addHIDListener(ListenerRegistry<Callback, Capacity> &registry, Callback callback);
+  template <typename Callback, size_t Capacity>
+  bool removeHIDListenerLocked(ListenerRegistry<Callback, Capacity> &registry, EspUsbHostListenerId listenerId);
+  template <typename Callback, size_t Capacity>
+  bool listenerIdInUseLocked(const ListenerRegistry<Callback, Capacity> &registry,
+                             EspUsbHostListenerId listenerId) const;
+  template <typename Callback, size_t Capacity>
   size_t snapshotHIDCallbacks(const std::shared_ptr<Callback> &single,
-                              const ListenerRegistry<Callback> &registry,
+                              const ListenerRegistry<Callback, Capacity> &registry,
                               std::shared_ptr<Callback> &singleSnapshot,
                               std::shared_ptr<Callback> *listenerSnapshots);
+  void dispatchDeviceConnected(const EspUsbHostDeviceInfo &info);
+  void dispatchDeviceDisconnected(const EspUsbHostDeviceInfo &info);
   EspUsbHostListenerId allocateListenerIdLocked();
   bool listenerIdInUseLocked(EspUsbHostListenerId listenerId) const;
 #if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
@@ -1782,15 +1805,15 @@ private:
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;
 
-  DeviceCallback deviceConnectedCallback_;
-  DeviceCallback deviceDisconnectedCallback_;
+  std::shared_ptr<DeviceCallback> deviceConnectedCallback_;
+  std::shared_ptr<DeviceCallback> deviceDisconnectedCallback_;
   std::shared_ptr<KeyboardCallback> keyboardCallback_;
   std::shared_ptr<KeyboardStateCallback> keyboardStateCallback_;
   std::shared_ptr<MouseCallback> mouseCallback_;
   HIDInputCallback hidInputCallback_;
   HIDReportDescriptorCallback hidReportDescriptorCallback_;
   SerialDataCallback serialDataCallback_;
-  MidiMessageCallback midiMessageCallback_;
+  std::shared_ptr<MidiMessageCallback> midiMessageCallback_;
   AudioDataCallback audioDataCallback_;
   AudioOutputCallback audioOutputCallback_;
   std::shared_ptr<ConsumerControlCallback> consumerControlCallback_;
@@ -1809,6 +1832,9 @@ private:
   ListenerRegistry<ConsumerControlCallback> consumerControlListeners_;
   ListenerRegistry<SystemControlCallback> systemControlListeners_;
   ListenerRegistry<GamepadCallback> gamepadListeners_;
+  ListenerRegistry<MidiMessageCallback> midiMessageListeners_;
+  ListenerRegistry<DeviceCallback, ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS> deviceConnectedListeners_;
+  ListenerRegistry<DeviceCallback, ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS> deviceDisconnectedListeners_;
   SemaphoreHandle_t hidCallbackMutex_ = nullptr;
   EspUsbHostListenerId nextListenerId_ = 1;
 };

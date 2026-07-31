@@ -58,7 +58,7 @@ Current coverage:
 - `hid_gamepad`: pairs with an Arduino Core standard gamepad device.
 - `hid_vendor`: pairs with an Arduino Core standard vendor HID device.
 - `usb_serial`: pairs with an Arduino Core standard USB CDC device.
-- `usb_midi`: pairs with an Arduino Core standard USB MIDI device.
+- `usb_midi`: pairs with an Arduino Core standard USB MIDI device. Also covers the MIDI and device-lifecycle listener APIs; one test reboots the peer on purpose, because the device core has no USB detach API and a reboot is the only way to hand the host a real disconnect.
 - `usb_audio`: pairs with an Arduino Core standard USB Audio device via `USBAudioCard` speaker output.
 - `usb_vendor`: pairs with `EspUsbDeviceVendor` from the sibling `EspUsbDevice` library.
 - `usb_ncm`: pairs with an `EspUsbDeviceNet` (CDC-NCM) device from the sibling `EspUsbDevice` library. The host attaches the USB NIC as a DHCP-client lwIP netif, gets a `192.168.7.x` lease from the device's DHCP server, and fetches a fixed page over HTTP.

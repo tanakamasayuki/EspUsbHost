@@ -66,6 +66,8 @@ See each subdirectory's README for hardware setup and individual test details.
 | USB serial — CDC ACM | ✅ peer, line coding config, `end()`/restart | | |
 | USB serial — VCP (FTDI/CP210x/CH34x) | | ✅ manual, serial format configs | |
 | USB MIDI | ✅ peer | | |
+| MIDI multi-listener dispatch | ✅ peer (single-callback coexistence, listener-only delivery, ordering, capacity, removal, callback-time mutation) | | |
+| Device lifecycle multi-listener dispatch | ✅ peer (connect event from `end()` + re-begin, disconnect then reconnect from a peer reboot, single-callback coexistence, ordering, dedicated capacity of 8, removal) | | |
 | Vendor-specific bulk/control | ✅ peer (usb_vendor, including `end()`/restart) | ✅ manual (Android ADB auth + shell stream) | |
 | USB audio input/output | ✅ peer (bidirectional with standard `USBAudioCard`) | | ⬜ real USB microphones/audio interfaces |
 | USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, `fs::FS` wrapper, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, >32-bit-sector FatFs mount |
