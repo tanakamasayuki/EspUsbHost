@@ -464,6 +464,9 @@ Common Consumer Control constants include `ESP_USB_HOST_CONSUMER_CONTROL_PLAY_PA
 void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
 bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock,
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId,
                    const uint8_t *data, size_t length,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -478,6 +481,13 @@ report protocol (report-ID composite HID devices, NKRO keyboards): when no boot
 interface is declared, the LED output report found in the HID report descriptor is
 used and the Set_Report carries the keyboard's report ID. The host also pushes its
 current lock state to the keyboard once at connect.
+
+The library owns the lock state: it toggles it on each Lock keypress and resends the
+LED report, so `getKeyboardNumLock()`, `getKeyboardCapsLock()` and
+`getKeyboardScrollLock()` return the current state at any time without waiting for a
+callback. Lock state is per keyboard; pass an `address` when more than one is
+attached. The same values are also carried on every `onKeyboard` and
+`onKeyboardState` notification. All three read false when no keyboard is attached.
 
 `sendHIDVendorOutput()` and `sendHIDVendorFeature()` are HID vendor-report helpers. For non-HID vendor-specific interfaces, use the Vendor bulk/control APIs below.
 
