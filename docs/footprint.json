@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "core_version": "3.3.11",
-  "probe_revision": "sha256:a4fbea6054600657075278bda384c31e62f457f991cf130875869d0458a83952",
+  "probe_revision": "sha256:e5db37d70de07b04c1e4abbb533b315eb5d0294929b9429c40e3fb2e56aa13e6",
   "targets": [
     "esp32s3",
     "esp32s2",
@@ -186,8 +186,8 @@
       "library_version": "2.0.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
     },
     {
@@ -395,8 +395,8 @@
       "library_version": "2.0.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
     },
     {
@@ -594,11 +594,25 @@
       "library_version": "2.1.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.1.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.1.0/Vendor/compile.log"
+        "log": "esp32p4/v2.1.0/Vendor/compile.log",
+        "elf": "esp32p4/v2.1.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9025268,
+        "sections": {},
+        "map": "esp32p4/v2.1.0/Vendor/Vendor.ino.map",
+        "map_bytes": 5656606,
+        "bin": "esp32p4/v2.1.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 397440
       },
+      "program_bytes": 397246,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 78916,
+      "static_ram_percent": 24,
+      "static_ram_remaining_bytes": 248764,
+      "static_ram_max_bytes": 327680,
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
@@ -607,8 +621,8 @@
       "library_version": "2.1.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
@@ -806,11 +820,25 @@
       "library_version": "2.1.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.1.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.1.1/Vendor/compile.log"
+        "log": "esp32p4/v2.1.1/Vendor/compile.log",
+        "elf": "esp32p4/v2.1.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10363768,
+        "sections": {},
+        "map": "esp32p4/v2.1.1/Vendor/Vendor.ino.map",
+        "map_bytes": 6490977,
+        "bin": "esp32p4/v2.1.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 476752
       },
+      "program_bytes": 476558,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 140356,
+      "static_ram_percent": 42,
+      "static_ram_remaining_bytes": 187324,
+      "static_ram_max_bytes": 327680,
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -819,8 +847,8 @@
       "library_version": "2.1.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -1018,11 +1046,25 @@
       "library_version": "2.1.2",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.1.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.1.2/Vendor/compile.log"
+        "log": "esp32p4/v2.1.2/Vendor/compile.log",
+        "elf": "esp32p4/v2.1.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10363664,
+        "sections": {},
+        "map": "esp32p4/v2.1.2/Vendor/Vendor.ino.map",
+        "map_bytes": 6490977,
+        "bin": "esp32p4/v2.1.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 476752
       },
+      "program_bytes": 476558,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 140356,
+      "static_ram_percent": 42,
+      "static_ram_remaining_bytes": 187324,
+      "static_ram_max_bytes": 327680,
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
@@ -1031,8 +1073,8 @@
       "library_version": "2.1.2",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
@@ -1230,11 +1272,25 @@
       "library_version": "2.1.3",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.1.3/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.1.3/Vendor/compile.log"
+        "log": "esp32p4/v2.1.3/Vendor/compile.log",
+        "elf": "esp32p4/v2.1.3/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10363192,
+        "sections": {},
+        "map": "esp32p4/v2.1.3/Vendor/Vendor.ino.map",
+        "map_bytes": 6490977,
+        "bin": "esp32p4/v2.1.3/Vendor/Vendor.ino.bin",
+        "bin_bytes": 476416
       },
+      "program_bytes": 476226,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42244,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285436,
+      "static_ram_max_bytes": 327680,
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -1243,8 +1299,8 @@
       "library_version": "2.1.3",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -1442,11 +1498,25 @@
       "library_version": "2.2.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.2.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.2.0/Vendor/compile.log"
+        "log": "esp32p4/v2.2.0/Vendor/compile.log",
+        "elf": "esp32p4/v2.2.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10372876,
+        "sections": {},
+        "map": "esp32p4/v2.2.0/Vendor/Vendor.ino.map",
+        "map_bytes": 6492375,
+        "bin": "esp32p4/v2.2.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 477344
       },
+      "program_bytes": 477146,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42772,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284908,
+      "static_ram_max_bytes": 327680,
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
@@ -1455,8 +1525,25 @@
       "library_version": "2.2.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.2.0/Network/compile.log",
+        "elf": "esp32p4/v2.2.0/Network/Network.ino.elf",
+        "elf_bytes": 10844144,
+        "sections": {},
+        "map": "esp32p4/v2.2.0/Network/Network.ino.map",
+        "map_bytes": 6509735,
+        "bin": "esp32p4/v2.2.0/Network/Network.ino.bin",
+        "bin_bytes": 544512
+      },
+      "program_bytes": 544324,
+      "program_percent": 41,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44212,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283468,
+      "static_ram_max_bytes": 327680,
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
@@ -1654,11 +1741,25 @@
       "library_version": "2.3.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.3.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.3.0/Vendor/compile.log"
+        "log": "esp32p4/v2.3.0/Vendor/compile.log",
+        "elf": "esp32p4/v2.3.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10375756,
+        "sections": {},
+        "map": "esp32p4/v2.3.0/Vendor/Vendor.ino.map",
+        "map_bytes": 6493392,
+        "bin": "esp32p4/v2.3.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 477680
       },
+      "program_bytes": 477482,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42772,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284908,
+      "static_ram_max_bytes": 327680,
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -1667,8 +1768,25 @@
       "library_version": "2.3.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.3.0/Network/compile.log",
+        "elf": "esp32p4/v2.3.0/Network/Network.ino.elf",
+        "elf_bytes": 10847028,
+        "sections": {},
+        "map": "esp32p4/v2.3.0/Network/Network.ino.map",
+        "map_bytes": 6510756,
+        "bin": "esp32p4/v2.3.0/Network/Network.ino.bin",
+        "bin_bytes": 544848
+      },
+      "program_bytes": 544660,
+      "program_percent": 41,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44212,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283468,
+      "static_ram_max_bytes": 327680,
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -1866,11 +1984,25 @@
       "library_version": "2.3.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.3.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.3.1/Vendor/compile.log"
+        "log": "esp32p4/v2.3.1/Vendor/compile.log",
+        "elf": "esp32p4/v2.3.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10375756,
+        "sections": {},
+        "map": "esp32p4/v2.3.1/Vendor/Vendor.ino.map",
+        "map_bytes": 6493392,
+        "bin": "esp32p4/v2.3.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 477680
       },
+      "program_bytes": 477482,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42772,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284908,
+      "static_ram_max_bytes": 327680,
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
@@ -1879,8 +2011,25 @@
       "library_version": "2.3.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.3.1/Network/compile.log",
+        "elf": "esp32p4/v2.3.1/Network/Network.ino.elf",
+        "elf_bytes": 10847028,
+        "sections": {},
+        "map": "esp32p4/v2.3.1/Network/Network.ino.map",
+        "map_bytes": 6510756,
+        "bin": "esp32p4/v2.3.1/Network/Network.ino.bin",
+        "bin_bytes": 544848
+      },
+      "program_bytes": 544660,
+      "program_percent": 41,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44212,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283468,
+      "static_ram_max_bytes": 327680,
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
@@ -2078,11 +2227,25 @@
       "library_version": "2.3.2",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.3.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.3.2/Vendor/compile.log"
+        "log": "esp32p4/v2.3.2/Vendor/compile.log",
+        "elf": "esp32p4/v2.3.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10393344,
+        "sections": {},
+        "map": "esp32p4/v2.3.2/Vendor/Vendor.ino.map",
+        "map_bytes": 6494550,
+        "bin": "esp32p4/v2.3.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 490704
       },
+      "program_bytes": 490510,
+      "program_percent": 37,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42836,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284844,
+      "static_ram_max_bytes": 327680,
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -2091,8 +2254,25 @@
       "library_version": "2.3.2",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.3.2/Network/compile.log",
+        "elf": "esp32p4/v2.3.2/Network/Network.ino.elf",
+        "elf_bytes": 10864612,
+        "sections": {},
+        "map": "esp32p4/v2.3.2/Network/Network.ino.map",
+        "map_bytes": 6511920,
+        "bin": "esp32p4/v2.3.2/Network/Network.ino.bin",
+        "bin_bytes": 557888
+      },
+      "program_bytes": 557692,
+      "program_percent": 42,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44276,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283404,
+      "static_ram_max_bytes": 327680,
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -2290,11 +2470,25 @@
       "library_version": "2.4.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.4.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.4.0/Vendor/compile.log"
+        "log": "esp32p4/v2.4.0/Vendor/compile.log",
+        "elf": "esp32p4/v2.4.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10652084,
+        "sections": {},
+        "map": "esp32p4/v2.4.0/Vendor/Vendor.ino.map",
+        "map_bytes": 6550698,
+        "bin": "esp32p4/v2.4.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 494736
       },
+      "program_bytes": 494538,
+      "program_percent": 37,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 43108,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284572,
+      "static_ram_max_bytes": 327680,
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
@@ -2303,8 +2497,25 @@
       "library_version": "2.4.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.4.0/Network/compile.log",
+        "elf": "esp32p4/v2.4.0/Network/Network.ino.elf",
+        "elf_bytes": 11123352,
+        "sections": {},
+        "map": "esp32p4/v2.4.0/Network/Network.ino.map",
+        "map_bytes": 6568310,
+        "bin": "esp32p4/v2.4.0/Network/Network.ino.bin",
+        "bin_bytes": 561872
+      },
+      "program_bytes": 561686,
+      "program_percent": 42,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44548,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283132,
+      "static_ram_max_bytes": 327680,
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
@@ -2502,11 +2713,25 @@
       "library_version": "2.4.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.4.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.4.1/Vendor/compile.log"
+        "log": "esp32p4/v2.4.1/Vendor/compile.log",
+        "elf": "esp32p4/v2.4.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10670300,
+        "sections": {},
+        "map": "esp32p4/v2.4.1/Vendor/Vendor.ino.map",
+        "map_bytes": 6552840,
+        "bin": "esp32p4/v2.4.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 496368
       },
+      "program_bytes": 496182,
+      "program_percent": 37,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 43108,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284572,
+      "static_ram_max_bytes": 327680,
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -2515,8 +2740,25 @@
       "library_version": "2.4.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.4.1/Network/compile.log",
+        "elf": "esp32p4/v2.4.1/Network/Network.ino.elf",
+        "elf_bytes": 11141568,
+        "sections": {},
+        "map": "esp32p4/v2.4.1/Network/Network.ino.map",
+        "map_bytes": 6570462,
+        "bin": "esp32p4/v2.4.1/Network/Network.ino.bin",
+        "bin_bytes": 563168
+      },
+      "program_bytes": 562978,
+      "program_percent": 42,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44548,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283132,
+      "static_ram_max_bytes": 327680,
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -2714,11 +2956,25 @@
       "library_version": "2.5.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.5.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.5.0/Vendor/compile.log"
+        "log": "esp32p4/v2.5.0/Vendor/compile.log",
+        "elf": "esp32p4/v2.5.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10676764,
+        "sections": {},
+        "map": "esp32p4/v2.5.0/Vendor/Vendor.ino.map",
+        "map_bytes": 6554198,
+        "bin": "esp32p4/v2.5.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 496640
       },
+      "program_bytes": 496450,
+      "program_percent": 37,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 43124,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284556,
+      "static_ram_max_bytes": 327680,
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
@@ -2727,8 +2983,25 @@
       "library_version": "2.5.0",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.5.0/Network/compile.log",
+        "elf": "esp32p4/v2.5.0/Network/Network.ino.elf",
+        "elf_bytes": 11152128,
+        "sections": {},
+        "map": "esp32p4/v2.5.0/Network/Network.ino.map",
+        "map_bytes": 6571826,
+        "bin": "esp32p4/v2.5.0/Network/Network.ino.bin",
+        "bin_bytes": 563440
+      },
+      "program_bytes": 563248,
+      "program_percent": 42,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44564,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283116,
+      "static_ram_max_bytes": 327680,
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
@@ -2926,11 +3199,25 @@
       "library_version": "2.5.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.5.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.5.1/Vendor/compile.log"
+        "log": "esp32p4/v2.5.1/Vendor/compile.log",
+        "elf": "esp32p4/v2.5.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10677516,
+        "sections": {},
+        "map": "esp32p4/v2.5.1/Vendor/Vendor.ino.map",
+        "map_bytes": 6554198,
+        "bin": "esp32p4/v2.5.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 496640
       },
+      "program_bytes": 496442,
+      "program_percent": 37,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 43124,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284556,
+      "static_ram_max_bytes": 327680,
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -2939,8 +3226,25 @@
       "library_version": "2.5.1",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.5.1/Network/compile.log",
+        "elf": "esp32p4/v2.5.1/Network/Network.ino.elf",
+        "elf_bytes": 11152888,
+        "sections": {},
+        "map": "esp32p4/v2.5.1/Network/Network.ino.map",
+        "map_bytes": 6571826,
+        "bin": "esp32p4/v2.5.1/Network/Network.ino.bin",
+        "bin_bytes": 563440
+      },
+      "program_bytes": 563240,
+      "program_percent": 42,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44564,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283116,
+      "static_ram_max_bytes": 327680,
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -3138,11 +3442,25 @@
       "library_version": "2.5.2",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-pxg8oipa/build-work/v2.5.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32p4/v2.5.2/Vendor/compile.log"
+        "log": "esp32p4/v2.5.2/Vendor/compile.log",
+        "elf": "esp32p4/v2.5.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10678116,
+        "sections": {},
+        "map": "esp32p4/v2.5.2/Vendor/Vendor.ino.map",
+        "map_bytes": 6554521,
+        "bin": "esp32p4/v2.5.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 496688
       },
+      "program_bytes": 496498,
+      "program_percent": 37,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 43124,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 284556,
+      "static_ram_max_bytes": 327680,
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
@@ -3151,8 +3469,25 @@
       "library_version": "2.5.2",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.5.2/Network/compile.log",
+        "elf": "esp32p4/v2.5.2/Network/Network.ino.elf",
+        "elf_bytes": 11153480,
+        "sections": {},
+        "map": "esp32p4/v2.5.2/Network/Network.ino.map",
+        "map_bytes": 6572152,
+        "bin": "esp32p4/v2.5.2/Network/Network.ino.bin",
+        "bin_bytes": 563488
+      },
+      "program_bytes": 563296,
+      "program_percent": 42,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 44564,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 283116,
+      "static_ram_max_bytes": 327680,
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
@@ -3377,8 +3712,25 @@
       "library_version": "2.5.3",
       "target": "esp32p4",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32p4 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.5.3/Network/compile.log",
+        "elf": "esp32p4/v2.5.3/Network/Network.ino.elf",
+        "elf_bytes": 11186260,
+        "sections": {},
+        "map": "esp32p4/v2.5.3/Network/Network.ino.map",
+        "map_bytes": 6582026,
+        "bin": "esp32p4/v2.5.3/Network/Network.ino.bin",
+        "bin_bytes": 564208
+      },
+      "program_bytes": 564024,
+      "program_percent": 43,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45268,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282412,
+      "static_ram_max_bytes": 327680,
       "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
     },
     {
@@ -3586,8 +3938,8 @@
       "library_version": "2.0.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
     },
     {
@@ -3795,8 +4147,8 @@
       "library_version": "2.0.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
     },
     {
@@ -3994,11 +4346,25 @@
       "library_version": "2.1.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.1.0/Vendor/compile.log"
+        "log": "esp32s2/v2.1.0/Vendor/compile.log",
+        "elf": "esp32s2/v2.1.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 7081428,
+        "sections": {},
+        "map": "esp32s2/v2.1.0/Vendor/Vendor.ino.map",
+        "map_bytes": 6429809,
+        "bin": "esp32s2/v2.1.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 308528
       },
+      "program_bytes": 308384,
+      "program_percent": 23,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 73272,
+      "static_ram_percent": 22,
+      "static_ram_remaining_bytes": 254408,
+      "static_ram_max_bytes": 327680,
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
@@ -4007,8 +4373,8 @@
       "library_version": "2.1.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
@@ -4135,9 +4501,11 @@
       "target": "esp32s2",
       "core_version": "3.3.11",
       "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "note": "collect2: error: ld returned 1 exit status",
       "artifacts": {
-        "log": "esp32s2/v2.1.1/Vendor/compile.log"
+        "log": "esp32s2/v2.1.1/Vendor/compile.log",
+        "map": "esp32s2/v2.1.1/Vendor/Vendor.ino.map",
+        "map_bytes": 7499670
       },
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
@@ -4147,8 +4515,8 @@
       "library_version": "2.1.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -4334,11 +4702,25 @@
       "library_version": "2.1.2",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.1.2/Vendor/compile.log"
+        "log": "esp32s2/v2.1.2/Vendor/compile.log",
+        "elf": "esp32s2/v2.1.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8313608,
+        "sections": {},
+        "map": "esp32s2/v2.1.2/Vendor/Vendor.ino.map",
+        "map_bytes": 7495639,
+        "bin": "esp32s2/v2.1.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 381248
       },
+      "program_bytes": 381100,
+      "program_percent": 29,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 79232,
+      "static_ram_percent": 24,
+      "static_ram_remaining_bytes": 248448,
+      "static_ram_max_bytes": 327680,
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
@@ -4347,8 +4729,8 @@
       "library_version": "2.1.2",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
@@ -4546,11 +4928,25 @@
       "library_version": "2.1.3",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.3/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.1.3/Vendor/compile.log"
+        "log": "esp32s2/v2.1.3/Vendor/compile.log",
+        "elf": "esp32s2/v2.1.3/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8311072,
+        "sections": {},
+        "map": "esp32s2/v2.1.3/Vendor/Vendor.ino.map",
+        "map_bytes": 7494524,
+        "bin": "esp32s2/v2.1.3/Vendor/Vendor.ino.bin",
+        "bin_bytes": 380448
       },
+      "program_bytes": 380296,
+      "program_percent": 29,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27120,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 300560,
+      "static_ram_max_bytes": 327680,
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -4559,8 +4955,8 @@
       "library_version": "2.1.3",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "unavailable",
+      "note": "Network requires EspUsbHost >= 2.2.0",
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -4758,11 +5154,25 @@
       "library_version": "2.2.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.2.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.2.0/Vendor/compile.log"
+        "log": "esp32s2/v2.2.0/Vendor/compile.log",
+        "elf": "esp32s2/v2.2.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8321112,
+        "sections": {},
+        "map": "esp32s2/v2.2.0/Vendor/Vendor.ino.map",
+        "map_bytes": 7496167,
+        "bin": "esp32s2/v2.2.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 381280
       },
+      "program_bytes": 381128,
+      "program_percent": 29,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27648,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 300032,
+      "static_ram_max_bytes": 327680,
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
@@ -4771,8 +5181,25 @@
       "library_version": "2.2.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.2.0/Network/compile.log",
+        "elf": "esp32s2/v2.2.0/Network/Network.ino.elf",
+        "elf_bytes": 8711492,
+        "sections": {},
+        "map": "esp32s2/v2.2.0/Network/Network.ino.map",
+        "map_bytes": 7565566,
+        "bin": "esp32s2/v2.2.0/Network/Network.ino.bin",
+        "bin_bytes": 441344
+      },
+      "program_bytes": 441192,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29080,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298600,
+      "static_ram_max_bytes": 327680,
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
@@ -4970,11 +5397,25 @@
       "library_version": "2.3.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.3.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.3.0/Vendor/compile.log"
+        "log": "esp32s2/v2.3.0/Vendor/compile.log",
+        "elf": "esp32s2/v2.3.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8323940,
+        "sections": {},
+        "map": "esp32s2/v2.3.0/Vendor/Vendor.ino.map",
+        "map_bytes": 7497276,
+        "bin": "esp32s2/v2.3.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 381552
       },
+      "program_bytes": 381404,
+      "program_percent": 29,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27648,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 300032,
+      "static_ram_max_bytes": 327680,
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -4983,8 +5424,25 @@
       "library_version": "2.3.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.3.0/Network/compile.log",
+        "elf": "esp32s2/v2.3.0/Network/Network.ino.elf",
+        "elf_bytes": 8714316,
+        "sections": {},
+        "map": "esp32s2/v2.3.0/Network/Network.ino.map",
+        "map_bytes": 7566641,
+        "bin": "esp32s2/v2.3.0/Network/Network.ino.bin",
+        "bin_bytes": 441632
+      },
+      "program_bytes": 441480,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29080,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298600,
+      "static_ram_max_bytes": 327680,
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -5182,11 +5640,25 @@
       "library_version": "2.3.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.3.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.3.1/Vendor/compile.log"
+        "log": "esp32s2/v2.3.1/Vendor/compile.log",
+        "elf": "esp32s2/v2.3.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8323876,
+        "sections": {},
+        "map": "esp32s2/v2.3.1/Vendor/Vendor.ino.map",
+        "map_bytes": 7497276,
+        "bin": "esp32s2/v2.3.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 381552
       },
+      "program_bytes": 381404,
+      "program_percent": 29,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27648,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 300032,
+      "static_ram_max_bytes": 327680,
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
@@ -5195,8 +5667,25 @@
       "library_version": "2.3.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.3.1/Network/compile.log",
+        "elf": "esp32s2/v2.3.1/Network/Network.ino.elf",
+        "elf_bytes": 8714260,
+        "sections": {},
+        "map": "esp32s2/v2.3.1/Network/Network.ino.map",
+        "map_bytes": 7566641,
+        "bin": "esp32s2/v2.3.1/Network/Network.ino.bin",
+        "bin_bytes": 441632
+      },
+      "program_bytes": 441480,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29080,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298600,
+      "static_ram_max_bytes": 327680,
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
@@ -5394,11 +5883,25 @@
       "library_version": "2.3.2",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.3.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.3.2/Vendor/compile.log"
+        "log": "esp32s2/v2.3.2/Vendor/compile.log",
+        "elf": "esp32s2/v2.3.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8346268,
+        "sections": {},
+        "map": "esp32s2/v2.3.2/Vendor/Vendor.ino.map",
+        "map_bytes": 7498641,
+        "bin": "esp32s2/v2.3.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 394528
       },
+      "program_bytes": 394376,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27712,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 299968,
+      "static_ram_max_bytes": 327680,
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -5407,8 +5910,25 @@
       "library_version": "2.3.2",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.3.2/Network/compile.log",
+        "elf": "esp32s2/v2.3.2/Network/Network.ino.elf",
+        "elf_bytes": 8732560,
+        "sections": {},
+        "map": "esp32s2/v2.3.2/Network/Network.ino.map",
+        "map_bytes": 7568014,
+        "bin": "esp32s2/v2.3.2/Network/Network.ino.bin",
+        "bin_bytes": 454592
+      },
+      "program_bytes": 454444,
+      "program_percent": 34,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29144,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298536,
+      "static_ram_max_bytes": 327680,
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -5606,11 +6126,25 @@
       "library_version": "2.4.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.4.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.4.0/Vendor/compile.log"
+        "log": "esp32s2/v2.4.0/Vendor/compile.log",
+        "elf": "esp32s2/v2.4.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8645356,
+        "sections": {},
+        "map": "esp32s2/v2.4.0/Vendor/Vendor.ino.map",
+        "map_bytes": 7602468,
+        "bin": "esp32s2/v2.4.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 398080
       },
+      "program_bytes": 397924,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27984,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 299696,
+      "static_ram_max_bytes": 327680,
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
@@ -5619,8 +6153,25 @@
       "library_version": "2.4.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.4.0/Network/compile.log",
+        "elf": "esp32s2/v2.4.0/Network/Network.ino.elf",
+        "elf_bytes": 9035744,
+        "sections": {},
+        "map": "esp32s2/v2.4.0/Network/Network.ino.map",
+        "map_bytes": 7672096,
+        "bin": "esp32s2/v2.4.0/Network/Network.ino.bin",
+        "bin_bytes": 458208
+      },
+      "program_bytes": 458052,
+      "program_percent": 34,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29416,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298264,
+      "static_ram_max_bytes": 327680,
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
@@ -5818,11 +6369,25 @@
       "library_version": "2.4.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.4.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.4.1/Vendor/compile.log"
+        "log": "esp32s2/v2.4.1/Vendor/compile.log",
+        "elf": "esp32s2/v2.4.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8669124,
+        "sections": {},
+        "map": "esp32s2/v2.4.1/Vendor/Vendor.ino.map",
+        "map_bytes": 7606549,
+        "bin": "esp32s2/v2.4.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 399456
       },
+      "program_bytes": 399312,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 27984,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 299696,
+      "static_ram_max_bytes": 327680,
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -5831,8 +6396,25 @@
       "library_version": "2.4.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.4.1/Network/compile.log",
+        "elf": "esp32s2/v2.4.1/Network/Network.ino.elf",
+        "elf_bytes": 9055376,
+        "sections": {},
+        "map": "esp32s2/v2.4.1/Network/Network.ino.map",
+        "map_bytes": 7676193,
+        "bin": "esp32s2/v2.4.1/Network/Network.ino.bin",
+        "bin_bytes": 459344
+      },
+      "program_bytes": 459192,
+      "program_percent": 35,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29416,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298264,
+      "static_ram_max_bytes": 327680,
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -6030,11 +6612,25 @@
       "library_version": "2.5.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.5.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.5.0/Vendor/compile.log"
+        "log": "esp32s2/v2.5.0/Vendor/compile.log",
+        "elf": "esp32s2/v2.5.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8677608,
+        "sections": {},
+        "map": "esp32s2/v2.5.0/Vendor/Vendor.ino.map",
+        "map_bytes": 7608323,
+        "bin": "esp32s2/v2.5.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 399712
       },
+      "program_bytes": 399556,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 28000,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 299680,
+      "static_ram_max_bytes": 327680,
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
@@ -6043,8 +6639,25 @@
       "library_version": "2.5.0",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.5.0/Network/compile.log",
+        "elf": "esp32s2/v2.5.0/Network/Network.ino.elf",
+        "elf_bytes": 9063864,
+        "sections": {},
+        "map": "esp32s2/v2.5.0/Network/Network.ino.map",
+        "map_bytes": 7677936,
+        "bin": "esp32s2/v2.5.0/Network/Network.ino.bin",
+        "bin_bytes": 459584
+      },
+      "program_bytes": 459440,
+      "program_percent": 35,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29432,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298248,
+      "static_ram_max_bytes": 327680,
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
@@ -6242,11 +6855,25 @@
       "library_version": "2.5.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.5.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.5.1/Vendor/compile.log"
+        "log": "esp32s2/v2.5.1/Vendor/compile.log",
+        "elf": "esp32s2/v2.5.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8678736,
+        "sections": {},
+        "map": "esp32s2/v2.5.1/Vendor/Vendor.ino.map",
+        "map_bytes": 7608418,
+        "bin": "esp32s2/v2.5.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 399712
       },
+      "program_bytes": 399556,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 28000,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 299680,
+      "static_ram_max_bytes": 327680,
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -6255,8 +6882,25 @@
       "library_version": "2.5.1",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.5.1/Network/compile.log",
+        "elf": "esp32s2/v2.5.1/Network/Network.ino.elf",
+        "elf_bytes": 9064992,
+        "sections": {},
+        "map": "esp32s2/v2.5.1/Network/Network.ino.map",
+        "map_bytes": 7678070,
+        "bin": "esp32s2/v2.5.1/Network/Network.ino.bin",
+        "bin_bytes": 459584
+      },
+      "program_bytes": 459440,
+      "program_percent": 35,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29432,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298248,
+      "static_ram_max_bytes": 327680,
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -6454,11 +7098,25 @@
       "library_version": "2.5.2",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-9rjlzr0b/build-work/v2.5.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s2/v2.5.2/Vendor/compile.log"
+        "log": "esp32s2/v2.5.2/Vendor/compile.log",
+        "elf": "esp32s2/v2.5.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8678832,
+        "sections": {},
+        "map": "esp32s2/v2.5.2/Vendor/Vendor.ino.map",
+        "map_bytes": 7608418,
+        "bin": "esp32s2/v2.5.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 399712
       },
+      "program_bytes": 399556,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 28000,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 299680,
+      "static_ram_max_bytes": 327680,
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
@@ -6467,8 +7125,25 @@
       "library_version": "2.5.2",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.5.2/Network/compile.log",
+        "elf": "esp32s2/v2.5.2/Network/Network.ino.elf",
+        "elf_bytes": 9065088,
+        "sections": {},
+        "map": "esp32s2/v2.5.2/Network/Network.ino.map",
+        "map_bytes": 7678070,
+        "bin": "esp32s2/v2.5.2/Network/Network.ino.bin",
+        "bin_bytes": 459584
+      },
+      "program_bytes": 459440,
+      "program_percent": 35,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29432,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298248,
+      "static_ram_max_bytes": 327680,
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
@@ -6693,8 +7368,25 @@
       "library_version": "2.5.3",
       "target": "esp32s2",
       "core_version": "3.3.11",
-      "state": "no-target",
-      "note": "Network has no esp32s2 footprint profile",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.5.3/Network/compile.log",
+        "elf": "esp32s2/v2.5.3/Network/Network.ino.elf",
+        "elf_bytes": 9091556,
+        "sections": {},
+        "map": "esp32s2/v2.5.3/Network/Network.ino.map",
+        "map_bytes": 7693151,
+        "bin": "esp32s2/v2.5.3/Network/Network.ino.bin",
+        "bin_bytes": 460160
+      },
+      "program_bytes": 460016,
+      "program_percent": 35,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29704,
+      "static_ram_percent": 9,
+      "static_ram_remaining_bytes": 297976,
+      "static_ram_max_bytes": 327680,
       "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
     },
     {
@@ -7310,11 +8002,25 @@
       "library_version": "2.1.0",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.1.0/Vendor/compile.log"
+        "log": "esp32s3/v2.1.0/Vendor/compile.log",
+        "elf": "esp32s3/v2.1.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 7886928,
+        "sections": {},
+        "map": "esp32s3/v2.1.0/Vendor/Vendor.ino.map",
+        "map_bytes": 8448872,
+        "bin": "esp32s3/v2.1.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 345808
       },
+      "program_bytes": 345661,
+      "program_percent": 26,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 78352,
+      "static_ram_percent": 23,
+      "static_ram_remaining_bytes": 249328,
+      "static_ram_max_bytes": 327680,
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
@@ -7522,11 +8228,25 @@
       "library_version": "2.1.1",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.1.1/Vendor/compile.log"
+        "log": "esp32s3/v2.1.1/Vendor/compile.log",
+        "elf": "esp32s3/v2.1.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9112388,
+        "sections": {},
+        "map": "esp32s3/v2.1.1/Vendor/Vendor.ino.map",
+        "map_bytes": 9522482,
+        "bin": "esp32s3/v2.1.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 416192
       },
+      "program_bytes": 416037,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 139792,
+      "static_ram_percent": 42,
+      "static_ram_remaining_bytes": 187888,
+      "static_ram_max_bytes": 327680,
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -7734,11 +8454,25 @@
       "library_version": "2.1.2",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.1.2/Vendor/compile.log"
+        "log": "esp32s3/v2.1.2/Vendor/compile.log",
+        "elf": "esp32s3/v2.1.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9112332,
+        "sections": {},
+        "map": "esp32s3/v2.1.2/Vendor/Vendor.ino.map",
+        "map_bytes": 9522482,
+        "bin": "esp32s3/v2.1.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 416192
       },
+      "program_bytes": 416037,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 139792,
+      "static_ram_percent": 42,
+      "static_ram_remaining_bytes": 187888,
+      "static_ram_max_bytes": 327680,
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
@@ -7946,11 +8680,25 @@
       "library_version": "2.1.3",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.3/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.1.3/Vendor/compile.log"
+        "log": "esp32s3/v2.1.3/Vendor/compile.log",
+        "elf": "esp32s3/v2.1.3/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9110164,
+        "sections": {},
+        "map": "esp32s3/v2.1.3/Vendor/Vendor.ino.map",
+        "map_bytes": 9516963,
+        "bin": "esp32s3/v2.1.3/Vendor/Vendor.ino.bin",
+        "bin_bytes": 415504
       },
+      "program_bytes": 415361,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 41680,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 286000,
+      "static_ram_max_bytes": 327680,
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -8158,11 +8906,25 @@
       "library_version": "2.2.0",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.2.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.2.0/Vendor/compile.log"
+        "log": "esp32s3/v2.2.0/Vendor/compile.log",
+        "elf": "esp32s3/v2.2.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9120136,
+        "sections": {},
+        "map": "esp32s3/v2.2.0/Vendor/Vendor.ino.map",
+        "map_bytes": 9518801,
+        "bin": "esp32s3/v2.2.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 416368
       },
+      "program_bytes": 416217,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42208,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285472,
+      "static_ram_max_bytes": 327680,
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
@@ -8387,11 +9149,25 @@
       "library_version": "2.3.0",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.3.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.3.0/Vendor/compile.log"
+        "log": "esp32s3/v2.3.0/Vendor/compile.log",
+        "elf": "esp32s3/v2.3.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9123032,
+        "sections": {},
+        "map": "esp32s3/v2.3.0/Vendor/Vendor.ino.map",
+        "map_bytes": 9520044,
+        "bin": "esp32s3/v2.3.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 416656
       },
+      "program_bytes": 416501,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42208,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285472,
+      "static_ram_max_bytes": 327680,
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -8616,11 +9392,25 @@
       "library_version": "2.3.1",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.3.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.3.1/Vendor/compile.log"
+        "log": "esp32s3/v2.3.1/Vendor/compile.log",
+        "elf": "esp32s3/v2.3.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9122976,
+        "sections": {},
+        "map": "esp32s3/v2.3.1/Vendor/Vendor.ino.map",
+        "map_bytes": 9520044,
+        "bin": "esp32s3/v2.3.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 416656
       },
+      "program_bytes": 416501,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42208,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285472,
+      "static_ram_max_bytes": 327680,
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
@@ -8845,11 +9635,25 @@
       "library_version": "2.3.2",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.3.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.3.2/Vendor/compile.log"
+        "log": "esp32s3/v2.3.2/Vendor/compile.log",
+        "elf": "esp32s3/v2.3.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9145564,
+        "sections": {},
+        "map": "esp32s3/v2.3.2/Vendor/Vendor.ino.map",
+        "map_bytes": 9521465,
+        "bin": "esp32s3/v2.3.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 429664
       },
+      "program_bytes": 429521,
+      "program_percent": 32,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42272,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285408,
+      "static_ram_max_bytes": 327680,
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -9074,11 +9878,25 @@
       "library_version": "2.4.0",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.4.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.4.0/Vendor/compile.log"
+        "log": "esp32s3/v2.4.0/Vendor/compile.log",
+        "elf": "esp32s3/v2.4.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9462188,
+        "sections": {},
+        "map": "esp32s3/v2.4.0/Vendor/Vendor.ino.map",
+        "map_bytes": 9621145,
+        "bin": "esp32s3/v2.4.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 433248
       },
+      "program_bytes": 433105,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42544,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285136,
+      "static_ram_max_bytes": 327680,
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
@@ -9303,11 +10121,25 @@
       "library_version": "2.4.1",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.4.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.4.1/Vendor/compile.log"
+        "log": "esp32s3/v2.4.1/Vendor/compile.log",
+        "elf": "esp32s3/v2.4.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9485884,
+        "sections": {},
+        "map": "esp32s3/v2.4.1/Vendor/Vendor.ino.map",
+        "map_bytes": 9625639,
+        "bin": "esp32s3/v2.4.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 434784
       },
+      "program_bytes": 434629,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42544,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285136,
+      "static_ram_max_bytes": 327680,
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -9532,11 +10364,25 @@
       "library_version": "2.5.0",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.5.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.5.0/Vendor/compile.log"
+        "log": "esp32s3/v2.5.0/Vendor/compile.log",
+        "elf": "esp32s3/v2.5.0/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9492964,
+        "sections": {},
+        "map": "esp32s3/v2.5.0/Vendor/Vendor.ino.map",
+        "map_bytes": 9627430,
+        "bin": "esp32s3/v2.5.0/Vendor/Vendor.ino.bin",
+        "bin_bytes": 435024
       },
+      "program_bytes": 434881,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42568,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285112,
+      "static_ram_max_bytes": 327680,
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
@@ -9761,11 +10607,25 @@
       "library_version": "2.5.1",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.5.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.5.1/Vendor/compile.log"
+        "log": "esp32s3/v2.5.1/Vendor/compile.log",
+        "elf": "esp32s3/v2.5.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9494100,
+        "sections": {},
+        "map": "esp32s3/v2.5.1/Vendor/Vendor.ino.map",
+        "map_bytes": 9627408,
+        "bin": "esp32s3/v2.5.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 435024
       },
+      "program_bytes": 434869,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42568,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285112,
+      "static_ram_max_bytes": 327680,
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -9990,11 +10850,25 @@
       "library_version": "2.5.2",
       "target": "esp32s3",
       "core_version": "3.3.11",
-      "state": "fail",
-      "note": "/tmp/espusb-footprint-4j4b5vyy/build-work/v2.5.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'",
+      "state": "pass",
+      "note": "",
       "artifacts": {
-        "log": "esp32s3/v2.5.2/Vendor/compile.log"
+        "log": "esp32s3/v2.5.2/Vendor/compile.log",
+        "elf": "esp32s3/v2.5.2/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9494188,
+        "sections": {},
+        "map": "esp32s3/v2.5.2/Vendor/Vendor.ino.map",
+        "map_bytes": 9627408,
+        "bin": "esp32s3/v2.5.2/Vendor/Vendor.ino.bin",
+        "bin_bytes": 435024
       },
+      "program_bytes": 434869,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 42568,
+      "static_ram_percent": 12,
+      "static_ram_remaining_bytes": 285112,
+      "static_ram_max_bytes": 327680,
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {

@@ -1,7 +1,7 @@
 # EspUsbHost footprint — arduino-esp32 3.3.11
 
 - Arduino core: `esp32:esp32@3.3.11`
-- Probe revision: `sha256:a4fbea6054600657075278bda384c31e62f457f991cf130875869d0458a83952`
+- Probe revision: `sha256:e5db37d70de07b04c1e4abbb533b315eb5d0294929b9429c40e3fb2e56aa13e6`
 - Normalized source data: `docs/footprint.json`
 - Values in parentheses are the feature delta from the Base probe, in KiB.
 
@@ -15,19 +15,19 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `v2.0.0` | 335.6 KiB | 336.0 KiB (+0.4) | 337.0 KiB (+1.4) | 336.1 KiB (+0.5) | 377.2 KiB (+41.6) | 336.4 KiB (+0.8) | — | — | 342.2 KiB (+6.6) |
 | `v2.0.1` | 335.6 KiB | 336.0 KiB (+0.4) | 337.0 KiB (+1.4) | 336.1 KiB (+0.5) | 377.2 KiB (+41.6) | 336.4 KiB (+0.8) | — | — | 342.2 KiB (+6.6) |
-| `v2.1.0` | 336.1 KiB | 336.5 KiB (+0.4) | 337.5 KiB (+1.4) | 336.6 KiB (+0.5) | 377.7 KiB (+41.6) | 336.9 KiB (+0.8) | ❌ | — | 342.7 KiB (+6.6) |
-| `v2.1.1` | 404.8 KiB | 405.2 KiB (+0.4) | 406.2 KiB (+1.4) | 405.3 KiB (+0.5) | 446.6 KiB (+41.8) | 405.6 KiB (+0.8) | ❌ | — | 411.1 KiB (+6.3) |
-| `v2.1.2` | 404.8 KiB | 405.2 KiB (+0.4) | 406.2 KiB (+1.4) | 405.3 KiB (+0.5) | 446.6 KiB (+41.8) | 405.6 KiB (+0.8) | ❌ | — | 411.1 KiB (+6.3) |
-| `v2.1.3` | 404.2 KiB | 404.6 KiB (+0.4) | 405.6 KiB (+1.4) | 404.7 KiB (+0.5) | 446.0 KiB (+41.8) | 404.9 KiB (+0.8) | ❌ | — | 410.5 KiB (+6.3) |
-| `v2.2.0` | 405.0 KiB | 405.4 KiB (+0.4) | 406.4 KiB (+1.4) | 405.5 KiB (+0.5) | 446.8 KiB (+41.8) | 405.8 KiB (+0.8) | ❌ | 464.8 KiB (+59.8) | 411.3 KiB (+6.3) |
-| `v2.3.0` | 405.3 KiB | 405.7 KiB (+0.4) | 406.7 KiB (+1.4) | 405.8 KiB (+0.5) | 447.1 KiB (+41.8) | 406.1 KiB (+0.8) | ❌ | 465.1 KiB (+59.8) | 411.6 KiB (+6.3) |
-| `v2.3.1` | 405.3 KiB | 405.7 KiB (+0.4) | 406.7 KiB (+1.4) | 405.8 KiB (+0.5) | 447.1 KiB (+41.8) | 406.1 KiB (+0.8) | ❌ | 465.1 KiB (+59.8) | 411.6 KiB (+6.3) |
-| `v2.3.2` | 418.0 KiB | 418.4 KiB (+0.4) | 419.4 KiB (+1.4) | 418.5 KiB (+0.5) | 460.4 KiB (+42.4) | 418.8 KiB (+0.8) | ❌ | 477.8 KiB (+59.8) | 424.3 KiB (+6.3) |
-| `v2.4.0` | 421.5 KiB | 422.2 KiB (+0.7) | 422.9 KiB (+1.4) | 422.0 KiB (+0.5) | 463.8 KiB (+42.3) | 422.3 KiB (+0.8) | ❌ | 481.3 KiB (+59.8) | 427.8 KiB (+6.3) |
-| `v2.4.1` | 422.7 KiB | 423.4 KiB (+0.7) | 424.0 KiB (+1.4) | 423.2 KiB (+0.5) | 464.8 KiB (+42.2) | 423.4 KiB (+0.8) | ❌ | 482.5 KiB (+59.9) | 428.9 KiB (+6.3) |
-| `v2.5.0` | 422.9 KiB | 423.6 KiB (+0.7) | 424.3 KiB (+1.4) | 423.4 KiB (+0.5) | 465.1 KiB (+42.2) | 423.7 KiB (+0.8) | ❌ | 482.8 KiB (+59.9) | 429.2 KiB (+6.3) |
-| `v2.5.1` | 422.9 KiB | 423.6 KiB (+0.7) | 424.3 KiB (+1.4) | 423.4 KiB (+0.5) | 465.3 KiB (+42.4) | 423.7 KiB (+0.8) | ❌ | 482.8 KiB (+59.9) | 429.2 KiB (+6.3) |
-| `v2.5.2` | 422.9 KiB | 423.6 KiB (+0.7) | 424.3 KiB (+1.4) | 423.4 KiB (+0.5) | 465.3 KiB (+42.4) | 423.7 KiB (+0.8) | ❌ | 482.8 KiB (+59.9) | 429.2 KiB (+6.3) |
+| `v2.1.0` | 336.1 KiB | 336.5 KiB (+0.4) | 337.5 KiB (+1.4) | 336.6 KiB (+0.5) | 377.7 KiB (+41.6) | 336.9 KiB (+0.8) | 337.6 KiB (+1.5) | — | 342.7 KiB (+6.6) |
+| `v2.1.1` | 404.8 KiB | 405.2 KiB (+0.4) | 406.2 KiB (+1.4) | 405.3 KiB (+0.5) | 446.6 KiB (+41.8) | 405.6 KiB (+0.8) | 406.3 KiB (+1.5) | — | 411.1 KiB (+6.3) |
+| `v2.1.2` | 404.8 KiB | 405.2 KiB (+0.4) | 406.2 KiB (+1.4) | 405.3 KiB (+0.5) | 446.6 KiB (+41.8) | 405.6 KiB (+0.8) | 406.3 KiB (+1.5) | — | 411.1 KiB (+6.3) |
+| `v2.1.3` | 404.2 KiB | 404.6 KiB (+0.4) | 405.6 KiB (+1.4) | 404.7 KiB (+0.5) | 446.0 KiB (+41.8) | 404.9 KiB (+0.8) | 405.6 KiB (+1.4) | — | 410.5 KiB (+6.3) |
+| `v2.2.0` | 405.0 KiB | 405.4 KiB (+0.4) | 406.4 KiB (+1.4) | 405.5 KiB (+0.5) | 446.8 KiB (+41.8) | 405.8 KiB (+0.8) | 406.5 KiB (+1.4) | 464.8 KiB (+59.8) | 411.3 KiB (+6.3) |
+| `v2.3.0` | 405.3 KiB | 405.7 KiB (+0.4) | 406.7 KiB (+1.4) | 405.8 KiB (+0.5) | 447.1 KiB (+41.8) | 406.1 KiB (+0.8) | 406.7 KiB (+1.4) | 465.1 KiB (+59.8) | 411.6 KiB (+6.3) |
+| `v2.3.1` | 405.3 KiB | 405.7 KiB (+0.4) | 406.7 KiB (+1.4) | 405.8 KiB (+0.5) | 447.1 KiB (+41.8) | 406.1 KiB (+0.8) | 406.7 KiB (+1.4) | 465.1 KiB (+59.8) | 411.6 KiB (+6.3) |
+| `v2.3.2` | 418.0 KiB | 418.4 KiB (+0.4) | 419.4 KiB (+1.4) | 418.5 KiB (+0.5) | 460.4 KiB (+42.4) | 418.8 KiB (+0.8) | 419.5 KiB (+1.5) | 477.8 KiB (+59.8) | 424.3 KiB (+6.3) |
+| `v2.4.0` | 421.5 KiB | 422.2 KiB (+0.7) | 422.9 KiB (+1.4) | 422.0 KiB (+0.5) | 463.8 KiB (+42.3) | 422.3 KiB (+0.8) | 423.0 KiB (+1.4) | 481.3 KiB (+59.8) | 427.8 KiB (+6.3) |
+| `v2.4.1` | 422.7 KiB | 423.4 KiB (+0.7) | 424.0 KiB (+1.4) | 423.2 KiB (+0.5) | 464.8 KiB (+42.2) | 423.4 KiB (+0.8) | 424.4 KiB (+1.8) | 482.5 KiB (+59.9) | 428.9 KiB (+6.3) |
+| `v2.5.0` | 422.9 KiB | 423.6 KiB (+0.7) | 424.3 KiB (+1.4) | 423.4 KiB (+0.5) | 465.1 KiB (+42.2) | 423.7 KiB (+0.8) | 424.7 KiB (+1.8) | 482.8 KiB (+59.9) | 429.2 KiB (+6.3) |
+| `v2.5.1` | 422.9 KiB | 423.6 KiB (+0.7) | 424.3 KiB (+1.4) | 423.4 KiB (+0.5) | 465.3 KiB (+42.4) | 423.7 KiB (+0.8) | 424.7 KiB (+1.8) | 482.8 KiB (+59.9) | 429.2 KiB (+6.3) |
+| `v2.5.2` | 422.9 KiB | 423.6 KiB (+0.7) | 424.3 KiB (+1.4) | 423.4 KiB (+0.5) | 465.3 KiB (+42.4) | 423.7 KiB (+0.8) | 424.7 KiB (+1.8) | 482.8 KiB (+59.9) | 429.2 KiB (+6.3) |
 | `v2.5.3` | 423.5 KiB | 424.2 KiB (+0.7) | 424.8 KiB (+1.4) | 424.0 KiB (+0.5) | 465.8 KiB (+42.4) | 424.2 KiB (+0.8) | 427.6 KiB (+4.1) | 483.3 KiB (+59.8) | 429.7 KiB (+6.3) |
 
 ### Static RAM
@@ -36,19 +36,19 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `v2.0.0` | 72.3 KiB | 72.3 KiB (+0.0) | 72.9 KiB (+0.5) | 72.3 KiB (+0.0) | 72.5 KiB (+0.2) | 72.3 KiB (+0.0) | — | — | 72.3 KiB (+0.0) |
 | `v2.0.1` | 72.3 KiB | 72.3 KiB (+0.0) | 72.9 KiB (+0.5) | 72.3 KiB (+0.0) | 72.5 KiB (+0.2) | 72.3 KiB (+0.0) | — | — | 72.3 KiB (+0.0) |
-| `v2.1.0` | 76.5 KiB | 76.5 KiB (+0.0) | 77.1 KiB (+0.5) | 76.5 KiB (+0.0) | 76.7 KiB (+0.2) | 76.5 KiB (+0.0) | ❌ | — | 76.5 KiB (+0.0) |
-| `v2.1.1` | 136.5 KiB | 136.5 KiB (+0.0) | 137.1 KiB (+0.5) | 136.5 KiB (+0.0) | 136.7 KiB (+0.2) | 136.5 KiB (+0.0) | ❌ | — | 136.5 KiB (+0.0) |
-| `v2.1.2` | 136.5 KiB | 136.5 KiB (+0.0) | 137.1 KiB (+0.5) | 136.5 KiB (+0.0) | 136.7 KiB (+0.2) | 136.5 KiB (+0.0) | ❌ | — | 136.5 KiB (+0.0) |
-| `v2.1.3` | 40.7 KiB | 40.7 KiB (+0.0) | 41.2 KiB (+0.5) | 40.7 KiB (+0.0) | 40.9 KiB (+0.2) | 40.7 KiB (+0.0) | ❌ | — | 40.7 KiB (+0.0) |
-| `v2.2.0` | 41.2 KiB | 41.2 KiB (+0.0) | 41.8 KiB (+0.5) | 41.2 KiB (+0.0) | 41.4 KiB (+0.2) | 41.2 KiB (+0.0) | ❌ | 42.6 KiB (+1.4) | 41.2 KiB (+0.0) |
-| `v2.3.0` | 41.2 KiB | 41.2 KiB (+0.0) | 41.8 KiB (+0.5) | 41.2 KiB (+0.0) | 41.4 KiB (+0.2) | 41.2 KiB (+0.0) | ❌ | 42.6 KiB (+1.4) | 41.2 KiB (+0.0) |
-| `v2.3.1` | 41.2 KiB | 41.2 KiB (+0.0) | 41.8 KiB (+0.5) | 41.2 KiB (+0.0) | 41.4 KiB (+0.2) | 41.2 KiB (+0.0) | ❌ | 42.6 KiB (+1.4) | 41.2 KiB (+0.0) |
-| `v2.3.2` | 41.3 KiB | 41.3 KiB (+0.0) | 41.8 KiB (+0.5) | 41.3 KiB (+0.0) | 41.4 KiB (+0.2) | 41.3 KiB (+0.0) | ❌ | 42.7 KiB (+1.4) | 41.3 KiB (+0.0) |
-| `v2.4.0` | 41.5 KiB | 41.5 KiB (+0.0) | 42.1 KiB (+0.5) | 41.5 KiB (+0.0) | 41.7 KiB (+0.2) | 41.5 KiB (+0.0) | ❌ | 42.9 KiB (+1.4) | 41.5 KiB (+0.0) |
-| `v2.4.1` | 41.5 KiB | 41.5 KiB (+0.0) | 42.1 KiB (+0.5) | 41.5 KiB (+0.0) | 41.7 KiB (+0.2) | 41.5 KiB (+0.0) | ❌ | 42.9 KiB (+1.4) | 41.5 KiB (+0.0) |
-| `v2.5.0` | 41.6 KiB | 41.6 KiB (+0.0) | 42.1 KiB (+0.5) | 41.6 KiB (+0.0) | 41.7 KiB (+0.2) | 41.6 KiB (+0.0) | ❌ | 43.0 KiB (+1.4) | 41.6 KiB (+0.0) |
-| `v2.5.1` | 41.6 KiB | 41.6 KiB (+0.0) | 42.1 KiB (+0.5) | 41.6 KiB (+0.0) | 41.7 KiB (+0.2) | 41.6 KiB (+0.0) | ❌ | 43.0 KiB (+1.4) | 41.6 KiB (+0.0) |
-| `v2.5.2` | 41.6 KiB | 41.6 KiB (+0.0) | 42.1 KiB (+0.5) | 41.6 KiB (+0.0) | 41.7 KiB (+0.2) | 41.6 KiB (+0.0) | ❌ | 43.0 KiB (+1.4) | 41.6 KiB (+0.0) |
+| `v2.1.0` | 76.5 KiB | 76.5 KiB (+0.0) | 77.1 KiB (+0.5) | 76.5 KiB (+0.0) | 76.7 KiB (+0.2) | 76.5 KiB (+0.0) | 76.5 KiB (+0.0) | — | 76.5 KiB (+0.0) |
+| `v2.1.1` | 136.5 KiB | 136.5 KiB (+0.0) | 137.1 KiB (+0.5) | 136.5 KiB (+0.0) | 136.7 KiB (+0.2) | 136.5 KiB (+0.0) | 136.5 KiB (+0.0) | — | 136.5 KiB (+0.0) |
+| `v2.1.2` | 136.5 KiB | 136.5 KiB (+0.0) | 137.1 KiB (+0.5) | 136.5 KiB (+0.0) | 136.7 KiB (+0.2) | 136.5 KiB (+0.0) | 136.5 KiB (+0.0) | — | 136.5 KiB (+0.0) |
+| `v2.1.3` | 40.7 KiB | 40.7 KiB (+0.0) | 41.2 KiB (+0.5) | 40.7 KiB (+0.0) | 40.9 KiB (+0.2) | 40.7 KiB (+0.0) | 40.7 KiB (+0.0) | — | 40.7 KiB (+0.0) |
+| `v2.2.0` | 41.2 KiB | 41.2 KiB (+0.0) | 41.8 KiB (+0.5) | 41.2 KiB (+0.0) | 41.4 KiB (+0.2) | 41.2 KiB (+0.0) | 41.2 KiB (+0.0) | 42.6 KiB (+1.4) | 41.2 KiB (+0.0) |
+| `v2.3.0` | 41.2 KiB | 41.2 KiB (+0.0) | 41.8 KiB (+0.5) | 41.2 KiB (+0.0) | 41.4 KiB (+0.2) | 41.2 KiB (+0.0) | 41.2 KiB (+0.0) | 42.6 KiB (+1.4) | 41.2 KiB (+0.0) |
+| `v2.3.1` | 41.2 KiB | 41.2 KiB (+0.0) | 41.8 KiB (+0.5) | 41.2 KiB (+0.0) | 41.4 KiB (+0.2) | 41.2 KiB (+0.0) | 41.2 KiB (+0.0) | 42.6 KiB (+1.4) | 41.2 KiB (+0.0) |
+| `v2.3.2` | 41.3 KiB | 41.3 KiB (+0.0) | 41.8 KiB (+0.5) | 41.3 KiB (+0.0) | 41.4 KiB (+0.2) | 41.3 KiB (+0.0) | 41.3 KiB (+0.0) | 42.7 KiB (+1.4) | 41.3 KiB (+0.0) |
+| `v2.4.0` | 41.5 KiB | 41.5 KiB (+0.0) | 42.1 KiB (+0.5) | 41.5 KiB (+0.0) | 41.7 KiB (+0.2) | 41.5 KiB (+0.0) | 41.5 KiB (+0.0) | 42.9 KiB (+1.4) | 41.5 KiB (+0.0) |
+| `v2.4.1` | 41.5 KiB | 41.5 KiB (+0.0) | 42.1 KiB (+0.5) | 41.5 KiB (+0.0) | 41.7 KiB (+0.2) | 41.5 KiB (+0.0) | 41.5 KiB (+0.0) | 42.9 KiB (+1.4) | 41.5 KiB (+0.0) |
+| `v2.5.0` | 41.6 KiB | 41.6 KiB (+0.0) | 42.1 KiB (+0.5) | 41.6 KiB (+0.0) | 41.7 KiB (+0.2) | 41.6 KiB (+0.0) | 41.6 KiB (+0.0) | 43.0 KiB (+1.4) | 41.6 KiB (+0.0) |
+| `v2.5.1` | 41.6 KiB | 41.6 KiB (+0.0) | 42.1 KiB (+0.5) | 41.6 KiB (+0.0) | 41.7 KiB (+0.2) | 41.6 KiB (+0.0) | 41.6 KiB (+0.0) | 43.0 KiB (+1.4) | 41.6 KiB (+0.0) |
+| `v2.5.2` | 41.6 KiB | 41.6 KiB (+0.0) | 42.1 KiB (+0.5) | 41.6 KiB (+0.0) | 41.7 KiB (+0.2) | 41.6 KiB (+0.0) | 41.6 KiB (+0.0) | 43.0 KiB (+1.4) | 41.6 KiB (+0.0) |
 | `v2.5.3` | 42.3 KiB | 42.3 KiB (+0.0) | 42.8 KiB (+0.5) | 42.3 KiB (+0.0) | 42.4 KiB (+0.2) | 42.3 KiB (+0.0) | 42.3 KiB (+0.0) | 43.7 KiB (+1.4) | 42.3 KiB (+0.0) |
 
 ## esp32s2
@@ -59,20 +59,20 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `v2.0.0` | 299.1 KiB | 299.6 KiB (+0.5) | 300.5 KiB (+1.4) | 299.7 KiB (+0.6) | 341.8 KiB (+42.7) | 299.9 KiB (+0.8) | — | — | 305.8 KiB (+6.8) |
 | `v2.0.1` | 299.1 KiB | 299.5 KiB (+0.5) | 300.5 KiB (+1.4) | 299.7 KiB (+0.6) | 341.8 KiB (+42.7) | 299.9 KiB (+0.8) | — | — | 305.8 KiB (+6.8) |
-| `v2.1.0` | 299.6 KiB | 300.1 KiB (+0.4) | 301.0 KiB (+1.4) | 300.2 KiB (+0.6) | 342.3 KiB (+42.7) | 300.4 KiB (+0.8) | ❌ | — | 306.3 KiB (+6.7) |
+| `v2.1.0` | 299.6 KiB | 300.1 KiB (+0.4) | 301.0 KiB (+1.4) | 300.2 KiB (+0.6) | 342.3 KiB (+42.7) | 300.4 KiB (+0.8) | 301.2 KiB (+1.5) | — | 306.3 KiB (+6.7) |
 | `v2.1.1` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — | ❌ |
-| `v2.1.2` | 370.7 KiB | 371.1 KiB (+0.4) | 372.0 KiB (+1.4) | 371.2 KiB (+0.5) | 412.1 KiB (+41.5) | 371.5 KiB (+0.8) | ❌ | — | 377.0 KiB (+6.3) |
-| `v2.1.3` | 369.9 KiB | 370.3 KiB (+0.4) | 371.3 KiB (+1.4) | 370.4 KiB (+0.5) | 411.3 KiB (+41.4) | 370.7 KiB (+0.8) | ❌ | — | 376.2 KiB (+6.4) |
-| `v2.2.0` | 370.7 KiB | 371.2 KiB (+0.4) | 372.1 KiB (+1.4) | 371.3 KiB (+0.5) | 412.2 KiB (+41.4) | 371.5 KiB (+0.8) | ❌ | — | 377.1 KiB (+6.3) |
-| `v2.3.0` | 371.0 KiB | 371.4 KiB (+0.4) | 372.4 KiB (+1.4) | 371.6 KiB (+0.6) | 412.4 KiB (+41.4) | 371.8 KiB (+0.8) | ❌ | — | 377.3 KiB (+6.3) |
-| `v2.3.1` | 371.0 KiB | 371.4 KiB (+0.4) | 372.4 KiB (+1.4) | 371.6 KiB (+0.6) | 412.4 KiB (+41.4) | 371.8 KiB (+0.8) | ❌ | — | 377.3 KiB (+6.3) |
-| `v2.3.2` | 383.7 KiB | 384.1 KiB (+0.4) | 385.0 KiB (+1.3) | 384.2 KiB (+0.5) | 425.7 KiB (+42.0) | 384.4 KiB (+0.8) | ❌ | — | 390.0 KiB (+6.3) |
-| `v2.4.0` | 387.2 KiB | 388.1 KiB (+0.9) | 388.5 KiB (+1.3) | 387.7 KiB (+0.5) | 429.2 KiB (+42.0) | 387.9 KiB (+0.8) | ❌ | — | 393.5 KiB (+6.3) |
-| `v2.4.1` | 388.3 KiB | 389.3 KiB (+0.9) | 389.7 KiB (+1.3) | 388.8 KiB (+0.5) | 430.3 KiB (+42.0) | 389.1 KiB (+0.8) | ❌ | — | 394.7 KiB (+6.3) |
-| `v2.5.0` | 388.6 KiB | 389.5 KiB (+0.9) | 389.9 KiB (+1.4) | 389.1 KiB (+0.5) | 430.5 KiB (+41.9) | 389.3 KiB (+0.8) | ❌ | — | 394.9 KiB (+6.3) |
-| `v2.5.1` | 388.6 KiB | 389.5 KiB (+0.9) | 389.9 KiB (+1.4) | 389.1 KiB (+0.5) | 430.7 KiB (+42.2) | 389.3 KiB (+0.8) | ❌ | — | 394.9 KiB (+6.3) |
-| `v2.5.2` | 388.6 KiB | 389.5 KiB (+0.9) | 389.9 KiB (+1.4) | 389.1 KiB (+0.5) | 430.7 KiB (+42.2) | 389.3 KiB (+0.8) | ❌ | — | 394.9 KiB (+6.3) |
-| `v2.5.3` | 389.2 KiB | 390.1 KiB (+0.9) | 390.5 KiB (+1.3) | 389.7 KiB (+0.5) | 431.3 KiB (+42.1) | 389.9 KiB (+0.8) | 393.0 KiB (+3.8) | — | 395.5 KiB (+6.3) |
+| `v2.1.2` | 370.7 KiB | 371.1 KiB (+0.4) | 372.0 KiB (+1.4) | 371.2 KiB (+0.5) | 412.1 KiB (+41.5) | 371.5 KiB (+0.8) | 372.2 KiB (+1.5) | — | 377.0 KiB (+6.3) |
+| `v2.1.3` | 369.9 KiB | 370.3 KiB (+0.4) | 371.3 KiB (+1.4) | 370.4 KiB (+0.5) | 411.3 KiB (+41.4) | 370.7 KiB (+0.8) | 371.4 KiB (+1.5) | — | 376.2 KiB (+6.4) |
+| `v2.2.0` | 370.7 KiB | 371.2 KiB (+0.4) | 372.1 KiB (+1.4) | 371.3 KiB (+0.5) | 412.2 KiB (+41.4) | 371.5 KiB (+0.8) | 372.2 KiB (+1.5) | 430.9 KiB (+60.1) | 377.1 KiB (+6.3) |
+| `v2.3.0` | 371.0 KiB | 371.4 KiB (+0.4) | 372.4 KiB (+1.4) | 371.6 KiB (+0.6) | 412.4 KiB (+41.4) | 371.8 KiB (+0.8) | 372.5 KiB (+1.5) | 431.1 KiB (+60.1) | 377.3 KiB (+6.3) |
+| `v2.3.1` | 371.0 KiB | 371.4 KiB (+0.4) | 372.4 KiB (+1.4) | 371.6 KiB (+0.6) | 412.4 KiB (+41.4) | 371.8 KiB (+0.8) | 372.5 KiB (+1.5) | 431.1 KiB (+60.1) | 377.3 KiB (+6.3) |
+| `v2.3.2` | 383.7 KiB | 384.1 KiB (+0.4) | 385.0 KiB (+1.3) | 384.2 KiB (+0.5) | 425.7 KiB (+42.0) | 384.4 KiB (+0.8) | 385.1 KiB (+1.4) | 443.8 KiB (+60.1) | 390.0 KiB (+6.3) |
+| `v2.4.0` | 387.2 KiB | 388.1 KiB (+0.9) | 388.5 KiB (+1.3) | 387.7 KiB (+0.5) | 429.2 KiB (+42.0) | 387.9 KiB (+0.8) | 388.6 KiB (+1.4) | 447.3 KiB (+60.2) | 393.5 KiB (+6.3) |
+| `v2.4.1` | 388.3 KiB | 389.3 KiB (+0.9) | 389.7 KiB (+1.3) | 388.8 KiB (+0.5) | 430.3 KiB (+42.0) | 389.1 KiB (+0.8) | 390.0 KiB (+1.6) | 448.4 KiB (+60.1) | 394.7 KiB (+6.3) |
+| `v2.5.0` | 388.6 KiB | 389.5 KiB (+0.9) | 389.9 KiB (+1.4) | 389.1 KiB (+0.5) | 430.5 KiB (+41.9) | 389.3 KiB (+0.8) | 390.2 KiB (+1.6) | 448.7 KiB (+60.1) | 394.9 KiB (+6.3) |
+| `v2.5.1` | 388.6 KiB | 389.5 KiB (+0.9) | 389.9 KiB (+1.4) | 389.1 KiB (+0.5) | 430.7 KiB (+42.2) | 389.3 KiB (+0.8) | 390.2 KiB (+1.6) | 448.7 KiB (+60.1) | 394.9 KiB (+6.3) |
+| `v2.5.2` | 388.6 KiB | 389.5 KiB (+0.9) | 389.9 KiB (+1.4) | 389.1 KiB (+0.5) | 430.7 KiB (+42.2) | 389.3 KiB (+0.8) | 390.2 KiB (+1.6) | 448.7 KiB (+60.1) | 394.9 KiB (+6.3) |
+| `v2.5.3` | 389.2 KiB | 390.1 KiB (+0.9) | 390.5 KiB (+1.3) | 389.7 KiB (+0.5) | 431.3 KiB (+42.1) | 389.9 KiB (+0.8) | 393.0 KiB (+3.8) | 449.2 KiB (+60.1) | 395.5 KiB (+6.3) |
 
 ### Static RAM
 
@@ -80,20 +80,20 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `v2.0.0` | 67.4 KiB | 67.4 KiB (+0.0) | 67.9 KiB (+0.5) | 67.4 KiB (+0.0) | 67.5 KiB (+0.2) | 67.4 KiB (+0.0) | — | — | 67.4 KiB (+0.0) |
 | `v2.0.1` | 67.4 KiB | 67.4 KiB (+0.0) | 67.9 KiB (+0.5) | 67.4 KiB (+0.0) | 67.5 KiB (+0.2) | 67.4 KiB (+0.0) | — | — | 67.4 KiB (+0.0) |
-| `v2.1.0` | 71.6 KiB | 71.6 KiB (+0.0) | 72.1 KiB (+0.5) | 71.6 KiB (+0.0) | 71.7 KiB (+0.2) | 71.6 KiB (+0.0) | ❌ | — | 71.6 KiB (+0.0) |
+| `v2.1.0` | 71.6 KiB | 71.6 KiB (+0.0) | 72.1 KiB (+0.5) | 71.6 KiB (+0.0) | 71.7 KiB (+0.2) | 71.6 KiB (+0.0) | 71.6 KiB (+0.0) | — | 71.6 KiB (+0.0) |
 | `v2.1.1` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — | ❌ |
-| `v2.1.2` | 77.4 KiB | 77.4 KiB (+0.0) | 77.9 KiB (+0.5) | 77.4 KiB (+0.0) | 77.5 KiB (+0.2) | 77.4 KiB (+0.0) | ❌ | — | 77.4 KiB (+0.0) |
-| `v2.1.3` | 26.5 KiB | 26.5 KiB (+0.0) | 27.0 KiB (+0.5) | 26.5 KiB (+0.0) | 26.6 KiB (+0.2) | 26.5 KiB (+0.0) | ❌ | — | 26.5 KiB (+0.0) |
-| `v2.2.0` | 27.0 KiB | 27.0 KiB (+0.0) | 27.5 KiB (+0.5) | 27.0 KiB (+0.0) | 27.2 KiB (+0.2) | 27.0 KiB (+0.0) | ❌ | — | 27.0 KiB (+0.0) |
-| `v2.3.0` | 27.0 KiB | 27.0 KiB (+0.0) | 27.5 KiB (+0.5) | 27.0 KiB (+0.0) | 27.2 KiB (+0.2) | 27.0 KiB (+0.0) | ❌ | — | 27.0 KiB (+0.0) |
-| `v2.3.1` | 27.0 KiB | 27.0 KiB (+0.0) | 27.5 KiB (+0.5) | 27.0 KiB (+0.0) | 27.2 KiB (+0.2) | 27.0 KiB (+0.0) | ❌ | — | 27.0 KiB (+0.0) |
-| `v2.3.2` | 27.1 KiB | 27.1 KiB (+0.0) | 27.6 KiB (+0.5) | 27.1 KiB (+0.0) | 27.2 KiB (+0.2) | 27.1 KiB (+0.0) | ❌ | — | 27.1 KiB (+0.0) |
-| `v2.4.0` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | ❌ | — | 27.3 KiB (+0.0) |
-| `v2.4.1` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | ❌ | — | 27.3 KiB (+0.0) |
-| `v2.5.0` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | ❌ | — | 27.4 KiB (+0.0) |
-| `v2.5.1` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | ❌ | — | 27.4 KiB (+0.0) |
-| `v2.5.2` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | ❌ | — | 27.4 KiB (+0.0) |
-| `v2.5.3` | 27.6 KiB | 27.6 KiB (+0.0) | 28.1 KiB (+0.5) | 27.6 KiB (+0.0) | 27.8 KiB (+0.2) | 27.6 KiB (+0.0) | 27.6 KiB (+0.0) | — | 27.6 KiB (+0.0) |
+| `v2.1.2` | 77.4 KiB | 77.4 KiB (+0.0) | 77.9 KiB (+0.5) | 77.4 KiB (+0.0) | 77.5 KiB (+0.2) | 77.4 KiB (+0.0) | 77.4 KiB (+0.0) | — | 77.4 KiB (+0.0) |
+| `v2.1.3` | 26.5 KiB | 26.5 KiB (+0.0) | 27.0 KiB (+0.5) | 26.5 KiB (+0.0) | 26.6 KiB (+0.2) | 26.5 KiB (+0.0) | 26.5 KiB (+0.0) | — | 26.5 KiB (+0.0) |
+| `v2.2.0` | 27.0 KiB | 27.0 KiB (+0.0) | 27.5 KiB (+0.5) | 27.0 KiB (+0.0) | 27.2 KiB (+0.2) | 27.0 KiB (+0.0) | 27.0 KiB (+0.0) | 28.4 KiB (+1.4) | 27.0 KiB (+0.0) |
+| `v2.3.0` | 27.0 KiB | 27.0 KiB (+0.0) | 27.5 KiB (+0.5) | 27.0 KiB (+0.0) | 27.2 KiB (+0.2) | 27.0 KiB (+0.0) | 27.0 KiB (+0.0) | 28.4 KiB (+1.4) | 27.0 KiB (+0.0) |
+| `v2.3.1` | 27.0 KiB | 27.0 KiB (+0.0) | 27.5 KiB (+0.5) | 27.0 KiB (+0.0) | 27.2 KiB (+0.2) | 27.0 KiB (+0.0) | 27.0 KiB (+0.0) | 28.4 KiB (+1.4) | 27.0 KiB (+0.0) |
+| `v2.3.2` | 27.1 KiB | 27.1 KiB (+0.0) | 27.6 KiB (+0.5) | 27.1 KiB (+0.0) | 27.2 KiB (+0.2) | 27.1 KiB (+0.0) | 27.1 KiB (+0.0) | 28.5 KiB (+1.4) | 27.1 KiB (+0.0) |
+| `v2.4.0` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | 27.3 KiB (+0.0) | 28.7 KiB (+1.4) | 27.3 KiB (+0.0) |
+| `v2.4.1` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | 27.3 KiB (+0.0) | 28.7 KiB (+1.4) | 27.3 KiB (+0.0) |
+| `v2.5.0` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | 27.3 KiB (+0.0) | 28.7 KiB (+1.4) | 27.4 KiB (+0.0) |
+| `v2.5.1` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | 27.3 KiB (+0.0) | 28.7 KiB (+1.4) | 27.4 KiB (+0.0) |
+| `v2.5.2` | 27.3 KiB | 27.3 KiB (+0.0) | 27.9 KiB (+0.5) | 27.3 KiB (+0.0) | 27.5 KiB (+0.2) | 27.3 KiB (+0.0) | 27.3 KiB (+0.0) | 28.7 KiB (+1.4) | 27.4 KiB (+0.0) |
+| `v2.5.3` | 27.6 KiB | 27.6 KiB (+0.0) | 28.1 KiB (+0.5) | 27.6 KiB (+0.0) | 27.8 KiB (+0.2) | 27.6 KiB (+0.0) | 27.6 KiB (+0.0) | 29.0 KiB (+1.4) | 27.6 KiB (+0.0) |
 
 ## esp32p4
 
@@ -103,20 +103,20 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `v2.0.0` | 385.6 KiB | 386.1 KiB (+0.5) | 387.5 KiB (+1.9) | 386.3 KiB (+0.7) | 433.0 KiB (+47.4) | 386.5 KiB (+1.0) | — | — | 393.9 KiB (+8.3) |
 | `v2.0.1` | 385.6 KiB | 386.1 KiB (+0.5) | 387.5 KiB (+1.9) | 386.3 KiB (+0.7) | 433.0 KiB (+47.4) | 386.5 KiB (+1.0) | — | — | 393.9 KiB (+8.3) |
-| `v2.1.0` | 386.1 KiB | 386.7 KiB (+0.6) | 388.0 KiB (+1.9) | 386.8 KiB (+0.7) | 433.6 KiB (+47.4) | 387.1 KiB (+1.0) | ❌ | — | 394.5 KiB (+8.3) |
-| `v2.1.1` | 463.6 KiB | 464.1 KiB (+0.5) | 465.5 KiB (+1.9) | 464.2 KiB (+0.7) | 511.0 KiB (+47.5) | 464.5 KiB (+1.0) | ❌ | — | 471.6 KiB (+8.1) |
-| `v2.1.2` | 463.6 KiB | 464.1 KiB (+0.5) | 465.5 KiB (+1.9) | 464.2 KiB (+0.7) | 511.0 KiB (+47.5) | 464.5 KiB (+1.0) | ❌ | — | 471.6 KiB (+8.1) |
-| `v2.1.3` | 463.3 KiB | 463.8 KiB (+0.5) | 465.2 KiB (+1.9) | 464.0 KiB (+0.7) | 510.7 KiB (+47.5) | 464.2 KiB (+1.0) | ❌ | — | 471.3 KiB (+8.0) |
-| `v2.2.0` | 464.2 KiB | 464.7 KiB (+0.5) | 466.1 KiB (+1.9) | 464.9 KiB (+0.7) | 511.6 KiB (+47.5) | 465.1 KiB (+1.0) | ❌ | — | 472.2 KiB (+8.0) |
-| `v2.3.0` | 464.5 KiB | 465.1 KiB (+0.5) | 466.4 KiB (+1.9) | 465.2 KiB (+0.7) | 512.0 KiB (+47.5) | 465.5 KiB (+1.0) | ❌ | — | 472.5 KiB (+8.0) |
-| `v2.3.1` | 464.5 KiB | 465.1 KiB (+0.5) | 466.4 KiB (+1.9) | 465.2 KiB (+0.7) | 512.0 KiB (+47.5) | 465.5 KiB (+1.0) | ❌ | — | 472.5 KiB (+8.0) |
-| `v2.3.2` | 477.2 KiB | 477.8 KiB (+0.5) | 479.2 KiB (+1.9) | 477.9 KiB (+0.7) | 525.3 KiB (+48.0) | 478.2 KiB (+1.0) | ❌ | — | 485.2 KiB (+8.0) |
-| `v2.4.0` | 481.2 KiB | 482.7 KiB (+1.5) | 483.1 KiB (+1.9) | 481.8 KiB (+0.7) | 529.1 KiB (+47.9) | 482.1 KiB (+1.0) | ❌ | — | 489.1 KiB (+7.9) |
-| `v2.4.1` | 482.5 KiB | 484.0 KiB (+1.5) | 484.4 KiB (+1.9) | 483.1 KiB (+0.7) | 530.3 KiB (+47.8) | 483.4 KiB (+1.0) | ❌ | — | 490.4 KiB (+7.9) |
-| `v2.5.0` | 482.7 KiB | 484.3 KiB (+1.5) | 484.6 KiB (+1.9) | 483.4 KiB (+0.7) | 530.5 KiB (+47.8) | 483.7 KiB (+1.0) | ❌ | — | 490.7 KiB (+7.9) |
-| `v2.5.1` | 482.7 KiB | 484.2 KiB (+1.5) | 484.6 KiB (+1.9) | 483.4 KiB (+0.7) | 530.7 KiB (+48.0) | 483.7 KiB (+1.0) | ❌ | — | 490.7 KiB (+7.9) |
-| `v2.5.2` | 482.8 KiB | 484.3 KiB (+1.5) | 484.7 KiB (+1.9) | 483.4 KiB (+0.7) | 530.7 KiB (+48.0) | 483.7 KiB (+1.0) | ❌ | — | 490.7 KiB (+7.9) |
-| `v2.5.3` | 483.5 KiB | 485.0 KiB (+1.5) | 485.4 KiB (+1.9) | 484.1 KiB (+0.7) | 531.4 KiB (+48.0) | 484.4 KiB (+1.0) | 488.8 KiB (+5.4) | — | 491.4 KiB (+7.9) |
+| `v2.1.0` | 386.1 KiB | 386.7 KiB (+0.6) | 388.0 KiB (+1.9) | 386.8 KiB (+0.7) | 433.6 KiB (+47.4) | 387.1 KiB (+1.0) | 387.9 KiB (+1.8) | — | 394.5 KiB (+8.3) |
+| `v2.1.1` | 463.6 KiB | 464.1 KiB (+0.5) | 465.5 KiB (+1.9) | 464.2 KiB (+0.7) | 511.0 KiB (+47.5) | 464.5 KiB (+1.0) | 465.4 KiB (+1.8) | — | 471.6 KiB (+8.1) |
+| `v2.1.2` | 463.6 KiB | 464.1 KiB (+0.5) | 465.5 KiB (+1.9) | 464.2 KiB (+0.7) | 511.0 KiB (+47.5) | 464.5 KiB (+1.0) | 465.4 KiB (+1.8) | — | 471.6 KiB (+8.1) |
+| `v2.1.3` | 463.3 KiB | 463.8 KiB (+0.5) | 465.2 KiB (+1.9) | 464.0 KiB (+0.7) | 510.7 KiB (+47.5) | 464.2 KiB (+1.0) | 465.1 KiB (+1.8) | — | 471.3 KiB (+8.0) |
+| `v2.2.0` | 464.2 KiB | 464.7 KiB (+0.5) | 466.1 KiB (+1.9) | 464.9 KiB (+0.7) | 511.6 KiB (+47.5) | 465.1 KiB (+1.0) | 466.0 KiB (+1.8) | 531.6 KiB (+67.4) | 472.2 KiB (+8.0) |
+| `v2.3.0` | 464.5 KiB | 465.1 KiB (+0.5) | 466.4 KiB (+1.9) | 465.2 KiB (+0.7) | 512.0 KiB (+47.5) | 465.5 KiB (+1.0) | 466.3 KiB (+1.8) | 531.9 KiB (+67.4) | 472.5 KiB (+8.0) |
+| `v2.3.1` | 464.5 KiB | 465.1 KiB (+0.5) | 466.4 KiB (+1.9) | 465.2 KiB (+0.7) | 512.0 KiB (+47.5) | 465.5 KiB (+1.0) | 466.3 KiB (+1.8) | 531.9 KiB (+67.4) | 472.5 KiB (+8.0) |
+| `v2.3.2` | 477.2 KiB | 477.8 KiB (+0.5) | 479.2 KiB (+1.9) | 477.9 KiB (+0.7) | 525.3 KiB (+48.0) | 478.2 KiB (+1.0) | 479.0 KiB (+1.8) | 544.6 KiB (+67.4) | 485.2 KiB (+8.0) |
+| `v2.4.0` | 481.2 KiB | 482.7 KiB (+1.5) | 483.1 KiB (+1.9) | 481.8 KiB (+0.7) | 529.1 KiB (+47.9) | 482.1 KiB (+1.0) | 482.9 KiB (+1.8) | 548.5 KiB (+67.3) | 489.1 KiB (+7.9) |
+| `v2.4.1` | 482.5 KiB | 484.0 KiB (+1.5) | 484.4 KiB (+1.9) | 483.1 KiB (+0.7) | 530.3 KiB (+47.8) | 483.4 KiB (+1.0) | 484.6 KiB (+2.1) | 549.8 KiB (+67.3) | 490.4 KiB (+7.9) |
+| `v2.5.0` | 482.7 KiB | 484.3 KiB (+1.5) | 484.6 KiB (+1.9) | 483.4 KiB (+0.7) | 530.5 KiB (+47.8) | 483.7 KiB (+1.0) | 484.8 KiB (+2.1) | 550.0 KiB (+67.3) | 490.7 KiB (+7.9) |
+| `v2.5.1` | 482.7 KiB | 484.2 KiB (+1.5) | 484.6 KiB (+1.9) | 483.4 KiB (+0.7) | 530.7 KiB (+48.0) | 483.7 KiB (+1.0) | 484.8 KiB (+2.1) | 550.0 KiB (+67.3) | 490.7 KiB (+7.9) |
+| `v2.5.2` | 482.8 KiB | 484.3 KiB (+1.5) | 484.7 KiB (+1.9) | 483.4 KiB (+0.7) | 530.7 KiB (+48.0) | 483.7 KiB (+1.0) | 484.9 KiB (+2.1) | 550.1 KiB (+67.3) | 490.7 KiB (+7.9) |
+| `v2.5.3` | 483.5 KiB | 485.0 KiB (+1.5) | 485.4 KiB (+1.9) | 484.1 KiB (+0.7) | 531.4 KiB (+48.0) | 484.4 KiB (+1.0) | 488.8 KiB (+5.4) | 550.8 KiB (+67.3) | 491.4 KiB (+7.9) |
 
 ### Static RAM
 
@@ -124,66 +124,28 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `v2.0.0` | 72.9 KiB | 72.9 KiB (+0.0) | 73.4 KiB (+0.5) | 72.9 KiB (+0.0) | 73.0 KiB (+0.2) | 72.9 KiB (+0.0) | — | — | 72.9 KiB (+0.0) |
 | `v2.0.1` | 72.9 KiB | 72.9 KiB (+0.0) | 73.4 KiB (+0.5) | 72.9 KiB (+0.0) | 73.0 KiB (+0.2) | 72.9 KiB (+0.0) | — | — | 72.9 KiB (+0.0) |
-| `v2.1.0` | 77.1 KiB | 77.1 KiB (+0.0) | 77.6 KiB (+0.5) | 77.1 KiB (+0.0) | 77.2 KiB (+0.2) | 77.1 KiB (+0.0) | ❌ | — | 77.1 KiB (+0.0) |
-| `v2.1.1` | 137.1 KiB | 137.1 KiB (+0.0) | 137.6 KiB (+0.5) | 137.1 KiB (+0.0) | 137.2 KiB (+0.2) | 137.1 KiB (+0.0) | ❌ | — | 137.1 KiB (+0.0) |
-| `v2.1.2` | 137.1 KiB | 137.1 KiB (+0.0) | 137.6 KiB (+0.5) | 137.1 KiB (+0.0) | 137.2 KiB (+0.2) | 137.1 KiB (+0.0) | ❌ | — | 137.1 KiB (+0.0) |
-| `v2.1.3` | 41.3 KiB | 41.3 KiB (+0.0) | 41.8 KiB (+0.5) | 41.3 KiB (+0.0) | 41.4 KiB (+0.2) | 41.3 KiB (+0.0) | ❌ | — | 41.3 KiB (+0.0) |
-| `v2.2.0` | 41.8 KiB | 41.8 KiB (+0.0) | 42.3 KiB (+0.5) | 41.8 KiB (+0.0) | 41.9 KiB (+0.2) | 41.8 KiB (+0.0) | ❌ | — | 41.8 KiB (+0.0) |
-| `v2.3.0` | 41.8 KiB | 41.8 KiB (+0.0) | 42.3 KiB (+0.5) | 41.8 KiB (+0.0) | 41.9 KiB (+0.2) | 41.8 KiB (+0.0) | ❌ | — | 41.8 KiB (+0.0) |
-| `v2.3.1` | 41.8 KiB | 41.8 KiB (+0.0) | 42.3 KiB (+0.5) | 41.8 KiB (+0.0) | 41.9 KiB (+0.2) | 41.8 KiB (+0.0) | ❌ | — | 41.8 KiB (+0.0) |
-| `v2.3.2` | 41.8 KiB | 41.8 KiB (+0.0) | 42.4 KiB (+0.5) | 41.8 KiB (+0.0) | 42.0 KiB (+0.2) | 41.8 KiB (+0.0) | ❌ | — | 41.8 KiB (+0.0) |
-| `v2.4.0` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | ❌ | — | 42.1 KiB (+0.0) |
-| `v2.4.1` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | ❌ | — | 42.1 KiB (+0.0) |
-| `v2.5.0` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | ❌ | — | 42.1 KiB (+0.0) |
-| `v2.5.1` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | ❌ | — | 42.1 KiB (+0.0) |
-| `v2.5.2` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | ❌ | — | 42.1 KiB (+0.0) |
-| `v2.5.3` | 42.8 KiB | 42.8 KiB (+0.0) | 43.3 KiB (+0.5) | 42.8 KiB (+0.0) | 43.0 KiB (+0.2) | 42.8 KiB (+0.0) | 42.8 KiB (+0.0) | — | 42.8 KiB (+0.0) |
+| `v2.1.0` | 77.1 KiB | 77.1 KiB (+0.0) | 77.6 KiB (+0.5) | 77.1 KiB (+0.0) | 77.2 KiB (+0.2) | 77.1 KiB (+0.0) | 77.1 KiB (+0.0) | — | 77.1 KiB (+0.0) |
+| `v2.1.1` | 137.1 KiB | 137.1 KiB (+0.0) | 137.6 KiB (+0.5) | 137.1 KiB (+0.0) | 137.2 KiB (+0.2) | 137.1 KiB (+0.0) | 137.1 KiB (+0.0) | — | 137.1 KiB (+0.0) |
+| `v2.1.2` | 137.1 KiB | 137.1 KiB (+0.0) | 137.6 KiB (+0.5) | 137.1 KiB (+0.0) | 137.2 KiB (+0.2) | 137.1 KiB (+0.0) | 137.1 KiB (+0.0) | — | 137.1 KiB (+0.0) |
+| `v2.1.3` | 41.3 KiB | 41.3 KiB (+0.0) | 41.8 KiB (+0.5) | 41.3 KiB (+0.0) | 41.4 KiB (+0.2) | 41.3 KiB (+0.0) | 41.3 KiB (+0.0) | — | 41.3 KiB (+0.0) |
+| `v2.2.0` | 41.8 KiB | 41.8 KiB (+0.0) | 42.3 KiB (+0.5) | 41.8 KiB (+0.0) | 41.9 KiB (+0.2) | 41.8 KiB (+0.0) | 41.8 KiB (+0.0) | 43.2 KiB (+1.4) | 41.8 KiB (+0.0) |
+| `v2.3.0` | 41.8 KiB | 41.8 KiB (+0.0) | 42.3 KiB (+0.5) | 41.8 KiB (+0.0) | 41.9 KiB (+0.2) | 41.8 KiB (+0.0) | 41.8 KiB (+0.0) | 43.2 KiB (+1.4) | 41.8 KiB (+0.0) |
+| `v2.3.1` | 41.8 KiB | 41.8 KiB (+0.0) | 42.3 KiB (+0.5) | 41.8 KiB (+0.0) | 41.9 KiB (+0.2) | 41.8 KiB (+0.0) | 41.8 KiB (+0.0) | 43.2 KiB (+1.4) | 41.8 KiB (+0.0) |
+| `v2.3.2` | 41.8 KiB | 41.8 KiB (+0.0) | 42.4 KiB (+0.5) | 41.8 KiB (+0.0) | 42.0 KiB (+0.2) | 41.8 KiB (+0.0) | 41.8 KiB (+0.0) | 43.2 KiB (+1.4) | 41.8 KiB (+0.0) |
+| `v2.4.0` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | 42.1 KiB (+0.0) | 43.5 KiB (+1.4) | 42.1 KiB (+0.0) |
+| `v2.4.1` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | 42.1 KiB (+0.0) | 43.5 KiB (+1.4) | 42.1 KiB (+0.0) |
+| `v2.5.0` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | 42.1 KiB (+0.0) | 43.5 KiB (+1.4) | 42.1 KiB (+0.0) |
+| `v2.5.1` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | 42.1 KiB (+0.0) | 43.5 KiB (+1.4) | 42.1 KiB (+0.0) |
+| `v2.5.2` | 42.1 KiB | 42.1 KiB (+0.0) | 42.6 KiB (+0.5) | 42.1 KiB (+0.0) | 42.3 KiB (+0.2) | 42.1 KiB (+0.0) | 42.1 KiB (+0.0) | 43.5 KiB (+1.4) | 42.1 KiB (+0.0) |
+| `v2.5.3` | 42.8 KiB | 42.8 KiB (+0.0) | 43.3 KiB (+0.5) | 42.8 KiB (+0.0) | 43.0 KiB (+0.2) | 42.8 KiB (+0.0) | 42.8 KiB (+0.0) | 44.2 KiB (+1.4) | 42.8 KiB (+0.0) |
 
 ## Failures
 
-- `v2.1.0` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.1.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.1` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.1.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.2` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.1.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.3` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.1.3/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.2.0` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.2.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.0` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.3.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.1` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.3.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.2` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.3.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.4.0` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.4.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.4.1` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.4.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.0` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.5.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.1` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.5.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.2` / `esp32p4` / `Vendor`: /tmp/espusb-footprint-pxg8oipa/build-work/v2.5.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
 - `v2.1.1` / `esp32s2` / `Base`: collect2: error: ld returned 1 exit status
 - `v2.1.1` / `esp32s2` / `HID`: collect2: error: ld returned 1 exit status
 - `v2.1.1` / `esp32s2` / `Serial`: collect2: error: ld returned 1 exit status
 - `v2.1.1` / `esp32s2` / `Audio`: collect2: error: ld returned 1 exit status
 - `v2.1.1` / `esp32s2` / `Storage`: collect2: error: ld returned 1 exit status
 - `v2.1.1` / `esp32s2` / `MIDI`: collect2: error: ld returned 1 exit status
-- `v2.1.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
+- `v2.1.1` / `esp32s2` / `Vendor`: collect2: error: ld returned 1 exit status
 - `v2.1.1` / `esp32s2` / `Info`: collect2: error: ld returned 1 exit status
-- `v2.1.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.1.3/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.2.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.2.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.3.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.3.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.3.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.4.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.4.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.4.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.4.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.5.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.5.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-9rjlzr0b/build-work/v2.5.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.0` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.1` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.2` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.1.3` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.1.3/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.2.0` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.2.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.0` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.3.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.1` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.3.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.3.2` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.3.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.4.0` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.4.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.4.1` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.4.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.0` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.5.0/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.1` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.5.1/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
-- `v2.5.2` / `esp32s3` / `Vendor`: /tmp/espusb-footprint-4j4b5vyy/build-work/v2.5.2/probe/Vendor/Vendor.ino:21:9: error: 'class EspUsbHost' has no member named 'vendorSetAutoZlp'
