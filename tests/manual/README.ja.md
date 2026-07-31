@@ -59,9 +59,9 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`msc_cache_coherency/`](msc_cache_coherency/) | 同じLBA範囲をcache負荷下でmulti-sector readし、single-sector referenceと比較してCPU cacheとUSB DMAの非coherencyを検出（read only） | ESP32-P4 + USBストレージ（ESP32-S3はネガティブコントロール） | ✅ |
 | [`adb_connect/`](adb_connect/) | Android実機のADBを許可・永続RSA鍵で認証し、単一shell echo streamを検証すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
 | [`vendor_bulk_out_only/`](vendor_bulk_out_only/) | bulk OUTのみでbulk INを持たない0xff interfaceを `vendorOpen()` が受け付け、packet sizeとendpoint channelの計上がdescriptorと一致すること。interface/endpointの一覧も出力する | USBグラフィックスアダプタ（DisplayLink DL-1xx、VID 0x17e9）またはbulk OUTのみのvendorデバイス | ✅ |
-| [`vendor_bulk_throughput/`](vendor_bulk_throughput/) | bulk OUTの実効スループット。同期 `vendorWrite()` と非同期キュー（depth 1/2/4/8 × 転送サイズ512 B〜16 KB）を比較し、キューのスロット計上と再利用も検証する。full-speedの実効上限を確定させる | vendor-specific (0xff) のbulk OUT endpointを持つ任意のデバイス | ✅ |
+| [`vendor_bulk_throughput/`](vendor_bulk_throughput/) | bulk OUTの実効スループット。同期 `vendorWrite()` と非同期キュー（depth 1/2/4/8 × 転送サイズ512 B〜16 KB）を比較し、キューのスロット計上と再利用も検証する。実機のbulk OUT実効上限を確定させる（full-speed / ESP32-S3で1.098 MB/s、high speed / ESP32-P4で36.4 MB/s） | vendor-specific (0xff) のbulk OUT endpointを持つ任意のデバイス | ✅ |
 | [`usb_display_dl1xx/`](usb_display_dl1xx/) | DL-1xxの立ち上げ。EDID読み出し、1920x1080のモード設定、単色塗り、カラーバー、1px市松、無通信での表示保持、モード再送を確認する。画像はモニタで目視判定する | USBグラフィックスアダプタ（DisplayLink DL-1xx、VID 0x17e9）＋1920x1080対応モニタ | ✅ |
-| [`usb_display_throughput/`](usb_display_throughput/) | 表示経路のチューニング計測。タイル形状、ダブルバッファ、差分転送、auto clear、全画面 vs sprite 再描画、panel直接描画（全クリアのちらつき含む）、シーン内容を振る。exampleのREADMEに書いた指針の出どころ | `usb_display_dl1xx` と同じ | ✅ |
+| [`usb_display_throughput/`](usb_display_throughput/) | 表示経路のチューニング計測。タイル形状、ダブルバッファ、差分転送、auto clear、全画面 vs sprite 再描画、panel直接描画（全クリアのちらつき含む）、シーン内容を振る。exampleのREADMEに書いた指針の出どころ。ターゲットごとに実行する（bus使用率は `--profile` で選ばれた実機の上限に対して計算される） | `usb_display_dl1xx` と同じ。ESP32-P4ではアダプタにセルフパワードハブが必要で、そのハブには他をつながないこと | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 

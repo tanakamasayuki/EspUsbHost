@@ -25,7 +25,11 @@ be copied into another project as they are:
   the same protocol. DL-165 reaches 1920x1080; DL-120 / DL-160 top out around
   1600x1200.
 - Power for the adapter. These draw significant current, so use a self-powered hub
-  or an external supply unless the host board feeds its OTG connector.
+  or an external supply unless the host board feeds its OTG connector. On our
+  ESP32-P4 board the host port could not supply enough for the adapter at all, and
+  a self-powered hub was required. Keep other devices off that hub —
+  [see below](#on-an-esp32-p4-the-bus-stops-mattering) for what a full-speed
+  device sharing it can do.
 
 ## How it works
 
@@ -40,8 +44,9 @@ tens of KB is enough. Its diff transfer then skips bands that did not change,
 which pairs well with an adapter that holds its own image.
 
 As written, this sketch redraws everything every frame and reaches about 2.5 fps
-at 1920x1080 on an ESP32-S3, using a few percent of the USB bandwidth. USB is not
-the limit — drawing is. See [Making it faster](#making-it-faster) below.
+at 1920x1080 on an ESP32-S3 (5.8 fps on an ESP32-P4), using a few percent of the
+USB bandwidth. USB is not the limit — drawing is. See
+[Making it faster](#making-it-faster) below.
 
 ## Scope: this is a vendor-protocol example, not a display library
 
@@ -137,6 +142,46 @@ programming model at the cost of re-running the callback per band.
 
 **`setAutoClear(false)` changes little** (2.56 vs 2.53 fps) when the scene starts
 with its own `fillScreen`, and it is unsafe when it does not.
+
+### On an ESP32-P4 the bus stops mattering
+
+The same sweep on an ESP32-P4 runs the adapter at high speed, where
+`vendor_bulk_throughput` measures 36.4 MB/s instead of 1.098 MB/s. Nothing in the
+sweep is transfer-bound any more — even pseudo-random pixels, which saturate a
+full-speed bus, use 3.6% of a high-speed one:
+
+| Condition | fps (S3) | fps (P4) | P4 USB | P4 bus |
+|---|---|---|---|---|
+| Whole screen, 64 KB tiles | 2.53 | 5.78 | 120 KB/s | 0.3% |
+| Sprite over the moving area | 91.56 | 186.02 | 336 KB/s | 0.9% |
+| Direct, clear and redraw everything | 5.75 | 10.52 | 1243 KB/s | 3.3% |
+| Direct, repaint only the moving part | 692 | 935.63 | 1518 KB/s | 4.1% |
+| Pseudo-random pixels | 0.27 | 6.15 | 1331 KB/s | 3.6% |
+
+The ordering of every knob is unchanged, because they all act on draw cost: fewer
+larger bands is still 1.20x, diff transfer still 1.7x, double buffering still
+nothing, and redrawing only what changed is still worth about 32x. What changes is
+that the two conditions the full-speed bus was limiting are now limited by the CPU
+like everything else, which is why noise jumps from 0.27 to 6.15 fps.
+
+**Keep the adapter alone on its hub.** These P4 numbers were taken through a
+self-powered hub, which the adapter needs: connected straight to the host port it
+did not get enough current to run at all. The hub itself is not the problem — but
+another device on it that fails its downstream port reset is. With a full-speed
+touch panel sharing the high-speed hub, ESP-IDF's own external-hub driver aborted
+the whole USB host right after `begin()`:
+
+```
+E (5678) EXT_PORT: [1:2] Failed to issue downstream port reset
+assert failed: handle_recycle ext_port.c:891 (ext_port->status.wPortChange.val == 0)
+```
+
+Note the port: `[1:2]` is hub port 2, the touch panel, not port 4 where the
+adapter was. Removing that device fixed it, with the adapter still behind the same
+hub. This is reproducible 100% of the time and independent of the sketch — the
+prebuilt IDF is configured with `CONFIG_USB_HOST_EXT_PORT_RESET_ATTEMPTS=1`, so
+one failed reset is fatal, and because the failure path is an assert no library
+code can intercept it.
 
 ## Limitations
 
