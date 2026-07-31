@@ -79,7 +79,7 @@ Host/Device loopback tests.
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | CDC-NCM / CDC-ECM — USB Ethernet with raw frame access and lwIP netif attach | 🔲 Experimental. Peer-tested against the EspUsbDevice `UsbNetwork` sketch and an AX88179A adapter. Adapters whose network function is not in the default configuration need `setConfigurationSelector()` and two enumeration passes |
 | MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental. Basic read/write and FatFs mounting with a single MSC device are peer/manual tested. Non-compliant devices, multiple MSC devices/LUNs, and full abnormal BOT recovery need further validation |
-| UVC — USB camera | 💭 Under consideration |
+| UVC — USB camera | ❌ Currently unsupported. The configuration-descriptor length limit in Arduino-ESP32's precompiled USB Host stack prevents typical UVC devices from enumerating |
 
 ### Other planned features
 
@@ -100,6 +100,7 @@ Host/Device loopback tests.
 - **USB host resources:** ESP32-S3 has a small number of USB host channels. Composite devices, hubs, audio, MSC, and multiple serial devices can exhaust channels quickly. Use `printDeviceInfo()` / `printAllDeviceInfo()` and the endpoint/channel diagnostic APIs to inspect resource use.
 - **Hubs:** use a self-powered USB 2.0 hub for multi-device tests. USB 3.x hubs and internally cascaded hubs may behave differently and are not fully validated.
 - **USB Audio:** input/output peer tests pass with the standard Arduino `USBAudioCard`. Real microphone/audio-interface validation is still limited. UAC2 clock/selector behavior and advanced Audio Control units are limited.
+- **UVC / USB cameras:** currently unsupported. Arduino-ESP32's precompiled USB Host stack is built with `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256`, so a USB device whose configuration descriptor exceeds 256 bytes fails during enumeration, before a class driver can start. The Logitech C920 tested here has a 1,974-byte descriptor. A sketch or EspUsbHost build option cannot change this value because it belongs to the build configuration used to generate Arduino-ESP32's precompiled libraries. UVC support will be reconsidered if Arduino-ESP32 removes or raises this limit.
 - **Mass Storage:** FAT access is intended for a single practical MSC device. Multiple MSC devices, multiple LUN devices, unusual block sizes, and abnormal BOT recovery need more real-device validation. Non-compliant devices may require the `SYNCHRONIZE CACHE(10)` fallback described in the MSC section.
 - **Hot plug:** unplugging while files, serial transfers, audio streams, or class operations are active can still fail or lose data depending on device behavior.
 - **ESP32-P4:** FS/HS OTG selection is supported through `EspUsbHostConfig::port`, but P4 validation is still ongoing. HS OTG has practical limitations, especially with hubs.
