@@ -451,6 +451,9 @@ usb.onKeyboardState([](const EspUsbHostKeyboardState &state) {
 void setKeyboardLayout(EspUsbHostKeyboardLayout layout);
 bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock,
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool getKeyboardNumLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getKeyboardCapsLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getKeyboardScrollLock(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool sendHIDReport(uint8_t interfaceNumber, uint8_t reportType, uint8_t reportId,
                    const uint8_t *data, size_t length,
                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -465,6 +468,13 @@ bool sendHIDVendorFeature(const uint8_t *data, size_t length,
 宣言がない場合は、HID report descriptor から見つけた LED output report を使い、
 Set_Report にキーボードの report ID を付けて送信します。接続時にはホストの現在の
 lock 状態を一度キーボードへ送信します。
+
+lock 状態を保持しているのはライブラリ側です。Lock キーが押されるたびにトグルして LED
+report を送り直すため、`getKeyboardNumLock()` / `getKeyboardCapsLock()` /
+`getKeyboardScrollLock()` はコールバックを待たずにいつでも現在値を返します。lock 状態は
+キーボードごとに持つので、複数台つないでいる場合は `address` を指定してください。同じ値は
+`onKeyboard` と `onKeyboardState` の通知にも含まれます。キーボードが未接続のときは3つとも
+false を返します。
 
 `sendHIDVendorOutput()` と `sendHIDVendorFeature()` は HID vendor report 用です。HIDではない vendor-specific interface には次の Vendor bulk/control API を使います。
 
