@@ -118,15 +118,20 @@ static uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b)
     return static_cast<uint16_t>(((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3));
 }
 
-// One precomputed row of pseudo-random pixels, the RLE worst case. Drawing it
-// with pushImage keeps the draw cost near a memcpy so the condition measures the
-// encoder and the bus rather than the drawing primitives.
+// One row of pseudo-random pixels, the RLE worst case. Drawing it with pushImage
+// keeps the draw cost near a memcpy so the condition measures the encoder and the
+// bus rather than the drawing primitives.
+//
+// It is rebuilt once per frame, and it has to be: a row that never changes makes
+// every tile hash identical after the first frame, so diff transfer skips the
+// whole screen and the condition measures nothing. The seed is derived from the
+// frame counter so the content is both incompressible and new every frame.
 static constexpr int NOISE_ROW_PIXELS = 1920;
 static uint16_t noiseRow[NOISE_ROW_PIXELS];
 
-static void buildNoiseRow()
+static void buildNoiseRow(uint32_t seed)
 {
-    uint32_t state = 0x12345678u;
+    uint32_t state = 0x12345678u ^ (seed * 2654435761u);
     for (int i = 0; i < NOISE_ROW_PIXELS; i++)
     {
         state = state * 1103515245u + 12345u;
@@ -287,6 +292,12 @@ static void runCondition(const Condition &c)
     const int64_t deadline = startedAt + static_cast<int64_t>(CONDITION_MS) * 1000;
     while (esp_timer_get_time() < deadline)
     {
+        if (scene == SCENE_NOISE)
+        {
+            // Per frame, not per band: every band of one frame shares the row, so
+            // the encoder still sees the same worst case within a frame.
+            buildNoiseRow(frame);
+        }
         switch (c.mode)
         {
         case MODE_SCREEN:
@@ -358,7 +369,7 @@ void setup()
     delay(5000);
     Serial.println("usb_display_throughput test start");
     Serial.println("Connect a DL-1xx USB graphics adapter (VID 0x17e9) with a monitor attached.");
-    buildNoiseRow();
+    buildNoiseRow(0);
 
     usb.begin();
 }

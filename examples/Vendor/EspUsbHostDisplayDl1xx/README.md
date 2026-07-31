@@ -146,23 +146,44 @@ with its own `fillScreen`, and it is unsafe when it does not.
 ### On an ESP32-P4 the bus stops mattering
 
 The same sweep on an ESP32-P4 runs the adapter at high speed, where
-`vendor_bulk_throughput` measures 36.4 MB/s instead of 1.098 MB/s. Nothing in the
-sweep is transfer-bound any more — even pseudo-random pixels, which saturate a
-full-speed bus, use 3.6% of a high-speed one:
+`vendor_bulk_throughput` measures 36.4 MB/s instead of 1.098 MB/s:
 
 | Condition | fps (S3) | fps (P4) | P4 USB | P4 bus |
 |---|---|---|---|---|
-| Whole screen, 64 KB tiles | 2.53 | 5.78 | 120 KB/s | 0.3% |
-| Sprite over the moving area | 91.56 | 186.02 | 336 KB/s | 0.9% |
-| Direct, clear and redraw everything | 5.75 | 10.52 | 1243 KB/s | 3.3% |
-| Direct, repaint only the moving part | 692 | 935.63 | 1518 KB/s | 4.1% |
-| Pseudo-random pixels | 0.27 | 6.15 | 1331 KB/s | 3.6% |
+| Whole screen, 64 KB tiles | 2.53 | 5.76 | 119 KB/s | 0.3% |
+| Sprite over the moving area | 91.56 | 185.96 | 336 KB/s | 0.9% |
+| Direct, clear and redraw everything | 5.75 | 12.24 | 1445 KB/s | 3.9% |
+| Direct, repaint only the moving part | 692 | ~1000 | 1623 KB/s | 4.4% |
+| Pseudo-random pixels | 0.27 | 1.55 | 6392 KB/s | 17.1% |
 
 The ordering of every knob is unchanged, because they all act on draw cost: fewer
 larger bands is still 1.20x, diff transfer still 1.7x, double buffering still
-nothing, and redrawing only what changed is still worth about 32x. What changes is
-that the two conditions the full-speed bus was limiting are now limited by the CPU
-like everything else, which is why noise jumps from 0.27 to 6.15 fps.
+nothing, and redrawing only what changed is still worth about 32x. The P4 also
+fits a 128 KB tile, which an ESP32-S3 cannot allocate, so the band count can drop
+to 32.
+
+What changes is which side is the limit, and the worst case shows it. A frame that
+the RLE encoder cannot compress at all costs
+
+```
+256 px per command -> 6 + 1 + 512 = 519 bytes
+1920 x 1080 / 256  = 8,100 commands
+                   = 4,203,900 bytes per frame (1.4% protocol overhead)
+```
+
+which the checkerboard step of `usb_display_dl1xx` confirms at 4,209,523 bytes.
+Against that frame size the bus alone allows:
+
+| | Ceiling | Worst-case frame | Measured |
+|---|---|---|---|
+| ESP32-S3, full speed | 1.098 MB/s | **0.27 fps** | 0.27 fps, 99.8% of the bus |
+| ESP32-P4, high speed | 36.4 MB/s | **9.08 fps** | 1.55 fps, 17.1% of the bus |
+
+So full speed is exactly transfer-bound in the worst case — the measurement lands
+on the arithmetic — while high speed is not: at 1.55 fps the encoder and the
+per-band redraw give out with 83% of the bus unused. Raising the bus 33x bought
+5.7x on the hardest content, and nothing at all on content that compresses, where
+the draw callback was already the limit.
 
 **Keep the adapter alone on its hub.** These P4 numbers were taken through a
 self-powered hub, which the adapter needs: connected straight to the host port it
