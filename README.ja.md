@@ -2,7 +2,7 @@
 
 > English: [README.md](README.md)
 
-ESP32-S3 / ESP32-P4でUSB Hostを使うためのArduinoライブラリです。
+ESP32-S3 / ESP32-S2 / ESP32-P4でUSB Hostを使うためのArduinoライブラリです。
 
 USB処理はバックグラウンドのFreeRTOSタスクで行われるため、`loop()`でUSBポーリング関数を呼ぶ必要はありません。`setup()`でコールバックを登録して`begin()`を呼ぶだけで動作します。
 
@@ -16,6 +16,12 @@ USB処理はバックグラウンドのFreeRTOSタスクで行われるため、
 | ESP32-P4 | 3.3.1 |
 
 これより古いコアは非対応です（3.1.x 以前はビルドに失敗することがあります）。ライブラリ各バージョンのコア別ビルド結果は [`docs/`](docs/) に `COMPATIBILITY.<version>.md` として公開しています。
+
+主対象は ESP32-S3 で、peer/manual テストもこのターゲットで実行しています。ESP32-S2 は
+リリースごとに全対応コアでビルド確認していますが、内蔵RAMが大幅に少ないため
+`ESP_USB_HOST_MAX_DEVICES` の既定値が 8 ではなく 3 で（`-DESP_USB_HOST_MAX_DEVICES=N`
+で増やせますが `dram0_0_seg overflowed` に注意）、`UsbNetwork` の例は収まりません。
+ESP32-P4 は HS OTG が使えます（[ESP32-P4 の注意事項](#esp32-p4-の注意事項)を参照）。
 
 ## バージョン2系の位置づけ
 
