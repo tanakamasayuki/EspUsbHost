@@ -8400,13 +8400,13 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
 
 void EspUsbHost::dispatchKeyboardState(EndpointState &endpoint,
                                        DeviceState *device,
-                                       const uint8_t *keys,
+                                       const uint8_t *bitmap,
                                        const uint8_t *rawData,
                                        size_t rawLength,
                                        const uint8_t *reportData,
                                        size_t reportLength)
 {
-  if (!keys)
+  if (!bitmap)
   {
     return;
   }
@@ -8415,11 +8415,11 @@ void EspUsbHost::dispatchKeyboardState(EndpointState &endpoint,
   bool changed = false;
   for (size_t i = 0; i < ESP_USB_HOST_KEYBOARD_BITMAP_SIZE; i++)
   {
-    state.keys[i] = keys[i];
-    state.changedKeys[i] = static_cast<uint8_t>(keys[i] ^ endpoint.lastKeyboardState[i]);
-    changed = changed || state.changedKeys[i] != 0;
+    state.bitmap[i] = bitmap[i];
+    state.changedBitmap[i] = static_cast<uint8_t>(bitmap[i] ^ endpoint.lastKeyboardState[i]);
+    changed = changed || state.changedBitmap[i] != 0;
   }
-  memcpy(endpoint.lastKeyboardState, keys, ESP_USB_HOST_KEYBOARD_BITMAP_SIZE);
+  memcpy(endpoint.lastKeyboardState, bitmap, ESP_USB_HOST_KEYBOARD_BITMAP_SIZE);
 
   if (!changed)
   {

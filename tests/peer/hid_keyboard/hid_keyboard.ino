@@ -193,7 +193,7 @@ void loop()
                 {
                     Serial.printf("STATE_LISTENER a_down=%u changed=%u\n",
                                   state.isDown(0x04) ? 1 : 0,
-                                  state.changedKeys[0] ? 1 : 0);
+                                  state.changedBitmap[0] ? 1 : 0);
                 } });
             listenerTestActive = true;
             Serial.printf("LISTENER_SETUP empty=%u ids=%u capacity=%u invalid_remove=%u state=%u max=%u\n",

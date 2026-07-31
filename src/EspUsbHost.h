@@ -437,8 +437,8 @@ struct EspUsbHostKeyboardState : EspUsbHostHIDReportData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
-  uint8_t keys[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
-  uint8_t changedKeys[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
+  uint8_t bitmap[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
+  uint8_t changedBitmap[ESP_USB_HOST_KEYBOARD_BITMAP_SIZE] = {};
   uint8_t modifiers = 0;
   bool numLock = false;
   bool capsLock = false;
@@ -446,19 +446,19 @@ struct EspUsbHostKeyboardState : EspUsbHostHIDReportData
 
   bool isDown(uint8_t keycode) const
   {
-    return (keys[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
+    return (bitmap[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
   }
 
   bool wasPressed(uint8_t keycode) const
   {
     return isDown(keycode) &&
-           (changedKeys[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
+           (changedBitmap[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
   }
 
   bool wasReleased(uint8_t keycode) const
   {
     return !isDown(keycode) &&
-           (changedKeys[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
+           (changedBitmap[keycode >> 3] & static_cast<uint8_t>(1u << (keycode & 7))) != 0;
   }
 };
 
@@ -1588,7 +1588,7 @@ private:
   void handleTransfer(usb_transfer_t *transfer);
   void dispatchKeyboardState(EndpointState &endpoint,
                              DeviceState *device,
-                             const uint8_t *keys,
+                             const uint8_t *bitmap,
                              const uint8_t *rawData,
                              size_t rawLength,
                              const uint8_t *reportData,
