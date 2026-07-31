@@ -421,8 +421,8 @@ either way. `keyboardUsesBitmapReport(address)` reports which format was detecte
 (diagnostic only). See the [KeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) example.
 
 `onKeyboardState` provides a single format-independent snapshot whenever a keyboard
-report changes. `keys` contains the current state of Keyboard/Keypad usages
-`0x00-0xFF`, and `changedKeys` identifies the usages changed by that report. Use
+report changes. `bitmap` contains the current state of Keyboard/Keypad usages
+`0x00-0xFF`, and `changedBitmap` identifies the usages changed by that report. Use
 `isDown(keycode)`, `wasPressed(keycode)`, and `wasReleased(keycode)` to query them.
 Modifier keys are ordinary usages `0xE0-0xE7`, so modifier-only changes are included.
 Boot, Report-ID boot, and NKRO keyboards all use this same API. Reports with no state
@@ -449,7 +449,7 @@ Parsed HID callbacks (`onKeyboard`, `onKeyboardState`, `onMouse`, `onConsumerCon
 | Callback | Key fields |
 |----------|-----------|
 | `onKeyboard` | `pressed`, `keycode`, `ascii`, `modifiers`, `address` |
-| `onKeyboardState` | `keys`, `changedKeys`, `modifiers`, `isDown()`, `wasPressed()`, `wasReleased()`, `address` |
+| `onKeyboardState` | `bitmap`, `changedBitmap`, `modifiers`, `isDown()`, `wasPressed()`, `wasReleased()`, `address` |
 | `onMouse` | `x`, `y`, `wheel`, `buttons`, `previousButtons`, `moved`, `buttonsChanged`, `address` |
 | `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |

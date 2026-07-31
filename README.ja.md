@@ -409,7 +409,7 @@ usb.removeListener(adapterListener);
 で検出したフォーマット（診断用）を確認できます。[KeyboardNKRO](examples/HID/EspUsbHostKeyboardNKRO/) 例を参照。
 
 `onKeyboardState`はキーボードreportで状態が変化するたびに、入力形式に依存しないスナップショットを
-1回通知します。`keys`はKeyboard/Keypad usage `0x00～0xFF`の現在状態、`changedKeys`は
+1回通知します。`bitmap`はKeyboard/Keypad usage `0x00～0xFF`の現在状態、`changedBitmap`は
 そのreportで変化したusageです。`isDown(keycode)`、`wasPressed(keycode)`、
 `wasReleased(keycode)`で確認できます。修飾キーも通常キーと同じusage `0xE0～0xE7`として
 含まれるため、修飾キー単独の変化も取得できます。boot、Report ID付きboot、NKROのすべてで
@@ -436,7 +436,7 @@ usb.onKeyboardState([](const EspUsbHostKeyboardState &state) {
 | コールバック | 主要フィールド |
 |-------------|--------------|
 | `onKeyboard` | `pressed`、`keycode`、`ascii`、`modifiers`、`address` |
-| `onKeyboardState` | `keys`、`changedKeys`、`modifiers`、`isDown()`、`wasPressed()`、`wasReleased()`、`address` |
+| `onKeyboardState` | `bitmap`、`changedBitmap`、`modifiers`、`isDown()`、`wasPressed()`、`wasReleased()`、`address` |
 | `onMouse` | `x`、`y`、`wheel`、`buttons`、`previousButtons`、`moved`、`buttonsChanged`、`address` |
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |
