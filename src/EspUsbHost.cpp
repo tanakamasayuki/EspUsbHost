@@ -6544,7 +6544,12 @@ void EspUsbHost::handleNewDevice(uint8_t address)
                         device->hasAudioOutEndpoint ||
                         device->audioFeatureUnitCount > 0;
   const bool hasMsc = device->hasMscInterface && device->hasMscInEndpoint && device->hasMscOutEndpoint;
-  device->info.supported = isHub || hasHid || hasCdc || hasAudio || hasMsc || device->vendorSerialSupported;
+  // hasMidiInterface is its own flag rather than part of hasAudio: a MIDI
+  // streaming interface is Audio class but has no streaming endpoint, feature
+  // unit or sample rate, so none of the audio detection sees it. Leaving it out
+  // here reported a working MIDI keyboard as unsupported.
+  device->info.supported = isHub || hasHid || hasCdc || hasAudio || hasMsc ||
+                           device->hasMidiInterface || device->vendorSerialSupported;
   device->info.isHub = isHub;
   dispatchDeviceConnected(device->info);
   if (!device->info.supported)

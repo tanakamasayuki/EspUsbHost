@@ -123,6 +123,20 @@ def test_usb_midi_message_listeners(dut, peers):
     dut.expect_exact("MIDI_LISTENER_CLEAR 1")
 
 
+def _expect_connect(dut, timeout=20):
+    """Expect a connect event and check the listener saw what the callback saw."""
+    connected = dut.expect(
+        r"HOST_CONNECTED vid=([0-9a-f]{4}) pid=([0-9a-f]{4}) supported=([01])", timeout=timeout
+    )
+    listener = dut.expect(r"CONNECT_LISTENER 1 vid=([0-9a-f]{4}) supported=([01])")
+    assert listener.group(1) == connected.group(1)
+    assert listener.group(2) == connected.group(3)
+    # A MIDI-only peer must report supported: the flag is built from HID / CDC /
+    # audio / MSC / vendor-serial detection, and a MIDI streaming interface is
+    # seen by none of them, so it needs its own term in that expression.
+    assert connected.group(3) == b"1"
+
+
 def test_usb_midi_lifecycle_listeners_on_reenumeration(dut, peers):
     """Connect listeners get the event that end() + begin() re-enumeration produces."""
     dut.write("k")
@@ -132,8 +146,7 @@ def test_usb_midi_lifecycle_listeners_on_reenumeration(dut, peers):
     dut.write("r")
     dut.expect_exact("HOST_END 1")
     dut.expect_exact("HOST_REBEGIN 1")
-    dut.expect(r"HOST_CONNECTED vid=[0-9a-f]{4} pid=[0-9a-f]{4} supported=1", timeout=20)
-    dut.expect(r"CONNECT_LISTENER 1 vid=[0-9a-f]{4} supported=1")
+    _expect_connect(dut)
     dut.expect_exact("CONNECT_LISTENER 2")
 
     dut.write("j")
@@ -141,8 +154,7 @@ def test_usb_midi_lifecycle_listeners_on_reenumeration(dut, peers):
     dut.write("r")
     dut.expect_exact("HOST_END 1")
     dut.expect_exact("HOST_REBEGIN 1")
-    dut.expect(r"HOST_CONNECTED vid=[0-9a-f]{4} pid=[0-9a-f]{4} supported=1", timeout=20)
-    dut.expect(r"CONNECT_LISTENER 1 vid=[0-9a-f]{4} supported=1")
+    _expect_connect(dut)
     # Listeners run synchronously in one dispatch, so a still-registered listener
     # 2 would print before this loop() reply. The reply arriving first is the
     # proof that removal took effect.
@@ -171,8 +183,7 @@ def test_usb_midi_lifecycle_listeners_on_peer_reboot(dut, peers):
     dut.expect(r"DISCONNECT_LISTENER 1 vid=[0-9a-f]{4} address=[1-9][0-9]*")
     dut.expect_exact("DISCONNECT_LISTENER 2")
 
-    dut.expect(r"HOST_CONNECTED vid=[0-9a-f]{4} pid=[0-9a-f]{4} supported=1", timeout=30)
-    dut.expect(r"CONNECT_LISTENER 1 vid=[0-9a-f]{4} supported=1")
+    _expect_connect(dut, timeout=30)
     dut.expect_exact("CONNECT_LISTENER 2")
 
     dut.write("z")
