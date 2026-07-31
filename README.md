@@ -2,7 +2,7 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-Arduino library for using USB Host on ESP32-S3 and ESP32-P4.
+Arduino library for using USB Host on ESP32-S3, ESP32-S2 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
@@ -16,6 +16,13 @@ Minimum Arduino-ESP32 core (board package) version:
 | ESP32-P4 | 3.3.1 |
 
 Older cores are not supported: 3.1.x and earlier may fail to build. Per-library-version build results across core versions are published under [`docs/`](docs/) as `COMPATIBILITY.<version>.md`.
+
+ESP32-S3 is the primary target and the one the peer/manual tests run on. ESP32-S2
+is built for every release across all supported cores, but it has far less internal
+RAM, so `ESP_USB_HOST_MAX_DEVICES` defaults to 3 there instead of 8 (raise it with
+`-DESP_USB_HOST_MAX_DEVICES=N` and watch for `dram0_0_seg overflowed`), and the
+`UsbNetwork` example does not fit. ESP32-P4 adds HS OTG; see
+[ESP32-P4 notes](#esp32-p4-notes).
 
 ## Version 2 status
 
