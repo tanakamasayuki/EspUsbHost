@@ -5,6 +5,6 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (1.2.7)
+      - EspUsbDevice (2.0.0)
 
 default_profile: s3_peer_device
