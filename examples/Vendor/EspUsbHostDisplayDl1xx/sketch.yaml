@@ -5,7 +5,7 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - LovyanGFX (1.2.21)
+      - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.2.0)
       - dir: ../../../
 
@@ -15,7 +15,7 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - LovyanGFX (1.2.21)
+      - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.2.0)
       - dir: ../../../
 
@@ -25,7 +25,7 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - LovyanGFX (1.2.21)
+      - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.2.0)
       - dir: ../../../
 
@@ -35,7 +35,7 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - LovyanGFX (1.2.21)
+      - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.2.0)
       - dir: ../../../
 
@@ -45,7 +45,7 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - LovyanGFX (1.2.21)
+      - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.2.0)
       - dir: ../../../
 
