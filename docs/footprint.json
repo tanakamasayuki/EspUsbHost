@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "core_version": "3.3.11",
-  "probe_revision": "sha256:e5db37d70de07b04c1e4abbb533b315eb5d0294929b9429c40e3fb2e56aa13e6",
+  "probe_revision": "sha256:3d14069bb7c370f2e21e0879b1e8cb309bd832c3fc910ba2ad4f00c30530f232",
   "targets": [
     "esp32s3",
     "esp32s2",
@@ -188,6 +188,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.0.0",
+      "library_version": "2.0.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
     },
     {
@@ -397,6 +407,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.0.1",
+      "library_version": "2.0.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
     },
     {
@@ -626,6 +646,16 @@
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.1.0",
+      "library_version": "2.1.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.1.0",
       "library_version": "2.1.0",
@@ -849,6 +879,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.1",
+      "library_version": "2.1.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -1078,6 +1118,16 @@
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.1.2",
+      "library_version": "2.1.2",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.1.2",
       "library_version": "2.1.2",
@@ -1301,6 +1351,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.3",
+      "library_version": "2.1.3",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -1547,6 +1607,16 @@
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.2.0",
+      "library_version": "2.2.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.2.0",
       "library_version": "2.2.0",
@@ -1787,6 +1857,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283468,
       "static_ram_max_bytes": 327680,
+      "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.3.0",
+      "library_version": "2.3.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -2033,6 +2113,16 @@
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.3.1",
+      "library_version": "2.3.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.3.1",
       "library_version": "2.3.1",
@@ -2273,6 +2363,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283404,
       "static_ram_max_bytes": 327680,
+      "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.3.2",
+      "library_version": "2.3.2",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -2519,6 +2619,16 @@
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.4.0",
+      "library_version": "2.4.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.4.0",
       "library_version": "2.4.0",
@@ -2759,6 +2869,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283132,
       "static_ram_max_bytes": 327680,
+      "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.4.1",
+      "library_version": "2.4.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -3005,6 +3125,16 @@
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.5.0",
+      "library_version": "2.5.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.5.0",
       "library_version": "2.5.0",
@@ -3245,6 +3375,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283116,
       "static_ram_max_bytes": 327680,
+      "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.5.1",
+      "library_version": "2.5.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -3491,6 +3631,16 @@
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.5.2",
+      "library_version": "2.5.2",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.5.2",
       "library_version": "2.5.2",
@@ -3731,6 +3881,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 282412,
       "static_ram_max_bytes": 327680,
+      "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.5.3",
+      "library_version": "2.5.3",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
     },
     {
@@ -3977,6 +4137,16 @@
       "library_commit": "eba946b436df60a0e08b3c441f8288e0029a5612"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.6.0",
+      "library_version": "2.6.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "eba946b436df60a0e08b3c441f8288e0029a5612"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.6.0",
       "library_version": "2.6.0",
@@ -4220,6 +4390,16 @@
       "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.7.0",
+      "library_version": "2.7.0",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.7.0",
       "library_version": "2.7.0",
@@ -4245,6 +4425,259 @@
       "static_ram_remaining_bytes": 283612,
       "static_ram_max_bytes": 327680,
       "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
+    },
+    {
+      "category": "Base",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Base/compile.log",
+        "elf": "esp32p4/v2.7.1/Base/Base.ino.elf",
+        "elf_bytes": 10973260,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Base/Base.ino.map",
+        "map_bytes": 6620931,
+        "bin": "esp32p4/v2.7.1/Base/Base.ino.bin",
+        "bin_bytes": 501216
+      },
+      "program_bytes": 501020,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45636,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282044,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "HID",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/HID/compile.log",
+        "elf": "esp32p4/v2.7.1/HID/HID.ino.elf",
+        "elf_bytes": 10990144,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/HID/HID.ino.map",
+        "map_bytes": 6622857,
+        "bin": "esp32p4/v2.7.1/HID/HID.ino.bin",
+        "bin_bytes": 502768
+      },
+      "program_bytes": 502580,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45636,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282044,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Serial",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Serial/compile.log",
+        "elf": "esp32p4/v2.7.1/Serial/Serial.ino.elf",
+        "elf_bytes": 10985388,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Serial/Serial.ino.map",
+        "map_bytes": 6632459,
+        "bin": "esp32p4/v2.7.1/Serial/Serial.ino.bin",
+        "bin_bytes": 503168
+      },
+      "program_bytes": 502974,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 46180,
+      "static_ram_percent": 14,
+      "static_ram_remaining_bytes": 281500,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Audio",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Audio/compile.log",
+        "elf": "esp32p4/v2.7.1/Audio/Audio.ino.elf",
+        "elf_bytes": 10983796,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Audio/Audio.ino.map",
+        "map_bytes": 6628020,
+        "bin": "esp32p4/v2.7.1/Audio/Audio.ino.bin",
+        "bin_bytes": 501904
+      },
+      "program_bytes": 501708,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45636,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282044,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Storage",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Storage/compile.log",
+        "elf": "esp32p4/v2.7.1/Storage/Storage.ino.elf",
+        "elf_bytes": 11264240,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Storage/Storage.ino.map",
+        "map_bytes": 6648509,
+        "bin": "esp32p4/v2.7.1/Storage/Storage.ino.bin",
+        "bin_bytes": 550352
+      },
+      "program_bytes": 550154,
+      "program_percent": 41,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45804,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 281876,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "MIDI",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/MIDI/compile.log",
+        "elf": "esp32p4/v2.7.1/MIDI/MIDI.ino.elf",
+        "elf_bytes": 10990476,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/MIDI/MIDI.ino.map",
+        "map_bytes": 6627187,
+        "bin": "esp32p4/v2.7.1/MIDI/MIDI.ino.bin",
+        "bin_bytes": 503216
+      },
+      "program_bytes": 503028,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45636,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282044,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Vendor",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Vendor/compile.log",
+        "elf": "esp32p4/v2.7.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 10990384,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Vendor/Vendor.ino.map",
+        "map_bytes": 6636088,
+        "bin": "esp32p4/v2.7.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 506752
+      },
+      "program_bytes": 506566,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45636,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282044,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Network",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Network/compile.log",
+        "elf": "esp32p4/v2.7.1/Network/Network.ino.elf",
+        "elf_bytes": 11459368,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Network/Network.ino.map",
+        "map_bytes": 6650335,
+        "bin": "esp32p4/v2.7.1/Network/Network.ino.bin",
+        "bin_bytes": 570256
+      },
+      "program_bytes": 570062,
+      "program_percent": 43,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 47076,
+      "static_ram_percent": 14,
+      "static_ram_remaining_bytes": 280604,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Info",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32p4",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32p4/v2.7.1/Info/compile.log",
+        "elf": "esp32p4/v2.7.1/Info/Info.ino.elf",
+        "elf_bytes": 10983396,
+        "sections": {},
+        "map": "esp32p4/v2.7.1/Info/Info.ino.map",
+        "map_bytes": 6622880,
+        "bin": "esp32p4/v2.7.1/Info/Info.ino.bin",
+        "bin_bytes": 509648
+      },
+      "program_bytes": 509452,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45636,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282044,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
     },
     {
       "category": "Base",
@@ -4426,6 +4859,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.0.0",
+      "library_version": "2.0.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
     },
     {
@@ -4635,6 +5078,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.0.1",
+      "library_version": "2.0.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
     },
     {
@@ -4864,6 +5317,16 @@
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.1.0",
+      "library_version": "2.1.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.1.0",
       "library_version": "2.1.0",
@@ -5003,6 +5466,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.1",
+      "library_version": "2.1.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -5217,6 +5690,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.2",
+      "library_version": "2.1.2",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
@@ -5443,6 +5926,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.3",
+      "library_version": "2.1.3",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -5689,6 +6182,16 @@
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.2.0",
+      "library_version": "2.2.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.2.0",
       "library_version": "2.2.0",
@@ -5929,6 +6432,16 @@
       "static_ram_percent": 8,
       "static_ram_remaining_bytes": 298600,
       "static_ram_max_bytes": 327680,
+      "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.3.0",
+      "library_version": "2.3.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -6175,6 +6688,16 @@
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.3.1",
+      "library_version": "2.3.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.3.1",
       "library_version": "2.3.1",
@@ -6415,6 +6938,16 @@
       "static_ram_percent": 8,
       "static_ram_remaining_bytes": 298536,
       "static_ram_max_bytes": 327680,
+      "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.3.2",
+      "library_version": "2.3.2",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -6661,6 +7194,16 @@
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.4.0",
+      "library_version": "2.4.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.4.0",
       "library_version": "2.4.0",
@@ -6901,6 +7444,16 @@
       "static_ram_percent": 8,
       "static_ram_remaining_bytes": 298264,
       "static_ram_max_bytes": 327680,
+      "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.4.1",
+      "library_version": "2.4.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -7147,6 +7700,16 @@
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.5.0",
+      "library_version": "2.5.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.5.0",
       "library_version": "2.5.0",
@@ -7387,6 +7950,16 @@
       "static_ram_percent": 8,
       "static_ram_remaining_bytes": 298248,
       "static_ram_max_bytes": 327680,
+      "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.5.1",
+      "library_version": "2.5.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -7633,6 +8206,16 @@
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.5.2",
+      "library_version": "2.5.2",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.5.2",
       "library_version": "2.5.2",
@@ -7873,6 +8456,16 @@
       "static_ram_percent": 9,
       "static_ram_remaining_bytes": 297976,
       "static_ram_max_bytes": 327680,
+      "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.5.3",
+      "library_version": "2.5.3",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
     },
     {
@@ -8119,6 +8712,16 @@
       "library_commit": "eba946b436df60a0e08b3c441f8288e0029a5612"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.6.0",
+      "library_version": "2.6.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "eba946b436df60a0e08b3c441f8288e0029a5612"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.6.0",
       "library_version": "2.6.0",
@@ -8362,6 +8965,16 @@
       "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.7.0",
+      "library_version": "2.7.0",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.7.0",
       "library_version": "2.7.0",
@@ -8387,6 +9000,259 @@
       "static_ram_remaining_bytes": 299168,
       "static_ram_max_bytes": 327680,
       "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
+    },
+    {
+      "category": "Base",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Base/compile.log",
+        "elf": "esp32s2/v2.7.1/Base/Base.ino.elf",
+        "elf_bytes": 8981684,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Base/Base.ino.map",
+        "map_bytes": 7708555,
+        "bin": "esp32s2/v2.7.1/Base/Base.ino.bin",
+        "bin_bytes": 403024
+      },
+      "program_bytes": 402880,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29112,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298568,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "HID",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/HID/compile.log",
+        "elf": "esp32s2/v2.7.1/HID/HID.ino.elf",
+        "elf_bytes": 8995176,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/HID/HID.ino.map",
+        "map_bytes": 7710658,
+        "bin": "esp32s2/v2.7.1/HID/HID.ino.bin",
+        "bin_bytes": 404000
+      },
+      "program_bytes": 403856,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29112,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298568,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Serial",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Serial/compile.log",
+        "elf": "esp32s2/v2.7.1/Serial/Serial.ino.elf",
+        "elf_bytes": 8989832,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Serial/Serial.ino.map",
+        "map_bytes": 7725444,
+        "bin": "esp32s2/v2.7.1/Serial/Serial.ino.bin",
+        "bin_bytes": 404416
+      },
+      "program_bytes": 404260,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29664,
+      "static_ram_percent": 9,
+      "static_ram_remaining_bytes": 298016,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Audio",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Audio/compile.log",
+        "elf": "esp32s2/v2.7.1/Audio/Audio.ino.elf",
+        "elf_bytes": 8992836,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Audio/Audio.ino.map",
+        "map_bytes": 7717039,
+        "bin": "esp32s2/v2.7.1/Audio/Audio.ino.bin",
+        "bin_bytes": 403568
+      },
+      "program_bytes": 403416,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29112,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298568,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Storage",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Storage/compile.log",
+        "elf": "esp32s2/v2.7.1/Storage/Storage.ino.elf",
+        "elf_bytes": 9190236,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Storage/Storage.ino.map",
+        "map_bytes": 7768109,
+        "bin": "esp32s2/v2.7.1/Storage/Storage.ino.bin",
+        "bin_bytes": 446176
+      },
+      "program_bytes": 446024,
+      "program_percent": 34,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29272,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298408,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "MIDI",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/MIDI/compile.log",
+        "elf": "esp32s2/v2.7.1/MIDI/MIDI.ino.elf",
+        "elf_bytes": 8995392,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/MIDI/MIDI.ino.map",
+        "map_bytes": 7716490,
+        "bin": "esp32s2/v2.7.1/MIDI/MIDI.ino.bin",
+        "bin_bytes": 404352
+      },
+      "program_bytes": 404196,
+      "program_percent": 30,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29112,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298568,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Vendor",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Vendor/compile.log",
+        "elf": "esp32s2/v2.7.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 8994756,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Vendor/Vendor.ino.map",
+        "map_bytes": 7728713,
+        "bin": "esp32s2/v2.7.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 406944
+      },
+      "program_bytes": 406788,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29112,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298568,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Network",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Network/compile.log",
+        "elf": "esp32s2/v2.7.1/Network/Network.ino.elf",
+        "elf_bytes": 9379080,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Network/Network.ino.map",
+        "map_bytes": 7793210,
+        "bin": "esp32s2/v2.7.1/Network/Network.ino.bin",
+        "bin_bytes": 464592
+      },
+      "program_bytes": 464448,
+      "program_percent": 35,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 30544,
+      "static_ram_percent": 9,
+      "static_ram_remaining_bytes": 297136,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Info",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s2",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s2/v2.7.1/Info/compile.log",
+        "elf": "esp32s2/v2.7.1/Info/Info.ino.elf",
+        "elf_bytes": 8991396,
+        "sections": {},
+        "map": "esp32s2/v2.7.1/Info/Info.ino.map",
+        "map_bytes": 7713040,
+        "bin": "esp32s2/v2.7.1/Info/Info.ino.bin",
+        "bin_bytes": 409728
+      },
+      "program_bytes": 409576,
+      "program_percent": 31,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 29120,
+      "static_ram_percent": 8,
+      "static_ram_remaining_bytes": 298560,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
     },
     {
       "category": "Base",
@@ -8568,6 +9434,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.0.0",
+      "library_version": "2.0.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "3be8e361680ec2a73ed8b37aaf38f94d8126b1a4"
     },
     {
@@ -8777,6 +9653,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.0.1",
+      "library_version": "2.0.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "924dbec88257d03bffce2460e982bb16c3c916e7"
     },
     {
@@ -9006,6 +9892,16 @@
       "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.1.0",
+      "library_version": "2.1.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "23be745bde868cc8715502fecb2daa0e0e85ea2b"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.1.0",
       "library_version": "2.1.0",
@@ -9229,6 +10125,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.1",
+      "library_version": "2.1.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "808897b74459e64224ee61f4d2f8aea608d31820"
     },
     {
@@ -9458,6 +10364,16 @@
       "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.1.2",
+      "library_version": "2.1.2",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "f3c4e0a5c03924e9ae2c2e786806ae3392834004"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.1.2",
       "library_version": "2.1.2",
@@ -9681,6 +10597,16 @@
       "core_version": "3.3.11",
       "state": "unavailable",
       "note": "Network requires EspUsbHost >= 2.2.0",
+      "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.1.3",
+      "library_version": "2.1.3",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "fff7eae7ca534d948307ed7c05f7204944cf545c"
     },
     {
@@ -9927,6 +10853,16 @@
       "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.2.0",
+      "library_version": "2.2.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "3487649ac4730e4c3277cc908da92ae1e50cbd3c"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.2.0",
       "library_version": "2.2.0",
@@ -10167,6 +11103,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 284048,
       "static_ram_max_bytes": 327680,
+      "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.3.0",
+      "library_version": "2.3.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "1cf84788bc08d91d30b2e4e1c5b99db2e40203aa"
     },
     {
@@ -10413,6 +11359,16 @@
       "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.3.1",
+      "library_version": "2.3.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "b3d7bbb4786c2aedda266dd672acd732b1d8b3f5"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.3.1",
       "library_version": "2.3.1",
@@ -10653,6 +11609,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283984,
       "static_ram_max_bytes": 327680,
+      "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.3.2",
+      "library_version": "2.3.2",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "d404410394a1f36d9af4ae8171e16a13fd677927"
     },
     {
@@ -10899,6 +11865,16 @@
       "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.4.0",
+      "library_version": "2.4.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "7315eda1cad6088cd80f3c554213a945a89a3a95"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.4.0",
       "library_version": "2.4.0",
@@ -11139,6 +12115,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283712,
       "static_ram_max_bytes": 327680,
+      "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.4.1",
+      "library_version": "2.4.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "aef00058389ffa606ff09ecde0c4e5f3092ef996"
     },
     {
@@ -11385,6 +12371,16 @@
       "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.5.0",
+      "library_version": "2.5.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "769aa525a45af3354d5799d952214d8909ae4e71"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.5.0",
       "library_version": "2.5.0",
@@ -11625,6 +12621,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 283688,
       "static_ram_max_bytes": 327680,
+      "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.5.1",
+      "library_version": "2.5.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "111b7b5744c5d55c72e4250ff6e1293ddd03e22f"
     },
     {
@@ -11871,6 +12877,16 @@
       "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.5.2",
+      "library_version": "2.5.2",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "54af01f35848d2fcc9eed9cda4801c3d34ef048b"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.5.2",
       "library_version": "2.5.2",
@@ -12111,6 +13127,16 @@
       "static_ram_percent": 13,
       "static_ram_remaining_bytes": 282976,
       "static_ram_max_bytes": 327680,
+      "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.5.3",
+      "library_version": "2.5.3",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
       "library_commit": "2ab491db89f70ccf7a4001fde1d5053cc484da1b"
     },
     {
@@ -12357,6 +13383,16 @@
       "library_commit": "eba946b436df60a0e08b3c441f8288e0029a5612"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.6.0",
+      "library_version": "2.6.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "eba946b436df60a0e08b3c441f8288e0029a5612"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.6.0",
       "library_version": "2.6.0",
@@ -12600,6 +13636,16 @@
       "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
     },
     {
+      "category": "Ccid",
+      "library_ref": "v2.7.0",
+      "library_version": "2.7.0",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
+    },
+    {
       "category": "Info",
       "library_ref": "v2.7.0",
       "library_version": "2.7.0",
@@ -12625,6 +13671,259 @@
       "static_ram_remaining_bytes": 284168,
       "static_ram_max_bytes": 327680,
       "library_commit": "fb881c11fe49a19daecaf6b77947893744a797dd"
+    },
+    {
+      "category": "Base",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Base/compile.log",
+        "elf": "esp32s3/v2.7.1/Base/Base.ino.elf",
+        "elf_bytes": 9800288,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Base/Base.ino.map",
+        "map_bytes": 9727263,
+        "bin": "esp32s3/v2.7.1/Base/Base.ino.bin",
+        "bin_bytes": 438080
+      },
+      "program_bytes": 437929,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45080,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282600,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "HID",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/HID/compile.log",
+        "elf": "esp32s3/v2.7.1/HID/HID.ino.elf",
+        "elf_bytes": 9813064,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/HID/HID.ino.map",
+        "map_bytes": 9727978,
+        "bin": "esp32s3/v2.7.1/HID/HID.ino.bin",
+        "bin_bytes": 438848
+      },
+      "program_bytes": 438693,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45080,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282600,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Serial",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Serial/compile.log",
+        "elf": "esp32s3/v2.7.1/Serial/Serial.ino.elf",
+        "elf_bytes": 9808432,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Serial/Serial.ino.map",
+        "map_bytes": 9743792,
+        "bin": "esp32s3/v2.7.1/Serial/Serial.ino.bin",
+        "bin_bytes": 439472
+      },
+      "program_bytes": 439325,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45632,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282048,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Audio",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Audio/compile.log",
+        "elf": "esp32s3/v2.7.1/Audio/Audio.ino.elf",
+        "elf_bytes": 9807332,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Audio/Audio.ino.map",
+        "map_bytes": 9735706,
+        "bin": "esp32s3/v2.7.1/Audio/Audio.ino.bin",
+        "bin_bytes": 438624
+      },
+      "program_bytes": 438473,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45080,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282600,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Storage",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Storage/compile.log",
+        "elf": "esp32s3/v2.7.1/Storage/Storage.ino.elf",
+        "elf_bytes": 10014040,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Storage/Storage.ino.map",
+        "map_bytes": 9785514,
+        "bin": "esp32s3/v2.7.1/Storage/Storage.ino.bin",
+        "bin_bytes": 481440
+      },
+      "program_bytes": 481285,
+      "program_percent": 36,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45248,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282432,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "MIDI",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/MIDI/compile.log",
+        "elf": "esp32s3/v2.7.1/MIDI/MIDI.ino.elf",
+        "elf_bytes": 9813276,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/MIDI/MIDI.ino.map",
+        "map_bytes": 9733813,
+        "bin": "esp32s3/v2.7.1/MIDI/MIDI.ino.bin",
+        "bin_bytes": 439200
+      },
+      "program_bytes": 439053,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45080,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282600,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Vendor",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Vendor/compile.log",
+        "elf": "esp32s3/v2.7.1/Vendor/Vendor.ino.elf",
+        "elf_bytes": 9813456,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Vendor/Vendor.ino.map",
+        "map_bytes": 9747963,
+        "bin": "esp32s3/v2.7.1/Vendor/Vendor.ino.bin",
+        "bin_bytes": 442304
+      },
+      "program_bytes": 442161,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45080,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282600,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Network",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Network/compile.log",
+        "elf": "esp32s3/v2.7.1/Network/Network.ino.elf",
+        "elf_bytes": 10193136,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Network/Network.ino.map",
+        "map_bytes": 9811286,
+        "bin": "esp32s3/v2.7.1/Network/Network.ino.bin",
+        "bin_bytes": 499440
+      },
+      "program_bytes": 499297,
+      "program_percent": 38,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 46504,
+      "static_ram_percent": 14,
+      "static_ram_remaining_bytes": 281176,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Ccid",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "unavailable",
+      "note": "Ccid requires EspUsbHost >= 2.8.0",
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
+    },
+    {
+      "category": "Info",
+      "library_ref": "v2.7.1",
+      "library_version": "2.7.1",
+      "target": "esp32s3",
+      "core_version": "3.3.11",
+      "state": "pass",
+      "note": "",
+      "artifacts": {
+        "log": "esp32s3/v2.7.1/Info/compile.log",
+        "elf": "esp32s3/v2.7.1/Info/Info.ino.elf",
+        "elf_bytes": 9809996,
+        "sections": {},
+        "map": "esp32s3/v2.7.1/Info/Info.ino.map",
+        "map_bytes": 9731809,
+        "bin": "esp32s3/v2.7.1/Info/Info.ino.bin",
+        "bin_bytes": 444736
+      },
+      "program_bytes": 444593,
+      "program_percent": 33,
+      "program_max_bytes": 1310720,
+      "static_ram_bytes": 45080,
+      "static_ram_percent": 13,
+      "static_ram_remaining_bytes": 282600,
+      "static_ram_max_bytes": 327680,
+      "library_commit": "b78381d381dbdbd24c844e9fc3c22f2cb2b86ef2"
     }
   ]
 }
