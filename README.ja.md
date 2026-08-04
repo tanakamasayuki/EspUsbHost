@@ -771,6 +771,11 @@ bool audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
 void audioOutputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool audioOutputHasFeedback(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint32_t audioOutputFeedbackRate(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint32_t audioOutputFeedbackUpdates(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint32_t audioOutputFeedbackRejects(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint32_t audioOutputRate(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool audioSend(const uint8_t *data, size_t length,
                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams,
@@ -839,6 +844,8 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 `onAudioOutputRequest`はUSB Audio OUTの推奨APIです。`audioOutputStart()`後、ライブラリがIsochronous OUT転送を駆動し、次のPCMフレームが必要なタイミングでコールバックを呼びます。`request.data`へ最大`request.frameCount`フレームのinterleaved PCMを書き込み、`request.writtenFrames`へ書き込んだフレーム数を設定します。不足分はライブラリが無音として送信し、underrunとしてカウントします。このコールバックはUSB client task上で呼ばれるため、短時間で戻り、ブロックしない処理にしてください。重いデコードはコールバック内で行わず、既存のPCMバッファからコピーする用途に向きます。
 
+非同期playback interfaceはデバイス自身のクロックで動くため、data OUT endpointの隣にexplicit feedback IN endpointを持ち、供給してほしいレートを報告します。ライブラリはplayback中にこのendpointをポーリングし、報告されたレートでOUTパケットを刻みます。1パケットあたりのフレーム数がデバイスに追従するため、ずれていきません。`audioOutputHasFeedback`は動作中のstreamがfeedback endpointを持つかを返し、`audioOutputFeedbackRate`は最後に採用したレート（feedback endpointがなければ`0`）、`audioOutputRate`は実際に刻んでいるレート（feedbackがあればその値、なければネゴシエート済みレート）を返します。ネゴシエート済みレートの±12.5%を外れた値は適用せず`audioOutputFeedbackRejects`にカウントします。バッファが埋まる前に範囲外の値を報告するデバイスはよくあるので、少数のカウントは正常です。増え続ける場合は報告値が使えていません。採用した回数は`audioOutputFeedbackUpdates`です。コールバックが受け取る`request.sampleRate`はネゴシエート済みレートのままです。feedbackが変えるのは1パケットのフレーム数で、フォーマットではありません。
+
 `getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はType Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`protocol`は`ESP_USB_HOST_AUDIO_PROTOCOL_UAC1`または`ESP_USB_HOST_AUDIO_PROTOCOL_UAC2`で、UAC2では`terminalLink`と`clockSourceId`がサンプルレートの取得元Clock Sourceを示します。`startable`は、claimされなかったalt settingが広告しているフォーマットではfalseになります。列挙時に1 interfaceにつき1つのaltしかclaimしないため、16bitと24bit（あるいはサンプルレート）をaltで分けているデバイスでは、残りはフォーマット情報としてのみ報告されます。これらは選択ヘルパーの候補から除外され、`audioInputStart()` / `audioOutputStart()` も拒否します。`espUsbHostSelectAudioInputStream`と`espUsbHostSelectAudioOutputStream`は、任意の`(sampleRate, channels, bitsPerSample)`フィルターを適用したあと、残った候補をスコアリングします。標準スコアでは48 kHz、次に44.1 kHz、16-bit PCM、可能ならstereoを優先します。`audioInputStart(channels, bitsPerSample, sampleRate)`と`audioOutputStart(...)`は、こだわらない引数に`0`を渡せます。`(0, 0, 0)`はデバイスが対応する最良のフォーマットで開始し、`(2, 0, 48000)`は「48 kHz stereo、サンプル幅は任意」を意味します。指定した引数は完全一致が必要で、同条件のaltが複数ある場合はdescriptor順の先頭ではなくスコア最良のものを選びます。`setAudioSampleRate`はサンプリング周波数を設定します（UAC1はエンドポイントへのリクエスト、UAC2はClock Sourceの`SAM_FREQ` control）。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
 
 `getAudioFeatureUnits`は解析済みのAudio Control Feature Unitを返します。`protocol`と`controlSize`がどのレイアウトから読んだかを示します（UAC1は`bControlSize`のstrideで1 control 1ビット、UAC2は4バイト固定strideで1 control 2ビット）。`audioGetMute`、`audioSetMute`、`audioGetVolume`、`audioSetVolume`、dB/range系ヘルパーはFeature Unitのclass-specific requestを使い、デバイスのclass revisionに応じたrequest codeを選びます（UAC1は`GET_CUR` / `GET_MIN` / `GET_MAX` / `GET_RES`、UAC2は`CUR` / `RANGE`）。`audioSetVolumeDbClamped`はrangeが取得できた場合にデバイスのmin/max/resolutionへ丸めます。`audioConfigureVolume`は再生向けの簡易ヘルパーで、対応していればmuteを設定し、volumeをclamp付きdB指定で設定します。percent系ヘルパーは`1..100`をPCM振幅比として扱い、`20 * log10(percent / 100)`でdBへ変換してからmin/maxへclampし、デバイスstepへ丸めます。`0`はmute対応ならmuteし、mute非対応ならminimum volumeへfallbackします。`unitId=0`は指定したcontrolを持つ最初のFeature Unitを選びます。`channel=0`はmaster、`channel=1`以降はチャンネル別controlです。raw volume値はsigned 1/256 dB単位です。
@@ -847,8 +854,8 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 オーディオ対応は **UAC1 (Audio Class 1.0)** と **UAC2 (Audio Class 2.0)** の **Type I PCM** ストリーミングを対象としています。
 
-- **対応:** Isochronous IN/OUTストリーミング、Type Iフォーマット解析とサンプルレート選択、**Feature Unit** の Mute / Volume 制御(get/set、range、dB・percentヘルパー)。UAC2では、interfaceの`bTerminalLink`から辿る **Clock Source** entity（UAC2のdescriptorはサンプルレートを持たないため`SAM_FREQ`の`RANGE`リクエストで取得）、4バイト・2ビットの`bmaControls`レイアウト、1回で済むvolumeの`RANGE`リクエスト、非同期playback interfaceのexplicit feedback endpointの除外を含みます。
-- **非対応:** **Clock Selector / Clock Multiplier**、Feature Unit以外のAudio Control Unit(**Mixer / Selector / Processing Unit**)、Mute/Volume以外のFeature Unit control(Bass、Mid、Treble、Automatic Gain、Delay など)。これらがストリーミング開始に必須なデバイスは、列挙はできてもストリーミングできない場合があります。feedback endpointの値はOUTのレート調整には使わず破棄するため、非同期playbackを長時間続けるとずれます。
+- **対応:** Isochronous IN/OUTストリーミング、Type Iフォーマット解析とサンプルレート選択、**Feature Unit** の Mute / Volume 制御(get/set、range、dB・percentヘルパー)。UAC2では、interfaceの`bTerminalLink`から辿る **Clock Source** entity（UAC2のdescriptorはサンプルレートを持たないため`SAM_FREQ`の`RANGE`リクエストで取得）、4バイト・2ビットの`bmaControls`レイアウト、1回で済むvolumeの`RANGE`リクエストを含みます。非同期playback interfaceのexplicit feedback endpointはstream一覧には出さず、playback中はポーリングして、デバイスが要求するレートでOUTパケットを刻みます。
+- **非対応:** **Clock Selector / Clock Multiplier**、Feature Unit以外のAudio Control Unit(**Mixer / Selector / Processing Unit**)、Mute/Volume以外のFeature Unit control(Bass、Mid、Treble、Automatic Gain、Delay など)。これらがストリーミング開始に必須なデバイスは、列挙はできてもストリーミングできない場合があります。
 - **バス速度:** ESP32-S3 / ESP32-S2のホストはfull-speed専用です。UAC2デバイスはhigh-speed前提の設計が多く、full-speed configurationを持たないものはそもそも列挙できません。またfull-speedのisochronousエンドポイントは1フレーム1023バイトが上限です（48 kHz・96 kHzのstereoは収まり、192 kHzのstereoは収まりません）。
 
 UAC1のAudio OUT/IN は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peer（`tests/peer/usb_audio_uac2`）でpeer確認済みですが、実USBマイク・オーディオIFでの確認はまだ限定的です。

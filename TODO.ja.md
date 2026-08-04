@@ -105,9 +105,22 @@ UAC2ではAS_GENERALのbNrChannels、Clock Source entity（bTerminalLinkから�
 explicit feedback endpointの除外を扱います。
 `tests/unit/audio_uac`（ホスト単体）と`tests/peer/usb_audio_uac2`
 （`EspUsbDevice`のUAC2 peer）で確認済み。
-残りは Clock Selector / Clock Multiplier と、feedback endpointの値を使った
-OUTレート調整です。ESP32-S3/S2はfull-speed専用なので、full-speed
-configurationを持たないUAC2機器はそもそも列挙できません。
+残りは Clock Selector / Clock Multiplier です。ESP32-S3/S2はfull-speed専用なので、
+full-speed configurationを持たないUAC2機器はそもそも列挙できません。
+feedback endpointによるOUTレート追従（対応済み）
+
+explicit feedback IN endpointをplayback中にポーリングし、報告されたレートで
+OUTパケットを刻むようにしました（frame accumulatorが `audioSampleRate` ではなく
+`audioOutputPacingRate()` を使う）。ペイロードはUSB 2.0 5.12.4.2どおり、3バイトは
+10.14、4バイトは16.16として読み、high speedはmicroframeあたりとして換算します。
+ネゴシエート済みレートの±12.5%外はLinuxの`snd_usb_audio`と同じ窓で棄却します。
+参照用API: `audioOutputHasFeedback()` / `audioOutputFeedbackRate()` /
+`audioOutputFeedbackUpdates()` / `audioOutputFeedbackRejects()` / `audioOutputRate()`。
+`tests/unit/audio_uac`（デコードと窓の単体テスト）と`tests/peer/usb_audio_uac2`の
+`f`コマンド（実機で48 kHz近傍への追従を確認）でテスト済み。
+
+残り: 実機の非同期DAC/audio IFでの長時間確認。peerのfeedbackはTinyUSBの
+FIFO_COUNT方式なので、市販機器の挙動そのままではありません。
 フォーマット選択の強化（対応済み）
 
 `audioInputStart()` / `audioOutputStart()` の引数に `0`（指定なし）を許可し、

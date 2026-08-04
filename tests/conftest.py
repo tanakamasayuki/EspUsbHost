@@ -41,6 +41,27 @@ _KNOWN_SERIAL_FINDINGS = (
         reason="transient disconnect while peer firmware is replaced",
     ),
     _KnownSerialFinding(
+        nodeid_pattern="*peer/hid_consumer_control/test_hid_consumer_control.py::test_hid_consumer_control_volume",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="transient disconnect while peer firmware is replaced",
+    ),
+    _KnownSerialFinding(
+        nodeid_pattern="*peer/hid_keyboard_nkro/test_hid_keyboard_nkro.py::test_hid_keyboard_nkro_detected",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="transient disconnect while peer firmware is replaced",
+    ),
+    _KnownSerialFinding(
+        nodeid_pattern="*peer/hid_system_control/test_hid_system_control.py::test_hid_system_control",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="transient disconnect while peer firmware is replaced",
+    ),
+    _KnownSerialFinding(
         nodeid_pattern="*peer/usb_audio/test_usb_audio.py::test_usb_audio_bidirectional",
         log_name="dut.log",
         line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),

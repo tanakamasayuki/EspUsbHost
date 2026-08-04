@@ -79,6 +79,11 @@ audioInputStart	KEYWORD2
 audioOutputReady	KEYWORD2
 audioOutputStart	KEYWORD2
 setAudioSampleRate	KEYWORD2
+audioOutputHasFeedback	KEYWORD2
+audioOutputFeedbackRate	KEYWORD2
+audioOutputFeedbackUpdates	KEYWORD2
+audioOutputFeedbackRejects	KEYWORD2
+audioOutputRate	KEYWORD2
 audioSend	KEYWORD2
 getAudioStreams	KEYWORD2
 getAudioFeatureUnits	KEYWORD2

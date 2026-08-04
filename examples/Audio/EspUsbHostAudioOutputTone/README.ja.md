@@ -42,6 +42,7 @@
 11. `fillTone()` が `request.frameCount` の分だけPCMフレームを生成し、`request.data` へ書き込みます。
 12. 生成したフレーム数を `request.writtenFrames` に設定します。
 13. ライブラリが `request.data` の内容をUSB Audio OUT endpointへ送信します。
+14. `loop()` が1秒ごとに `audioOutputRate()`、`audioOutputFeedbackRate()`、`audioOutputUnderruns()` を表示します。
 
 ## `audioInputReady()` と `audioOutputReady()` について
 
@@ -65,6 +66,16 @@ EspUsbHost Audio Output Tone example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
 audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1 proto=UAC1 clock=0 startable=1
 audio output ready: addr=1
+audio out: rate=48000 feedback=0 underruns=0
+audio out: rate=48000 feedback=0 underruns=0
+```
+
+`feedback=0` は、そのデバイスがexplicit feedback endpointを持たず、ネゴシエート済み
+レートで再生していることを示します。非同期デバイスは要求レートを報告してくるため、
+`rate` がその値に追従します。
+
+```
+audio out: rate=48041 feedback=48041 underruns=0
 ```
 
 ## 関連

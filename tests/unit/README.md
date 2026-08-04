@@ -46,7 +46,11 @@ uv run --env-file .env pytest unit/
   a UAC2 descriptor being rejected when read with UAC1 rules), control masks as
   one bit per control on UAC1 and 2-bit present / read-only / programmable fields
   on UAC2, the isochronous usage type that identifies an explicit feedback
-  endpoint (and does not confuse implicit feedback data with it), and the UAC2
+  endpoint (and does not confuse implicit feedback data with it), the feedback
+  payload itself (10.14 in three bytes, 16.16 in four, samples per frame at full
+  speed versus per microframe at high speed, fractional and 44.1 kHz values,
+  short and null payloads) with the +/-12.5% window that guards the pacing rate,
+  and the UAC2
   `RANGE` responses: `wNumSubRanges`, discrete rates, continuous subranges walked
   by their resolution, truncated payloads, duplicate and zero rates, caller
   capacity limits, and the signed 1/256 dB volume range. It also covers

@@ -103,5 +103,24 @@ void setup()
 
 void loop()
 {
+  // en: Report playback health once a second. underruns counts callbacks that did not
+  //     fill every frame (the rest is sent as silence). feedback is the rate the device
+  //     asks for through its explicit feedback endpoint, and rate is what the library
+  //     paces the OUT packets at; both are 0 / the negotiated rate on a device that has
+  //     no feedback endpoint.
+  // ja: 1秒ごとに再生状態を表示します。underrunsは全フレームを埋めなかった回数
+  //     （残りは無音として送信）、feedbackはデバイスがexplicit feedback endpointで
+  //     要求してくるレート、rateはライブラリが実際にOUTパケットを刻んでいるレート
+  //     です。feedback endpointを持たないデバイスでは0とネゴシエート済みレートに
+  //     なります。
+  static uint32_t lastReportMs = 0;
+  if (audioAddress != 0 && millis() - lastReportMs >= 1000)
+  {
+    lastReportMs = millis();
+    Serial.printf("audio out: rate=%lu feedback=%lu underruns=%lu\n",
+                  static_cast<unsigned long>(usb.audioOutputRate(audioAddress)),
+                  static_cast<unsigned long>(usb.audioOutputFeedbackRate(audioAddress)),
+                  static_cast<unsigned long>(usb.audioOutputUnderruns(audioAddress)));
+  }
   delay(10);
 }

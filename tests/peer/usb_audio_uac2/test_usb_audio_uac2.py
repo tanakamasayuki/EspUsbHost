@@ -99,6 +99,35 @@ def test_usb_audio_uac2_bidirectional(dut, peers):
     dut.expect("AUDIO_TX [1-9][0-9]*")
     device.expect("DEVICE_RX_AUDIO [1-9][0-9]*")
 
+    # The peer's playback interface is asynchronous, so it also has an explicit
+    # feedback IN endpoint. Now that playback is running, the host must be polling
+    # it and pacing the OUT packets from the rate it reports.
+    time.sleep(0.5)
+    dut.write("f")
+    feedback = dut.expect(
+        r"AUDIO_FEEDBACK has=1 rate=([0-9]+) updates=([1-9][0-9]*) rejects=([0-9]+) pacing=([0-9]+)")
+    rate = int(feedback.group(1))
+    updates = int(feedback.group(2))
+    rejects = int(feedback.group(3))
+    pacing = int(feedback.group(4))
+    # The host ignores anything outside +/-12.5% of 48000, so assert a tighter
+    # window: a device tracking a 48 kHz clock has no reason to ask for more than
+    # a few percent of correction.
+    assert 45600 <= rate <= 50400, f"feedback rate {rate} is not near 48000"
+    assert pacing == rate, f"pacing rate {pacing} does not follow feedback rate {rate}"
+    # The peer computes its feedback from its FIFO level, so the packets it sends
+    # before the FIFO is primed are out of range and get ignored. Those are the
+    # only rejects expected; they must stay a small minority.
+    assert rejects * 10 < updates, f"{rejects} rejected feedback packets out of {updates}"
+
+    # The feedback endpoint keeps reporting, not just once at start.
+    time.sleep(0.5)
+    dut.write("f")
+    again = dut.expect(
+        r"AUDIO_FEEDBACK has=1 rate=[0-9]+ updates=([0-9]+) rejects=([0-9]+) pacing=[0-9]+")
+    assert int(again.group(1)) > updates, "feedback updates stopped after the first packet"
+    assert int(again.group(2)) * 10 < int(again.group(1))
+
     dut.write("I")
     dut.expect_exact("AUDIO_IN_AUTO started=1 channels=1 bits=16 rate=48000")
     device.expect_exact("AUDIO_INTERFACE MIC 1")

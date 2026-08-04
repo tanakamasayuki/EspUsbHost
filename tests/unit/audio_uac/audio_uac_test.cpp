@@ -464,6 +464,76 @@ void testSelectContinuousRange()
   check(!outside, "a rate outside the range does not resolve");
 }
 
+// Explicit feedback payloads, USB 2.0 section 5.12.4.2. At full speed the device
+// reports samples per 1 ms frame in 10.14 format (3 bytes); 48 kHz is 48 samples
+// per frame, so the raw value is 48 << 14 = 0x0C0000.
+void testDecodeFeedbackFullSpeed()
+{
+  const uint8_t nominal[3] = {0x00, 0x00, 0x0c};
+  const uint32_t q16 = espUsbHostAudioDecodeFeedbackQ16(nominal, sizeof(nominal));
+  checkEqual(q16, 48u << 16, "a 10.14 payload is normalised to 16.16");
+  checkEqual(espUsbHostAudioFeedbackSampleRate(q16, false), 48000,
+             "48 samples per frame is 48000 Hz at full speed");
+
+  // 47.5 samples per frame: the device is asking the host to slow down.
+  const uint8_t slower[3] = {0x00, 0xe0, 0x0b};
+  checkEqual(espUsbHostAudioFeedbackSampleRate(
+                 espUsbHostAudioDecodeFeedbackQ16(slower, sizeof(slower)), false),
+             47500,
+             "a fractional 10.14 value keeps its fraction");
+
+  // 44.1 kHz is 44.1 samples per frame, which 10.14 cannot hold exactly.
+  const uint32_t raw441 = static_cast<uint32_t>(44.1 * 16384.0);
+  const uint8_t f441[3] = {static_cast<uint8_t>(raw441 & 0xff),
+                           static_cast<uint8_t>((raw441 >> 8) & 0xff),
+                           static_cast<uint8_t>((raw441 >> 16) & 0xff)};
+  const uint32_t rate441 = espUsbHostAudioFeedbackSampleRate(
+      espUsbHostAudioDecodeFeedbackQ16(f441, sizeof(f441)), false);
+  check(rate441 >= 44099 && rate441 <= 44101, "44.1 kHz decodes within a hertz");
+}
+
+// A 4-byte payload is already 16.16, and at high speed the value counts samples
+// per 125 us microframe: 48 kHz is 6 samples per microframe.
+void testDecodeFeedbackHighSpeed()
+{
+  const uint8_t nominal[4] = {0x00, 0x00, 0x06, 0x00};
+  const uint32_t q16 = espUsbHostAudioDecodeFeedbackQ16(nominal, sizeof(nominal));
+  checkEqual(q16, 6u << 16, "a 4-byte payload is taken as 16.16 unchanged");
+  checkEqual(espUsbHostAudioFeedbackSampleRate(q16, true), 48000,
+             "6 samples per microframe is 48000 Hz at high speed");
+  checkEqual(espUsbHostAudioFeedbackSampleRate(q16, false), 6000,
+             "the same value read as full speed is samples per millisecond");
+}
+
+void testDecodeFeedbackRejects()
+{
+  const uint8_t payload[4] = {0x00, 0x00, 0x0c, 0x00};
+  checkEqual(espUsbHostAudioDecodeFeedbackQ16(nullptr, 3), 0, "a null payload decodes to 0");
+  checkEqual(espUsbHostAudioDecodeFeedbackQ16(payload, 0), 0, "an empty packet decodes to 0");
+  checkEqual(espUsbHostAudioDecodeFeedbackQ16(payload, 2), 0, "a 2-byte packet decodes to 0");
+  checkEqual(espUsbHostAudioFeedbackSampleRate(0, false), 0, "a zero value is a zero rate");
+}
+
+// The +/-12.5% window that guards the pacing rate.
+void testFeedbackPlausibility()
+{
+  check(espUsbHostAudioFeedbackRatePlausible(48000, 48000), "the nominal rate is plausible");
+  check(espUsbHostAudioFeedbackRatePlausible(48100, 48000), "a small drift is plausible");
+  check(espUsbHostAudioFeedbackRatePlausible(47000, 48000), "a small drift down is plausible");
+  check(espUsbHostAudioFeedbackRatePlausible(48000 + 48000 / 8, 48000),
+        "the upper bound is inclusive");
+  check(espUsbHostAudioFeedbackRatePlausible(48000 - 48000 / 8, 48000),
+        "the lower bound is inclusive");
+  check(!espUsbHostAudioFeedbackRatePlausible(48001 + 48000 / 8, 48000),
+        "a rate above the window is rejected");
+  check(!espUsbHostAudioFeedbackRatePlausible(24000, 48000),
+        "half the nominal rate is rejected");
+  check(!espUsbHostAudioFeedbackRatePlausible(96000, 48000),
+        "twice the nominal rate is rejected");
+  check(!espUsbHostAudioFeedbackRatePlausible(0, 48000), "a zero rate is rejected");
+  check(!espUsbHostAudioFeedbackRatePlausible(48000, 0), "a zero nominal rate rejects everything");
+}
+
 void testSelectEmpty()
 {
   check(!espUsbHostSelectAudioStreamForFormat(nullptr, 0, false, 0, 0, 0),
@@ -482,6 +552,10 @@ int main()
   testFeatureUnitLayoutRejects();
   testControlMasks();
   testFeedbackEndpoint();
+  testDecodeFeedbackFullSpeed();
+  testDecodeFeedbackHighSpeed();
+  testDecodeFeedbackRejects();
+  testFeedbackPlausibility();
   testRangeSubRangeCount();
   testDecodeSampleRateRange();
   testDecodeVolumeRange();
