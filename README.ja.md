@@ -62,6 +62,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
 - **USBネットワーク** — CDC-NCM / CDC-ECMのUSB Ethernetアダプタに対応。生Ethernetフレームでも、lwIP（`esp_netif`）インターフェースとしてattachしてWi-Fi無しで`NetworkClient` / `HTTPClient`をUSB経由で動かすことも可能
+- **CCIDスマートカードリーダー** — CCID interfaceのclaim、カード挿入・排出通知、カードの活性化とATR取得、APDU送受信、リーダー固有のescapeコマンド
 - **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUT、ゼロコピーバッファと自動ZLP処理を備えた非同期bulk OUTキュー、EP0 vendor request
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
@@ -76,6 +77,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT（同期と非同期キュー）、自動ZLP、EP0 vendor IN/OUT requestに対応 |
+| CCID — スマートカードリーダー（bulkプロトコル） | ✅ 基本実装済み。interfaceの明示claim、class descriptorのparse、slot状態、power on/offとATR、APDU/XfrBlock送受信、escapeと生メッセージ、slot変化通知に対応。Sony RC-S300で確認済み。ICCD変種、チェイン応答（extended APDU）、PINパッド機能は対象外 |
 | USBグラフィックスアダプタ（DL-1xx bulkプロトコル） | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) にvendor bulk API上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。1チップファミリ・16 bppの参考実装であり、他のアダプタや高いフレームレートが必要なら [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) のような専用ライブラリを使うこと |
 | UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
@@ -282,6 +284,12 @@ void loop() {
 |----------|------|
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | MSCの容量情報を表示し、先頭ブロックをダンプ |
 | [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | MSCをArduino `fs::FS`としてマウントし、ファイル一覧と小さなwrite/read/delete確認を行う |
+
+### CCID
+
+| スケッチ | 説明 |
+|----------|------|
+| [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | CCIDスマートカードリーダーをopenし、カードの挿入・排出を通知、ATRを読み、PC/SCのGet UID APDUを送る |
 
 ### Network
 
@@ -624,6 +632,74 @@ bool vendorAutoZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 ESP32-S3（full-speed OTG）での `tests/manual/vendor_bulk_throughput` 実測値: キューは1.098 MB/sに達し、これはfull-speed bulkの上限1.216 MB/sの約90%です。depth 2あれば転送サイズに関係なくこの上限に張り付きます。同期の `vendorWrite()` が同じ値に届くのは大きな転送のときだけで、転送ごとのレイテンシが支配的になる512 byteでは0.88 MB/sまで落ちます。full-speedではdepthを2より増やしても改善しませんでした。
 
 bulk OUTの転送長がendpointのmax packet sizeの倍数になった場合、その転送だけではUSB転送が終端されません。`vendorSetAutoZlp(true)` にするとライブラリが必要なzero-length packetを付加し、`vendorWriteZlp()` は明示的に1つ送ります。auto ZLPは既定で無効で、有効時はキューのスロットをもう1つ消費するためdepthは2以上にしてください。
+
+### CCIDスマートカードリーダー
+
+CCIDリーダー（`bInterfaceClass == 0x0b`、subclass `0x00`、protocol `0x00`）用のAPIです。
+
+```cpp
+bool ccidOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+              uint8_t interfaceNumber = 0xff);
+void ccidClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool ccidReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool ccidGetInterface(EspUsbHostCcidInterface &info,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint8_t ccidSlotCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+bool ccidGetStatus(EspUsbHostCcidStatus &status, uint8_t slot = 0,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = 1000);
+bool ccidCardPresent(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+bool ccidPowerOn(uint8_t *atr = nullptr, size_t atrCapacity = 0,
+                 size_t *atrLength = nullptr,
+                 EspUsbHostCcidVoltage voltage = ESP_USB_HOST_CCID_VOLTAGE_AUTO,
+                 uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidPowerOff(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = 2000);
+size_t ccidGetAtr(uint8_t *buffer, size_t capacity, uint8_t slot = 0,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+bool ccidTransfer(const uint8_t *tx, size_t txLength,
+                  uint8_t *rx, size_t rxCapacity, size_t *rxLength,
+                  uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidApdu(const uint8_t *apdu, size_t apduLength,
+              uint8_t *response, size_t responseCapacity, size_t *responseLength,
+              uint16_t *statusWord = nullptr,
+              uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+              uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidEscape(const uint8_t *tx, size_t txLength,
+                uint8_t *rx, size_t rxCapacity, size_t *rxLength,
+                uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidMessage(uint8_t messageType, const uint8_t *messageSpecific,
+                 const uint8_t *data, size_t length,
+                 EspUsbHostCcidResponse &response,
+                 uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+
+bool ccidAbort(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+               uint32_t timeoutMs = 1000);
+uint8_t ccidLastError(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void onCcidCardInserted(CcidSlotChangeCallback callback);
+void onCcidCardRemoved(CcidSlotChangeCallback callback);
+```
+
+CCID interfaceは列挙時には claim されません。`ccidOpen()` が claim し、CCID class descriptor（slot数、`dwProtocols`、`dwFeatures`、`dwMaxCCIDMessageLength`、exchange level）を読んで `ccidGetInterface()` から取得できるようにし、デバイスごとのメッセージバッファを確保し、リーダーが持っていれば interrupt IN endpoint を開始します。`ccidClose()` はCCIDの動作を停止しバッファを解放しますが、interfaceのclaimは切断まで維持されるため、後から `ccidOpen()` すると再利用されます。
+
+リーダーと通信するAPIはすべて同期APIで、USB callbackから呼んだ場合は `false` を返します。slot変化のcallbackはUSB task上で呼ばれるため、そこでは発生を記録するだけにして、コマンドは `loop()` から発行してください。
+
+`bSeq` はライブラリが管理します。別のコマンドに属するsequence numberの応答は破棄し、command statusが「time extension requested」の応答は最終応答として扱わず待ち続けます。1台のリーダーへのコマンドはデバイスごとのmutexで直列化されます。
+
+`ccidApdu()` は応答からSW1SW2を切り出すため、呼び出し側のバッファはデータ部だけ入れば足ります。`61 xx` と `6C xx` は自動追従せずそのまま返します。`ccidTransfer()` は分離しない同じ送受信で、`ccidEscape()` / `ccidMessage()` はリーダー固有コマンドやこのAPIがラップしていないCCIDメッセージ用です。
+
+チェイン応答（`bChainParameter != 0`、extended APDUレベル）は断片を返さずエラーとして報告します。ICCD変種（interface protocol `0x01` / `0x02`）は未対応です。
+
+メッセージバッファは `ESP_USB_HOST_CCID_BUFFER_SIZE`（512 byte）で、リーダーが報告する `dwMaxCCIDMessageLength` がそれより大きい場合は4096まで拡張します。既定値は `-DESP_USB_HOST_CCID_BUFFER_SIZE=...` で変更できます。
+
+Sony RC-S300（`FeliCa Port/PaSoRi 4.0`）で確認済みです。リーダーはslot 1個・T=1・extended APDU exchange level・`dwMaxCCIDMessageLength = 522` を報告し、上に載せたISO 14443カードはPC/SC疑似APDU `FF CA 00 00 00`（Get UID）にUIDと `9000` を返します。FeliCa本来のプロトコルはISO 7816 APDUではないため、FeliCaのブロックを読むには `ccidEscape()` によるリーダー固有コマンドが必要です。
 
 ### MIDI
 

@@ -1,4 +1,6 @@
-# EspUsbHost CCID (Smart Card Reader) API 仕様案
+# EspUsbHost CCID (Smart Card Reader) API 仕様
+
+> 状態: 実装済み。本文は設計時点の記述を残しつつ、実装で確定した点を「実装結果」節に追記している。
 
 ## 目的
 
@@ -348,17 +350,39 @@ interrupt IN の `RDR_to_PC_NotifySlotChange (0x50)` を解釈する。
 
 自動テスト (peer) は、`EspUsbDevice` 側に CCID device 実装が無いため当面は作らない。必要なら後続で `EspUsbDeviceCcid` の要否を検討する。
 
-### RC-S300 固有の未検証事項
+### RC-S300 の実測結果
 
-- RC-S300 が標準 CCID の `IccPowerOn` / `XfrBlock` だけで ISO 14443 カードの APDU を通すのか、Sony 固有の escape コマンド (transparent session の開始等) が必要なのかは未確認。`ccid_power_on` / `ccid_apdu` の実機テストで確定させる
-- FeliCa は ISO 7816 APDU ではないため、標準 API だけで読めない可能性が高い。その場合は `ccidEscape()` を使う example として別途扱う
-- 上記のどちらであっても、本 API 設計自体は変わらない (escape が必要なら `ccidEscape()` で賄える)
+`tests/manual/ccid_card` で確認済み。
+
+```
+CCID_INTERFACE address=2 iface=0 in=0x81 out=0x01 interrupt=0x83 classDesc=1 bcd=0110 slots=1 voltage=0x07 protocols=0x00000002 features=0x0004007e maxMessage=522 exchange=3
+CCID_STATUS slot=0 icc=active present=1 active=1 command=0 error=0x00
+CCID_ATR data=3b8f8001804f0ca000000306030001000000006a
+CCID_APDU attempt=0 sw=9000 length=4
+CCID_UID data=6b6dccae
+```
+
+- 標準 CCID の `IccPowerOn` / `XfrBlock` だけで ISO 14443 カードの APDU が通る。Sony 固有の escape は不要だった
+- exchange level は extended APDU (`dwFeatures` bit 18)、protocol は T=1、slot は 1 個、`dwMaxCCIDMessageLength` は 522
+- ATR は PC/SC の合成 ATR (RID `A000000306`、SS=03 = ISO 14443 A part 3)
+- Get UID (`FF CA 00 00 00`) を 3 回繰り返しても同じ UID と `9000` が返り、その後の生 `GetSlotStatus` も `bSeq` が同期したまま成功する
+- FeliCa 本来のプロトコルは ISO 7816 APDU ではないため、FeliCa のブロックを読むには `ccidEscape()` によるリーダー固有コマンドが必要。これは example / manual test の範囲
 
 ## README / ドキュメント反映方針
 
 - README の対応表に「CCID smart card reader」を追加する
 - API セクションは MSC / Vendor bulk と同列に「CCID」として追加する
 - `docs/COMPATIBILITY.*.md` に RC-S300 の検証結果を追記する
+
+## 実装結果
+
+設計からの差分は以下。
+
+- `ccidClose()` は CCID の動作停止とメッセージバッファ解放までとし、interface の claim は切断まで維持する。in-flight の interrupt transfer を安全に畳んでから release する手段が現状のライブラリにないため。再度 `ccidOpen()` すると claim 済みの interface と既存の endpoint slot を再利用する
+- 実装ファイルは `src/EspUsbHostCcid.cpp`。CCID class descriptor の parse だけは `EspUsbHost.cpp` の `handleDescriptor()` 内 `0x21` の case に相乗りしている (HID descriptor と同じ番号なので interface class で分岐)
+- manual test は設計時の 4 本 (`ccid_slot_status` / `ccid_power_on` / `ccid_apdu` / `ccid_hotplug`) ではなく 3 本にした。前 3 者は 1 回の実行で連続して確認できるため `ccid_card` にまとめている
+- `ccidGetStatus()` は command status が FAILED の応答でも `true` を返す。カードが無い slot に対して失敗を返すリーダーがあり、その場合でも ICC status のビットは有効なため
+- メッセージバッファは `dwMaxCCIDMessageLength` が既定の 512 を超える場合に 4096 まで拡張する (RC-S300 は 522)
 
 ## 保留事項
 

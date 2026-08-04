@@ -153,6 +153,16 @@ static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 // preallocated transfer, so the practical depth is limited by DMA memory rather
 // than by this constant.
 static constexpr size_t ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH = 8;
+// CCID message buffer, allocated per device while a CCID interface is open. A
+// short-APDU reader reports dwMaxCCIDMessageLength around 271 bytes, so 512 has
+// room for the 10-byte header plus a full response. Override with a build flag
+// (-DESP_USB_HOST_CCID_BUFFER_SIZE=...) for readers that need more.
+#ifndef ESP_USB_HOST_CCID_BUFFER_SIZE
+#define ESP_USB_HOST_CCID_BUFFER_SIZE 512
+#endif
+// Largest ATR an ISO 7816 card can return.
+static constexpr size_t ESP_USB_HOST_CCID_MAX_ATR = 33;
+static constexpr uint32_t ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS = 5000;
 
 struct EspUsbHostConfig
 {
@@ -360,6 +370,99 @@ struct EspUsbHostVendorData
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
   uint8_t endpoint = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+};
+
+// --- CCID (USB smart card reader, bInterfaceClass 0x0b) ---------------------
+
+// Low two bits of bStatus in an RDR_to_PC response.
+enum EspUsbHostCcidIccStatus : uint8_t
+{
+  ESP_USB_HOST_CCID_ICC_ACTIVE = 0,   // card present and activated
+  ESP_USB_HOST_CCID_ICC_INACTIVE = 1, // card present, not activated
+  ESP_USB_HOST_CCID_ICC_ABSENT = 2,   // no card in the slot
+};
+
+// Top two bits of bStatus in an RDR_to_PC response.
+enum EspUsbHostCcidCommandStatus : uint8_t
+{
+  ESP_USB_HOST_CCID_COMMAND_OK = 0,
+  ESP_USB_HOST_CCID_COMMAND_FAILED = 1,
+  // Not a final response: the reader needs more time and will send another.
+  ESP_USB_HOST_CCID_COMMAND_TIME_EXTENSION = 2,
+};
+
+// bPowerSelect of PC_to_RDR_IccPowerOn.
+enum EspUsbHostCcidVoltage : uint8_t
+{
+  ESP_USB_HOST_CCID_VOLTAGE_AUTO = 0,
+  ESP_USB_HOST_CCID_VOLTAGE_5V = 1,
+  ESP_USB_HOST_CCID_VOLTAGE_3V = 2,
+  ESP_USB_HOST_CCID_VOLTAGE_1V8 = 3,
+};
+
+// dwFeatures bits 16..18: how much of the ISO 7816 stack the reader implements.
+enum EspUsbHostCcidExchangeLevel : uint8_t
+{
+  ESP_USB_HOST_CCID_EXCHANGE_CHARACTER = 0,
+  ESP_USB_HOST_CCID_EXCHANGE_TPDU = 1,
+  ESP_USB_HOST_CCID_EXCHANGE_SHORT_APDU = 2,
+  ESP_USB_HOST_CCID_EXCHANGE_EXTENDED_APDU = 3,
+};
+
+struct EspUsbHostCcidInterface
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t inEndpoint = 0;        // bulk IN (RDR_to_PC)
+  uint8_t outEndpoint = 0;       // bulk OUT (PC_to_RDR)
+  uint8_t interruptEndpoint = 0; // interrupt IN (slot change), 0 when absent
+  uint16_t inMaxPacketSize = 0;
+  uint16_t outMaxPacketSize = 0;
+  // Fields below come from the CCID class descriptor (bDescriptorType 0x21).
+  // Readers that do not expose one keep the defaults.
+  bool hasClassDescriptor = false;
+  uint16_t bcdCCID = 0;
+  uint8_t slotCount = 1;     // bMaxSlotIndex + 1
+  uint8_t voltageSupport = 0;
+  uint32_t protocols = 0;    // dwProtocols: bit0 = T=0, bit1 = T=1
+  uint32_t features = 0;     // dwFeatures
+  uint32_t maxMessageLength = 0;
+  uint8_t maxBusySlots = 1;
+  EspUsbHostCcidExchangeLevel exchangeLevel = ESP_USB_HOST_CCID_EXCHANGE_CHARACTER;
+};
+
+struct EspUsbHostCcidStatus
+{
+  uint8_t address = 0;
+  uint8_t slot = 0;
+  EspUsbHostCcidIccStatus iccStatus = ESP_USB_HOST_CCID_ICC_ABSENT;
+  EspUsbHostCcidCommandStatus commandStatus = ESP_USB_HOST_CCID_COMMAND_OK;
+  uint8_t error = 0; // bError, meaningful when commandStatus is FAILED
+  bool present = false;
+  bool active = false;
+};
+
+struct EspUsbHostCcidSlotEvent
+{
+  uint8_t address = 0;
+  uint8_t slot = 0;
+  bool present = false;
+};
+
+// Raw RDR_to_PC response, for ccidMessage(). data points into the library's
+// per-device buffer and is only valid until the next CCID call.
+struct EspUsbHostCcidResponse
+{
+  uint8_t messageType = 0;
+  uint8_t slot = 0;
+  uint8_t sequence = 0;
+  uint8_t status = 0;         // raw bStatus
+  uint8_t error = 0;          // bError
+  uint8_t chainParameter = 0; // bChainParameter / bClockStatus / bRFU
+  EspUsbHostCcidIccStatus iccStatus = ESP_USB_HOST_CCID_ICC_ABSENT;
+  EspUsbHostCcidCommandStatus commandStatus = ESP_USB_HOST_CCID_COMMAND_OK;
   const uint8_t *data = nullptr;
   size_t length = 0;
 };
@@ -964,6 +1067,7 @@ public:
   using GamepadCallback = std::function<void(const EspUsbHostGamepadEvent &)>;
   using HIDVendorInputCallback = std::function<void(const EspUsbHostHIDVendorInput &)>;
   using VendorDataCallback = std::function<void(const EspUsbHostVendorData &)>;
+  using CcidSlotChangeCallback = std::function<void(const EspUsbHostCcidSlotEvent &)>;
   using SystemControlCallback = std::function<void(const EspUsbHostSystemControlEvent &)>;
   using NetworkFrameCallback = std::function<void(const EspUsbHostNetworkFrame &)>;
   // Return 0 to keep the device's default configuration, or a configuration
@@ -1242,6 +1346,102 @@ public:
                 bool skipSyncCache = false);
   bool mscUnmount(const char *basePath = "/usb");
   bool mscMounted(const char *basePath = "/usb") const;
+
+  // CCID smart card readers (bInterfaceClass 0x0b, bulk protocol 0x00).
+  //
+  // The interface is not claimed during enumeration; ccidOpen() claims it and
+  // starts the slot-change notifications. Every call below that talks to the
+  // reader waits for the transfer to complete, so none of them may be called
+  // from a USB callback (they return false there), same as the MSC and vendor
+  // bulk APIs.
+  bool ccidOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t interfaceNumber = 0xff);
+  // Stops CCID activity and frees the message buffer. The interface stays
+  // claimed until the device disconnects, so a later ccidOpen() can reuse it.
+  void ccidClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool ccidReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool ccidGetInterface(EspUsbHostCcidInterface &info,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint8_t ccidSlotCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+  bool ccidGetStatus(EspUsbHostCcidStatus &status,
+                     uint8_t slot = 0,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint32_t timeoutMs = 1000);
+  bool ccidCardPresent(uint8_t slot = 0,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+  // Activates the card and returns its ATR. The ATR is cached until power off,
+  // card removal, or disconnect; ccidGetAtr() returns the cached copy.
+  bool ccidPowerOn(uint8_t *atr = nullptr,
+                   size_t atrCapacity = 0,
+                   size_t *atrLength = nullptr,
+                   EspUsbHostCcidVoltage voltage = ESP_USB_HOST_CCID_VOLTAGE_AUTO,
+                   uint8_t slot = 0,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+  bool ccidPowerOff(uint8_t slot = 0,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint32_t timeoutMs = 2000);
+  size_t ccidGetAtr(uint8_t *buffer,
+                    size_t capacity,
+                    uint8_t slot = 0,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+  // PC_to_RDR_XfrBlock. Payload and response are passed through untouched.
+  bool ccidTransfer(const uint8_t *tx,
+                    size_t txLength,
+                    uint8_t *rx,
+                    size_t rxCapacity,
+                    size_t *rxLength,
+                    uint8_t slot = 0,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                    uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+  // ccidTransfer() plus SW1SW2 splitting: response/responseLength exclude the
+  // status word, which is returned through statusWord. 61xx / 6Cxx are reported
+  // as-is; the caller decides whether to reissue.
+  bool ccidApdu(const uint8_t *apdu,
+                size_t apduLength,
+                uint8_t *response,
+                size_t responseCapacity,
+                size_t *responseLength,
+                uint16_t *statusWord = nullptr,
+                uint8_t slot = 0,
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+  // PC_to_RDR_Escape, for reader-specific commands.
+  bool ccidEscape(const uint8_t *tx,
+                  size_t txLength,
+                  uint8_t *rx,
+                  size_t rxCapacity,
+                  size_t *rxLength,
+                  uint8_t slot = 0,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+
+  // Any PC_to_RDR message, for the ones this API does not wrap (SetParameters,
+  // IccClock, T0APDU, ...). messageSpecific is header bytes 7..9; nullptr means
+  // three zero bytes.
+  bool ccidMessage(uint8_t messageType,
+                   const uint8_t *messageSpecific,
+                   const uint8_t *data,
+                   size_t length,
+                   EspUsbHostCcidResponse &response,
+                   uint8_t slot = 0,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+
+  // CCID class request ABORT followed by PC_to_RDR_Abort, per the CCID spec.
+  bool ccidAbort(uint8_t slot = 0,
+                 uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = 1000);
+  // bError of the last failed response (0 when the last call succeeded).
+  uint8_t ccidLastError(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Slot-change notifications from the interrupt IN endpoint. Called on the USB
+  // task, so they must not block or issue CCID commands.
+  void onCcidCardInserted(CcidSlotChangeCallback callback);
+  void onCcidCardRemoved(CcidSlotChangeCallback callback);
+
   bool midiSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool midiSendNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
@@ -1509,6 +1709,40 @@ private:
     // Latched when SYNCHRONIZE CACHE(10) fails once, so later calls skip the
     // command instead of stalling the bulk pipes again on the same device.
     bool mscSyncCacheUnsupported = false;
+    // CCID class descriptor values, filled during enumeration (before any
+    // ccidOpen()) so the reader's limits are known when the interface is opened.
+    bool ccidHasClassDescriptor = false;
+    uint8_t ccidDescriptorInterfaceNumber = 0xff;
+    uint16_t ccidBcd = 0;
+    uint8_t ccidSlotCount = 1;
+    uint8_t ccidVoltageSupport = 0;
+    uint32_t ccidProtocols = 0;
+    uint32_t ccidFeatures = 0;
+    uint32_t ccidMaxMessageLength = 0;
+    uint8_t ccidMaxBusySlots = 1;
+    // Set by ccidOpen(), cleared by ccidClose() and on disconnect.
+    bool hasCcidInterface = false;
+    uint8_t ccidInterfaceNumber = 0xff;
+    uint8_t ccidInEndpointAddress = 0;
+    uint16_t ccidInPacketSize = 0;
+    uint8_t ccidOutEndpointAddress = 0;
+    uint16_t ccidOutPacketSize = 0;
+    uint8_t ccidInterruptEndpointAddress = 0;
+    uint16_t ccidInterruptPacketSize = 0;
+    uint8_t ccidSequence = 0;
+    uint8_t ccidError = 0;
+    // Response reassembly buffer. Only allocated while a CCID interface is open.
+    uint8_t *ccidBuffer = nullptr;
+    size_t ccidBufferSize = 0;
+    size_t ccidResponseLength = 0;
+    uint8_t ccidAtr[ESP_USB_HOST_CCID_MAX_ATR] = {};
+    uint8_t ccidAtrLength = 0;
+    uint8_t ccidAtrSlot = 0;
+    // One bit per slot; ccidSlotKnownMask says which bits the reader reported.
+    uint8_t ccidSlotPresentMask = 0;
+    uint8_t ccidSlotKnownMask = 0;
+    // Serializes CCID commands so two callers cannot interleave bSeq values.
+    SemaphoreHandle_t ccidLock = nullptr;
     bool hasNetworkInterface = false;
     EspUsbHostNetworkInterfaceInfo networkInterface;
     bool networkLinkUp = false;
@@ -1648,6 +1882,33 @@ private:
   DeviceState *findUsbVendorDevice(uint8_t address);
   const DeviceState *findUsbVendorDevice(uint8_t address) const;
   DeviceState *findUsbVendorCandidate(uint8_t address, uint8_t interfaceNumber);
+  DeviceState *findCcidDevice(uint8_t address);
+  const DeviceState *findCcidDevice(uint8_t address) const;
+  DeviceState *findCcidCandidate(uint8_t address, uint8_t interfaceNumber);
+  void parseCcidClassDescriptor(DeviceState &device, const uint8_t *data);
+  void releaseCcidInterface(DeviceState &device);
+  void handleCcidNotification(DeviceState &device, const uint8_t *data, size_t length);
+  // One PC_to_RDR message plus its RDR_to_PC response, with bSeq matching and
+  // time-extension waits. Callers must already hold device.ccidLock.
+  bool ccidExchange(DeviceState &device,
+                    uint8_t messageType,
+                    uint8_t slot,
+                    const uint8_t messageSpecific[3],
+                    const uint8_t *data,
+                    size_t length,
+                    EspUsbHostCcidResponse &response,
+                    uint32_t timeoutMs);
+  bool ccidBulkOut(DeviceState &device, const uint8_t *data, size_t length, uint32_t timeoutMs);
+  bool ccidBulkIn(DeviceState &device, uint32_t timeoutMs);
+  bool ccidDataExchange(uint8_t messageType,
+                        const uint8_t *tx,
+                        size_t txLength,
+                        uint8_t *rx,
+                        size_t rxCapacity,
+                        size_t *rxLength,
+                        uint8_t slot,
+                        uint8_t address,
+                        uint32_t timeoutMs);
   int vendorOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
   int vendorOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   bool submitVendorOutSlot(DeviceState &device, int slot, size_t length);
@@ -1820,6 +2081,8 @@ private:
   std::shared_ptr<GamepadCallback> gamepadCallback_;
   HIDVendorInputCallback hidVendorInputCallback_;
   VendorDataCallback vendorDataCallback_;
+  CcidSlotChangeCallback ccidCardInsertedCallback_;
+  CcidSlotChangeCallback ccidCardRemovedCallback_;
   // Guards the vendor bulk OUT slot-state scan against concurrent callers and
   // against the completion callback on the USB client task.
   portMUX_TYPE vendorOutMux_ = portMUX_INITIALIZER_UNLOCKED;

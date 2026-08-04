@@ -67,6 +67,7 @@ Host/Device loopback tests.
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
 - **USB network** — CDC-NCM / CDC-ECM USB Ethernet adapters, either as raw Ethernet frames or attached as an lwIP (`esp_netif`) interface so `NetworkClient` / `HTTPClient` run over USB with no Wi-Fi
+- **CCID smart card readers** — claim a CCID interface, card insertion/removal notifications, card activation with ATR, APDU exchange, and reader-specific escape commands
 - **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT, an asynchronous bulk OUT queue with zero-copy buffers and automatic ZLP handling, and EP0 vendor requests
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
@@ -81,6 +82,7 @@ Host/Device loopback tests.
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT (synchronous and an asynchronous queue), automatic ZLP, and EP0 vendor IN/OUT requests |
+| CCID — smart card readers (bulk protocol) | ✅ Basic support implemented. Covers explicit interface claim, class descriptor parsing, slot status, power on/off with ATR, APDU/XfrBlock exchange, escape and raw messages, and slot-change notifications. Verified with a Sony RC-S300; ICCD variants, chained (extended APDU) responses, and PIN-pad features are out of scope |
 | USB graphics adapter (DL-1xx bulk protocol) | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) on top of the vendor bulk API — nothing display-specific is in the library. A reference implementation for one chip family at 16 bpp; for other adapters or higher frame rates use a dedicated library such as [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) |
 | UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
@@ -287,6 +289,12 @@ void loop() {
 |--------|-------------|
 | [EspUsbHostMSCBlockDump](examples/Storage/EspUsbHostMSCBlockDump/) | Print MSC capacity and dump the first block |
 | [EspUsbHostMSCFatList](examples/Storage/EspUsbHostMSCFatList/) | Mount MSC as Arduino `fs::FS`, list files, and run a small write/read/delete probe |
+
+### CCID
+
+| Sketch | Description |
+|--------|-------------|
+| [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | Open a CCID smart card reader, report card insertion/removal, read the ATR, and send the PC/SC Get UID APDU |
 
 ### Network
 
@@ -638,6 +646,74 @@ None of these wait for completion, so unlike `vendorWrite()` they may be called 
 Measured on an ESP32-S3 (full-speed OTG) with `tests/manual/vendor_bulk_throughput`: the queue reaches 1.098 MB/s, about 90% of the 1.216 MB/s full-speed bulk ceiling, and a depth of 2 is enough to stay there at any transfer size. Synchronous `vendorWrite()` reaches the same figure only with large transfers and drops to 0.88 MB/s at 512 bytes, where per-transfer latency dominates. Depths beyond 2 did not help on full speed.
 
 A bulk OUT transfer whose length is a multiple of the endpoint max packet size does not terminate the USB transfer by itself. `vendorSetAutoZlp(true)` makes the library append the required zero-length packet; `vendorWriteZlp()` sends one explicitly. Auto ZLP is off by default and consumes a second queue slot, so use a depth of at least 2 with it.
+
+### CCID smart card reader
+
+For CCID readers (`bInterfaceClass == 0x0b`, subclass `0x00`, protocol `0x00`):
+
+```cpp
+bool ccidOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+              uint8_t interfaceNumber = 0xff);
+void ccidClose(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool ccidReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool ccidGetInterface(EspUsbHostCcidInterface &info,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+uint8_t ccidSlotCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+bool ccidGetStatus(EspUsbHostCcidStatus &status, uint8_t slot = 0,
+                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint32_t timeoutMs = 1000);
+bool ccidCardPresent(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+bool ccidPowerOn(uint8_t *atr = nullptr, size_t atrCapacity = 0,
+                 size_t *atrLength = nullptr,
+                 EspUsbHostCcidVoltage voltage = ESP_USB_HOST_CCID_VOLTAGE_AUTO,
+                 uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidPowerOff(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = 2000);
+size_t ccidGetAtr(uint8_t *buffer, size_t capacity, uint8_t slot = 0,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+bool ccidTransfer(const uint8_t *tx, size_t txLength,
+                  uint8_t *rx, size_t rxCapacity, size_t *rxLength,
+                  uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidApdu(const uint8_t *apdu, size_t apduLength,
+              uint8_t *response, size_t responseCapacity, size_t *responseLength,
+              uint16_t *statusWord = nullptr,
+              uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+              uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidEscape(const uint8_t *tx, size_t txLength,
+                uint8_t *rx, size_t rxCapacity, size_t *rxLength,
+                uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+bool ccidMessage(uint8_t messageType, const uint8_t *messageSpecific,
+                 const uint8_t *data, size_t length,
+                 EspUsbHostCcidResponse &response,
+                 uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
+
+bool ccidAbort(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+               uint32_t timeoutMs = 1000);
+uint8_t ccidLastError(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void onCcidCardInserted(CcidSlotChangeCallback callback);
+void onCcidCardRemoved(CcidSlotChangeCallback callback);
+```
+
+`ccidOpen()` claims the interface — it is not claimed during enumeration — reads the CCID class descriptor (slot count, `dwProtocols`, `dwFeatures`, `dwMaxCCIDMessageLength`, exchange level) into `ccidGetInterface()`, allocates the per-device message buffer, and starts the interrupt IN endpoint when the reader has one. `ccidClose()` stops CCID activity and frees the buffer; the interface stays claimed until the device disconnects, so a later `ccidOpen()` reuses it.
+
+Every call that talks to the reader is synchronous and returns `false` when called from a USB callback. The slot-change callbacks run on the USB task, so they must only record what happened and let `loop()` issue the commands.
+
+`bSeq` is managed by the library: responses whose sequence number belongs to another command are dropped, and a response with the "time extension requested" command status is not treated as final — the library keeps waiting. Commands to one reader are serialized with a per-device mutex.
+
+`ccidApdu()` splits SW1SW2 off the response, so the caller's buffer only has to hold the data part. `61 xx` and `6C xx` are returned as-is rather than being followed automatically. `ccidTransfer()` is the same exchange without the split, and `ccidEscape()` / `ccidMessage()` cover reader-specific commands and any CCID message this API does not wrap.
+
+Chained responses (`bChainParameter != 0`, extended APDU level) are reported as a failure rather than returned as a fragment. ICCD variants (interface protocol `0x01` / `0x02`) are not supported.
+
+The message buffer is `ESP_USB_HOST_CCID_BUFFER_SIZE` (512) bytes, or `dwMaxCCIDMessageLength` when the reader reports more, up to 4096. Override the default with `-DESP_USB_HOST_CCID_BUFFER_SIZE=...`.
+
+Verified with a Sony RC-S300 (`FeliCa Port/PaSoRi 4.0`): the reader reports one slot, T=1, extended APDU exchange level and `dwMaxCCIDMessageLength = 522`, and an ISO 14443 card on it answers the PC/SC Get UID pseudo APDU `FF CA 00 00 00` with its UID and `9000`. FeliCa's own protocol is not ISO 7816 APDU, so reading FeliCa blocks needs reader-specific commands through `ccidEscape()`.
 
 ### MIDI
 
