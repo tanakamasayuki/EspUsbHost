@@ -30,7 +30,7 @@ USB Audio OUTの簡単なトーンを出しながら、USBデバイス側のハ�
 ```
 EspUsbHost Audio Output Hardware Volume example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
-audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1 proto=UAC1 clock=0
+audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1 proto=UAC1 clock=0 startable=1
 audio feature unit: unit=2 source=1 channels=2 master=0x3
 audio mute off
 audio volume range: -64.00..0.00 dB step 1.00 dB

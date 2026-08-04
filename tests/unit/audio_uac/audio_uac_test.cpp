@@ -333,6 +333,146 @@ void testReadU32()
   checkEqual(espUsbHostAudioReadU32(high.data()), 0x01000000UL, "the top byte is the most significant");
 }
 
+
+// ---------------------------------------------------------------------------
+// Format selection
+// ---------------------------------------------------------------------------
+
+// A stream as getAudioStreams() would report it. Rates are the discrete list.
+EspUsbHostAudioStreamInfo pcmStream(bool input,
+                                   uint8_t channels,
+                                   uint8_t bitsPerSample,
+                                   const std::vector<uint32_t> &rates,
+                                   uint8_t alternate = 1)
+{
+  EspUsbHostAudioStreamInfo stream;
+  stream.address = 1;
+  stream.interfaceNumber = input ? 2 : 1;
+  stream.alternate = alternate;
+  stream.endpointAddress = input ? 0x81 : 0x01;
+  stream.input = input;
+  stream.output = !input;
+  stream.channels = channels;
+  stream.bitsPerSample = bitsPerSample;
+  stream.bytesPerSample = static_cast<uint8_t>((bitsPerSample + 7) / 8);
+  stream.sampleRateCount = static_cast<uint8_t>(rates.size());
+  for (size_t i = 0; i < rates.size() && i < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES; i++)
+  {
+    stream.sampleRates[i] = rates[i];
+  }
+  stream.sampleRate = rates.empty() ? 0 : rates[0];
+  return stream;
+}
+
+void testSelectExactFormat()
+{
+  const std::vector<EspUsbHostAudioStreamInfo> streams = {
+      pcmStream(false, 1, 16, {48000}),
+      pcmStream(true, 1, 16, {48000}),
+  };
+
+  const EspUsbHostAudioStreamSelection out =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 1, 16, 48000);
+  check(static_cast<bool>(out), "a fully specified output format resolves");
+  checkEqual(out.index, 0, "the output stream is selected for an output request");
+  checkEqual(out.sampleRate, 48000, "the requested rate is used");
+
+  const EspUsbHostAudioStreamSelection in =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), true, 1, 16, 48000);
+  checkEqual(in.index, 1, "the input stream is selected for an input request");
+
+  const EspUsbHostAudioStreamSelection mismatch =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 2, 16, 48000);
+  check(!mismatch, "a channel count the device does not offer does not resolve");
+  const EspUsbHostAudioStreamSelection rateMismatch =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 1, 16, 96000);
+  check(!rateMismatch, "a rate the device does not offer does not resolve");
+}
+
+void testSelectWildcards()
+{
+  // A device that splits formats across alternates, as most USB DACs do.
+  const std::vector<EspUsbHostAudioStreamInfo> streams = {
+      pcmStream(false, 1, 16, {32000}, 1),
+      pcmStream(false, 2, 24, {48000}, 2),
+      pcmStream(false, 2, 16, {44100, 48000}, 3),
+  };
+
+  const EspUsbHostAudioStreamSelection best =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 0, 0, 0);
+  check(static_cast<bool>(best), "an unspecified format resolves");
+  checkEqual(best.index, 2, "48 kHz 16-bit stereo outranks 24-bit and 32 kHz");
+  checkEqual(best.sampleRate, 48000, "48 kHz is preferred over 44.1 kHz");
+
+  const EspUsbHostAudioStreamSelection highRes =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 0, 24, 0);
+  checkEqual(highRes.index, 1, "pinning the sample width selects the 24-bit alternate");
+
+  const EspUsbHostAudioStreamSelection mono =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 1, 0, 0);
+  checkEqual(mono.index, 0, "pinning the channel count selects the mono alternate");
+  checkEqual(mono.sampleRate, 32000, "the mono alternate only offers 32 kHz");
+
+  // A pinned rate wins over the scoring preference for another rate.
+  const EspUsbHostAudioStreamSelection pinned =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 0, 0, 44100);
+  checkEqual(pinned.index, 2, "44.1 kHz is only offered by one alternate");
+  checkEqual(pinned.sampleRate, 44100, "the pinned rate is used, not the higher-scoring one");
+}
+
+void testSelectSkipsFormatOnlyStreams()
+{
+  // The 24-bit alternate is the one the host claimed; the others are format-only.
+  std::vector<EspUsbHostAudioStreamInfo> streams = {
+      pcmStream(false, 2, 16, {48000}, 1),
+      pcmStream(false, 2, 24, {48000}, 2),
+  };
+  streams[0].startable = false;
+
+  const EspUsbHostAudioStreamSelection best =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 0, 0, 0);
+  checkEqual(best.index, 1, "a format-only alternate is not selected even when it scores higher");
+
+  const EspUsbHostAudioStreamSelection exact =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 2, 16, 48000);
+  check(!exact, "asking for a format-only alternate's format does not resolve");
+
+  streams[1].startable = false;
+  const EspUsbHostAudioStreamSelection none =
+      espUsbHostSelectAudioStreamForFormat(streams.data(), streams.size(), false, 0, 0, 0);
+  check(!none, "a device whose alternates are all format-only resolves nothing");
+}
+
+void testSelectContinuousRange()
+{
+  EspUsbHostAudioStreamInfo stream = pcmStream(false, 2, 16, {});
+  stream.sampleRateMin = 8000;
+  stream.sampleRateMax = 96000;
+  stream.sampleRate = 8000;
+
+  const EspUsbHostAudioStreamSelection best =
+      espUsbHostSelectAudioStreamForFormat(&stream, 1, false, 0, 0, 0);
+  check(static_cast<bool>(best), "a continuous range resolves");
+  checkEqual(best.sampleRate, 48000, "48 kHz is picked out of a continuous range");
+
+  const EspUsbHostAudioStreamSelection pinned =
+      espUsbHostSelectAudioStreamForFormat(&stream, 1, false, 0, 0, 96000);
+  checkEqual(pinned.sampleRate, 96000, "a rate inside the range can be pinned");
+
+  const EspUsbHostAudioStreamSelection outside =
+      espUsbHostSelectAudioStreamForFormat(&stream, 1, false, 0, 0, 192000);
+  check(!outside, "a rate outside the range does not resolve");
+}
+
+void testSelectEmpty()
+{
+  check(!espUsbHostSelectAudioStreamForFormat(nullptr, 0, false, 0, 0, 0),
+        "a null stream array resolves nothing");
+  const EspUsbHostAudioStreamInfo stream = pcmStream(true, 1, 16, {48000});
+  check(!espUsbHostSelectAudioStreamForFormat(&stream, 1, false, 0, 0, 0),
+        "an input-only device resolves no output stream");
+}
+
 } // namespace
 
 int main()
@@ -346,12 +486,17 @@ int main()
   testDecodeSampleRateRange();
   testDecodeVolumeRange();
   testReadU32();
+  testSelectExactFormat();
+  testSelectWildcards();
+  testSelectSkipsFormatOnlyStreams();
+  testSelectContinuousRange();
+  testSelectEmpty();
 
   if (failures != 0)
   {
     printf("%d check(s) failed\n", failures);
     return 1;
   }
-  printf("all USB Audio UAC1/UAC2 decoding checks passed\n");
+  printf("all USB Audio decoding and selection checks passed\n");
   return 0;
 }

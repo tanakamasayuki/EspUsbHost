@@ -1,4 +1,4 @@
-"""Host-side unit test for the UAC1/UAC2 descriptor and control decoding helpers.
+"""Host-side unit test for the USB Audio decoding and stream-selection helpers.
 
 The helpers are ``inline`` free functions in ``src/EspUsbHost.h``, but that header
 pulls in Arduino and the ESP USB host stack and cannot be compiled on the host.
@@ -12,6 +12,8 @@ production code:
   ``struct EspUsbHostAudioFeatureUnitLayout``
 * every ``espUsbHostAudio*`` helper used by the Feature Unit / Clock Source /
   feedback-endpoint paths
+* ``struct EspUsbHostAudioStreamInfo`` and the format-selection helpers that
+  ``audioInputStart()`` / ``audioOutputStart()`` delegate to
 
 These are concatenated into ``output/espusbhost_audio_real.h`` and compiled with
 ``audio_uac_test.cpp``.
@@ -35,11 +37,19 @@ FUNCTIONS = [
     "inline size_t espUsbHostAudioRangeSubRangeCount(",
     "inline size_t espUsbHostAudioDecodeSampleRateRange(",
     "inline bool espUsbHostAudioDecodeVolumeRange(",
+    # Stream selection: each helper calls the ones above it.
+    "inline bool espUsbHostAudioStreamSupportsSampleRate(",
+    "inline bool espUsbHostAudioStreamCandidateRateExists(",
+    "inline size_t espUsbHostAudioStreamCandidateSampleRates(",
+    "inline int espUsbHostAudioStreamScore(",
+    "inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioStreamForFormat(",
 ]
 
 STRUCTS = [
     "EspUsbHostAudioVolumeRange",
     "EspUsbHostAudioFeatureUnitLayout",
+    "EspUsbHostAudioStreamInfo",
+    "EspUsbHostAudioStreamSelection",
 ]
 
 CONSTANTS = [

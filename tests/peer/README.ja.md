@@ -56,7 +56,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `usb_serial`: Arduino Core標準USB CDC実装とペアで動作
 - `usb_midi`: Arduino Core標準USB MIDI実装とペアで動作。MIDIとdevice lifecycleのlistener APIもここで検証する。1つのテストは意図的にpeerを再起動する。device側のcoreにUSB detach APIがなく、hostに本物の切断を渡す手段が再起動しかないため。
 - `usb_audio`: `USBAudioCard` のスピーカー出力を使い、Arduino Core標準USB Audio device相当とペアで動作。UAC1
-- `usb_audio_uac2`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbAudioFunction` をUAC2指定にしたheadsetとペアで動作。`USBAudioCard` はUAC1専用のため、Arduino Core標準device stackでは作れない唯一のaudio構成である。class revision、Clock Sourceのサンプルレート（UAC2 descriptorが持たないため `SAM_FREQ` の `RANGE` リクエストで取得）、4バイト・2ビットのFeature Unit controlとvolumeの `RANGE` リクエスト、feedback IN endpointがstream一覧から除外されること、OUT/IN streamingを検証する
+- `usb_audio_uac2`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbAudioFunction` をUAC2指定にしたheadsetとペアで動作。`USBAudioCard` はUAC1専用のため、Arduino Core標準device stackでは作れない唯一のaudio構成である。class revision、Clock Sourceのサンプルレート（UAC2 descriptorが持たないため `SAM_FREQ` の `RANGE` リクエストで取得）、4バイト・2ビットのFeature Unit controlとvolumeの `RANGE` リクエスト、feedback IN endpointがstream一覧から除外されること、OUT/IN streaming、およびUAC2固有ではないが引数を0にした「最良フォーマット自動選択」での起動を検証する
 - `usb_vendor`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` とペアで動作
 - `usb_ncm`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceNet`（CDC-NCM）device とペアで動作。Host は USB NIC を DHCP クライアントの lwIP netif として attach し、device の DHCP サーバから `192.168.7.x` のリースを取得して、固定ページを HTTP GET で取得する。
 

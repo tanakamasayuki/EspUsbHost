@@ -11,6 +11,9 @@ the parts of the host that UAC1 never exercises:
 * the 4-byte / 2-bit Feature Unit bmaControls layout and the volume RANGE request
 * the explicit feedback IN endpoint of the asynchronous playback interface, which
   must not be mistaken for a capture stream
+
+It also covers the format-selection API that is not UAC2-specific: starting with
+zeroed format arguments, which resolves the best format the device offers.
 """
 
 
@@ -61,10 +64,10 @@ def test_usb_audio_uac2_bidirectional(dut, peers):
     dut.write("d")
     dut.expect(r"AUDIO_STREAM iface=[0-9]+ alt=1 ep=0x0[0-9a-f] dir=OUT channels=1 bytes=2 "
                r"bits=16 rate=48000 rates=1 first=48000 min=48000 max=48000 maxPacket=[0-9]+ "
-               r"interval=1 proto=0x20 terminal=[1-9][0-9]* clock=[1-9][0-9]*")
+               r"interval=1 proto=0x20 terminal=[1-9][0-9]* clock=[1-9][0-9]* startable=1")
     dut.expect(r"AUDIO_STREAM iface=[0-9]+ alt=1 ep=0x8[0-9a-f] dir=IN channels=1 bytes=2 "
                r"bits=16 rate=48000 rates=1 first=48000 min=48000 max=48000 maxPacket=[0-9]+ "
-               r"interval=1 proto=0x20 terminal=[1-9][0-9]* clock=[1-9][0-9]*")
+               r"interval=1 proto=0x20 terminal=[1-9][0-9]* clock=[1-9][0-9]* startable=1")
     # Exactly one OUT and one IN stream: the playback interface's feedback IN
     # endpoint must not have been registered as a third stream.
     dut.expect_exact("AUDIO_STREAM_COUNT 2")
@@ -80,8 +83,10 @@ def test_usb_audio_uac2_bidirectional(dut, peers):
     dut.write("M")
     dut.expect_exact("AUDIO_MUTE set=1 get=1 muted=1 clear=1 get2=1 muted2=0")
 
-    dut.write("a")
-    dut.expect_exact("AUDIO_OUT_START 1")
+    # Zero arguments mean "no preference": the library resolves the best format the
+    # device offers, which here is its only one.
+    dut.write("A")
+    dut.expect_exact("AUDIO_OUT_AUTO started=1 channels=1 bits=16 rate=48000")
     device.expect_exact("AUDIO_INTERFACE SPK 1")
 
     dut.write("r")
@@ -94,8 +99,8 @@ def test_usb_audio_uac2_bidirectional(dut, peers):
     dut.expect("AUDIO_TX [1-9][0-9]*")
     device.expect("DEVICE_RX_AUDIO [1-9][0-9]*")
 
-    dut.write("i")
-    dut.expect_exact("AUDIO_IN_START 1")
+    dut.write("I")
+    dut.expect_exact("AUDIO_IN_AUTO started=1 channels=1 bits=16 rate=48000")
     device.expect_exact("AUDIO_INTERFACE MIC 1")
 
     dut.write("r")
@@ -104,3 +109,10 @@ def test_usb_audio_uac2_bidirectional(dut, peers):
     device.write("m")
     device.expect("DEVICE_TX_AUDIO [1-9][0-9]*")
     dut.expect("AUDIO_RX addr=[0-9]+ iface=[0-9]+ total=[1-9][0-9]* last=[1-9][0-9]*")
+
+    # The fully specified form still resolves the same streams (both are already
+    # running, so these only exercise the exact-match lookup).
+    dut.write("a")
+    dut.expect_exact("AUDIO_OUT_START 1")
+    dut.write("i")
+    dut.expect_exact("AUDIO_IN_START 1")

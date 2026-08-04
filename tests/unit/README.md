@@ -49,7 +49,12 @@ uv run --env-file .env pytest unit/
   endpoint (and does not confuse implicit feedback data with it), and the UAC2
   `RANGE` responses: `wNumSubRanges`, discrete rates, continuous subranges walked
   by their resolution, truncated payloads, duplicate and zero rates, caller
-  capacity limits, and the signed 1/256 dB volume range.
+  capacity limits, and the signed 1/256 dB volume range. It also covers
+  `espUsbHostSelectAudioStreamForFormat()`, which `audioInputStart()` /
+  `audioOutputStart()` delegate to: exact matches, the `0` = no preference
+  wildcards, ranking across alternates that declare different widths and rates,
+  a pinned rate beating the scoring preference, continuous ranges, and
+  format-only (`startable == false`) alternates being skipped.
 
 ## How it works
 

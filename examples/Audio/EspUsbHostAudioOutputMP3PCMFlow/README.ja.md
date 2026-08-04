@@ -84,7 +84,7 @@ MP3だけであれば、まずPCMFlow版を使うのがシンプルです。ESP8
 EspUsbHost Audio Output MP3 PCMFlow example start
 playing: /sfx_alarm_loop6.mp3 (5447 bytes)
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
-audio stream: addr=1 iface=1 alt=1 ep=0x03 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=192 interval=1 proto=UAC1 clock=0
+audio stream: addr=1 iface=1 alt=1 ep=0x03 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=192 interval=1 proto=UAC1 clock=0 startable=1
 selected PCMFlow output: 48000 Hz, 2 ch, 16-bit
 audio output ready: addr=1
 playing: /sfx_coin_double1.mp3 (4265 bytes)
