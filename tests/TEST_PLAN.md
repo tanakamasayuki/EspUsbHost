@@ -38,6 +38,13 @@ unreleased Host-side fix needs pre-release validation, but the normal acceptance
 baseline here remains released EspUsbHost plus the Arduino Core standard Device
 implementation.
 
+A `peer/` test uses an `EspUsbDevice` peer only when the Arduino Core device
+stack cannot express the device at all: `usb_vendor`, `usb_ncm`,
+`hid_keyboard_composite`, `hid_keyboard_nkro`, and `usb_audio_uac2`. UAC2 is such
+a case because `USBAudioCard` is UAC1 only, so nothing in Arduino Core can
+present the Clock Source entity, the 4-byte Feature Unit controls, or the
+`RANGE` requests that the host's UAC2 path exists to handle.
+
 ```
 tests/
   peer/       Automated — two ESP32-S3 boards, one host + one device
@@ -69,9 +76,10 @@ See each subdirectory's README for hardware setup and individual test details.
 | MIDI multi-listener dispatch | ✅ peer (single-callback coexistence, listener-only delivery, ordering, capacity, removal, callback-time mutation) | | |
 | Device lifecycle multi-listener dispatch | ✅ peer (connect event from `end()` + re-begin, disconnect then reconnect from a peer reboot, single-callback coexistence, ordering, dedicated capacity of 8, removal) | | |
 | Vendor-specific bulk/control | ✅ peer (usb_vendor, including `end()`/restart) | ✅ manual (Android ADB auth + shell stream) | |
-| USB audio input/output | ✅ peer (bidirectional with standard `USBAudioCard`) | | ⬜ real USB microphones/audio interfaces |
+| USB audio input/output — UAC1 | ✅ peer (bidirectional with standard `USBAudioCard`) | | ⬜ real USB microphones/audio interfaces |
+| USB audio input/output — UAC2 | ✅ peer (`usb_audio_uac2`: class revision, Clock Source sample rates, 4-byte/2-bit Feature Unit controls, volume `RANGE`, feedback endpoint exclusion, bidirectional streaming), ✅ host unit (`unit/audio_uac`: descriptor and RANGE decoding) | | ⬜ real UAC2 devices, which are usually high-speed designs the full-speed host cannot enumerate; Clock Selector / Clock Multiplier |
 | USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, `fs::FS` wrapper, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, >32-bit-sector FatFs mount |
-| CCID smart card readers | | ✅ manual (`ccid_info` descriptor dump, `ccid_card` open/status/ATR/APDU on a Sony RC-S300) | ⬜ slot-change notifications (`ccid_hotplug`, needs an operator), multi-slot readers, contact cards, chained responses, ICCD variants |
+| CCID smart card readers | | ✅ manual (`ccid_info` descriptor dump, `ccid_card` open/status/ATR/APDU and `ccid_hotplug` slot-change notifications on a Sony RC-S300) | ⬜ multi-slot readers, contact cards, chained responses, ICCD variants |
 | USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual (generic descriptor candidate detection across configurations) | ⬜ configuration selection, frame RX/TX, lwIP integration |
 | Multiple devices | | ✅ manual | |
 | Device hot-plug | | ✅ manual | |

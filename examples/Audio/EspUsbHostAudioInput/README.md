@@ -24,7 +24,7 @@ Receives USB Audio isochronous IN data from a USB microphone or audio interface 
 ```
 EspUsbHost Audio Input example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Microphone"
-audio stream: addr=1 iface=1 alt=1 ep=0x81 dir=IN channels=1 bytes=2 bits=16 rate=48000 rates=1 max_packet=96 interval=1
+audio stream: addr=1 iface=1 alt=1 ep=0x81 dir=IN channels=1 bytes=2 bits=16 rate=48000 rates=1 max_packet=96 interval=1 proto=UAC1 clock=0
 audio input selected: addr=1 iface=1 alt=1 channels=1 bytes=2 bits=16 rate=48000
 audio input ready: addr=1
 audio: addr=1 iface=1 channels=1 bits=16 rate=48000 bytes_per_sec=96000 ch0_peak=12345( -8.5dBFS)

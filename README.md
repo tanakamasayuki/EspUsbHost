@@ -67,7 +67,7 @@ Host/Device loopback tests.
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
 - **USB network** — CDC-NCM / CDC-ECM USB Ethernet adapters, either as raw Ethernet frames or attached as an lwIP (`esp_netif`) interface so `NetworkClient` / `HTTPClient` run over USB with no Wi-Fi
-- **CCID smart card readers** — claim a CCID interface, card insertion/removal notifications, card activation with ATR, APDU exchange, and reader-specific escape commands
+- **CCID smart card readers** — claim a CCID interface, card insertion/removal notifications, card activation with ATR, card type (ISO 14443 A/B, ISO 15693, FeliCa, ...) from the ATR, APDU exchange, and reader-specific escape commands
 - **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT, an asynchronous bulk OUT queue with zero-copy buffers and automatic ZLP handling, and EP0 vendor requests
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
@@ -82,9 +82,9 @@ Host/Device loopback tests.
 | USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
 | USB MIDI | ✅ Done |
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT (synchronous and an asynchronous queue), automatic ZLP, and EP0 vendor IN/OUT requests |
-| CCID — smart card readers (bulk protocol) | ✅ Basic support implemented. Covers explicit interface claim, class descriptor parsing, slot status, power on/off with ATR, APDU/XfrBlock exchange, escape and raw messages, and slot-change notifications. Verified with a Sony RC-S300; ICCD variants, chained (extended APDU) responses, and PIN-pad features are out of scope |
+| CCID — smart card readers (bulk protocol) | ✅ Basic support implemented. Covers explicit interface claim, class descriptor parsing, slot status, power on/off with ATR, card type decoding from the ATR, APDU/XfrBlock exchange, escape and raw messages, and slot-change notifications. Verified with a Sony RC-S300; ICCD variants, chained (extended APDU) responses, and PIN-pad features are out of scope |
 | USB graphics adapter (DL-1xx bulk protocol) | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) on top of the vendor bulk API — nothing display-specific is in the library. A reference implementation for one chip family at 16 bpp; for other adapters or higher frame rates use a dedicated library such as [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) |
-| UAC — USB audio input/output | 🔲 Experimental. Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
+| UAC — USB audio input/output | 🔲 Experimental. UAC1 Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`, UAC2 with an `EspUsbDevice` peer (descriptors, Clock Source sample rates, Feature Unit mute/volume, and OUT/IN streaming); real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | CDC-NCM / CDC-ECM — USB Ethernet with raw frame access and lwIP netif attach | 🔲 Experimental. Peer-tested against the EspUsbDevice `UsbNetwork` sketch and an AX88179A adapter. Adapters whose network function is not in the default configuration need `setConfigurationSelector()` and two enumeration passes |
 | MSC — USB storage block I/O and FatFs/Arduino FS mount | 🔲 Experimental. Basic read/write and FatFs mounting with a single MSC device are peer/manual tested. Non-compliant devices, multiple MSC devices/LUNs, and full abnormal BOT recovery need further validation |
@@ -97,7 +97,7 @@ Host/Device loopback tests.
 | `onHIDReportDescriptor()` — HID report descriptor access | ✅ Done |
 | HID gamepad input — descriptor-decoded fields plus raw/report bytes for user-defined mapping | ✅ Mappable event API; mapping helpers still under consideration |
 | Channel count and endpoint usage visibility | ✅ Implemented as experimental diagnostics; useful for understanding limits with multi-device, Audio, MSC, and HUB combinations |
-| USB Audio IN real payload validation | ✅ Peer validation complete with standard Arduino `USBAudioCard`; real USB microphone/audio-interface validation remains |
+| USB Audio IN real payload validation | ✅ Peer validation complete with standard Arduino `USBAudioCard` (UAC1) and an `EspUsbDevice` peer (UAC2); real USB microphone/audio-interface validation remains |
 | ESP32-P4 validation | 🔲 Ongoing; verify FS/HS OTG, hub behavior, and loopback tests separately |
 | Loopback tests (ESP32-P4 single-board) | 🔲 In progress in `EspUsbDevice`; `tests/loopback` in this repository only contains README files |
 | Manual tests — VCP serial, multi-device, hot-plug | ✅ Main cases confirmed; additional device compatibility remains ongoing |
@@ -108,7 +108,7 @@ Host/Device loopback tests.
 - **Future breaking changes:** more incompatible API changes may still happen in 2.x while the API is being shaped around real devices and examples.
 - **USB host resources:** ESP32-S3 has a small number of USB host channels. Composite devices, hubs, audio, MSC, and multiple serial devices can exhaust channels quickly. Use `printDeviceInfo()` / `printAllDeviceInfo()` and the endpoint/channel diagnostic APIs to inspect resource use.
 - **Hubs:** use a self-powered USB 2.0 hub for multi-device tests. USB 3.x hubs and internally cascaded hubs may behave differently and are not fully validated.
-- **USB Audio:** input/output peer tests pass with the standard Arduino `USBAudioCard`. Real microphone/audio-interface validation is still limited. UAC2 clock/selector behavior and advanced Audio Control units are limited.
+- **USB Audio:** input/output peer tests pass with the standard Arduino `USBAudioCard` (UAC1) and an `EspUsbDevice` peer (UAC2). Real microphone/audio-interface validation is still limited, and because the ESP32-S3/S2 host is full speed only, a UAC2 device that has no full-speed configuration cannot be used at all. Clock Selector / Clock Multiplier entities and advanced Audio Control units remain unsupported.
 - **UVC / USB cameras:** currently unsupported. Arduino-ESP32's precompiled USB Host stack is built with `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256`, so a USB device whose configuration descriptor exceeds 256 bytes fails during enumeration, before a class driver can start. The Logitech C920 tested here has a 1,974-byte descriptor. A sketch or EspUsbHost build option cannot change this value because it belongs to the build configuration used to generate Arduino-ESP32's precompiled libraries. UVC support will be reconsidered if Arduino-ESP32 removes or raises this limit.
 - **Mass Storage:** FAT access is intended for a single practical MSC device. Multiple MSC devices, multiple LUN devices, unusual block sizes, and abnormal BOT recovery need more real-device validation. Non-compliant devices may require the `SYNCHRONIZE CACHE(10)` fallback described in the MSC section.
 - **Hot plug:** unplugging while files, serial transfers, audio streams, or class operations are active can still fail or lose data depending on device behavior.
@@ -294,7 +294,7 @@ void loop() {
 
 | Sketch | Description |
 |--------|-------------|
-| [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | Open a CCID smart card reader, report card insertion/removal, read the ATR, and send the PC/SC Get UID APDU |
+| [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | Open a CCID smart card reader, report card insertion/removal, read the ATR and card type, and send the PC/SC Get UID APDU |
 
 ### Network
 
@@ -674,6 +674,8 @@ bool ccidPowerOff(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                   uint32_t timeoutMs = 2000);
 size_t ccidGetAtr(uint8_t *buffer, size_t capacity, uint8_t slot = 0,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool ccidGetCardInfo(EspUsbHostCcidCardInfo &info, uint8_t slot = 0,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 bool ccidTransfer(const uint8_t *tx, size_t txLength,
                   uint8_t *rx, size_t rxCapacity, size_t *rxLength,
@@ -707,13 +709,19 @@ Every call that talks to the reader is synchronous and returns `false` when call
 
 `bSeq` is managed by the library: responses whose sequence number belongs to another command are dropped, and a response with the "time extension requested" command status is not treated as final — the library keeps waiting. Commands to one reader are serialized with a per-device mutex.
 
+`ccidGetCardInfo()` decodes the ATR that `ccidPowerOn()` cached into the card standard (`ISO 14443 A`, `ISO 14443 B`, `ISO 15693`, `FeliCa`, low-frequency contactless, ISO 7816-10 memory card), its level, and the card name. A contactless storage card has no ATR of its own, so a PC/SC compliant reader synthesizes one whose historical bytes carry the PC/SC RID `A0 00 00 03 06` followed by a standard byte and a card name -- that is what this reads. A card that answers with an ATR of its own (a contact card, or a contactless card speaking ISO 14443-4) carries no such identification and is reported as `ISO 7816 card (own ATR)` with `pcscStorageAtr == false`. A card whose ATR has no historical bytes at all -- what a CCID reader answers for a card it did not identify -- stays `unknown` rather than being guessed at. Card names are resolved for the well-known PC/SC values; `cardName` always holds the raw code. The parser is `src/EspUsbHostCcidAtr.h`, free of Arduino and USB dependencies and covered by the `tests/unit/ccid_atr` host test.
+
+Cards the ATR does not identify get a second chance from `ccidIdentifyCard()`, which sends Get UID and infers the standard from the identifier's shape (8 bytes = FeliCa IDm unless it starts with `0xe0`, which is an ISO 15693 UID; 7 or 10 bytes = ISO 14443 A NFCID1; 4 bytes starting with `0x08` = the random NFCID1 ISO 14443-3 reserves that prefix for; other 4-byte identifiers leave the ISO 14443 type open, since an NFCID1 and a PUPI are the same length). This is a heuristic on the identifier, not a statement by the card, and `info.fromUid` records that it was used.
+
+Measured with a FeliCa card on the RC-S300: the reader identifies it through the PC/SC ATR (`PIX.SS = 0x11`, `PIX.Name = 0x003b`), so `ccidGetCardInfo()` alone reports `FeliCa` and Get UID returns the 8-byte IDm. An iPhone in Apple Pay mode on the same reader answers as ISO 14443 A instead, with an ATR carrying no identification and a random 4-byte NFCID1 -- that is the phone's choice, not a reader limitation.
+
 `ccidApdu()` splits SW1SW2 off the response, so the caller's buffer only has to hold the data part. `61 xx` and `6C xx` are returned as-is rather than being followed automatically. `ccidTransfer()` is the same exchange without the split, and `ccidEscape()` / `ccidMessage()` cover reader-specific commands and any CCID message this API does not wrap.
 
 Chained responses (`bChainParameter != 0`, extended APDU level) are reported as a failure rather than returned as a fragment. ICCD variants (interface protocol `0x01` / `0x02`) are not supported.
 
 The message buffer is `ESP_USB_HOST_CCID_BUFFER_SIZE` (512) bytes, or `dwMaxCCIDMessageLength` when the reader reports more, up to 4096. Override the default with `-DESP_USB_HOST_CCID_BUFFER_SIZE=...`.
 
-Verified with a Sony RC-S300 (`FeliCa Port/PaSoRi 4.0`): the reader reports one slot, T=1, extended APDU exchange level and `dwMaxCCIDMessageLength = 522`, and an ISO 14443 card on it answers the PC/SC Get UID pseudo APDU `FF CA 00 00 00` with its UID and `9000`. FeliCa's own protocol is not ISO 7816 APDU, so reading FeliCa blocks needs reader-specific commands through `ccidEscape()`.
+Verified with a Sony RC-S300 (`FeliCa Port/PaSoRi 4.0`): the reader reports one slot, T=1, extended APDU exchange level and `dwMaxCCIDMessageLength = 522`; an ISO 14443 card on it is identified as `ISO 14443 A` level 3, `MIFARE Classic 1K`, and answers the PC/SC Get UID pseudo APDU `FF CA 00 00 00` with its UID and `9000`. FeliCa's own protocol is not ISO 7816 APDU, so reading FeliCa blocks (Read Without Encryption and friends) needs reader-specific commands through `ccidEscape()`; the card type and the IDm are available through the standard path.
 
 ### MIDI
 
@@ -847,18 +855,19 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 `onAudioOutputRequest` is the preferred USB Audio OUT API. After `audioOutputStart()`, the library drives isochronous OUT transfers and calls the callback when it needs the next PCM frames. Fill `request.data` with up to `request.frameCount` interleaved frames and set `request.writtenFrames`; any unwritten frames are sent as silence and counted as underruns. The callback runs on the USB client task, so keep it short and non-blocking; copy from an existing PCM buffer rather than doing heavy decoding in the callback.
 
-`getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and UAC1 Type I format fields when available, including discrete sample rates or a continuous sample-rate range. `espUsbHostSelectAudioInputStream` and `espUsbHostSelectAudioOutputStream` apply an optional `(sampleRate, channels, bitsPerSample)` filter, then score the remaining candidates. The default scoring prefers 48 kHz, then 44.1 kHz, 16-bit PCM, and stereo when available. `setAudioSampleRate` sets the UAC1 sampling frequency request used when activating audio streaming endpoints. `audioSend` remains as a low-level API for manually submitting raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
+`getAudioStreams` reports the streaming endpoint direction, endpoint packet size, and Type I format fields when available, including discrete sample rates or a continuous sample-rate range. `protocol` is `ESP_USB_HOST_AUDIO_PROTOCOL_UAC1` or `ESP_USB_HOST_AUDIO_PROTOCOL_UAC2`; on UAC2 `terminalLink` and `clockSourceId` name the Clock Source the rates were read from. `espUsbHostSelectAudioInputStream` and `espUsbHostSelectAudioOutputStream` apply an optional `(sampleRate, channels, bitsPerSample)` filter, then score the remaining candidates. The default scoring prefers 48 kHz, then 44.1 kHz, 16-bit PCM, and stereo when available. `setAudioSampleRate` sets the sampling frequency: the endpoint request on UAC1, the Clock Source `SAM_FREQ` control on UAC2. `audioSend` remains as a low-level API for manually submitting raw PCM payload bytes to a USB Audio streaming isochronous OUT endpoint.
 
-`getAudioFeatureUnits` reports parsed UAC1 Audio Control Feature Units. `audioGetMute`, `audioSetMute`, `audioGetVolume`, `audioSetVolume`, and the dB/range helpers use UAC1 class-specific Feature Unit requests. `audioSetVolumeDbClamped` applies the device min/max/resolution when the range is available. `audioConfigureVolume` is the simple playback helper: it unmutes/mutes when mute is supported and sets clamped dB volume when volume is supported. The percent helpers treat `1..100` as a PCM amplitude ratio (`20 * log10(percent / 100)`) and round to the device step after clamping to min/max; `0` mutes when mute is supported, or falls back to minimum volume. `unitId=0` selects the first Feature Unit that exposes the requested control. `channel=0` means master; channel values starting at 1 address per-channel controls. Raw volume values are signed 1/256 dB units.
+`getAudioFeatureUnits` reports parsed Audio Control Feature Units, with `protocol` and `controlSize` telling which layout they came from (UAC1 packs one bit per control at the stride in `bControlSize`, UAC2 two bits per control at a fixed 4-byte stride). `audioGetMute`, `audioSetMute`, `audioGetVolume`, `audioSetVolume`, and the dB/range helpers use class-specific Feature Unit requests, picking the request codes for the device's class revision (UAC1 `GET_CUR` / `GET_MIN` / `GET_MAX` / `GET_RES`, UAC2 `CUR` / `RANGE`). `audioSetVolumeDbClamped` applies the device min/max/resolution when the range is available. `audioConfigureVolume` is the simple playback helper: it unmutes/mutes when mute is supported and sets clamped dB volume when volume is supported. The percent helpers treat `1..100` as a PCM amplitude ratio (`20 * log10(percent / 100)`) and round to the device step after clamping to min/max; `0` mutes when mute is supported, or falls back to minimum volume. `unitId=0` selects the first Feature Unit that exposes the requested control. `channel=0` means master; channel values starting at 1 address per-channel controls. Raw volume values are signed 1/256 dB units.
 
 #### Audio scope
 
-The audio support targets **UAC1 (Audio Class 1.0), Type I PCM** streaming:
+The audio support targets **Type I PCM** streaming on **UAC1 (Audio Class 1.0)** and **UAC2 (Audio Class 2.0)**:
 
-- **Supported:** isochronous IN/OUT streaming, UAC1 Type I format parsing and sample-rate selection, and the **Feature Unit** Mute / Volume controls (get/set, range, dB and percent helpers).
-- **Not supported:** UAC2 devices and their **Clock Source / Clock Selector** entities; other Audio Control units — **Mixer / Selector / Processing Unit** — and Feature Unit controls beyond Mute/Volume (Bass, Mid, Treble, Automatic Gain, Delay, etc.). Devices that require these to start streaming, or that only expose UAC2 descriptors, may enumerate but not stream.
+- **Supported:** isochronous IN/OUT streaming, Type I format parsing and sample-rate selection, and the **Feature Unit** Mute / Volume controls (get/set, range, dB and percent helpers). On UAC2 this includes the **Clock Source** entity behind an interface's `bTerminalLink` — the supported rates come from a `SAM_FREQ` `RANGE` request because UAC2 descriptors do not carry them — the 4-byte / 2-bit `bmaControls` layout, the single `RANGE` volume request, and skipping the explicit feedback endpoint of an asynchronous playback interface.
+- **Not supported:** **Clock Selector / Clock Multiplier** entities; other Audio Control units — **Mixer / Selector / Processing Unit** — and Feature Unit controls beyond Mute/Volume (Bass, Mid, Treble, Automatic Gain, Delay, etc.). Devices that require these to start streaming may enumerate but not stream. Feedback endpoint values are discarded rather than used to adjust the OUT rate, so a long asynchronous playback session can drift.
+- **Bus speed:** the ESP32-S3 / ESP32-S2 host is full speed only. Many UAC2 devices are high-speed designs; one that has no full-speed configuration cannot be enumerated at all, and a full-speed isochronous endpoint is capped at 1023 bytes per frame (48 kHz and 96 kHz stereo fit, 192 kHz stereo does not).
 
-Audio OUT and IN are peer-verified with the standard Arduino `USBAudioCard`; validation against real USB microphones and audio interfaces is still limited.
+UAC1 audio OUT and IN are peer-verified with the standard Arduino `USBAudioCard`, and UAC2 with an `EspUsbDevice` peer (`tests/peer/usb_audio_uac2`). Validation against real USB microphones and audio interfaces is still limited.
 
 ### USB Mass Storage
 

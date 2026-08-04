@@ -19,6 +19,11 @@ void loop()
     size_t atrLength = 0;
     if (usb.ccidPowerOn(atr, sizeof(atr), &atrLength))
     {
+      EspUsbHostCcidCardInfo card;
+      if (usb.ccidGetCardInfo(card))
+      {
+        Serial.println(card.standardText);
+      }
       static const uint8_t getUid[] = {0xff, 0xca, 0x00, 0x00, 0x00};
       uint8_t response[32] = {};
       size_t responseLength = 0;

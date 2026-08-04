@@ -39,9 +39,38 @@ static constexpr uint8_t USB_CDC_CS_ETHERNET = 0x0f;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_CONTROL = 0x01;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
+static constexpr uint8_t USB_AUDIO_AC_HEADER = 0x01;
+static constexpr uint8_t USB_AUDIO_AC_INPUT_TERMINAL = 0x02;
+static constexpr uint8_t USB_AUDIO_AC_OUTPUT_TERMINAL = 0x03;
 static constexpr uint8_t USB_AUDIO_AC_FEATURE_UNIT = 0x06;
+static constexpr uint8_t USB_AUDIO_AC_CLOCK_SOURCE = 0x0a;
 static constexpr uint8_t USB_AUDIO_FEATURE_MUTE_CONTROL = 0x01;
 static constexpr uint8_t USB_AUDIO_FEATURE_VOLUME_CONTROL = 0x02;
+// UAC2 class requests and control selectors. RANGE replaces the UAC1
+// GET_MIN/GET_MAX/GET_RES triple, and the sample frequency moved from the
+// endpoint to the Clock Source entity's SAM_FREQ control.
+static constexpr uint8_t USB_AUDIO_REQUEST_CUR = 0x01;
+static constexpr uint8_t USB_AUDIO_REQUEST_RANGE = 0x02;
+static constexpr uint8_t USB_AUDIO_CLOCK_SAM_FREQ_CONTROL = 0x01;
+static constexpr uint8_t USB_AUDIO_ENTITY_SET_REQUEST_TYPE = 0x21;
+static constexpr uint8_t USB_AUDIO_ENTITY_GET_REQUEST_TYPE = 0xa1;
+// Clock Source bmControls D1..D0: 01 = sample frequency readable, 11 = also
+// host-programmable.
+static constexpr uint8_t USB_AUDIO_CLOCK_FREQ_CONTROL_MASK = 0x03;
+static constexpr uint8_t USB_AUDIO_CLOCK_FREQ_CONTROL_RW = 0x03;
+// UAC1 encodes the direction in bRequest (GET_CUR = 0x81, SET_CUR = 0x01). UAC2
+// has one code per attribute (CUR = 0x01, RANGE = 0x02) and takes the direction
+// from bmRequestType, so a UAC2 device stalls the UAC1 GET codes.
+static constexpr uint8_t USB_AUDIO_UAC1_GET_CUR_REQUEST = 0x81;
+
+static uint8_t audioCurRequest(uint8_t protocol, bool dataIn)
+{
+  if (!dataIn || protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    return USB_AUDIO_REQUEST_CUR;
+  }
+  return USB_AUDIO_UAC1_GET_CUR_REQUEST;
+}
 static constexpr uint8_t USB_MSC_SUBCLASS_SCSI = 0x06;
 static constexpr uint8_t USB_MSC_PROTOCOL_BULK_ONLY = 0x50;
 static constexpr uint32_t USB_MSC_CBW_SIGNATURE = 0x43425355;
@@ -64,6 +93,7 @@ static constexpr uint8_t SCSI_CMD_WRITE_16 = 0x8a;
 static constexpr uint8_t SCSI_CMD_SERVICE_ACTION_IN_16 = 0x9e;
 static constexpr uint8_t SCSI_SERVICE_ACTION_READ_CAPACITY_16 = 0x10;
 static constexpr size_t USB_MSC_MAX_TRANSFER_BYTES = 4096;
+static constexpr uint8_t USB_AUDIO_CS_AS_GENERAL = 0x01;
 static constexpr uint8_t USB_AUDIO_CS_AS_FORMAT_TYPE = 0x02;
 static constexpr uint8_t USB_AUDIO_FORMAT_TYPE_I = 0x01;
 static constexpr uint8_t HID_SUBCLASS_BOOT_VALUE = 0x01;
@@ -165,6 +195,38 @@ struct HIDReportDescriptorTransferContext
   EspUsbHost *host = nullptr;
   EspUsbHostHIDReportDescriptor descriptor;
 };
+
+// attemptIndex sentinel for the GET CUR fallback of the UAC2 sample frequency
+// query. Kept above every RANGE subrange count so the two never collide.
+static constexpr uint8_t AUDIO_CLOCK_CUR_ATTEMPT = 0xff;
+
+struct AudioClockRangeTransferContext
+{
+  EspUsbHost *host = nullptr;
+  uint8_t address = 0;
+  uint8_t clockSourceId = 0;
+  uint8_t attemptIndex = 0;
+};
+
+// The first SAM_FREQ RANGE request asks for a single subrange rather than doing
+// the spec's 2-byte wNumSubRanges probe first. Devices that validate wLength
+// against their own subrange count stall the probe, and a single discrete rate is
+// the common case, so this usually completes in one request without a stall. Any
+// device that has more subranges still says so in the wNumSubRanges it returns,
+// which the callback uses to ask again for the exact size.
+static constexpr uint8_t AUDIO_CLOCK_FIRST_ATTEMPT = 1;
+
+// Retry order after a failed attempt: one subrange, then the probe, then the
+// remaining exact sizes, then GET CUR.
+static uint8_t nextAudioClockRangeAttempt(uint8_t attempt)
+{
+  if (attempt == AUDIO_CLOCK_FIRST_ATTEMPT)
+  {
+    return 0;
+  }
+  const uint8_t next = attempt == 0 ? 2 : static_cast<uint8_t>(attempt + 1);
+  return next > ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES ? AUDIO_CLOCK_CUR_ATTEMPT : next;
+}
 
 static void syncTransferCallback(usb_transfer_t *transfer)
 {
@@ -809,7 +871,7 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage)
 
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out)
 {
-  out.printf("audio stream: addr=%u iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max_packet=%u interval=%u\n",
+  out.printf("audio stream: addr=%u iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max_packet=%u interval=%u proto=%s clock=%u\n",
              stream.address,
              stream.interfaceNumber,
              stream.alternate,
@@ -822,7 +884,9 @@ void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out)
              static_cast<unsigned long>(stream.sampleRate),
              stream.sampleRateCount,
              stream.maxPacketSize,
-             stream.interval);
+             stream.interval,
+             stream.protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ? "UAC2" : "UAC1",
+             stream.clockSourceId);
 }
 
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out)
@@ -3926,7 +3990,7 @@ bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
   device->audioInBytesPerSample = stream.bytesPerSample;
   device->audioInBitsPerSample = stream.bitsPerSample;
 
-  bool submitted = submitAudioSamplingFrequency(*device, stream.endpointAddress, selectedRate);
+  bool submitted = applyAudioStreamSampleRate(*device, stream, selectedRate);
   if (stream.alternate == 0)
   {
     submitted = submitInputTransfer(*selectedEndpoint) && submitted;
@@ -4138,6 +4202,37 @@ bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
 
   device->audioSampleRate = sampleRate;
   bool submitted = true;
+  if (device->audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    // UAC2 programs the rate once per Clock Source entity, not once per endpoint.
+    uint8_t applied[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
+    uint8_t appliedCount = 0;
+    for (uint8_t i = 0; i < device->audioStreamInfoCount; i++)
+    {
+      const uint8_t clockSourceId = device->audioStreamInfos[i].clockSourceId;
+      if (device->audioStreamInfos[i].protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ||
+          clockSourceId == 0)
+      {
+        continue;
+      }
+      bool alreadyApplied = false;
+      for (uint8_t j = 0; j < appliedCount; j++)
+      {
+        if (applied[j] == clockSourceId)
+        {
+          alreadyApplied = true;
+          break;
+        }
+      }
+      if (alreadyApplied || appliedCount >= ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES)
+      {
+        continue;
+      }
+      applied[appliedCount++] = clockSourceId;
+      submitted = submitAudioClockSampleRate(*device, clockSourceId, device->audioSampleRate) && submitted;
+    }
+    return submitted;
+  }
   if (device->hasAudioOutEndpoint)
   {
     submitted = submitAudioSamplingFrequency(*device, device->audioOutEndpointAddress, device->audioSampleRate) && submitted;
@@ -4270,7 +4365,7 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     return false;
   }
 
-  bool submitted = submitAudioSamplingFrequency(*device, stream.endpointAddress, selectedRate);
+  bool submitted = applyAudioStreamSampleRate(*device, stream, selectedRate);
   if (stream.alternate > 0)
   {
     submitted = submitSetInterface(*device, stream.interfaceNumber, stream.alternate) && submitted;
@@ -4413,7 +4508,7 @@ bool EspUsbHost::audioGetMute(bool &mute, uint8_t address, uint8_t unitId, uint8
     return false;
   }
   uint8_t value = 0;
-  if (!audioFeatureControl(*device, 0x81, unit->unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel, &value, sizeof(value), true, timeoutMs))
+  if (!audioFeatureControl(*device, audioCurRequest(unit->protocol, true), unit->unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel, &value, sizeof(value), true, timeoutMs))
   {
     return false;
   }
@@ -4430,7 +4525,7 @@ bool EspUsbHost::audioSetMute(bool mute, uint8_t address, uint8_t unitId, uint8_
     return false;
   }
   uint8_t value = mute ? 1 : 0;
-  return audioFeatureControl(*device, 0x01, unit->unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel, &value, sizeof(value), false, timeoutMs);
+  return audioFeatureControl(*device, audioCurRequest(unit->protocol, false), unit->unitId, USB_AUDIO_FEATURE_MUTE_CONTROL, channel, &value, sizeof(value), false, timeoutMs);
 }
 
 bool EspUsbHost::audioGetVolume(int16_t &volume, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
@@ -4442,7 +4537,7 @@ bool EspUsbHost::audioGetVolume(int16_t &volume, uint8_t address, uint8_t unitId
     return false;
   }
   uint8_t value[2] = {};
-  if (!audioFeatureControl(*device, 0x81, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
+  if (!audioFeatureControl(*device, audioCurRequest(unit->protocol, true), unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
   {
     return false;
   }
@@ -4460,7 +4555,7 @@ bool EspUsbHost::audioSetVolume(int16_t volume, uint8_t address, uint8_t unitId,
   }
   uint8_t value[2] = {};
   writeLe16(value, volume);
-  return audioFeatureControl(*device, 0x01, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), false, timeoutMs);
+  return audioFeatureControl(*device, audioCurRequest(unit->protocol, false), unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), false, timeoutMs);
 }
 
 bool EspUsbHost::audioGetVolumeRange(EspUsbHostAudioVolumeRange &range, uint8_t address, uint8_t unitId, uint8_t channel, uint32_t timeoutMs)
@@ -4471,6 +4566,21 @@ bool EspUsbHost::audioGetVolumeRange(EspUsbHostAudioVolumeRange &range, uint8_t 
   {
     return false;
   }
+  if (unit->protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    // UAC2 replaced GET_MIN/GET_MAX/GET_RES with a single RANGE request that
+    // returns wNumSubRanges followed by MIN/MAX/RES triples. Only the first
+    // subrange is reported: the volume APIs work with one continuous range.
+    uint8_t payload[2 + 6] = {};
+    if (!audioFeatureControl(*device, USB_AUDIO_REQUEST_RANGE, unit->unitId,
+                             USB_AUDIO_FEATURE_VOLUME_CONTROL, channel,
+                             payload, sizeof(payload), true, timeoutMs))
+    {
+      return false;
+    }
+    return espUsbHostAudioDecodeVolumeRange(payload, sizeof(payload), range);
+  }
+
   uint8_t value[2] = {};
   if (!audioFeatureControl(*device, 0x82, unit->unitId, USB_AUDIO_FEATURE_VOLUME_CONTROL, channel, value, sizeof(value), true, timeoutMs))
   {
@@ -6065,13 +6175,14 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
   for (size_t i = 0; i < audioUnitCount && i < ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS; i++)
   {
     const EspUsbHostAudioFeatureUnitInfo &unit = audioUnits[i];
-    out.printf("  Audio Feature Unit iface=%u unit=%u source=%u channels=%u control_size=%u master=0x%lx\n",
+    out.printf("  Audio Feature Unit iface=%u unit=%u source=%u channels=%u control_size=%u master=0x%lx proto=%s\n",
                unit.interfaceNumber,
                unit.unitId,
                unit.sourceId,
                unit.channelCount,
                unit.controlSize,
-               static_cast<unsigned long>(unit.masterControls));
+               static_cast<unsigned long>(unit.masterControls),
+               unit.protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ? "UAC2" : "UAC1");
     for (uint8_t channel = 0; channel < unit.channelCount; channel++)
     {
       out.printf("    Channel %u controls=0x%lx\n",
@@ -6769,6 +6880,14 @@ void EspUsbHost::parseConfigDescriptor(DeviceState &device, const usb_config_des
     i += length;
   }
   currentDevice_ = nullptr;
+
+  if (device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    // UAC2 keeps the supported sample rates in the Clock Source entity instead of
+    // the format descriptor, so they need a class request. This runs on the USB
+    // client task, hence the asynchronous transfer with its own callback.
+    queryAudioClockSampleRates(device);
+  }
 }
 
 size_t EspUsbHost::parseNetworkInterfaces(uint8_t address,
@@ -6961,6 +7080,16 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     currentAudioSampleRateMin_ = 0;
     currentAudioSampleRateMax_ = 0;
     currentAudioSampleRateResolution_ = 0;
+    currentAudioTerminalLink_ = 0;
+    if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
+        currentInterfaceProtocol_ == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+    {
+      // Every interface of a UAC2 audio function repeats the revision in
+      // bInterfaceProtocol. Latch it rather than assigning per interface: a device
+      // with two audio functions would otherwise flip back to UAC1 while the UAC2
+      // function's streaming interfaces are still being parsed.
+      device->audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+    }
     currentInterfaceClaimed_ = false;
     currentClaimResult_ = ESP_OK;
     if (device->interfaceInfoCount < ESP_USB_HOST_MAX_INTERFACES)
@@ -7131,40 +7260,9 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       break;
     }
     if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
-        currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
-        data[0] >= 8 &&
-        data[2] == USB_AUDIO_CS_AS_FORMAT_TYPE &&
-        data[3] == USB_AUDIO_FORMAT_TYPE_I)
+        currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING)
     {
-      currentAudioChannels_ = data[4];
-      currentAudioBytesPerSample_ = data[5];
-      currentAudioBitsPerSample_ = data[6];
-      const uint8_t sampleFrequencyType = data[7];
-      if (sampleFrequencyType == 0 && data[0] >= 17)
-      {
-        currentAudioSampleRateMin_ = readAudioSampleRate24(&data[8]);
-        currentAudioSampleRateMax_ = readAudioSampleRate24(&data[11]);
-        currentAudioSampleRateResolution_ = readAudioSampleRate24(&data[14]);
-        currentAudioSampleRate_ = currentAudioSampleRateMin_;
-      }
-      else if (sampleFrequencyType > 0 && data[0] >= 8 + sampleFrequencyType * 3)
-      {
-        currentAudioSampleRateCount_ = sampleFrequencyType < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES
-                                           ? sampleFrequencyType
-                                           : ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES;
-        for (uint8_t i = 0; i < currentAudioSampleRateCount_; i++)
-        {
-          currentAudioSampleRates_[i] = readAudioSampleRate24(&data[8 + i * 3]);
-        }
-        currentAudioSampleRate_ = currentAudioSampleRates_[0];
-      }
-      ESP_LOGI(TAG, "USB Audio Type I format: iface=%u channels=%u bytes=%u bits=%u rate=%lu rates=%u",
-               currentInterfaceNumber_,
-               currentAudioChannels_,
-               currentAudioBytesPerSample_,
-               currentAudioBitsPerSample_,
-               static_cast<unsigned long>(currentAudioSampleRate_),
-               currentAudioSampleRateCount_);
+      parseAudioStreamingDescriptor(*device, data);
     }
     break;
   }
@@ -7337,6 +7435,18 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isIsochronous)
     {
       static constexpr int AUDIO_ISOC_PACKETS = 8;
+      if (espUsbHostAudioIsFeedbackEndpoint(ep->bmAttributes))
+      {
+        // Explicit feedback endpoint of an asynchronous playback interface. It
+        // reports the device's rate estimate, not audio, so it must not be
+        // registered as a capture stream or consume an endpoint slot.
+        ESP_LOGI(TAG, "USB Audio feedback endpoint ignored: iface=%u ep=0x%02x size=%u interval=%u",
+                 currentInterfaceNumber_,
+                 ep->bEndpointAddress,
+                 ep->wMaxPacketSize,
+                 ep->bInterval);
+        return;
+      }
       if (!isIn)
       {
         recordAudioStream(*device, ep, false);
@@ -7517,26 +7627,229 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
 
 void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t *data)
 {
-  if (!data || data[0] < 7 || data[2] != USB_AUDIO_AC_FEATURE_UNIT)
+  if (!data || data[0] < 3)
   {
     return;
   }
 
-  const uint8_t length = data[0];
+  switch (data[2])
+  {
+  case USB_AUDIO_AC_HEADER:
+    // bcdADC is the authoritative class revision. Prefer it over
+    // bInterfaceProtocol, which some devices leave at 0 even for UAC2.
+    if (data[0] >= 5 &&
+        data[4] >= 0x02 &&
+        device.audioProtocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+    {
+      device.audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+      ESP_LOGI(TAG, "USB Audio class revision from bcdADC: iface=%u bcdADC=0x%02x%02x",
+               currentInterfaceNumber_,
+               data[4],
+               data[3]);
+    }
+    break;
+  case USB_AUDIO_AC_CLOCK_SOURCE:
+    parseAudioClockSourceDescriptor(device, data);
+    break;
+  case USB_AUDIO_AC_INPUT_TERMINAL:
+    parseAudioTerminalDescriptor(device, data, true);
+    break;
+  case USB_AUDIO_AC_OUTPUT_TERMINAL:
+    parseAudioTerminalDescriptor(device, data, false);
+    break;
+  case USB_AUDIO_AC_FEATURE_UNIT:
+    parseAudioFeatureUnitDescriptor(device, data);
+    break;
+  default:
+    break;
+  }
+}
+
+void EspUsbHost::parseAudioClockSourceDescriptor(DeviceState &device, const uint8_t *data)
+{
+  // CLOCK_SOURCE only exists in UAC2: bClockID, bmAttributes, bmControls,
+  // bAssocTerminal, iClockSource.
+  if (device.audioProtocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 || data[0] < 6)
+  {
+    return;
+  }
+
+  const uint8_t clockSourceId = data[3];
+  if (clockSourceId == 0)
+  {
+    return;
+  }
+
+  AudioClockSourceState *clock = nullptr;
+  for (uint8_t i = 0; i < device.audioClockSourceCount; i++)
+  {
+    if (device.audioClockSources[i].clockSourceId == clockSourceId)
+    {
+      clock = &device.audioClockSources[i];
+      break;
+    }
+  }
+  if (!clock)
+  {
+    if (device.audioClockSourceCount >= ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES)
+    {
+      ESP_LOGD(TAG, "USB Audio Clock Source ignored, no slots: clock=%u", clockSourceId);
+      return;
+    }
+    clock = &device.audioClockSources[device.audioClockSourceCount++];
+  }
+
+  clock->clockSourceId = clockSourceId;
+  clock->attributes = data[4];
+  clock->controls = data[5];
+  ESP_LOGI(TAG, "USB Audio Clock Source: iface=%u clock=%u attributes=0x%02x controls=0x%02x",
+           currentInterfaceNumber_,
+           clock->clockSourceId,
+           clock->attributes,
+           clock->controls);
+}
+
+void EspUsbHost::parseAudioTerminalDescriptor(DeviceState &device, const uint8_t *data, bool input)
+{
+  // UAC2 terminals name the clock that drives them: bCSourceID sits at offset 7
+  // in an Input Terminal and at offset 8 in an Output Terminal (after bSourceID).
+  // UAC1 terminals have no clock field.
+  if (device.audioProtocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    return;
+  }
+  const uint8_t clockOffset = input ? 7 : 8;
+  if (data[0] <= clockOffset)
+  {
+    return;
+  }
+
+  const uint8_t terminalId = data[3];
+  const uint8_t clockSourceId = data[clockOffset];
+  if (terminalId == 0 || clockSourceId == 0)
+  {
+    return;
+  }
+
+  for (uint8_t i = 0; i < device.audioTerminalClockCount; i++)
+  {
+    if (device.audioTerminalClocks[i].terminalId == terminalId)
+    {
+      device.audioTerminalClocks[i].clockSourceId = clockSourceId;
+      return;
+    }
+  }
+  if (device.audioTerminalClockCount >= ESP_USB_HOST_MAX_AUDIO_TERMINALS)
+  {
+    ESP_LOGD(TAG, "USB Audio terminal clock link ignored, no slots: terminal=%u", terminalId);
+    return;
+  }
+  AudioTerminalClockLink &link = device.audioTerminalClocks[device.audioTerminalClockCount++];
+  link.terminalId = terminalId;
+  link.clockSourceId = clockSourceId;
+  ESP_LOGI(TAG, "USB Audio terminal clock link: iface=%u terminal=%u clock=%u",
+           currentInterfaceNumber_,
+           terminalId,
+           clockSourceId);
+}
+
+void EspUsbHost::parseAudioStreamingDescriptor(DeviceState &device, const uint8_t *data)
+{
+  if (data[0] < 4)
+  {
+    return;
+  }
+  const bool uac2 = device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+
+  if (data[2] == USB_AUDIO_CS_AS_GENERAL)
+  {
+    // bTerminalLink is at the same offset in both revisions. UAC2 additionally
+    // carries bNrChannels here, because its Format Type I descriptor dropped it.
+    currentAudioTerminalLink_ = data[3];
+    if (uac2 && data[0] >= 16)
+    {
+      currentAudioChannels_ = data[10];
+    }
+    return;
+  }
+
+  if (data[2] != USB_AUDIO_CS_AS_FORMAT_TYPE || data[3] != USB_AUDIO_FORMAT_TYPE_I)
+  {
+    return;
+  }
+
+  if (uac2)
+  {
+    // UAC2 Format Type I is bSubslotSize + bBitResolution only; the channel count
+    // came from AS_GENERAL and the sample rates live in the Clock Source entity,
+    // so they are filled in later by the SAM_FREQ RANGE query.
+    if (data[0] < 6)
+    {
+      return;
+    }
+    currentAudioBytesPerSample_ = data[4];
+    currentAudioBitsPerSample_ = data[5];
+    ESP_LOGI(TAG, "USB Audio UAC2 Type I format: iface=%u channels=%u bytes=%u bits=%u terminal=%u",
+             currentInterfaceNumber_,
+             currentAudioChannels_,
+             currentAudioBytesPerSample_,
+             currentAudioBitsPerSample_,
+             currentAudioTerminalLink_);
+    return;
+  }
+
+  if (data[0] < 8)
+  {
+    return;
+  }
+  currentAudioChannels_ = data[4];
+  currentAudioBytesPerSample_ = data[5];
+  currentAudioBitsPerSample_ = data[6];
+  const uint8_t sampleFrequencyType = data[7];
+  if (sampleFrequencyType == 0 && data[0] >= 17)
+  {
+    currentAudioSampleRateMin_ = readAudioSampleRate24(&data[8]);
+    currentAudioSampleRateMax_ = readAudioSampleRate24(&data[11]);
+    currentAudioSampleRateResolution_ = readAudioSampleRate24(&data[14]);
+    currentAudioSampleRate_ = currentAudioSampleRateMin_;
+  }
+  else if (sampleFrequencyType > 0 && data[0] >= 8 + sampleFrequencyType * 3)
+  {
+    currentAudioSampleRateCount_ = sampleFrequencyType < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES
+                                       ? sampleFrequencyType
+                                       : ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES;
+    for (uint8_t i = 0; i < currentAudioSampleRateCount_; i++)
+    {
+      currentAudioSampleRates_[i] = readAudioSampleRate24(&data[8 + i * 3]);
+    }
+    currentAudioSampleRate_ = currentAudioSampleRates_[0];
+  }
+  ESP_LOGI(TAG, "USB Audio Type I format: iface=%u channels=%u bytes=%u bits=%u rate=%lu rates=%u",
+           currentInterfaceNumber_,
+           currentAudioChannels_,
+           currentAudioBytesPerSample_,
+           currentAudioBitsPerSample_,
+           static_cast<unsigned long>(currentAudioSampleRate_),
+           currentAudioSampleRateCount_);
+}
+
+void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint8_t *data)
+{
+  if (data[0] < 7)
+  {
+    return;
+  }
+
   const uint8_t unitId = data[3];
   const uint8_t sourceId = data[4];
-  const uint8_t controlSize = data[5];
-  if (unitId == 0 || controlSize == 0 || controlSize > 4)
+  const EspUsbHostAudioFeatureUnitLayout layout = espUsbHostAudioFeatureUnitLayout(data, device.audioProtocol);
+  if (unitId == 0 || !layout.valid)
   {
     return;
   }
-
-  const uint8_t controlBytes = length - 7;
-  if (controlBytes < controlSize)
-  {
-    return;
-  }
-  const uint8_t descriptorChannelCount = (controlBytes / controlSize) - 1;
+  const uint8_t controlSize = layout.controlSize;
+  const uint8_t controlOffset = layout.controlOffset;
+  const uint8_t descriptorChannelCount = layout.channelCount;
 
   EspUsbHostAudioFeatureUnitInfo *unit = nullptr;
   for (EspUsbHostAudioFeatureUnitInfo &candidate : device.audioFeatureUnits)
@@ -7563,6 +7876,7 @@ void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t 
   unit->unitId = unitId;
   unit->sourceId = sourceId;
   unit->controlSize = controlSize;
+  unit->protocol = device.audioProtocol;
   unit->channelCount = descriptorChannelCount < ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS
                            ? descriptorChannelCount
                            : ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS;
@@ -7570,7 +7884,7 @@ void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t 
   auto readControls = [&](uint8_t controlIndex) -> uint32_t
   {
     uint32_t controls = 0;
-    const uint8_t *controlData = &data[6 + controlIndex * controlSize];
+    const uint8_t *controlData = &data[controlOffset + controlIndex * controlSize];
     for (uint8_t i = 0; i < controlSize; i++)
     {
       controls |= static_cast<uint32_t>(controlData[i]) << (8 * i);
@@ -7620,6 +7934,44 @@ void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep,
   info.sampleRateResolution = currentAudioSampleRateResolution_;
   info.maxPacketSize = ep->wMaxPacketSize;
   info.interval = ep->bInterval;
+  info.protocol = device.audioProtocol;
+  info.terminalLink = currentAudioTerminalLink_;
+  if (device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    info.clockSourceId = resolveAudioClockSource(device, currentAudioTerminalLink_);
+  }
+}
+
+const EspUsbHost::AudioClockSourceState *EspUsbHost::findAudioClockSource(const DeviceState &device,
+                                                                         uint8_t clockSourceId) const
+{
+  for (uint8_t i = 0; i < device.audioClockSourceCount; i++)
+  {
+    if (device.audioClockSources[i].clockSourceId == clockSourceId)
+    {
+      return &device.audioClockSources[i];
+    }
+  }
+  return nullptr;
+}
+
+uint8_t EspUsbHost::resolveAudioClockSource(const DeviceState &device, uint8_t terminalLink) const
+{
+  for (uint8_t i = 0; i < device.audioTerminalClockCount; i++)
+  {
+    const AudioTerminalClockLink &link = device.audioTerminalClocks[i];
+    if (link.terminalId == terminalLink && findAudioClockSource(device, link.clockSourceId))
+    {
+      return link.clockSourceId;
+    }
+  }
+  // Devices with a single clock entity are common enough that falling back to it
+  // is more useful than giving up when the terminal link cannot be matched.
+  if (device.audioClockSourceCount == 1)
+  {
+    return device.audioClockSources[0].clockSourceId;
+  }
+  return 0;
 }
 
 void EspUsbHost::transferCallback(usb_transfer_t *transfer)
@@ -9463,7 +9815,7 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioFeatureUnit(const Dev
       continue;
     }
     const uint32_t controls = channel == 0 ? unit.masterControls : unit.channelControls[channel - 1];
-    if ((controls & (1UL << (controlSelector - 1))) == 0)
+    if (!espUsbHostAudioFeatureHasControl(controls, controlSelector, unit.protocol))
     {
       continue;
     }
@@ -9504,8 +9856,8 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioPlaybackFeatureUnit(c
       continue;
     }
     const uint32_t controls = channel == 0 ? unit.masterControls : unit.channelControls[channel - 1];
-    const bool hasMute = (controls & (1UL << (USB_AUDIO_FEATURE_MUTE_CONTROL - 1))) != 0;
-    const bool hasVolume = (controls & (1UL << (USB_AUDIO_FEATURE_VOLUME_CONTROL - 1))) != 0;
+    const bool hasMute = espUsbHostAudioFeatureHasControl(controls, USB_AUDIO_FEATURE_MUTE_CONTROL, unit.protocol);
+    const bool hasVolume = espUsbHostAudioFeatureHasControl(controls, USB_AUDIO_FEATURE_VOLUME_CONTROL, unit.protocol);
     if (hasMute && hasVolume)
     {
       return &unit;
@@ -10499,6 +10851,9 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.hasAudioOutEndpoint = false;
   device.audioOutRunning = false;
   device.audioFeatureUnitCount = 0;
+  device.audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
+  device.audioClockSourceCount = 0;
+  device.audioTerminalClockCount = 0;
   device.hasMscInterface = false;
   device.hasMscInEndpoint = false;
   device.hasMscOutEndpoint = false;
@@ -11833,6 +12188,328 @@ bool EspUsbHost::submitAudioSamplingFrequency(DeviceState &device, uint8_t endpo
            endpointAddress,
            static_cast<unsigned long>(sampleRate));
   return true;
+}
+
+bool EspUsbHost::submitAudioClockSampleRate(DeviceState &device, uint8_t clockSourceId, uint32_t sampleRate)
+{
+  if (!clientHandle_ || !device.handle || clockSourceId == 0 ||
+      device.audioControlInterfaceNumber == 0xff)
+  {
+    return false;
+  }
+
+  const AudioClockSourceState *clock = findAudioClockSource(device, clockSourceId);
+  if (clock && (clock->controls & USB_AUDIO_CLOCK_FREQ_CONTROL_MASK) != USB_AUDIO_CLOCK_FREQ_CONTROL_RW)
+  {
+    // A clock whose sample frequency control is read-only (or absent) runs at a
+    // fixed rate. Skipping the request is not a failure: the caller's rate came
+    // from the RANGE query, so it already matches what the device runs at.
+    ESP_LOGI(TAG, "USB Audio clock=%u sample frequency is not programmable (controls=0x%02x)",
+             clockSourceId,
+             clock->controls);
+    return true;
+  }
+
+  static constexpr size_t AUDIO_CLOCK_SAMPLE_RATE_LENGTH = 4;
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + AUDIO_CLOCK_SAMPLE_RATE_LENGTH, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(Audio clock SET_CUR) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_AUDIO_ENTITY_SET_REQUEST_TYPE;
+  setup->bRequest = USB_AUDIO_REQUEST_CUR;
+  setup->wValue = static_cast<uint16_t>(USB_AUDIO_CLOCK_SAM_FREQ_CONTROL) << 8;
+  setup->wIndex = static_cast<uint16_t>(static_cast<uint16_t>(clockSourceId) << 8) |
+                  device.audioControlInterfaceNumber;
+  setup->wLength = AUDIO_CLOCK_SAMPLE_RATE_LENGTH;
+
+  uint8_t *frequency = transfer->data_buffer + USB_SETUP_PACKET_SIZE;
+  frequency[0] = sampleRate & 0xff;
+  frequency[1] = (sampleRate >> 8) & 0xff;
+  frequency[2] = (sampleRate >> 16) & 0xff;
+  frequency[3] = (sampleRate >> 24) & 0xff;
+
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = controlTransferCallback;
+  transfer->context = this;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + AUDIO_CLOCK_SAMPLE_RATE_LENGTH;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Audio clock SET_CUR clock=%u) failed: %s",
+             clockSourceId,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Audio clock SET_CUR submitted clock=%u rate=%lu",
+           clockSourceId,
+           static_cast<unsigned long>(sampleRate));
+  return true;
+}
+
+bool EspUsbHost::applyAudioStreamSampleRate(DeviceState &device,
+                                            const EspUsbHostAudioStreamInfo &stream,
+                                            uint32_t sampleRate)
+{
+  if (stream.protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    return submitAudioSamplingFrequency(device, stream.endpointAddress, sampleRate);
+  }
+  if (stream.clockSourceId == 0)
+  {
+    // No clock entity was found for this stream, so there is nothing to program.
+    // The device keeps whatever rate it defaults to.
+    ESP_LOGD(TAG, "USB Audio UAC2 stream iface=%u ep=0x%02x has no clock source",
+             stream.interfaceNumber,
+             stream.endpointAddress);
+    return true;
+  }
+  return submitAudioClockSampleRate(device, stream.clockSourceId, sampleRate);
+}
+
+bool EspUsbHost::submitAudioClockSampleRateRange(DeviceState &device, uint8_t clockSourceId, uint8_t attemptIndex)
+{
+  if (!clientHandle_ || !device.handle || clockSourceId == 0 ||
+      device.audioControlInterfaceNumber == 0xff)
+  {
+    return false;
+  }
+
+  // attemptIndex selects the wLength strategy:
+  //   0                          - 2-byte probe that reads wNumSubRanges only
+  //   1..MAX_AUDIO_SAMPLE_RATES  - full RANGE payload for that many subranges
+  //   AUDIO_CLOCK_CUR_ATTEMPT    - GET CUR fallback, learns just the active rate
+  // See nextAudioClockRangeAttempt() for the order they are tried in.
+  const bool current = attemptIndex == AUDIO_CLOCK_CUR_ATTEMPT;
+  const size_t length = current ? 4 : (attemptIndex == 0 ? 2 : 2 + static_cast<size_t>(attemptIndex) * 12);
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + length, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(Audio clock RANGE) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  AudioClockRangeTransferContext *context = new (std::nothrow) AudioClockRangeTransferContext();
+  if (!context)
+  {
+    usb_host_transfer_free(transfer);
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+  context->host = this;
+  context->address = device.info.address;
+  context->clockSourceId = clockSourceId;
+  context->attemptIndex = attemptIndex;
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_AUDIO_ENTITY_GET_REQUEST_TYPE;
+  setup->bRequest = current ? USB_AUDIO_REQUEST_CUR : USB_AUDIO_REQUEST_RANGE;
+  setup->wValue = static_cast<uint16_t>(USB_AUDIO_CLOCK_SAM_FREQ_CONTROL) << 8;
+  setup->wIndex = static_cast<uint16_t>(static_cast<uint16_t>(clockSourceId) << 8) |
+                  device.audioControlInterfaceNumber;
+  setup->wLength = static_cast<uint16_t>(length);
+
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = audioClockRangeTransferCallback;
+  transfer->context = context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE + length;
+
+  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(Audio clock %s clock=%u) failed: %s",
+             current ? "GET CUR" : "RANGE",
+             clockSourceId,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    delete context;
+    return false;
+  }
+  return true;
+}
+
+void EspUsbHost::queryAudioClockSampleRates(DeviceState &device)
+{
+  uint8_t queried[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
+  uint8_t queriedCount = 0;
+
+  for (uint8_t i = 0; i < device.audioStreamInfoCount; i++)
+  {
+    const EspUsbHostAudioStreamInfo &stream = device.audioStreamInfos[i];
+    if (stream.protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 || stream.clockSourceId == 0)
+    {
+      continue;
+    }
+    bool alreadyQueried = false;
+    for (uint8_t j = 0; j < queriedCount; j++)
+    {
+      if (queried[j] == stream.clockSourceId)
+      {
+        alreadyQueried = true;
+        break;
+      }
+    }
+    if (alreadyQueried || queriedCount >= ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES)
+    {
+      continue;
+    }
+    queried[queriedCount++] = stream.clockSourceId;
+    submitAudioClockSampleRateRange(device, stream.clockSourceId, AUDIO_CLOCK_FIRST_ATTEMPT);
+  }
+}
+
+void EspUsbHost::applyAudioClockSampleRates(DeviceState &device,
+                                            uint8_t clockSourceId,
+                                            const uint32_t *rates,
+                                            size_t rateCount,
+                                            uint32_t currentRate)
+{
+  uint32_t resolved[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES] = {};
+  size_t resolvedCount = 0;
+  for (size_t i = 0; i < rateCount && resolvedCount < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES; i++)
+  {
+    if (rates && rates[i] > 0)
+    {
+      resolved[resolvedCount++] = rates[i];
+    }
+  }
+  if (resolvedCount == 0)
+  {
+    if (currentRate == 0)
+    {
+      return;
+    }
+    resolved[resolvedCount++] = currentRate;
+  }
+
+  uint32_t min = resolved[0];
+  uint32_t max = resolved[0];
+  for (size_t i = 1; i < resolvedCount; i++)
+  {
+    min = resolved[i] < min ? resolved[i] : min;
+    max = resolved[i] > max ? resolved[i] : max;
+  }
+
+  uint8_t updated = 0;
+  for (uint8_t i = 0; i < device.audioStreamInfoCount; i++)
+  {
+    EspUsbHostAudioStreamInfo &stream = device.audioStreamInfos[i];
+    if (stream.protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ||
+        stream.clockSourceId != clockSourceId)
+    {
+      continue;
+    }
+    stream.sampleRateCount = static_cast<uint8_t>(resolvedCount);
+    for (size_t j = 0; j < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES; j++)
+    {
+      stream.sampleRates[j] = j < resolvedCount ? resolved[j] : 0;
+    }
+    stream.sampleRateMin = min;
+    stream.sampleRateMax = max;
+    stream.sampleRateResolution = 0;
+    // Prefer the rate the device reports as active, so the stream's nominal rate
+    // matches the hardware before anything is started.
+    stream.sampleRate = resolved[0];
+    if (currentRate > 0 && espUsbHostAudioStreamSupportsSampleRate(stream, currentRate))
+    {
+      stream.sampleRate = currentRate;
+    }
+    updated++;
+  }
+
+  ESP_LOGI(TAG, "USB Audio clock=%u sample rates: count=%u first=%lu min=%lu max=%lu streams=%u",
+           clockSourceId,
+           static_cast<unsigned>(resolvedCount),
+           static_cast<unsigned long>(resolved[0]),
+           static_cast<unsigned long>(min),
+           static_cast<unsigned long>(max),
+           updated);
+}
+
+void EspUsbHost::audioClockRangeTransferCallback(usb_transfer_t *transfer)
+{
+  AudioClockRangeTransferContext *context = static_cast<AudioClockRangeTransferContext *>(transfer->context);
+  EspUsbHost *host = context ? context->host : nullptr;
+  DeviceState *device = host ? host->findDevice(context->address) : nullptr;
+
+  size_t payload = transfer->actual_num_bytes;
+  payload = payload > USB_SETUP_PACKET_SIZE ? payload - USB_SETUP_PACKET_SIZE : 0;
+  const uint8_t *data = transfer->data_buffer + USB_SETUP_PACKET_SIZE;
+  const bool completed = transfer->status == USB_TRANSFER_STATUS_COMPLETED;
+
+  bool handled = false;
+  if (device && completed)
+  {
+    if (context->attemptIndex == AUDIO_CLOCK_CUR_ATTEMPT)
+    {
+      if (payload >= 4)
+      {
+        host->applyAudioClockSampleRates(*device, context->clockSourceId, nullptr, 0,
+                                         espUsbHostAudioReadU32(data));
+        handled = true;
+      }
+    }
+    else
+    {
+      uint32_t rates[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES] = {};
+      const size_t count = espUsbHostAudioDecodeSampleRateRange(data, payload, rates,
+                                                                ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES);
+      // wNumSubRanges is authoritative even when the payload was cut short by the
+      // requested wLength. Asking again for the size the device named is what
+      // turns the 2-byte probe, and a too-small first guess, into a full answer.
+      const size_t declared = espUsbHostAudioRangeDeclaredCount(data, payload);
+      const size_t wanted = declared > ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES
+                                ? ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES
+                                : declared;
+      if (wanted > 0 && wanted != context->attemptIndex && count < wanted)
+      {
+        handled = host->submitAudioClockSampleRateRange(*device, context->clockSourceId,
+                                                        static_cast<uint8_t>(wanted));
+      }
+      if (!handled && count > 0)
+      {
+        host->applyAudioClockSampleRates(*device, context->clockSourceId, rates, count, 0);
+        handled = true;
+      }
+    }
+  }
+
+  if (!handled && device)
+  {
+    ESP_LOGD(TAG, "Audio clock RANGE attempt=%u clock=%u status=%d bytes=%u",
+             context->attemptIndex,
+             context->clockSourceId,
+             transfer->status,
+             static_cast<unsigned>(payload));
+    const uint8_t next = nextAudioClockRangeAttempt(context->attemptIndex);
+    if (context->attemptIndex == AUDIO_CLOCK_CUR_ATTEMPT)
+    {
+      ESP_LOGW(TAG, "USB Audio clock=%u sample rates could not be read", context->clockSourceId);
+    }
+    else
+    {
+      host->submitAudioClockSampleRateRange(*device, context->clockSourceId, next);
+    }
+  }
+
+  usb_host_transfer_free(transfer);
+  delete context;
 }
 
 bool EspUsbHost::audioFeatureControl(DeviceState &device,

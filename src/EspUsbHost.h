@@ -8,6 +8,8 @@
 #include <usb/usb_host.h>
 #include <class/hid/hid.h>
 
+#include "EspUsbHostCcidAtr.h"
+
 // lwIP / esp_netif integration for networkAttachNetif() is optional and only
 // compiled when the esp_netif headers are available in the build.
 #if __has_include(<esp_netif.h>)
@@ -135,6 +137,10 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_STREAMS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
+// UAC2 clock entities and the terminal -> clock links needed to resolve which
+// Clock Source carries a streaming interface's sample rate.
+static constexpr size_t ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES = 4;
+static constexpr size_t ESP_USB_HOST_MAX_AUDIO_TERMINALS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_NETWORK_INTERFACES = 4;
 // Bulk-IN NTB receive buffer. Matches TinyUSB's default CFG_TUD_NCM_IN_NTB_MAX_SIZE
@@ -665,6 +671,12 @@ struct EspUsbHostMscBlockDeviceInfo
   uint64_t capacityBytes = 0;
 };
 
+// bInterfaceProtocol of an Audio Class interface: 0x00 for UAC1 (ADC 1.0) and
+// 0x20 (IP_VERSION_02_00) for UAC2. Streams and Feature Units carry the value so
+// callers can tell which descriptor and control model the device follows.
+static constexpr uint8_t ESP_USB_HOST_AUDIO_PROTOCOL_UAC1 = 0x00;
+static constexpr uint8_t ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 = 0x20;
+
 struct EspUsbHostAudioStreamInfo
 {
   uint8_t address = 0;
@@ -684,6 +696,13 @@ struct EspUsbHostAudioStreamInfo
   uint32_t sampleRateResolution = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
+  uint8_t protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
+  // UAC2 only: the Audio Streaming interface's bTerminalLink and the Clock Source
+  // entity reached through that terminal. UAC2 keeps sample rates in the clock
+  // entity instead of the format descriptor, so sampleRates[] above is filled from
+  // a class request against clockSourceId rather than from the descriptors.
+  uint8_t terminalLink = 0;
+  uint8_t clockSourceId = 0;
 };
 
 struct EspUsbHostAudioFeatureUnitInfo
@@ -693,9 +712,14 @@ struct EspUsbHostAudioFeatureUnitInfo
   uint8_t unitId = 0;
   uint8_t sourceId = 0;
   uint8_t channelCount = 0;
+  // Bytes per bmaControls entry: taken from bControlSize on UAC1, fixed at 4 on
+  // UAC2. UAC1 stores one bit per control, UAC2 two bits (01 = read-only,
+  // 11 = host-programmable), so decode the masks below with
+  // espUsbHostAudioFeatureHasControl() rather than by shifting directly.
   uint8_t controlSize = 0;
   uint32_t masterControls = 0;
   uint32_t channelControls[ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS] = {};
+  uint8_t protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
 };
 
 struct EspUsbHostAudioVolumeRange
@@ -720,6 +744,201 @@ struct EspUsbHostAudioStreamSelection
 using EspUsbHostAudioStreamFilter = bool (*)(uint32_t sampleRate,
                                              uint8_t channels,
                                              uint8_t bitsPerSample);
+
+// Where a Feature Unit descriptor keeps its bmaControls array, and how many
+// channels it describes. valid is false when the descriptor is too short to hold
+// even the master control entry.
+struct EspUsbHostAudioFeatureUnitLayout
+{
+  bool valid = false;
+  uint8_t controlSize = 0;
+  uint8_t controlOffset = 0;
+  uint8_t channelCount = 0;
+};
+
+// UAC1 announces the bmaControls stride in bControlSize and starts the array at
+// offset 6, leaving 7 bytes that are not controls (6 header + iFeature). UAC2
+// dropped bControlSize for a fixed 4-byte stride, so its array starts at offset 5
+// and only 6 bytes are not controls.
+inline EspUsbHostAudioFeatureUnitLayout espUsbHostAudioFeatureUnitLayout(const uint8_t *data, uint8_t protocol)
+{
+  EspUsbHostAudioFeatureUnitLayout layout;
+  if (!data || data[0] < 7)
+  {
+    return layout;
+  }
+  const bool uac2 = protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+  const uint8_t controlSize = uac2 ? 4 : data[5];
+  const uint8_t fixedBytes = uac2 ? 6 : 7;
+  if (controlSize == 0 || controlSize > 4 || data[0] < fixedBytes + controlSize)
+  {
+    return layout;
+  }
+  layout.valid = true;
+  layout.controlSize = controlSize;
+  layout.controlOffset = uac2 ? 5 : 6;
+  layout.channelCount = static_cast<uint8_t>(((data[0] - fixedBytes) / controlSize) - 1);
+  return layout;
+}
+
+// Feature Unit bmaControls decoding. UAC1 packs one bit per control (D0 Mute,
+// D1 Volume, ...), UAC2 two bits per control where 01 means present but
+// read-only and 11 means host-programmable. Both index the field by
+// controlSelector - 1 (FU_MUTE = 1, FU_VOLUME = 2).
+inline bool espUsbHostAudioFeatureHasControl(uint32_t controls,
+                                             uint8_t controlSelector,
+                                             uint8_t protocol)
+{
+  if (controlSelector == 0)
+  {
+    return false;
+  }
+  const uint8_t index = static_cast<uint8_t>(controlSelector - 1);
+  if (protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    return index < 16 && ((controls >> (index * 2)) & 0x03) != 0;
+  }
+  return index < 32 && ((controls >> index) & 0x01) != 0;
+}
+
+// True when the control can be written. UAC1 has no read-only encoding, so a
+// declared control counts as writable there.
+inline bool espUsbHostAudioFeatureControlWritable(uint32_t controls,
+                                                  uint8_t controlSelector,
+                                                  uint8_t protocol)
+{
+  if (protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  {
+    return espUsbHostAudioFeatureHasControl(controls, controlSelector, protocol);
+  }
+  if (controlSelector == 0)
+  {
+    return false;
+  }
+  const uint8_t index = static_cast<uint8_t>(controlSelector - 1);
+  return index < 16 && ((controls >> (index * 2)) & 0x03) == 0x03;
+}
+
+// Isochronous endpoint usage type (bmAttributes D5..D4): 00 data, 01 feedback,
+// 10 implicit feedback data. A UAC2 asynchronous playback interface adds a
+// feedback IN endpoint beside the data OUT endpoint; it carries a rate estimate
+// in 16.16 (high speed) or 10.14 (full speed) format, not audio, so it must not
+// be mistaken for a capture stream.
+inline bool espUsbHostAudioIsFeedbackEndpoint(uint8_t bmAttributes)
+{
+  return (bmAttributes & 0x03) == 0x01 && (bmAttributes & 0x30) == 0x10;
+}
+
+inline uint32_t espUsbHostAudioReadU32(const uint8_t *data)
+{
+  return static_cast<uint32_t>(data[0]) |
+         (static_cast<uint32_t>(data[1]) << 8) |
+         (static_cast<uint32_t>(data[2]) << 16) |
+         (static_cast<uint32_t>(data[3]) << 24);
+}
+
+// wNumSubRanges as declared by a UAC2 RANGE response, ignoring whether the
+// payload actually carries that many subranges. Used to size the follow-up
+// request after a 2-byte probe.
+inline size_t espUsbHostAudioRangeDeclaredCount(const uint8_t *data, size_t length)
+{
+  if (!data || length < 2)
+  {
+    return 0;
+  }
+  return static_cast<size_t>(data[0]) | (static_cast<size_t>(data[1]) << 8);
+}
+
+// Subranges that are both declared and completely present in the payload, so a
+// response truncated by a short wLength still yields the entries it did return.
+// subRangeSize is 12 for the 4-byte sample frequency control and 6 for the
+// 2-byte volume control.
+inline size_t espUsbHostAudioRangeSubRangeCount(const uint8_t *data, size_t length, size_t subRangeSize)
+{
+  if (subRangeSize == 0 || length < 2 + subRangeSize)
+  {
+    return 0;
+  }
+  const size_t declared = espUsbHostAudioRangeDeclaredCount(data, length);
+  const size_t available = (length - 2) / subRangeSize;
+  return declared < available ? declared : available;
+}
+
+// Flatten a UAC2 SAM_FREQ_CONTROL RANGE response into discrete rates. Each
+// subrange is MIN/MAX/RES as 4-byte values; a discrete rate is encoded as
+// MIN == MAX, while a continuous subrange contributes its endpoints (and the
+// steps in between when RES divides the span and there is room).
+inline size_t espUsbHostAudioDecodeSampleRateRange(const uint8_t *data,
+                                                   size_t length,
+                                                   uint32_t *rates,
+                                                   size_t maxRates)
+{
+  const size_t subRanges = espUsbHostAudioRangeSubRangeCount(data, length, 12);
+  if (!rates || maxRates == 0 || subRanges == 0)
+  {
+    return 0;
+  }
+
+  size_t count = 0;
+  auto add = [&](uint32_t rate)
+  {
+    if (rate == 0 || count >= maxRates)
+    {
+      return;
+    }
+    for (size_t i = 0; i < count; i++)
+    {
+      if (rates[i] == rate)
+      {
+        return;
+      }
+    }
+    rates[count++] = rate;
+  };
+
+  for (size_t i = 0; i < subRanges && count < maxRates; i++)
+  {
+    const uint8_t *entry = &data[2 + i * 12];
+    const uint32_t min = espUsbHostAudioReadU32(entry);
+    const uint32_t max = espUsbHostAudioReadU32(entry + 4);
+    const uint32_t resolution = espUsbHostAudioReadU32(entry + 8);
+    add(min);
+    if (max == min)
+    {
+      continue;
+    }
+    if (resolution > 0 && max > min)
+    {
+      for (uint32_t rate = min + resolution; rate < max && count < maxRates; rate += resolution)
+      {
+        add(rate);
+      }
+    }
+    add(max);
+  }
+  return count;
+}
+
+// Decode the first subrange of a UAC2 VOLUME_CONTROL RANGE response. Volume is
+// a signed 16-bit value in 1/256 dB units, same as UAC1.
+inline bool espUsbHostAudioDecodeVolumeRange(const uint8_t *data,
+                                             size_t length,
+                                             EspUsbHostAudioVolumeRange &range)
+{
+  if (espUsbHostAudioRangeSubRangeCount(data, length, 6) == 0)
+  {
+    return false;
+  }
+  auto readI16 = [](const uint8_t *value) -> int16_t
+  {
+    return static_cast<int16_t>(static_cast<uint16_t>(value[0]) |
+                                (static_cast<uint16_t>(value[1]) << 8));
+  };
+  range.min = readI16(&data[2]);
+  range.max = readI16(&data[4]);
+  range.resolution = readI16(&data[6]);
+  return true;
+}
 
 inline bool espUsbHostAudioStreamSupportsSampleRate(const EspUsbHostAudioStreamInfo &stream, uint32_t sampleRate)
 {
@@ -1387,6 +1606,23 @@ public:
                     size_t capacity,
                     uint8_t slot = 0,
                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Card standard (ISO 14443 A/B, ISO 15693, FeliCa, ...) and card name decoded
+  // from the ATR that ccidPowerOn() cached. False when no card is activated or
+  // the ATR cannot be parsed. See EspUsbHostCcidAtr.h for what an ATR can and
+  // cannot say about the card.
+  bool ccidGetCardInfo(EspUsbHostCcidCardInfo &info,
+                       uint8_t slot = 0,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // ccidGetCardInfo() plus a fallback for cards the ATR does not identify: the
+  // PC/SC Get UID pseudo APDU is sent and the standard is inferred from the
+  // identifier's shape (info.fromUid is then true). A FeliCa card, for example,
+  // gets an ATR with no historical bytes from a CCID reader, so the 8-byte IDm
+  // is the only thing left to go on. Unlike ccidGetCardInfo() this talks to the
+  // card, so it needs an activated card and cannot run from a USB callback.
+  bool ccidIdentifyCard(EspUsbHostCcidCardInfo &info,
+                        uint8_t slot = 0,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint32_t timeoutMs = ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS);
 
   // PC_to_RDR_XfrBlock. Payload and response are passed through untouched.
   bool ccidTransfer(const uint8_t *tx,
@@ -1579,6 +1815,24 @@ private:
     uint16_t reportedLength = 0;
   };
 
+  // UAC2 Clock Source entity. bmControls D1..D0 tell whether the sample frequency
+  // control is present and programmable, which decides whether a rate change can
+  // be pushed to the device or only read back.
+  struct AudioClockSourceState
+  {
+    uint8_t clockSourceId = 0;
+    uint8_t attributes = 0;
+    uint8_t controls = 0;
+  };
+
+  // Input/Output Terminal to Clock Source link (bCSourceID), used to resolve a
+  // streaming interface's clock through its bTerminalLink.
+  struct AudioTerminalClockLink
+  {
+    uint8_t terminalId = 0;
+    uint8_t clockSourceId = 0;
+  };
+
   struct DeviceState
   {
     bool inUse = false;
@@ -1687,8 +1941,18 @@ private:
     usb_transfer_t *audioOutTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
     uint32_t audioSampleRate = 48000;
     uint8_t audioControlInterfaceNumber = 0xff;
+    // bInterfaceProtocol of the device's Audio interfaces (0x20 for UAC2), taken
+    // from the Audio Control interface and reused for its streaming interfaces.
+    uint8_t audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
     EspUsbHostAudioFeatureUnitInfo audioFeatureUnits[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS] = {};
     uint8_t audioFeatureUnitCount = 0;
+    // UAC2 clock topology. Clock Source entities carry the sample frequency
+    // control, and the Input/Output Terminal a streaming interface links to names
+    // the clock that drives it.
+    AudioClockSourceState audioClockSources[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
+    uint8_t audioClockSourceCount = 0;
+    AudioTerminalClockLink audioTerminalClocks[ESP_USB_HOST_MAX_AUDIO_TERMINALS] = {};
+    uint8_t audioTerminalClockCount = 0;
     bool hasMscInterface = false;
     uint8_t mscInterfaceNumber = 0;
     bool hasMscInEndpoint = false;
@@ -1818,6 +2082,15 @@ private:
                                 size_t maxInterfaces) const;
   void handleDescriptor(uint8_t descriptorType, const uint8_t *data);
   void parseAudioControlDescriptor(DeviceState &device, const uint8_t *data);
+  void parseAudioFeatureUnitDescriptor(DeviceState &device, const uint8_t *data);
+  void parseAudioClockSourceDescriptor(DeviceState &device, const uint8_t *data);
+  void parseAudioTerminalDescriptor(DeviceState &device, const uint8_t *data, bool input);
+  void parseAudioStreamingDescriptor(DeviceState &device, const uint8_t *data);
+  // Clock Source entity that drives a streaming interface, resolved through the
+  // interface's bTerminalLink. Falls back to the only declared clock source when
+  // the terminal link cannot be matched, and returns 0 when there is none.
+  uint8_t resolveAudioClockSource(const DeviceState &device, uint8_t terminalLink) const;
+  const AudioClockSourceState *findAudioClockSource(const DeviceState &device, uint8_t clockSourceId) const;
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
   void handleTransfer(usb_transfer_t *transfer);
   void dispatchKeyboardState(EndpointState &endpoint,
@@ -1952,6 +2225,27 @@ private:
 #endif
   void clearParsedDescriptorState(DeviceState &device);
   bool submitAudioSamplingFrequency(DeviceState &device, uint8_t endpointAddress, uint32_t sampleRate);
+  // UAC2 replaces the UAC1 endpoint sampling frequency control with a 4-byte
+  // SAM_FREQ_CONTROL on the Clock Source entity, addressed through the Audio
+  // Control interface.
+  bool submitAudioClockSampleRate(DeviceState &device, uint8_t clockSourceId, uint32_t sampleRate);
+  // Pushes a rate to whichever control the stream's class revision uses.
+  bool applyAudioStreamSampleRate(DeviceState &device,
+                                  const EspUsbHostAudioStreamInfo &stream,
+                                  uint32_t sampleRate);
+  // Starts the RANGE queries for every Clock Source referenced by the device's
+  // UAC2 streams. Called once the configuration descriptor has been parsed.
+  void queryAudioClockSampleRates(DeviceState &device);
+  // Kicks off the asynchronous SAM_FREQ_CONTROL RANGE query that fills a UAC2
+  // stream's sampleRates[]. attemptIndex walks the wLength strategies described in
+  // audioClockRangeTransferCallback().
+  bool submitAudioClockSampleRateRange(DeviceState &device, uint8_t clockSourceId, uint8_t attemptIndex);
+  static void audioClockRangeTransferCallback(usb_transfer_t *transfer);
+  void applyAudioClockSampleRates(DeviceState &device,
+                                  uint8_t clockSourceId,
+                                  const uint32_t *rates,
+                                  size_t rateCount,
+                                  uint32_t currentRate);
   bool audioFeatureControl(DeviceState &device,
                            uint8_t request,
                            uint8_t unitId,
@@ -2061,6 +2355,8 @@ private:
   uint32_t currentAudioSampleRateMin_ = 0;
   uint32_t currentAudioSampleRateMax_ = 0;
   uint32_t currentAudioSampleRateResolution_ = 0;
+  // bTerminalLink of the Audio Streaming interface being parsed (UAC2 AS_GENERAL).
+  uint8_t currentAudioTerminalLink_ = 0;
   bool currentInterfaceClaimed_ = false;
   esp_err_t currentClaimResult_ = ESP_OK;
 
