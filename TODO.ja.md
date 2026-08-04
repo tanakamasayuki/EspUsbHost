@@ -94,12 +94,20 @@ USB Audio IN の peer 実証
 単発の `USBAudioCard.write()` はisochronous INのタイミングと合わず取りこぼすことがあるため、テストでは1ms間隔の短いburst送信で確認している。
 Mixer / Selector / Processing Unit 制御
 
-UAC1 Feature Unit の Mute / Volume GET/SET は追加済みです。
+UAC1 / UAC2 Feature Unit の Mute / Volume GET/SET は追加済みです。
 Mixer / Selector / Processing Unit や、Feature UnitのBass/Treble/AGCなどは未対応です。
-Clock Source / UAC2 対応
+Clock Source / UAC2 対応（対応済み）
 
-今の実装は主に UAC1 Type I 前提です。
-UAC2 デバイスでは Clock Source / Clock Selector 周りが必要になる場合があります。
+UAC1 / UAC2 の Type I に対応しました。版はbInterfaceProtocolとbcdADCから判定し、
+UAC2ではAS_GENERALのbNrChannels、Clock Source entity（bTerminalLinkから解決、
+サンプルレートは`SAM_FREQ`の`RANGE`リクエストで取得）、4バイト・2ビットの
+`bmaControls`、volumeの`RANGE`、`CUR`のrequest code、非同期playbackの
+explicit feedback endpointの除外を扱います。
+`tests/unit/audio_uac`（ホスト単体）と`tests/peer/usb_audio_uac2`
+（`EspUsbDevice`のUAC2 peer）で確認済み。
+残りは Clock Selector / Clock Multiplier と、feedback endpointの値を使った
+OUTレート調整です。ESP32-S3/S2はfull-speed専用なので、full-speed
+configurationを持たないUAC2機器はそもそも列挙できません。
 フォーマット選択の強化
 
 実機互換性テスト
@@ -113,9 +121,11 @@ Input サンプルはビルドと情報表示までは整えました。
 ドキュメントの対応範囲明記（対応済み）
 
 README.md / README.ja.md のUSB audio API節末尾に「Audioの対応範囲」小節を追加。
-対応: Isochronous IN/OUT、UAC1 Type Iフォーマット解析・サンプルレート選択、Feature UnitのMute/Volume。
-非対応: UAC2 / Clock Source / Clock Selector、Mixer / Selector / Processing Unit、Mute/Volume以外のFeature Unit control。
-OUT/IN は標準Arduino `USBAudioCard` のpeerで送受信確認済み、実USBマイク・オーディオIFの確認は継続、と明記。
+対応: Isochronous IN/OUT、UAC1 / UAC2 Type Iフォーマット解析・サンプルレート選択、Feature UnitのMute/Volume、
+UAC2のClock Source。
+非対応: Clock Selector / Clock Multiplier、Mixer / Selector / Processing Unit、Mute/Volume以外のFeature Unit control。
+OUT/IN は UAC1が標準Arduino `USBAudioCard`、UAC2が `EspUsbDevice` peer で送受信確認済み、
+実USBマイク・オーディオIFの確認は継続、full-speed専用という制約あり、と明記。
 
 # P4対応
 

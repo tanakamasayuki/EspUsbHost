@@ -7,6 +7,7 @@
 EspUsbHost usb;
 
 static constexpr uint32_t TEST_TIMEOUT_MS = 30000;
+static constexpr uint32_t CARD_WAIT_MS = 30000;
 static constexpr uint32_t SETTLE_MS = 1500;
 
 static bool finished = false;
@@ -68,12 +69,24 @@ static void runTest()
                   (unsigned long)info.maxMessageLength,
                   (unsigned)info.exchangeLevel);
 
+    // Wait for a card so the operator can hold a phone (Apple Pay / FeliCa) on
+    // the reader after the test has started.
+    Serial.println("Place a card on the reader and keep it there.");
     EspUsbHostCcidStatus status;
-    if (!usb.ccidGetStatus(status))
+    const uint32_t waitUntil = millis() + CARD_WAIT_MS;
+    while (true)
     {
-        Serial.println("CCID_STATUS failed");
-        Serial.println("[FAIL]");
-        return;
+        if (!usb.ccidGetStatus(status))
+        {
+            Serial.println("CCID_STATUS failed");
+            Serial.println("[FAIL]");
+            return;
+        }
+        if (status.present || (int32_t)(waitUntil - millis()) <= 0)
+        {
+            break;
+        }
+        delay(200);
     }
     Serial.printf("CCID_STATUS slot=%u icc=%s present=%u active=%u command=%u error=0x%02x\n",
                   status.slot,
@@ -87,7 +100,7 @@ static void runTest()
     {
         Serial.println("CCID_CARD absent");
         Serial.println("[FAIL]");
-        Serial.println("Place a card on the reader and run the test again.");
+        Serial.println("No card was placed on the reader within the timeout.");
         return;
     }
 
@@ -101,6 +114,46 @@ static void runTest()
     }
     Serial.printf("CCID_ATR length=%u\n", (unsigned)atrLength);
     printHex("CCID_ATR data=", atr, atrLength);
+
+    EspUsbHostCcidCardInfo card;
+    if (!usb.ccidGetCardInfo(card))
+    {
+        Serial.println("CCID_CARD info unavailable");
+        usb.ccidPowerOff();
+        Serial.println("[FAIL]");
+        return;
+    }
+    Serial.printf("CCID_CARD standard=\"%s\" code=0x%02x level=%u name=\"%s\" nameCode=0x%04x pcsc=%u protocols=0x%02x\n",
+                  card.standardText,
+                  card.standardCode,
+                  card.level,
+                  card.cardNameText,
+                  card.cardName,
+                  card.pcscStorageAtr ? 1 : 0,
+                  card.protocols);
+
+    // Cards the ATR does not identify (FeliCa, for one) are identified from the
+    // Get UID answer instead.
+    EspUsbHostCcidCardInfo identified;
+    if (!usb.ccidIdentifyCard(identified))
+    {
+        Serial.println("CCID_IDENTIFY failed");
+        usb.ccidPowerOff();
+        Serial.println("[FAIL]");
+        return;
+    }
+    Serial.printf("CCID_IDENTIFY standard=\"%s\" fromUid=%u uidLength=%u\n",
+                  identified.standardText,
+                  identified.fromUid ? 1 : 0,
+                  identified.uidLength);
+    printHex("CCID_IDENTIFY uid=", identified.uid, identified.uidLength);
+    if (identified.standard == ESP_USB_HOST_CCID_CARD_UNKNOWN)
+    {
+        Serial.println("CCID_IDENTIFY could not determine the card standard");
+        usb.ccidPowerOff();
+        Serial.println("[FAIL]");
+        return;
+    }
 
     // PC/SC pseudo APDU understood by contactless readers: return the card UID.
     // Repeated so that bSeq handling over several commands is covered, and the

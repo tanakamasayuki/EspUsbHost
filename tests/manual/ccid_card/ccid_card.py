@@ -15,7 +15,7 @@ Required hardware:
 Setup:
     1. Connect the host board to the PC.
     2. Connect the CCID reader to the host board's USB host port.
-    3. Place a card on the reader.
+    3. Have a card ready; the sketch waits up to 30 s for one to be placed.
     4. Set TEST_SERIAL_PORT_ESP32S3 in .env to the host board's serial port.
     5. Run: uv run --env-file .env pytest manual/ccid_card/ccid_card.py -v -s
 """
@@ -30,4 +30,5 @@ def test_ccid_card(dut):
                              status word other than 9000.
     """
     dut.expect("ccid_card test start")
-    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=60) == b"[PASS]"
+    print("\nPlace a card on the reader and keep it there (a phone in Apple Pay / FeliCa mode works).")
+    assert dut.expect_exact(["[PASS]", "[FAIL]"], timeout=90) == b"[PASS]"

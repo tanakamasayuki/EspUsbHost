@@ -62,7 +62,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
 - **USBネットワーク** — CDC-NCM / CDC-ECMのUSB Ethernetアダプタに対応。生Ethernetフレームでも、lwIP（`esp_netif`）インターフェースとしてattachしてWi-Fi無しで`NetworkClient` / `HTTPClient`をUSB経由で動かすことも可能
-- **CCIDスマートカードリーダー** — CCID interfaceのclaim、カード挿入・排出通知、カードの活性化とATR取得、APDU送受信、リーダー固有のescapeコマンド
+- **CCIDスマートカードリーダー** — CCID interfaceのclaim、カード挿入・排出通知、カードの活性化とATR取得、ATRからのカード種別判定（ISO 14443 A/B・ISO 15693・FeliCaなど）、APDU送受信、リーダー固有のescapeコマンド
 - **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUT、ゼロコピーバッファと自動ZLP処理を備えた非同期bulk OUTキュー、EP0 vendor request
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
@@ -77,9 +77,9 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT（同期と非同期キュー）、自動ZLP、EP0 vendor IN/OUT requestに対応 |
-| CCID — スマートカードリーダー（bulkプロトコル） | ✅ 基本実装済み。interfaceの明示claim、class descriptorのparse、slot状態、power on/offとATR、APDU/XfrBlock送受信、escapeと生メッセージ、slot変化通知に対応。Sony RC-S300で確認済み。ICCD変種、チェイン応答（extended APDU）、PINパッド機能は対象外 |
+| CCID — スマートカードリーダー（bulkプロトコル） | ✅ 基本実装済み。interfaceの明示claim、class descriptorのparse、slot状態、power on/offとATR、ATRからのカード種別判定、APDU/XfrBlock送受信、escapeと生メッセージ、slot変化通知に対応。Sony RC-S300で確認済み。ICCD変種、チェイン応答（extended APDU）、PINパッド機能は対象外 |
 | USBグラフィックスアダプタ（DL-1xx bulkプロトコル） | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) にvendor bulk API上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。1チップファミリ・16 bppの参考実装であり、他のアダプタや高いフレームレートが必要なら [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) のような専用ライブラリを使うこと |
-| UAC — USBオーディオ入出力 | 🔲 実験的。標準Arduino `USBAudioCard`でAudio OUT/INのpeer確認済み。実USBマイク・オーディオIF確認は継続 |
+| UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
 | MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的。単一MSCデバイスの基本read/writeとFatFsマウントはpeer/manual確認済み。非準拠デバイス、複数MSC・複数LUN、異常系BOT完全復旧は継続確認 |
@@ -92,7 +92,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | `onHIDReportDescriptor()` — HIDレポートディスクリプタの取得 | ✅ 実装済み |
 | HIDゲームパッド入力 — ユーザー定義マッピング用のディスクリプタデコード済みフィールドとraw/reportバイト | ✅ マッピング前提のイベントAPI。マッピング補助は検討中 |
 | チャンネル数・endpoint使用量の可視化 | ✅ 実験的な診断APIとして実装済み。複数デバイスやAudio/MSC/HUB併用時の上限把握に使う |
-| USB Audio INの実データ確認 | ✅ 標準Arduino `USBAudioCard`でpeer確認済み。実USBマイク・オーディオIF確認は継続 |
+| USB Audio INの実データ確認 | ✅ 標準Arduino `USBAudioCard`（UAC1）と `EspUsbDevice` peer（UAC2）でpeer確認済み。実USBマイク・オーディオIF確認は継続 |
 | ESP32-P4検証 | 🔲 継続。FS/HS OTG、HUB可否、ループバックテストを個別確認する |
 | ループバックテスト（ESP32-P4 1台構成） | 🔲 `EspUsbDevice` 側で整備中。このリポジトリ側の `tests/loopback` はREADMEのみ |
 | 手動テスト — VCPシリアル・複数デバイス・活線挿抜 | ✅ 主要ケース確認済み。追加デバイス互換性は継続 |
@@ -103,7 +103,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **今後の破壊的変更:** 実機やサンプルからよりよいAPI形状が見えた場合、2系の間でも互換性を壊す変更が入る可能性があります。
 - **USB Hostリソース:** ESP32-S3のUSB host channel数は少ないです。複合デバイス、Hub、Audio、MSC、複数シリアルデバイスではすぐ上限に近づきます。`printDeviceInfo()` / `printAllDeviceInfo()` やendpoint/channel診断APIで使用量を確認してください。
 - **USB Hub:** 複数デバイスの確認にはセルフパワーのUSB 2.0 Hubを推奨します。USB 3.x Hubや内部多段Hubは挙動が複雑で、十分に検証できていません。
-- **USB Audio:** 標準Arduino `USBAudioCard`で入力・出力のpeerテストは通っています。実USBマイク・オーディオIFでの確認はまだ限定的です。UAC2のClock/Selectorや高度なAudio Control Unit対応も限定的です。
+- **USB Audio:** 標準Arduino `USBAudioCard`（UAC1）と `EspUsbDevice` peer（UAC2）で入力・出力のpeerテストは通っています。実USBマイク・オーディオIFでの確認はまだ限定的です。またESP32-S3/S2のホストはfull-speed専用のため、full-speed configurationを持たないUAC2デバイスはそもそも列挙できません。Clock Selector / Clock Multiplierや高度なAudio Control Unitは非対応です。
 - **UVC / USBカメラ:** 現在は非対応です。Arduino-ESP32のプリコンパイル済みUSB Hostスタックは`CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256`でビルドされており、Configuration Descriptorが256 bytesを超えるUSBデバイスはクラスドライバを開始する前の列挙で失敗します。実機確認したLogitech C920のDescriptorは1974 bytesでした。この値はスケッチやEspUsbHostのビルドオプションでは変更できず、Arduino-ESP32のプリコンパイルライブラリを生成する設定の制限です。この制限がArduino-ESP32側で解消された場合にUVC対応を改めて検討します。
 - **Mass Storage:** FAT利用は実用上単一MSCデバイスを前提にしてください。複数MSC、複数LUN、特殊なblock size、異常系BOT復旧は追加検証が必要です。非準拠デバイスではMSC節の`SYNCHRONIZE CACHE(10)`フォールバックが必要になる場合があります。
 - **活線挿抜:** ファイル、シリアル転送、Audio stream、各クラス操作の途中で抜くと、デバイスによっては失敗やデータ喪失が起こります。
@@ -289,7 +289,7 @@ void loop() {
 
 | スケッチ | 説明 |
 |----------|------|
-| [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | CCIDスマートカードリーダーをopenし、カードの挿入・排出を通知、ATRを読み、PC/SCのGet UID APDUを送る |
+| [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | CCIDスマートカードリーダーをopenし、カードの挿入・排出を通知、ATRとカード種別を読み、PC/SCのGet UID APDUを送る |
 
 ### Network
 
@@ -660,6 +660,8 @@ bool ccidPowerOff(uint8_t slot = 0, uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                   uint32_t timeoutMs = 2000);
 size_t ccidGetAtr(uint8_t *buffer, size_t capacity, uint8_t slot = 0,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool ccidGetCardInfo(EspUsbHostCcidCardInfo &info, uint8_t slot = 0,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 bool ccidTransfer(const uint8_t *tx, size_t txLength,
                   uint8_t *rx, size_t rxCapacity, size_t *rxLength,
@@ -693,13 +695,19 @@ CCID interfaceは列挙時には claim されません。`ccidOpen()` が claim 
 
 `bSeq` はライブラリが管理します。別のコマンドに属するsequence numberの応答は破棄し、command statusが「time extension requested」の応答は最終応答として扱わず待ち続けます。1台のリーダーへのコマンドはデバイスごとのmutexで直列化されます。
 
+`ccidGetCardInfo()` は `ccidPowerOn()` がキャッシュしたATRから、カードの規格（`ISO 14443 A` / `ISO 14443 B` / `ISO 15693` / `FeliCa` / 低周波非接触 / ISO 7816-10メモリカード）とレベル、カード名を取り出します。非接触のストレージカードは自前のATRを持たないため、PC/SC準拠のリーダーがhistorical bytesにPC/SCのRID `A0 00 00 03 06` と標準バイト・カード名を載せた合成ATRを作ります。これを読んでいます。自前のATRを返すカード（接触カードや、ISO 14443-4で話す非接触カード）にはこの識別情報が無いため、`pcscStorageAtr == false` で `ISO 7816 card (own ATR)` として報告します。historical bytesが1バイトも無いATR（リーダーがカードを識別できなかった場合の応答）は推測せず `unknown` のままにします。カード名はPC/SCの代表的な値のみ名前を解決し、`cardName` には常に生のコードが入ります。パーサは `src/EspUsbHostCcidAtr.h` でArduino・USB非依存、host test `tests/unit/ccid_atr` で検証しています。
+
+ATRで判定できないカードは `ccidIdentifyCard()` が Get UID を送り、識別子の形から推定します（8バイトはFeliCaのIDm、ただし先頭が `0xe0` ならISO 15693のUID。7・10バイトはISO 14443 AのNFCID1。4バイトで先頭 `0x08` はISO 14443-3がランダムNFCID1用に予約している値。それ以外の4バイトはNFCID1とPUPIが同じ長さのためtypeを確定しません）。これは識別子の形からの推測であってカード自身の申告ではなく、使われた場合は `info.fromUid` が立ちます。
+
+RC-S300でFeliCaカードを実測した結果: リーダーはPC/SC合成ATR（`PIX.SS = 0x11`、`PIX.Name = 0x003b`）でFeliCaと申告するため、`ccidGetCardInfo()` だけで `FeliCa` と判定でき、Get UIDは8バイトのIDmを返します。同じリーダーにiPhone（Apple Pay）を載せた場合はISO 14443 Aとして応答し、ATRには識別情報が無く、UIDは4バイトのランダムNFCID1になります。これはリーダーの制限ではなくiPhone側の応答です。
+
 `ccidApdu()` は応答からSW1SW2を切り出すため、呼び出し側のバッファはデータ部だけ入れば足ります。`61 xx` と `6C xx` は自動追従せずそのまま返します。`ccidTransfer()` は分離しない同じ送受信で、`ccidEscape()` / `ccidMessage()` はリーダー固有コマンドやこのAPIがラップしていないCCIDメッセージ用です。
 
 チェイン応答（`bChainParameter != 0`、extended APDUレベル）は断片を返さずエラーとして報告します。ICCD変種（interface protocol `0x01` / `0x02`）は未対応です。
 
 メッセージバッファは `ESP_USB_HOST_CCID_BUFFER_SIZE`（512 byte）で、リーダーが報告する `dwMaxCCIDMessageLength` がそれより大きい場合は4096まで拡張します。既定値は `-DESP_USB_HOST_CCID_BUFFER_SIZE=...` で変更できます。
 
-Sony RC-S300（`FeliCa Port/PaSoRi 4.0`）で確認済みです。リーダーはslot 1個・T=1・extended APDU exchange level・`dwMaxCCIDMessageLength = 522` を報告し、上に載せたISO 14443カードはPC/SC疑似APDU `FF CA 00 00 00`（Get UID）にUIDと `9000` を返します。FeliCa本来のプロトコルはISO 7816 APDUではないため、FeliCaのブロックを読むには `ccidEscape()` によるリーダー固有コマンドが必要です。
+Sony RC-S300（`FeliCa Port/PaSoRi 4.0`）で確認済みです。リーダーはslot 1個・T=1・extended APDU exchange level・`dwMaxCCIDMessageLength = 522` を報告し、上に載せたISO 14443カードは `ISO 14443 A` level 3・`MIFARE Classic 1K` と識別され、PC/SC疑似APDU `FF CA 00 00 00`（Get UID）にUIDと `9000` を返します。FeliCa本来のプロトコルはISO 7816 APDUではないため、FeliCaのブロック読み書き（Read Without Encryptionなど）には `ccidEscape()` によるリーダー固有コマンドが必要です。カード種別とIDmの取得までは標準経路で可能です。
 
 ### MIDI
 
@@ -831,18 +839,19 @@ EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(
 
 `onAudioOutputRequest`はUSB Audio OUTの推奨APIです。`audioOutputStart()`後、ライブラリがIsochronous OUT転送を駆動し、次のPCMフレームが必要なタイミングでコールバックを呼びます。`request.data`へ最大`request.frameCount`フレームのinterleaved PCMを書き込み、`request.writtenFrames`へ書き込んだフレーム数を設定します。不足分はライブラリが無音として送信し、underrunとしてカウントします。このコールバックはUSB client task上で呼ばれるため、短時間で戻り、ブロックしない処理にしてください。重いデコードはコールバック内で行わず、既存のPCMバッファからコピーする用途に向きます。
 
-`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はUAC1 Type Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`espUsbHostSelectAudioInputStream`と`espUsbHostSelectAudioOutputStream`は、任意の`(sampleRate, channels, bitsPerSample)`フィルターを適用したあと、残った候補をスコアリングします。標準スコアでは48 kHz、次に44.1 kHz、16-bit PCM、可能ならstereoを優先します。`setAudioSampleRate`はAudio Streamingエンドポイントを有効化するときに送るUAC1 sampling frequencyリクエストの値を設定します。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
+`getAudioStreams`はストリーミングエンドポイントの方向、エンドポイントパケットサイズ、取得できた場合はType Iフォーマット情報を返します。離散サンプルレートまたは連続サンプルレート範囲も取得できます。`protocol`は`ESP_USB_HOST_AUDIO_PROTOCOL_UAC1`または`ESP_USB_HOST_AUDIO_PROTOCOL_UAC2`で、UAC2では`terminalLink`と`clockSourceId`がサンプルレートの取得元Clock Sourceを示します。`espUsbHostSelectAudioInputStream`と`espUsbHostSelectAudioOutputStream`は、任意の`(sampleRate, channels, bitsPerSample)`フィルターを適用したあと、残った候補をスコアリングします。標準スコアでは48 kHz、次に44.1 kHz、16-bit PCM、可能ならstereoを優先します。`setAudioSampleRate`はサンプリング周波数を設定します（UAC1はエンドポイントへのリクエスト、UAC2はClock Sourceの`SAM_FREQ` control）。`audioSend`はUSB Audio StreamingのIsochronous OUTエンドポイントへ生PCMペイロードを手動送信する低レベルAPIとして残しています。
 
-`getAudioFeatureUnits`は解析済みのUAC1 Audio Control Feature Unitを返します。`audioGetMute`、`audioSetMute`、`audioGetVolume`、`audioSetVolume`、dB/range系ヘルパーはUAC1のFeature Unit class-specific requestを使います。`audioSetVolumeDbClamped`はrangeが取得できた場合にデバイスのmin/max/resolutionへ丸めます。`audioConfigureVolume`は再生向けの簡易ヘルパーで、対応していればmuteを設定し、volumeをclamp付きdB指定で設定します。percent系ヘルパーは`1..100`をPCM振幅比として扱い、`20 * log10(percent / 100)`でdBへ変換してからmin/maxへclampし、デバイスstepへ丸めます。`0`はmute対応ならmuteし、mute非対応ならminimum volumeへfallbackします。`unitId=0`は指定したcontrolを持つ最初のFeature Unitを選びます。`channel=0`はmaster、`channel=1`以降はチャンネル別controlです。raw volume値はsigned 1/256 dB単位です。
+`getAudioFeatureUnits`は解析済みのAudio Control Feature Unitを返します。`protocol`と`controlSize`がどのレイアウトから読んだかを示します（UAC1は`bControlSize`のstrideで1 control 1ビット、UAC2は4バイト固定strideで1 control 2ビット）。`audioGetMute`、`audioSetMute`、`audioGetVolume`、`audioSetVolume`、dB/range系ヘルパーはFeature Unitのclass-specific requestを使い、デバイスのclass revisionに応じたrequest codeを選びます（UAC1は`GET_CUR` / `GET_MIN` / `GET_MAX` / `GET_RES`、UAC2は`CUR` / `RANGE`）。`audioSetVolumeDbClamped`はrangeが取得できた場合にデバイスのmin/max/resolutionへ丸めます。`audioConfigureVolume`は再生向けの簡易ヘルパーで、対応していればmuteを設定し、volumeをclamp付きdB指定で設定します。percent系ヘルパーは`1..100`をPCM振幅比として扱い、`20 * log10(percent / 100)`でdBへ変換してからmin/maxへclampし、デバイスstepへ丸めます。`0`はmute対応ならmuteし、mute非対応ならminimum volumeへfallbackします。`unitId=0`は指定したcontrolを持つ最初のFeature Unitを選びます。`channel=0`はmaster、`channel=1`以降はチャンネル別controlです。raw volume値はsigned 1/256 dB単位です。
 
 #### Audioの対応範囲
 
-オーディオ対応は **UAC1 (Audio Class 1.0)、Type I PCM** ストリーミングを対象としています。
+オーディオ対応は **UAC1 (Audio Class 1.0)** と **UAC2 (Audio Class 2.0)** の **Type I PCM** ストリーミングを対象としています。
 
-- **対応:** Isochronous IN/OUTストリーミング、UAC1 Type Iフォーマット解析とサンプルレート選択、**Feature Unit** の Mute / Volume 制御(get/set、range、dB・percentヘルパー)。
-- **非対応:** UAC2デバイスおよびその **Clock Source / Clock Selector**、Feature Unit以外のAudio Control Unit(**Mixer / Selector / Processing Unit**)、Mute/Volume以外のFeature Unit control(Bass、Mid、Treble、Automatic Gain、Delay など)。これらがストリーミング開始に必須なデバイスや、UAC2記述子しか持たないデバイスは、列挙はできてもストリーミングできない場合があります。
+- **対応:** Isochronous IN/OUTストリーミング、Type Iフォーマット解析とサンプルレート選択、**Feature Unit** の Mute / Volume 制御(get/set、range、dB・percentヘルパー)。UAC2では、interfaceの`bTerminalLink`から辿る **Clock Source** entity（UAC2のdescriptorはサンプルレートを持たないため`SAM_FREQ`の`RANGE`リクエストで取得）、4バイト・2ビットの`bmaControls`レイアウト、1回で済むvolumeの`RANGE`リクエスト、非同期playback interfaceのexplicit feedback endpointの除外を含みます。
+- **非対応:** **Clock Selector / Clock Multiplier**、Feature Unit以外のAudio Control Unit(**Mixer / Selector / Processing Unit**)、Mute/Volume以外のFeature Unit control(Bass、Mid、Treble、Automatic Gain、Delay など)。これらがストリーミング開始に必須なデバイスは、列挙はできてもストリーミングできない場合があります。feedback endpointの値はOUTのレート調整には使わず破棄するため、非同期playbackを長時間続けるとずれます。
+- **バス速度:** ESP32-S3 / ESP32-S2のホストはfull-speed専用です。UAC2デバイスはhigh-speed前提の設計が多く、full-speed configurationを持たないものはそもそも列挙できません。またfull-speedのisochronousエンドポイントは1フレーム1023バイトが上限です（48 kHz・96 kHzのstereoは収まり、192 kHzのstereoは収まりません）。
 
-Audio OUT/IN は標準Arduino `USBAudioCard` でpeer確認済みですが、実USBマイク・オーディオIFでの確認はまだ限定的です。
+UAC1のAudio OUT/IN は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peer（`tests/peer/usb_audio_uac2`）でpeer確認済みですが、実USBマイク・オーディオIFでの確認はまだ限定的です。
 
 ### USB Mass Storage
 

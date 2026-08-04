@@ -69,6 +69,34 @@ static void readCard()
   }
   printHex("ATR: ", atr, atrLength);
 
+  // The card standard and name come from the ATR: a PC/SC reader synthesizes
+  // one for storage cards that carries both. A card with an ATR of its own
+  // (contact cards, ISO 14443-4 cards) reports "ISO 7816 card (own ATR)", and a
+  // card the ATR does not identify at all is looked up from its Get UID answer.
+  EspUsbHostCcidCardInfo card;
+  if (usb.ccidIdentifyCard(card))
+  {
+    Serial.printf("card: %s", card.standardText);
+    if (card.level != 0)
+    {
+      Serial.printf(" level %u", card.level);
+    }
+    if (card.pcscStorageAtr)
+    {
+      Serial.printf(", %s (0x%04x)", card.cardNameText, card.cardName);
+    }
+    if (card.fromUid)
+    {
+      Serial.print(" (from UID ");
+      for (uint8_t i = 0; i < card.uidLength; i++)
+      {
+        Serial.printf("%02x", card.uid[i]);
+      }
+      Serial.print(")");
+    }
+    Serial.println();
+  }
+
   static const uint8_t getUid[] = {0xff, 0xca, 0x00, 0x00, 0x00};
   uint8_t response[64] = {};
   size_t responseLength = 0;

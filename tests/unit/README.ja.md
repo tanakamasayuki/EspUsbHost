@@ -24,7 +24,34 @@ uv run --env-file .env pytest unit/
   バイト、独立実装のデコーダとのround trip、バッファ上限とcanaryによる範囲外
   書き込み検出)、Full HDのモード設定レジスタ列を対象とする。
 
+- `ccid_atr`: `src/EspUsbHostCcidAtr.h` のCCID ATRパーサを検証する。実機のSony
+  RC-S300 + ISO 14443 Aカードで取得したATR(標準・レベル・カード名・宣言された
+  プロトコルへの分解)、PC/SC PIX.SSのISO 14443 A/B・ISO 15693・ISO 7816-10メモリ
+  カード・FeliCa・低周波非接触への対応付け、表にない標準コードをISO 7816カードと
+  誤って報告せず生値のまま返すこと、接触カード自身のATR(interface byteを辿って
+  historical bytesを見つける、T=1検出、TDが無い場合のT=0既定)、および不正入力の
+  拒否(null、T0欠落、不正なTS、historical bytesの不足、TD1欠落、RID不一致、
+  historical bytesより長いTLV)を対象とする。
+
+- `audio_uac`: `src/EspUsbHost.h` のUSB Audio descriptor / controlデコーダを検証する。
+  両class revisionのFeature Unit `bmaControls` レイアウト(UAC1は`bControlSize`の
+  stride、UAC2は4バイト固定。UAC2のdescriptorをUAC1として読んだ場合に拒否されること
+  も含む)、control maskの解釈(UAC1は1 control 1ビット、UAC2は2ビットで有無・読取
+  専用・設定可)、explicit feedback endpointを識別するisochronousのusage type
+  (implicit feedback dataと混同しないこと)、およびUAC2の`RANGE`応答
+  (`wNumSubRanges`、離散レート、resolutionで刻む連続subrange、切り詰められた
+  payload、重複およびゼロのレート、呼び出し側の容量上限、signed 1/256 dBのvolume
+  range)を対象とする。
+
 ## 仕組み
+
+`dl1xx`のヘッダと`src/EspUsbHostCcidAtr.h`はArduino/USB非依存の純粋なバイト処理
+なので、`test_dl1xx.py`と`test_ccid_atr.py`はそのままg++でコンパイルでき、抽出は
+不要である。
+
+`src/EspUsbHost.h`はArduinoとESP USB hostスタックをincludeするため、`audio_uac`は
+必要なaudioの定数・struct・`inline`デコーダを`output/espusbhost_audio_real.h`へ
+抽出する(keymapテストと同じ方式)。
 
 `src/EspUsbHostHid.cpp`は`Arduino.h`とESP USB hostスタックをincludeするため、host上で
 そのままコンパイルできない。ロジックを複製せずに実コードを検証するため、

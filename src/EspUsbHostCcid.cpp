@@ -1038,6 +1038,69 @@ size_t EspUsbHost::ccidGetAtr(uint8_t *buffer, size_t capacity, uint8_t slot, ui
   return copy;
 }
 
+bool EspUsbHost::ccidGetCardInfo(EspUsbHostCcidCardInfo &info, uint8_t slot, uint8_t address) const
+{
+  info = EspUsbHostCcidCardInfo();
+  const DeviceState *device = findCcidDevice(address);
+  if (!device || device->ccidAtrLength == 0 || device->ccidAtrSlot != slot)
+  {
+    return false;
+  }
+  return espUsbHostParseCcidAtr(device->ccidAtr, device->ccidAtrLength, info);
+}
+
+bool EspUsbHost::ccidIdentifyCard(EspUsbHostCcidCardInfo &info,
+                                  uint8_t slot,
+                                  uint8_t address,
+                                  uint32_t timeoutMs)
+{
+  if (!ccidGetCardInfo(info, slot, address))
+  {
+    return false;
+  }
+  if (info.standard != ESP_USB_HOST_CCID_CARD_UNKNOWN)
+  {
+    return true;
+  }
+
+  // PC/SC Get UID. Contactless readers answer with the card identifier: an
+  // NFCID1 for ISO 14443 A, a PUPI for ISO 14443 B, an IDm for FeliCa, a UID
+  // for ISO 15693.
+  static const uint8_t GET_UID[] = {0xff, 0xca, 0x00, 0x00, 0x00};
+  uint8_t response[sizeof(info.uid) + 2] = {};
+  size_t responseLength = 0;
+  uint16_t statusWord = 0;
+  if (!ccidApdu(GET_UID,
+                sizeof(GET_UID),
+                response,
+                sizeof(response),
+                &responseLength,
+                &statusWord,
+                slot,
+                address,
+                timeoutMs))
+  {
+    // No identifier to go on; the ATR result stands.
+    return true;
+  }
+  if (statusWord != 0x9000 || responseLength == 0 || responseLength > sizeof(info.uid))
+  {
+    return true;
+  }
+
+  memcpy(info.uid, response, responseLength);
+  info.uidLength = static_cast<uint8_t>(responseLength);
+  const EspUsbHostCcidCardStandard standard = espUsbHostCcidStandardFromUid(info.uid, info.uidLength);
+  if (standard == ESP_USB_HOST_CCID_CARD_UNKNOWN)
+  {
+    return true;
+  }
+  info.standard = standard;
+  info.standardText = espUsbHostCcidCardStandardText(standard);
+  info.fromUid = true;
+  return true;
+}
+
 bool EspUsbHost::ccidDataExchange(uint8_t messageType,
                                   const uint8_t *tx,
                                   size_t txLength,

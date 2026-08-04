@@ -29,11 +29,37 @@ uv run --env-file .env pytest unit/
   worst case, round trips against an independent decoder, buffer limits with an
   overrun canary), and the Full HD mode-set register stream.
 
+- `ccid_atr`: verifies the CCID ATR parser in `src/EspUsbHostCcidAtr.h`: the ATR
+  captured from a real Sony RC-S300 with an ISO 14443 A card (decoded to
+  standard, level, card name and announced protocols), the PC/SC PIX.SS mapping
+  for ISO 14443 A/B, ISO 15693, ISO 7816-10 memory cards, FeliCa and
+  low-frequency contactless, an unlisted standard code keeping its raw value
+  instead of being reported as an ISO 7816 card, a contact card's own ATR
+  (interface-byte walking to find the historical bytes, T=1 detection, the T=0
+  default), and rejected inputs (null, missing T0, invalid TS, truncated
+  historical bytes, missing TD1, wrong RID, TLV longer than the historical
+  bytes).
+
+- `audio_uac`: verifies the USB Audio descriptor and control decoders in
+  `src/EspUsbHost.h`: the Feature Unit `bmaControls` layout for both class
+  revisions (UAC1's `bControlSize` stride versus UAC2's fixed 4 bytes, including
+  a UAC2 descriptor being rejected when read with UAC1 rules), control masks as
+  one bit per control on UAC1 and 2-bit present / read-only / programmable fields
+  on UAC2, the isochronous usage type that identifies an explicit feedback
+  endpoint (and does not confuse implicit feedback data with it), and the UAC2
+  `RANGE` responses: `wNumSubRanges`, discrete rates, continuous subranges walked
+  by their resolution, truncated payloads, duplicate and zero rates, caller
+  capacity limits, and the signed 1/256 dB volume range.
+
 ## How it works
 
-The `dl1xx` headers are pure byte formatting with no Arduino / USB
-dependencies, so `test_dl1xx.py` compiles them directly and needs no extraction
-step.
+The `dl1xx` headers and `src/EspUsbHostCcidAtr.h` are pure byte formatting with
+no Arduino / USB dependencies, so `test_dl1xx.py` and `test_ccid_atr.py` compile
+them directly and need no extraction step.
+
+`src/EspUsbHost.h` pulls in Arduino and the ESP USB host stack, so `audio_uac`
+extracts the audio constants, structs and `inline` decoders it needs into
+`output/espusbhost_audio_real.h` the same way the keymap test does.
 
 `src/EspUsbHostHid.cpp` includes `Arduino.h` and the ESP USB host stack, so it
 cannot be compiled on the host directly. To test the real conversion code

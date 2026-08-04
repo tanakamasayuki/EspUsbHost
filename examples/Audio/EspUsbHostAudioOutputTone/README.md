@@ -63,7 +63,7 @@ Output uses `audioOutputReady()` to detect a USB Audio OUT endpoint, then `audio
 ```
 EspUsbHost Audio Output Tone example start
 connected: device: address=1 portId=0x01 vid=1234 pid=5678 class=0x00(Device) speed=full product="USB Speaker"
-audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1
+audio stream: addr=1 iface=1 alt=1 ep=0x01 dir=OUT channels=2 bytes=2 bits=16 rate=48000 rates=1 max_packet=196 interval=1 proto=UAC1 clock=0
 audio output ready: addr=1
 ```
 

@@ -39,7 +39,7 @@ CCID class descriptor (`bDescriptorType == 0x21`, 54 bytes) は現在 `EspUsbHos
 1. CCID interface の検出と claim、CCID class descriptor の parse
 2. slot 状態取得 (`PC_to_RDR_GetSlotStatus`) とカード有無判定
 3. カードの活性化・非活性化 (`IccPowerOn` / `IccPowerOff`) と ATR 取得
-4. データ交換 (`PC_to_RDR_XfrBlock`) と、その上の APDU 送受信ヘルパ
+4. データ交換 (`PC_to_RDR_XfrBlock`) と、その上の APDU 送受信ヘルパ、ATR からのカード種別判定
 5. `PC_to_RDR_Escape` によるベンダー固有コマンド送信
 6. interrupt IN (`RDR_to_PC_NotifySlotChange`) によるカード挿入・排出コールバック
 7. 上記に収まらないメッセージ用の汎用 raw message API
@@ -366,7 +366,36 @@ CCID_UID data=6b6dccae
 - exchange level は extended APDU (`dwFeatures` bit 18)、protocol は T=1、slot は 1 個、`dwMaxCCIDMessageLength` は 522
 - ATR は PC/SC の合成 ATR (RID `A000000306`、SS=03 = ISO 14443 A part 3)
 - Get UID (`FF CA 00 00 00`) を 3 回繰り返しても同じ UID と `9000` が返り、その後の生 `GetSlotStatus` も `bSeq` が同期したまま成功する
-- FeliCa 本来のプロトコルは ISO 7816 APDU ではないため、FeliCa のブロックを読むには `ccidEscape()` によるリーダー固有コマンドが必要。これは example / manual test の範囲
+- `ccidGetCardInfo()` はこの ATR を `ISO 14443 A` level 3 / `MIFARE Classic 1K` (PIX.SS=0x03、PIX.Name=0x0001) と判定する
+- カードを外して戻すと `onCcidCardRemoved()` → `onCcidCardInserted()` が 1 回ずつ発火する (`tests/manual/ccid_hotplug`)
+- FeliCa 本来のプロトコルは ISO 7816 APDU ではないため、FeliCa のブロック読み書き (Read Without Encryption 等) は標準 APDU では行えない。IDm の取得までは下記のとおり標準経路で可能
+
+FeliCa カードを載せた場合の実測。
+
+```
+CCID_ATR      data=3b8f8001804f0ca00000030611003b0000000042
+CCID_CARD     standard="FeliCa" code=0x11 level=0 name="FeliCa" nameCode=0x003b pcsc=1 protocols=0x03
+CCID_IDENTIFY standard="FeliCa" fromUid=0 uidLength=0
+CCID_APDU     attempt=0 sw=9000 length=8
+```
+
+- RC-S300 は CCID モードで FeliCa を扱い、PC/SC 合成 ATR の PIX.SS=0x11 / PIX.Name=0x003b で FeliCa と申告する。ATR だけで判定できるため `ccidIdentifyCard()` の UID フォールバックは動かない (`fromUid=0`)
+- Get UID (`FF CA 00 00 00`) は 8 byte の IDm を返す
+- 仕様書だけを根拠にしていた PIX.SS=0x11 と PIX.Name=0x003b の対応が実機で裏付けられた
+
+iPhone (Apple Pay) を載せた場合の実測。
+
+iPhone (Apple Pay) を載せた場合の実測。
+
+```
+CCID_ATR      data=3b80800101
+CCID_CARD     standard="unknown" pcsc=0
+CCID_IDENTIFY standard="ISO 14443 (type A or B)" fromUid=1 uidLength=4 uid=08391eaf
+```
+
+- ATR は `3b 80 80 01 01` で historical bytes が 0 byte。ATR にカード識別情報が一切入らないケースがあることが分かり、これを `ISO 7816 card` と誤判定しないよう `unknown` を返す実装に修正した
+- Get UID は 4 byte の `08391eaf` を返した。先頭 `0x08` は ISO 14443-3 がランダム NFCID1 用に予約している値で、iPhone は FeliCa ではなく ISO 14443 Type A として応答している。この結果を受けて、4 byte かつ先頭 `0x08` は ISO 14443 A と判定するようにした (上記ログはその修正前のもの)
+- iPhone のこの応答はリーダー側の制限ではない。同じリーダーに FeliCa カードを載せると上記のとおり FeliCa として識別されるため、iPhone 側が ISO 14443 Type A で応答していたということ
 
 ## README / ドキュメント反映方針
 
@@ -383,6 +412,9 @@ CCID_UID data=6b6dccae
 - manual test は設計時の 4 本 (`ccid_slot_status` / `ccid_power_on` / `ccid_apdu` / `ccid_hotplug`) ではなく 3 本にした。前 3 者は 1 回の実行で連続して確認できるため `ccid_card` にまとめている
 - `ccidGetStatus()` は command status が FAILED の応答でも `true` を返す。カードが無い slot に対して失敗を返すリーダーがあり、その場合でも ICC status のビットは有効なため
 - メッセージバッファは `dwMaxCCIDMessageLength` が既定の 512 を超える場合に 4096 まで拡張する (RC-S300 は 522)
+- 設計時になかった `ccidIdentifyCard()` を追加した。ATR で判定できないカード向けに Get UID (`FF CA 00 00 00`) を送り、識別子の形から規格を推定する (8 byte は FeliCa の IDm、ただし先頭 `0xe0` は ISO 15693 の UID。7 / 10 byte は ISO 14443 A の NFCID1。4 byte で先頭 `0x08` は ISO 14443-3 がランダム NFCID1 用に予約している値。それ以外の 4 byte は NFCID1 と PUPI が同長のため type を確定しない)。推測であることは `info.fromUid` で区別できる
+- 設計時になかった `ccidGetCardInfo()` を追加した。カードの種類 (ISO 14443 A/B、ISO 15693、FeliCa、低周波非接触、ISO 7816-10 メモリカード) とレベル、カード名を ATR から取り出す。非接触のストレージカードは自前の ATR を持たず、PC/SC 準拠のリーダーが historical bytes に PC/SC の RID `A0 00 00 03 06` と標準バイト (PIX.SS)・カード名 (PIX.Name) を載せた合成 ATR を作るため、そこから判定できる。自前の ATR を返すカード (接触カード、ISO 14443-4 で話す非接触カード) はこの識別情報を持たないので、推測せず `ISO 7816 card (own ATR)` として報告する
+- ATR パーサは Arduino / USB 非依存の `src/EspUsbHostCcidAtr.h` に置き、host unit test `tests/unit/ccid_atr` が出荷するヘッダをそのまま g++ でコンパイルして検証する。カード名は PC/SC の代表的な値だけ名前を解決し、それ以外は生のコードを `cardName` で返す (未確認の名前を表示しないため)
 
 ## 保留事項
 
