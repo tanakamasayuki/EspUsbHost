@@ -187,6 +187,18 @@ void loop()
             }
             Serial.printf("AUDIO_TX %lu\n", static_cast<unsigned long>(sent));
         }
+        else if (command == 'f')
+        {
+            // Explicit feedback endpoint state. A UAC2 asynchronous playback
+            // interface reports the rate it wants the host to send at; pacing is
+            // the rate the OUT packets are actually filled for.
+            Serial.printf("AUDIO_FEEDBACK has=%u rate=%lu updates=%lu rejects=%lu pacing=%lu\n",
+                          usb.audioOutputHasFeedback(audioOutputAddress) ? 1 : 0,
+                          static_cast<unsigned long>(usb.audioOutputFeedbackRate(audioOutputAddress)),
+                          static_cast<unsigned long>(usb.audioOutputFeedbackUpdates(audioOutputAddress)),
+                          static_cast<unsigned long>(usb.audioOutputFeedbackRejects(audioOutputAddress)),
+                          static_cast<unsigned long>(usb.audioOutputRate(audioOutputAddress)));
+        }
         else if (command == 'v')
         {
             EspUsbHostAudioVolumeRange range;

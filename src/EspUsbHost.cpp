@@ -4414,6 +4414,14 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     }
   }
 
+  if (!startAudioFeedback(*device))
+  {
+    // Playback itself is running; without feedback it just stays at the negotiated
+    // rate, which is what a synchronous device does anyway.
+    ESP_LOGW(TAG, "USB Audio feedback polling unavailable: ep=0x%02x",
+             device->audioOutFeedbackEndpointAddress);
+  }
+
   return true;
 }
 
@@ -4437,6 +4445,36 @@ uint32_t EspUsbHost::audioOutputUnderruns(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
   return device ? device->audioOutUnderruns : 0;
+}
+
+bool EspUsbHost::audioOutputHasFeedback(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device && device->audioOutFeedbackTransfer != nullptr;
+}
+
+uint32_t EspUsbHost::audioOutputFeedbackRate(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device ? device->audioOutFeedbackRate : 0;
+}
+
+uint32_t EspUsbHost::audioOutputFeedbackUpdates(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device ? device->audioOutFeedbackUpdates : 0;
+}
+
+uint32_t EspUsbHost::audioOutputFeedbackRejects(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device ? device->audioOutFeedbackRejects : 0;
+}
+
+uint32_t EspUsbHost::audioOutputRate(uint8_t address) const
+{
+  const DeviceState *device = findAudioOutputDevice(address);
+  return device ? audioOutputPacingRate(*device) : 0;
 }
 
 bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
@@ -5806,7 +5844,7 @@ bool EspUsbHost::fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *tr
     return false;
   }
 
-  device.audioOutFrameAccumulator += device.audioSampleRate;
+  device.audioOutFrameAccumulator += audioOutputPacingRate(device);
   size_t frames = device.audioOutFrameAccumulator / 1000;
   device.audioOutFrameAccumulator %= 1000;
   if (frames == 0)
@@ -7445,6 +7483,29 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isIsochronous)
     {
       static constexpr int AUDIO_ISOC_PACKETS = 8;
+      if (espUsbHostAudioIsFeedbackEndpoint(ep->bmAttributes))
+      {
+        // Explicit feedback endpoint of an asynchronous playback interface. It
+        // reports the device's rate estimate, not audio, so it must not be
+        // registered as a stream (of either direction) or consume an endpoint slot.
+        // Remember the one on the claimed alternate: while playback runs it is
+        // polled to pace the OUT packets.
+        if (currentInterfaceClaimed_)
+        {
+          device->audioOutFeedbackInterfaceNumber = currentInterfaceNumber_;
+          device->audioOutFeedbackEndpointAddress = ep->bEndpointAddress;
+          device->audioOutFeedbackPacketSize = ep->wMaxPacketSize;
+          device->audioOutFeedbackInterval = ep->bInterval;
+        }
+        ESP_LOGI(TAG, "USB Audio feedback endpoint: iface=%u alt=%u ep=0x%02x size=%u interval=%u claimed=%u",
+                 currentInterfaceNumber_,
+                 currentInterfaceAlternate_,
+                 ep->bEndpointAddress,
+                 ep->wMaxPacketSize,
+                 ep->bInterval,
+                 currentInterfaceClaimed_ ? 1u : 0u);
+        return;
+      }
       if (!currentInterfaceClaimed_)
       {
         // Only one alternate setting per interface is claimed, so the endpoints of
@@ -7458,18 +7519,6 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                  currentInterfaceNumber_,
                  currentInterfaceAlternate_,
                  ep->bEndpointAddress);
-        return;
-      }
-      if (espUsbHostAudioIsFeedbackEndpoint(ep->bmAttributes))
-      {
-        // Explicit feedback endpoint of an asynchronous playback interface. It
-        // reports the device's rate estimate, not audio, so it must not be
-        // registered as a capture stream or consume an endpoint slot.
-        ESP_LOGI(TAG, "USB Audio feedback endpoint ignored: iface=%u ep=0x%02x size=%u interval=%u",
-                 currentInterfaceNumber_,
-                 ep->bEndpointAddress,
-                 ep->wMaxPacketSize,
-                 ep->bInterval);
         return;
       }
       if (!isIn)
@@ -10535,6 +10584,17 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
     }
   }
 
+  // Neither is the explicit feedback IN transfer that paces them.
+  for (DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || !device.audioOutFeedbackTransfer)
+    {
+      continue;
+    }
+    usb_host_endpoint_halt(device.handle, device.audioOutFeedbackEndpointAddress);
+    usb_host_endpoint_flush(device.handle, device.audioOutFeedbackEndpointAddress);
+  }
+
   // Queued vendor bulk OUT transfers are not EndpointState entries either.
   for (DeviceState &device : devices_)
   {
@@ -10579,6 +10639,10 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
         {
           idle = false;
         }
+      }
+      if (device.audioOutFeedbackTransfer)
+      {
+        idle = false;
       }
       for (uint8_t i = 0; i < device.usbVendorOutQueueDepth; i++)
       {
@@ -10749,6 +10813,149 @@ void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
       usb_host_transfer_free(transfer);
     }
   }
+  releaseAudioFeedbackTransfer(device);
+}
+
+uint32_t EspUsbHost::audioOutputPacingRate(const DeviceState &device) const
+{
+  return device.audioOutFeedbackRate != 0 ? device.audioOutFeedbackRate : device.audioSampleRate;
+}
+
+bool EspUsbHost::startAudioFeedback(DeviceState &device)
+{
+  device.audioOutFeedbackRate = 0;
+  device.audioOutFeedbackUpdates = 0;
+  device.audioOutFeedbackRejects = 0;
+
+  if (device.audioOutFeedbackEndpointAddress == 0 ||
+      device.audioOutFeedbackPacketSize == 0 ||
+      device.audioOutFeedbackInterfaceNumber != device.audioOutInterfaceNumber)
+  {
+    // Synchronous or adaptive playback interface: no rate to follow.
+    return true;
+  }
+  if (device.audioOutFeedbackTransfer)
+  {
+    return true;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(device.audioOutFeedbackPacketSize, 1, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(audio feedback) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = device.audioOutFeedbackEndpointAddress;
+  transfer->callback = audioFeedbackTransferCallback;
+  transfer->context = this;
+  device.audioOutFeedbackTransfer = transfer;
+
+  if (!submitAudioFeedbackTransfer(device))
+  {
+    releaseAudioFeedbackTransfer(device);
+    return false;
+  }
+  ESP_LOGI(TAG, "USB Audio feedback polling started: ep=0x%02x size=%u nominal=%lu",
+           device.audioOutFeedbackEndpointAddress,
+           device.audioOutFeedbackPacketSize,
+           static_cast<unsigned long>(device.audioSampleRate));
+  return true;
+}
+
+bool EspUsbHost::submitAudioFeedbackTransfer(DeviceState &device)
+{
+  usb_transfer_t *transfer = device.audioOutFeedbackTransfer;
+  if (!transfer)
+  {
+    return false;
+  }
+
+  transfer->num_bytes = device.audioOutFeedbackPacketSize;
+  transfer->isoc_packet_desc[0].num_bytes = device.audioOutFeedbackPacketSize;
+  transfer->isoc_packet_desc[0].actual_num_bytes = 0;
+  transfer->isoc_packet_desc[0].status = USB_TRANSFER_STATUS_COMPLETED;
+
+  esp_err_t err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(audio feedback) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    return false;
+  }
+  return true;
+}
+
+void EspUsbHost::applyAudioFeedback(DeviceState &device, const usb_transfer_t *transfer)
+{
+  const size_t length = static_cast<size_t>(transfer->isoc_packet_desc[0].actual_num_bytes);
+  if (length == 0)
+  {
+    // The device had nothing to report in this interval. Keep the current rate.
+    return;
+  }
+
+  const uint32_t feedbackQ16 = espUsbHostAudioDecodeFeedbackQ16(transfer->data_buffer, length);
+  const bool highSpeed = device.info.speed == USB_SPEED_HIGH;
+  const uint32_t rate = espUsbHostAudioFeedbackSampleRate(feedbackQ16, highSpeed);
+  if (!espUsbHostAudioFeedbackRatePlausible(rate, device.audioSampleRate))
+  {
+    device.audioOutFeedbackRejects++;
+    ESP_LOGD(TAG, "USB Audio feedback out of range: rate=%lu nominal=%lu len=%u",
+             static_cast<unsigned long>(rate),
+             static_cast<unsigned long>(device.audioSampleRate),
+             static_cast<unsigned>(length));
+    return;
+  }
+
+  device.audioOutFeedbackRate = rate;
+  device.audioOutFeedbackUpdates++;
+}
+
+void EspUsbHost::releaseAudioFeedbackTransfer(DeviceState &device)
+{
+  usb_transfer_t *transfer = device.audioOutFeedbackTransfer;
+  device.audioOutFeedbackTransfer = nullptr;
+  device.audioOutFeedbackRate = 0;
+  if (transfer)
+  {
+    usb_host_transfer_free(transfer);
+  }
+}
+
+void EspUsbHost::audioFeedbackTransferCallback(usb_transfer_t *transfer)
+{
+  EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
+  DeviceState *device = host ? host->findDeviceByHandle(transfer->device_handle) : nullptr;
+  if (!host || !device || device->audioOutFeedbackTransfer != transfer)
+  {
+    usb_host_transfer_free(transfer);
+    return;
+  }
+
+  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+  {
+    host->applyAudioFeedback(*device, transfer);
+    if (device->audioOutRunning && host->running_ && host->submitAudioFeedbackTransfer(*device))
+    {
+      return;
+    }
+  }
+  else
+  {
+    ESP_LOGD(TAG, "audio feedback transfer status=%d ep=0x%02x",
+             transfer->status,
+             transfer->bEndpointAddress);
+  }
+
+  // Polling stopped: fall back to the negotiated rate instead of pacing playback
+  // from a value that is no longer refreshed.
+  device->audioOutFeedbackTransfer = nullptr;
+  device->audioOutFeedbackRate = 0;
+  usb_host_transfer_free(transfer);
 }
 
 void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)

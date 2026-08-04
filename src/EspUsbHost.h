@@ -844,6 +844,49 @@ inline uint32_t espUsbHostAudioReadU32(const uint8_t *data)
          (static_cast<uint32_t>(data[3]) << 24);
 }
 
+// Explicit feedback payload (USB 2.0 section 5.12.4.2) normalised to 16.16
+// samples per (micro)frame, which is what the endpoint reports: samples per
+// 1 ms frame at full speed and per 125 us microframe at high speed. A 3-byte
+// payload holds the value in 10.14 format and is shifted up by two; a 4-byte
+// payload already is 16.16. Returns 0 when the payload is unusable, matching how
+// a zeroed or short packet must be ignored rather than applied.
+inline uint32_t espUsbHostAudioDecodeFeedbackQ16(const uint8_t *data, size_t length)
+{
+  if (!data || length < 3)
+  {
+    return 0;
+  }
+  if (length == 3)
+  {
+    const uint32_t value = static_cast<uint32_t>(data[0]) |
+                           (static_cast<uint32_t>(data[1]) << 8) |
+                           (static_cast<uint32_t>(data[2]) << 16);
+    return value << 2;
+  }
+  return espUsbHostAudioReadU32(data);
+}
+
+// Sample rate in Hz carried by a decoded feedback value. Full speed reports
+// samples per 1 ms frame, high speed samples per 125 us microframe.
+inline uint32_t espUsbHostAudioFeedbackSampleRate(uint32_t feedbackQ16, bool highSpeed)
+{
+  const uint64_t framesPerSecond = highSpeed ? 8000u : 1000u;
+  return static_cast<uint32_t>((static_cast<uint64_t>(feedbackQ16) * framesPerSecond) >> 16);
+}
+
+// A feedback value far from the negotiated rate is a device or bus glitch, not a
+// rate the host should follow. The +/-12.5% window is the one Linux's
+// snd_usb_audio applies before it accepts a feedback update.
+inline bool espUsbHostAudioFeedbackRatePlausible(uint32_t rateHz, uint32_t nominalHz)
+{
+  if (rateHz == 0 || nominalHz == 0)
+  {
+    return false;
+  }
+  const uint32_t margin = nominalHz / 8;
+  return rateHz >= nominalHz - margin && rateHz <= nominalHz + margin;
+}
+
 // wNumSubRanges as declared by a UAC2 RANGE response, ignoring whether the
 // payload actually carries that many subranges. Used to size the follow-up
 // request after a 2-byte probe.
@@ -1518,6 +1561,18 @@ public:
   void audioOutputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool audioOutputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   uint32_t audioOutputUnderruns(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // True when the running playback stream has an explicit feedback endpoint.
+  bool audioOutputHasFeedback(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Rate the device last asked for through its feedback endpoint, or 0 when it has
+  // none and playback runs at the negotiated rate.
+  uint32_t audioOutputFeedbackRate(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Accepted and rejected feedback packets. A rising reject count means the device
+  // reports rates outside the plausible window, which are ignored.
+  uint32_t audioOutputFeedbackUpdates(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint32_t audioOutputFeedbackRejects(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Rate playback is actually paced at: the feedback rate once one has arrived,
+  // otherwise the negotiated rate.
+  uint32_t audioOutputRate(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   size_t getAudioFeatureUnits(uint8_t address, EspUsbHostAudioFeatureUnitInfo *units, size_t maxUnits) const;
   bool audioHasMute(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t unitId = 0, uint8_t channel = 0) const;
@@ -2013,6 +2068,18 @@ private:
     uint32_t audioOutFrameAccumulator = 0;
     uint32_t audioOutUnderruns = 0;
     usb_transfer_t *audioOutTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
+    // Explicit feedback endpoint of an asynchronous playback interface, when the
+    // claimed alternate declares one. audioOutFeedbackRate is the last plausible
+    // rate the device asked for; audioOutRate() falls back to the negotiated rate
+    // while it is 0, so a synchronous device behaves exactly as before.
+    uint8_t audioOutFeedbackInterfaceNumber = 0xff;
+    uint8_t audioOutFeedbackEndpointAddress = 0;
+    uint16_t audioOutFeedbackPacketSize = 0;
+    uint8_t audioOutFeedbackInterval = 0;
+    usb_transfer_t *audioOutFeedbackTransfer = nullptr;
+    uint32_t audioOutFeedbackRate = 0;
+    uint32_t audioOutFeedbackUpdates = 0;
+    uint32_t audioOutFeedbackRejects = 0;
     uint32_t audioSampleRate = 48000;
     uint8_t audioControlInterfaceNumber = 0xff;
     // bInterfaceProtocol of the device's Audio interfaces (0x20 for UAC2), taken
@@ -2336,6 +2403,15 @@ private:
   bool fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer);
   bool isManagedAudioOutputTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   void releaseAudioOutputTransfers(DeviceState &device);
+  // Explicit feedback endpoint polling. The transfer is not an EndpointState entry
+  // for the same reason the audio OUT transfers are not: it is owned by the
+  // playback stream and lives only while it runs.
+  uint32_t audioOutputPacingRate(const DeviceState &device) const;
+  bool startAudioFeedback(DeviceState &device);
+  bool submitAudioFeedbackTransfer(DeviceState &device);
+  void applyAudioFeedback(DeviceState &device, const usb_transfer_t *transfer);
+  void releaseAudioFeedbackTransfer(DeviceState &device);
+  static void audioFeedbackTransferCallback(usb_transfer_t *transfer);
   bool mscCommand(DeviceState &device,
                   const uint8_t *command,
                   uint8_t commandLength,

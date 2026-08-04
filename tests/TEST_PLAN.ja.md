@@ -71,7 +71,7 @@ tests/
 | device lifecycle複数listener配送 | ✅ peer（`end()`/再開による接続event、peer再起動による切断→再接続、単一callbackとの共存、順序、専用上限8、解除） | | |
 | Vendor-specific bulk/control | ✅ peer（usb_vendor、`end()`/再開を含む） | ✅ manual（Android ADB認証＋shell stream） | |
 | USBオーディオ入出力 — UAC1 | ✅ peer（標準`USBAudioCard`で双方向） | | ⬜ 実USBマイク・オーディオIF |
-| USBオーディオ入出力 — UAC2 | ✅ peer（`usb_audio_uac2`: class revision、Clock Sourceのサンプルレート、4バイト・2ビットのFeature Unit control、volumeの`RANGE`、feedback endpointの除外、双方向streaming）、✅ ホスト単体（`unit/audio_uac`: descriptorと`RANGE`のデコード） | | ⬜ 実UAC2機器（high-speed設計が多く、full-speedホストでは列挙できない）、Clock Selector / Clock Multiplier |
+| USBオーディオ入出力 — UAC2 | ✅ peer（`usb_audio_uac2`: class revision、Clock Sourceのサンプルレート、4バイト・2ビットのFeature Unit control、volumeの`RANGE`、explicit feedback endpointのポーリングとOUTのレート追従、双方向streaming）、✅ ホスト単体（`unit/audio_uac`: descriptorと`RANGE`のデコード） | | ⬜ 実UAC2機器（high-speed設計が多く、full-speedホストでは列挙できない）、Clock Selector / Clock Multiplier、実DACでの長時間の非同期playback（peerのfeedbackはFIFO残量からの計算でハードウェアクロック由来ではない） |
 | USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否、write失敗検出） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、`fs::FS` wrapper、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ data phase失敗後の完全なBOT復旧、複数LUN、32-bit sector超のFatFs mount |
 | CCIDスマートカードリーダー | | ✅ manual（`ccid_info` のdescriptorダンプ、`ccid_card` のopen/状態/ATR/APDU、`ccid_hotplug` のslot変化通知をSony RC-S300で確認） | ⬜ 複数slotリーダー、接触カード、チェイン応答、ICCD変種 |
 | USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual（configuration横断の汎用descriptor候補検出） | ⬜ configuration選択、frame RX/TX、lwIP統合 |

@@ -38,7 +38,10 @@ uv run --env-file .env pytest unit/
   stride、UAC2は4バイト固定。UAC2のdescriptorをUAC1として読んだ場合に拒否されること
   も含む)、control maskの解釈(UAC1は1 control 1ビット、UAC2は2ビットで有無・読取
   専用・設定可)、explicit feedback endpointを識別するisochronousのusage type
-  (implicit feedback dataと混同しないこと)、およびUAC2の`RANGE`応答
+  (implicit feedback dataと混同しないこと)、feedback payloadのデコード(3バイトは
+  10.14、4バイトは16.16。full speedは1フレームあたり、high speedはmicroframe
+  あたり。小数値と44.1 kHz、短いpayloadとnull)とレート追従を守る±12.5%の窓、
+  およびUAC2の`RANGE`応答
   (`wNumSubRanges`、離散レート、resolutionで刻む連続subrange、切り詰められた
   payload、重複およびゼロのレート、呼び出し側の容量上限、signed 1/256 dBのvolume
   range)を対象とする。あわせて`audioInputStart()` / `audioOutputStart()`が委譲する
