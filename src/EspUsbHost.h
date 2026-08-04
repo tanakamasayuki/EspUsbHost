@@ -696,6 +696,13 @@ struct EspUsbHostAudioStreamInfo
   uint32_t sampleRateResolution = 0;
   uint16_t maxPacketSize = 0;
   uint8_t interval = 0;
+  // False when the stream's alternate setting was discovered but its endpoints
+  // were not claimed, so it describes a format the device offers that this host
+  // cannot currently start. Only one alternate setting per interface is claimed
+  // during enumeration, so a device that splits formats across alternates (a
+  // 16-bit and a 24-bit alternate, for example) reports the others this way.
+  // Defaults to true so a hand-built stream array still selects normally.
+  bool startable = true;
   uint8_t protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
   // UAC2 only: the Audio Streaming interface's bTerminalLink and the Clock Source
   // entity reached through that terminal. UAC2 keeps sample rates in the clock
@@ -1177,6 +1184,10 @@ inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioStream(const EspUsbHo
     {
       continue;
     }
+    if (!stream.startable)
+    {
+      continue;
+    }
 
     uint32_t rates[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES + 4] = {};
     const size_t rateCount = espUsbHostAudioStreamCandidateSampleRates(stream, rates, sizeof(rates) / sizeof(rates[0]));
@@ -1193,6 +1204,69 @@ inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioStream(const EspUsbHo
       {
         best.index = static_cast<int>(i);
         best.sampleRate = sampleRate;
+        best.score = score;
+      }
+    }
+  }
+  return best;
+}
+
+// Pick the best stream that satisfies a partially specified PCM format. A zero
+// means "no preference", so (0, 0, 0) is "whatever this device does best" and
+// (2, 0, 48000) is "48 kHz stereo, any sample width". Fully specified arguments
+// behave like an exact-match lookup, except that several equally matching
+// alternates are ranked by espUsbHostAudioStreamScore() instead of resolving to
+// whichever came first in the descriptors.
+inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioStreamForFormat(const EspUsbHostAudioStreamInfo *streams,
+                                                                          size_t count,
+                                                                          bool input,
+                                                                          uint8_t channels,
+                                                                          uint8_t bitsPerSample,
+                                                                          uint32_t sampleRate)
+{
+  EspUsbHostAudioStreamSelection best;
+  if (!streams)
+  {
+    return best;
+  }
+
+  for (size_t i = 0; i < count; i++)
+  {
+    const EspUsbHostAudioStreamInfo &stream = streams[i];
+    if ((input ? !stream.input : !stream.output) || !stream.startable)
+    {
+      continue;
+    }
+    if ((channels != 0 && stream.channels != channels) ||
+        (bitsPerSample != 0 && stream.bitsPerSample != bitsPerSample))
+    {
+      continue;
+    }
+
+    // A requested rate must be supported as-is. Without one, rank every rate the
+    // stream offers, including the standard rates a continuous range covers.
+    uint32_t rates[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES + 4] = {};
+    size_t rateCount = 0;
+    if (sampleRate != 0)
+    {
+      if (!espUsbHostAudioStreamSupportsSampleRate(stream, sampleRate))
+      {
+        continue;
+      }
+      rates[rateCount++] = sampleRate;
+    }
+    else
+    {
+      rateCount = espUsbHostAudioStreamCandidateSampleRates(stream, rates, sizeof(rates) / sizeof(rates[0]));
+    }
+
+    for (size_t rateIndex = 0; rateIndex < rateCount; rateIndex++)
+    {
+      const int score = espUsbHostAudioStreamScore(stream, rates[rateIndex]);
+      if (best.index < 0 || score > best.score)
+      {
+        best.index = static_cast<int>(i);
+        best.sampleRate = rates[rateIndex];
         best.score = score;
       }
     }
@@ -2091,7 +2165,9 @@ private:
   // the terminal link cannot be matched, and returns 0 when there is none.
   uint8_t resolveAudioClockSource(const DeviceState &device, uint8_t terminalLink) const;
   const AudioClockSourceState *findAudioClockSource(const DeviceState &device, uint8_t clockSourceId) const;
-  void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input);
+  // startable is false for an alternate setting that was parsed but not claimed:
+  // its format is reported, but no endpoint or transfer is allocated for it.
+  void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input, bool startable = true);
   void handleTransfer(usb_transfer_t *transfer);
   void dispatchKeyboardState(EndpointState &endpoint,
                              DeviceState *device,

@@ -871,7 +871,7 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage)
 
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out)
 {
-  out.printf("audio stream: addr=%u iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max_packet=%u interval=%u proto=%s clock=%u\n",
+  out.printf("audio stream: addr=%u iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u max_packet=%u interval=%u proto=%s clock=%u startable=%u\n",
              stream.address,
              stream.interfaceNumber,
              stream.alternate,
@@ -886,7 +886,8 @@ void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out)
              stream.maxPacketSize,
              stream.interval,
              stream.protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ? "UAC2" : "UAC1",
-             stream.clockSourceId);
+             stream.clockSourceId,
+             stream.startable ? 1 : 0);
 }
 
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out)
@@ -3899,12 +3900,6 @@ bool EspUsbHost::audioInputStart(uint8_t channels,
                                  uint32_t sampleRate,
                                  uint8_t address)
 {
-  if (channels == 0 || bitsPerSample == 0 || sampleRate == 0)
-  {
-    ESP_LOGW(TAG, "audioInputStart() called with incomplete audio IN format");
-    return false;
-  }
-
   DeviceState *device = findAudioInputDevice(address);
   if (!device)
   {
@@ -3912,23 +3907,25 @@ bool EspUsbHost::audioInputStart(uint8_t channels,
     return false;
   }
 
-  for (uint8_t i = 0; i < device->audioStreamInfoCount; i++)
+  const EspUsbHostAudioStreamSelection selection =
+      espUsbHostSelectAudioStreamForFormat(device->audioStreamInfos,
+                                           device->audioStreamInfoCount,
+                                           true,
+                                           channels,
+                                           bitsPerSample,
+                                           sampleRate);
+  if (!selection)
   {
-    const EspUsbHostAudioStreamInfo &stream = device->audioStreamInfos[i];
-    if (stream.input &&
-        stream.channels == channels &&
-        stream.bitsPerSample == bitsPerSample &&
-        espUsbHostAudioStreamSupportsSampleRate(stream, sampleRate))
-    {
-      return audioInputStart(stream, sampleRate, device->info.address);
-    }
+    ESP_LOGW(TAG, "No matching USB Audio IN stream: channels=%u bits=%u rate=%lu",
+             channels,
+             bitsPerSample,
+             static_cast<unsigned long>(sampleRate));
+    return false;
   }
 
-  ESP_LOGW(TAG, "No matching USB Audio IN stream: channels=%u bits=%u rate=%lu",
-           channels,
-           bitsPerSample,
-           static_cast<unsigned long>(sampleRate));
-  return false;
+  return audioInputStart(device->audioStreamInfos[selection.index],
+                         selection.sampleRate,
+                         device->info.address);
 }
 
 bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
@@ -3945,6 +3942,15 @@ bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
   if (!device)
   {
     ESP_LOGW(TAG, "audioInputStart() called before a USB Audio IN endpoint is ready");
+    return false;
+  }
+
+  if (!stream.startable)
+  {
+    ESP_LOGW(TAG, "audioInputStart() called with a format-only stream: iface=%u alt=%u ep=0x%02x",
+             stream.interfaceNumber,
+             stream.alternate,
+             stream.endpointAddress);
     return false;
   }
 
@@ -4257,12 +4263,6 @@ bool EspUsbHost::audioOutputStart(uint8_t channels,
                                   uint32_t sampleRate,
                                   uint8_t address)
 {
-  if (channels == 0 || bitsPerSample == 0 || sampleRate == 0)
-  {
-    ESP_LOGW(TAG, "audioOutputStart() called with incomplete audio OUT format");
-    return false;
-  }
-
   DeviceState *device = findAudioOutputDevice(address);
   if (!device)
   {
@@ -4270,23 +4270,25 @@ bool EspUsbHost::audioOutputStart(uint8_t channels,
     return false;
   }
 
-  for (uint8_t i = 0; i < device->audioStreamInfoCount; i++)
+  const EspUsbHostAudioStreamSelection selection =
+      espUsbHostSelectAudioStreamForFormat(device->audioStreamInfos,
+                                           device->audioStreamInfoCount,
+                                           false,
+                                           channels,
+                                           bitsPerSample,
+                                           sampleRate);
+  if (!selection)
   {
-    const EspUsbHostAudioStreamInfo &stream = device->audioStreamInfos[i];
-    if (stream.output &&
-        stream.channels == channels &&
-        stream.bitsPerSample == bitsPerSample &&
-        espUsbHostAudioStreamSupportsSampleRate(stream, sampleRate))
-    {
-      return audioOutputStart(stream, sampleRate, device->info.address);
-    }
+    ESP_LOGW(TAG, "No matching USB Audio OUT stream: channels=%u bits=%u rate=%lu",
+             channels,
+             bitsPerSample,
+             static_cast<unsigned long>(sampleRate));
+    return false;
   }
 
-  ESP_LOGW(TAG, "No matching USB Audio OUT stream: channels=%u bits=%u rate=%lu",
-           channels,
-           bitsPerSample,
-           static_cast<unsigned long>(sampleRate));
-  return false;
+  return audioOutputStart(device->audioStreamInfos[selection.index],
+                          selection.sampleRate,
+                          device->info.address);
 }
 
 bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
@@ -4296,6 +4298,14 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
   if (!stream.output)
   {
     ESP_LOGW(TAG, "audioOutputStart() called with a non-output stream");
+    return false;
+  }
+  if (!stream.startable)
+  {
+    ESP_LOGW(TAG, "audioOutputStart() called with a format-only stream: iface=%u alt=%u ep=0x%02x",
+             stream.interfaceNumber,
+             stream.alternate,
+             stream.endpointAddress);
     return false;
   }
 
@@ -7435,6 +7445,21 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         isIsochronous)
     {
       static constexpr int AUDIO_ISOC_PACKETS = 8;
+      if (!currentInterfaceClaimed_)
+      {
+        // Only one alternate setting per interface is claimed, so the endpoints of
+        // the others are not allocated in the host driver and can never carry a
+        // transfer. Record the format they advertise -- a device that splits
+        // 16-bit and 24-bit, or different rates, across alternates is describing
+        // real capabilities -- but do not spend an endpoint slot or an isochronous
+        // transfer buffer on them, and mark the stream as not startable.
+        recordAudioStream(*device, ep, isIn, false);
+        ESP_LOGI(TAG, "USB Audio format-only stream: iface=%u alt=%u ep=0x%02x (alternate not claimed)",
+                 currentInterfaceNumber_,
+                 currentInterfaceAlternate_,
+                 ep->bEndpointAddress);
+        return;
+      }
       if (espUsbHostAudioIsFeedbackEndpoint(ep->bmAttributes))
       {
         // Explicit feedback endpoint of an asynchronous playback interface. It
@@ -7906,7 +7931,7 @@ void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint
            static_cast<unsigned long>(unit->masterControls));
 }
 
-void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input)
+void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input, bool startable)
 {
   if (!ep || device.audioStreamInfoCount >= ESP_USB_HOST_MAX_AUDIO_STREAMS)
   {
@@ -7934,6 +7959,7 @@ void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep,
   info.sampleRateResolution = currentAudioSampleRateResolution_;
   info.maxPacketSize = ep->wMaxPacketSize;
   info.interval = ep->bInterval;
+  info.startable = startable;
   info.protocol = device.audioProtocol;
   info.terminalLink = currentAudioTerminalLink_;
   if (device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)

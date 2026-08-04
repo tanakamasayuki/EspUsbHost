@@ -103,7 +103,7 @@ static void printAudioStreams()
     const size_t streamCount = usb.getAudioStreams(audioAddress, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
     for (size_t i = 0; i < streamCount; i++)
     {
-        Serial.printf("AUDIO_STREAM iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u first=%lu min=%lu max=%lu maxPacket=%u interval=%u proto=0x%02x terminal=%u clock=%u\n",
+        Serial.printf("AUDIO_STREAM iface=%u alt=%u ep=0x%02x dir=%s channels=%u bytes=%u bits=%u rate=%lu rates=%u first=%lu min=%lu max=%lu maxPacket=%u interval=%u proto=0x%02x terminal=%u clock=%u startable=%u\n",
                       streams[i].interfaceNumber,
                       streams[i].alternate,
                       streams[i].endpointAddress,
@@ -120,7 +120,8 @@ static void printAudioStreams()
                       streams[i].interval,
                       streams[i].protocol,
                       streams[i].terminalLink,
-                      streams[i].clockSourceId);
+                      streams[i].clockSourceId,
+                      streams[i].startable ? 1 : 0);
     }
     Serial.printf("AUDIO_STREAM_COUNT %u\n", static_cast<unsigned>(streamCount));
 }
@@ -144,9 +145,37 @@ void loop()
         {
             Serial.printf("AUDIO_OUT_START %u\n", usb.audioOutputStart(1, 16, 48000, audioOutputAddress) ? 1 : 0);
         }
+        else if (command == 'A')
+        {
+            // Zero means "no preference": the library picks the best format the
+            // device offers. Report what it resolved to so the test can assert it.
+            const bool started = usb.audioOutputStart(0, 0, 0, audioOutputAddress);
+            EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
+            const size_t count = usb.getAudioStreams(audioOutputAddress, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+            const EspUsbHostAudioStreamSelection best =
+                espUsbHostSelectAudioOutputStream(streams, count);
+            Serial.printf("AUDIO_OUT_AUTO started=%u channels=%u bits=%u rate=%lu\n",
+                          started ? 1 : 0,
+                          best ? streams[best.index].channels : 0,
+                          best ? streams[best.index].bitsPerSample : 0,
+                          static_cast<unsigned long>(best ? best.sampleRate : 0));
+        }
         else if (command == 'i')
         {
             Serial.printf("AUDIO_IN_START %u\n", usb.audioInputStart(1, 16, 48000, audioInputAddress) ? 1 : 0);
+        }
+        else if (command == 'I')
+        {
+            const bool started = usb.audioInputStart(0, 0, 0, audioInputAddress);
+            EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
+            const size_t count = usb.getAudioStreams(audioInputAddress, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+            const EspUsbHostAudioStreamSelection best =
+                espUsbHostSelectAudioInputStream(streams, count);
+            Serial.printf("AUDIO_IN_AUTO started=%u channels=%u bits=%u rate=%lu\n",
+                          started ? 1 : 0,
+                          best ? streams[best.index].channels : 0,
+                          best ? streams[best.index].bitsPerSample : 0,
+                          static_cast<unsigned long>(best ? best.sampleRate : 0));
         }
         else if (command == 's')
         {

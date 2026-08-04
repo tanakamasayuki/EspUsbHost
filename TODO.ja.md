@@ -108,7 +108,22 @@ explicit feedback endpointの除外を扱います。
 残りは Clock Selector / Clock Multiplier と、feedback endpointの値を使った
 OUTレート調整です。ESP32-S3/S2はfull-speed専用なので、full-speed
 configurationを持たないUAC2機器はそもそも列挙できません。
-フォーマット選択の強化
+フォーマット選択の強化（対応済み）
+
+`audioInputStart()` / `audioOutputStart()` の引数に `0`（指定なし）を許可し、
+descriptor順の先頭一致ではなく `espUsbHostAudioStreamScore()` のスコアで選ぶように
+しました。共通実装は `espUsbHostSelectAudioStreamForFormat()`。
+またフォーマットをalt settingで分けるデバイスへの対応として、claimしていないaltの
+endpointを確保しないようにし（従来はaltごとにendpoint slotとisoc transferを浪費し、
+OUT側は最後に解析したaltでフォーマットを上書きしていた）、そのaltは
+`startable = false` のフォーマット情報として報告します。
+`tests/unit/audio_uac` に選択ロジックのテスト、`tests/peer/usb_audio_uac2` に
+`(0, 0, 0)` 起動の実機確認を追加。
+
+残り: 開始時に別のaltへ切り替える処理（interfaceのrelease + 再claimが必要）。
+1 streamに複数フォーマットを提示できるpeerが無いため未検証で出せない。
+EspUsbDeviceは1 streamにつき1フォーマットのみ（descriptor writerが
+formatCount != 1 を拒否）なので、peer側の対応も必要。
 
 実機互換性テスト
 
@@ -148,6 +163,7 @@ peer test項目を `tests/peer/usb_midi` に追加した。接続eventはDUTの 
 `onAudioOutputRequest`は応答系なので単一slotのまま。非const参照＝応答系＝単一slot、const参照＝観測系＝listener化可、という判定基準を仕様案に残した
 
 残作業:
-実機でのpeer test実行（`tests/peer/usb_midi`、未実行。ホストPCに繋いだ実機が必要）
+実機でのpeer test実行（`tests/peer/usb_midi`、実行済み。8件すべてPASS。
+UAC2対応の回帰確認と同時に実施した）
 ESP32KeyBridge側の共有ハブ `EspUsbHostHub`（約150行）と `forStack()` singleton索引の削除、examplesの `sketch.yaml` のEspUsbHostバージョン更新
 リリース時に footprint matrix を再生成する（listener slotの追加でRAMが数百バイト増える）

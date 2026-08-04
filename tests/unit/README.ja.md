@@ -41,7 +41,10 @@ uv run --env-file .env pytest unit/
   (implicit feedback dataと混同しないこと)、およびUAC2の`RANGE`応答
   (`wNumSubRanges`、離散レート、resolutionで刻む連続subrange、切り詰められた
   payload、重複およびゼロのレート、呼び出し側の容量上限、signed 1/256 dBのvolume
-  range)を対象とする。
+  range)を対象とする。あわせて`audioInputStart()` / `audioOutputStart()`が委譲する
+  `espUsbHostSelectAudioStreamForFormat()`も検証する(完全一致、`0`=指定なしの
+  wildcard、幅やレートが異なるalt間のランク付け、指定レートがスコア優先より優先される
+  こと、連続range、`startable == false`のフォーマット専用altが除外されること)。
 
 ## 仕組み
 
