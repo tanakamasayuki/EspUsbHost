@@ -71,6 +71,7 @@ See each subdirectory's README for hardware setup and individual test details.
 | Vendor-specific bulk/control | ✅ peer (usb_vendor, including `end()`/restart) | ✅ manual (Android ADB auth + shell stream) | |
 | USB audio input/output | ✅ peer (bidirectional with standard `USBAudioCard`) | | ⬜ real USB microphones/audio interfaces |
 | USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, `fs::FS` wrapper, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, >32-bit-sector FatFs mount |
+| CCID smart card readers | | ✅ manual (`ccid_info` descriptor dump, `ccid_card` open/status/ATR/APDU on a Sony RC-S300) | ⬜ slot-change notifications (`ccid_hotplug`, needs an operator), multi-slot readers, contact cards, chained responses, ICCD variants |
 | USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual (generic descriptor candidate detection across configurations) | ⬜ configuration selection, frame RX/TX, lwIP integration |
 | Multiple devices | | ✅ manual | |
 | Device hot-plug | | ✅ manual | |

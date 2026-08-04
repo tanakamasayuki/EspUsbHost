@@ -29,6 +29,7 @@ static constexpr uint8_t USB_CLASS_CDC_CONTROL_VALUE = 0x02;
 static constexpr uint8_t USB_CLASS_CDC_DATA_VALUE = 0x0a;
 static constexpr uint8_t USB_CLASS_MASS_STORAGE_VALUE = 0x08;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
+static constexpr uint8_t USB_CLASS_CCID_VALUE = 0x0b;
 static constexpr uint8_t USB_CS_INTERFACE_DESC = 0x24;
 static constexpr uint8_t USB_CDC_SUBCLASS_ECM = 0x06;
 static constexpr uint8_t USB_CDC_SUBCLASS_NCM = 0x0d;
@@ -7468,7 +7469,13 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
   }
 
   case USB_HID_DESC:
-    if (data[0] >= 9 && device->hidReportDescriptorCount < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS)
+    // 0x21 is both the HID descriptor and the CCID class descriptor, so the
+    // interface class decides how to read it.
+    if (currentInterfaceClass_ == USB_CLASS_CCID_VALUE)
+    {
+      parseCcidClassDescriptor(*device, data);
+    }
+    else if (data[0] >= 9 && device->hidReportDescriptorCount < ESP_USB_HOST_MAX_HID_REPORT_DESCRIPTORS)
     {
       const uint8_t descriptorCount = data[5];
       for (uint8_t i = 0; i < descriptorCount; i++)
@@ -8342,6 +8349,12 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
     else if (endpoint->interfaceClass == USB_CLASS_VENDOR_VALUE)
     {
       handleUsbVendorData(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
+    }
+    else if (device && endpoint->interfaceClass == USB_CLASS_CCID_VALUE)
+    {
+      // Only the CCID interrupt IN endpoint is managed here; the bulk pipes are
+      // driven synchronously by the ccid*() calls.
+      handleCcidNotification(*device, transfer->data_buffer, transfer->actual_num_bytes);
     }
     else if (endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&
              endpoint->interfaceSubClass == USB_AUDIO_SUBCLASS_MIDI_STREAMING)
@@ -9249,15 +9262,21 @@ void EspUsbHost::resetDeviceState(DeviceState &device)
   free(device.networkRxRing);
   free(device.networkAsm);
   free(device.hidInputFields);
+  free(device.ccidBuffer);
   device.networkRxRing = nullptr;
   device.networkAsm = nullptr;
   device.hidInputFields = nullptr;
+  device.ccidBuffer = nullptr;
   SemaphoreHandle_t txLock = device.networkTxLock;
   SemaphoreHandle_t outDone = device.networkOutDone;
+  // Like the network TX lock, the CCID mutex belongs to the slot rather than to
+  // the device: a caller blocked on it must never wake up on a freed handle.
+  SemaphoreHandle_t ccidLock = device.ccidLock;
   device.~DeviceState();
   new (&device) DeviceState();
   device.networkTxLock = txLock;
   device.networkOutDone = outDone;
+  device.ccidLock = ccidLock;
 }
 
 void EspUsbHost::resetEndpointState(EndpointState &endpoint)
@@ -10485,6 +10504,12 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.hasMscOutEndpoint = false;
   device.hasNetworkInterface = false;
   device.networkInterface = EspUsbHostNetworkInterfaceInfo();
+  releaseCcidInterface(device);
+  device.ccidHasClassDescriptor = false;
+  device.ccidDescriptorInterfaceNumber = 0xff;
+  device.ccidInterfaceNumber = 0xff;
+  device.ccidSlotCount = 1;
+  device.ccidMaxMessageLength = 0;
   device.audioStreamInfoCount = 0;
   device.interfaceInfoCount = 0;
   device.endpointInfoCount = 0;
