@@ -18,7 +18,7 @@
 #define ESP_USB_HOST_DMA_CACHE_SYNC 1
 #endif
 
-#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
+#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
 #endif
 
@@ -622,7 +622,7 @@ static bool isKnownVendorSerial(uint16_t vid, uint16_t pid)
   }
 }
 
-#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
+#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
 static const char *vendorSerialName(uint16_t vid)
 {
   switch (vid)
@@ -8658,7 +8658,7 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
   if (transfer->status == USB_TRANSFER_STATUS_COMPLETED &&
       (transfer->actual_num_bytes > 0 || isAudioStreaming))
   {
-#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
+#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
     const char *transferKind = "input";
     if (endpoint->interfaceClass == USB_CLASS_HID_VALUE)
     {

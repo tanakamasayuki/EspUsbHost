@@ -11,7 +11,7 @@
 #define ESP_USB_HOST_CCID_DMA_CACHE_SYNC 1
 #endif
 
-#if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
+#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
 #endif
 
