@@ -46,6 +46,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `custom_hid`: Arduino Core標準USB Device実装のCustom HID相当とペアで動作
 - `hid_keyboard`: Arduino Core標準USB keyboard実装とペアで動作。HID listenerと単一callbackの共存、上限・無効操作の失敗、解除、登録順、mutable callback状態の継続、callback内変更の次event反映も検証
 - `hid_mouse`: Arduino Core標準USB mouse実装とペアで動作
+- `hid_mouse_report`: issue #39で報告されたLogitech G502 HEROのreport protocolレイアウト（16ボタン・16bit X/Y・wheel・AC Panの8バイト、report IDなし）を宣言するcustom HIDデバイスとペアで動作。boot layout決め打ちではなくreport descriptorからフィールド位置を特定していることを検証する（16bitの移動量、縦移動だけのレポートが無変化に見えずイベントになること、X移動がwheelに漏れないこと、AC Pan、`buttonMask` の上位バイトに入るボタン16）。`hid_mouse` が使うArduino Coreの `USBHIDMouse` はboot layoutしか作れず、それはdescriptorを読まなくても動く唯一のレイアウトである。
 - `hid_keyboard_mouse`: Arduino Core標準keyboard + mouse composite実装とペアで動作
 - `hid_keyboard_nkro`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceHidKeyboard`（NKRO 有効）とペアで動作。ビットマップレポートのデコード（8 キー同時押し）と、report protocol 中でも `setKeyboardLeds()` が届くことを検証
 - `hid_keyboard_composite`: `EspUsbDevice` の複合 HID device（keyboard + consumer control + mouse を report ID 付き 1 interface に統合、boot interface なし）とペアで動作。各入力が対応する Host コールバックに届くことと、`setKeyboardLeds()` が report ID 付き LED output report で届くことを検証

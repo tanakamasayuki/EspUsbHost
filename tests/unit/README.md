@@ -40,6 +40,18 @@ uv run --env-file .env pytest unit/
   historical bytes, missing TD1, wrong RID, TLV longer than the historical
   bytes).
 
+- `mouse_layout`: verifies the mouse report descriptor parser and report decoder
+  in `src/EspUsbHostHidLayout.h`: the boot mouse descriptor producing exactly the
+  layout the old fixed boot parsing assumed, the layout reported in issue #39 for
+  a Logitech G502 HERO (16 buttons, 16-bit X/Y, wheel and AC Pan in 8 bytes)
+  including the two regressions it caused (a Y-only report looking idle, X
+  movement landing in the wheel), report IDs in a composite keyboard + mouse
+  descriptor (offsets relative to the report body, a report with another ID
+  rejected), a joystick collection whose Generic Desktop X / Y must not be taken
+  for a mouse, 12-bit axes packed across byte boundaries with sign extension and
+  Push / Pop, and rejects (null, empty and truncated descriptors, a collection
+  without Y, decoding with an invalid layout).
+
 - `audio_uac`: verifies the USB Audio descriptor and control decoders in
   `src/EspUsbHost.h`: the Feature Unit `bmaControls` layout for both class
   revisions (UAC1's `bControlSize` stride versus UAC2's fixed 4 bytes, including
@@ -62,9 +74,10 @@ uv run --env-file .env pytest unit/
 
 ## How it works
 
-The `dl1xx` headers and `src/EspUsbHostCcidAtr.h` are pure byte formatting with
-no Arduino / USB dependencies, so `test_dl1xx.py` and `test_ccid_atr.py` compile
-them directly and need no extraction step.
+The `dl1xx` headers, `src/EspUsbHostCcidAtr.h` and `src/EspUsbHostHidLayout.h`
+are pure byte formatting with no Arduino / USB dependencies, so `test_dl1xx.py`,
+`test_ccid_atr.py` and `test_mouse_layout.py` compile them directly and need no
+extraction step.
 
 `src/EspUsbHost.h` pulls in Arduino and the ESP USB host stack, so `audio_uac`
 extracts the audio constants, structs and `inline` decoders it needs into
