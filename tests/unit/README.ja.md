@@ -33,6 +33,17 @@ uv run --env-file .env pytest unit/
   拒否(null、T0欠落、不正なTS、historical bytesの不足、TD1欠落、RID不一致、
   historical bytesより長いTLV)を対象とする。
 
+- `mouse_layout`: `src/EspUsbHostHidLayout.h` のマウスreport descriptorパーサと
+  レポートデコーダを検証する。boot mouseのdescriptorから、従来の固定boot解釈と
+  完全に同じレイアウトが得られること、issue #39で報告されたLogitech G502 HEROの
+  レイアウト(16ボタン・16bit X/Y・wheel・AC Panの8バイト)と、それが引き起こして
+  いた2つの不具合(縦移動だけのレポートが無変化に見えること、X移動がwheelに出る
+  こと)、report ID(キーボードとマウスの複合descriptor、レポート本体基準のビット
+  オフセット、別IDのレポートを拒否すること)、Generic DesktopのX / Yを持つjoystick
+  collectionをマウスと誤認しないこと、バイト境界をまたぐ12bit軸の符号拡張と
+  Push / Pop、および不正入力の拒否(null・空・切り詰めたdescriptor、Yの無い
+  collection、無効なlayoutでのデコード)を対象とする。
+
 - `audio_uac`: `src/EspUsbHost.h` のUSB Audio descriptor / controlデコーダを検証する。
   両class revisionのFeature Unit `bmaControls` レイアウト(UAC1は`bControlSize`の
   stride、UAC2は4バイト固定。UAC2のdescriptorをUAC1として読んだ場合に拒否されること
@@ -51,9 +62,9 @@ uv run --env-file .env pytest unit/
 
 ## 仕組み
 
-`dl1xx`のヘッダと`src/EspUsbHostCcidAtr.h`はArduino/USB非依存の純粋なバイト処理
-なので、`test_dl1xx.py`と`test_ccid_atr.py`はそのままg++でコンパイルでき、抽出は
-不要である。
+`dl1xx`のヘッダと`src/EspUsbHostCcidAtr.h`・`src/EspUsbHostHidLayout.h`は
+Arduino/USB非依存の純粋なバイト処理なので、`test_dl1xx.py`・`test_ccid_atr.py`・
+`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は不要である。
 
 `src/EspUsbHost.h`はArduinoとESP USB hostスタックをincludeするため、`audio_uac`は
 必要なaudioの定数・struct・`inline`デコーダを`output/espusbhost_audio_real.h`へ

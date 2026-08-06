@@ -465,7 +465,7 @@ Parsed HID callbacks (`onKeyboard`, `onKeyboardState`, `onMouse`, `onConsumerCon
 |----------|-----------|
 | `onKeyboard` | `pressed`, `keycode`, `ascii`, `modifiers`, `address` |
 | `onKeyboardState` | `bitmap`, `changedBitmap`, `modifiers`, `isDown()`, `wasPressed()`, `wasReleased()`, `address` |
-| `onMouse` | `x`, `y`, `wheel`, `buttons`, `previousButtons`, `moved`, `buttonsChanged`, `address` |
+| `onMouse` | `x`, `y`, `wheel`, `pan`, `buttons`, `previousButtons`, `buttonMask`, `previousButtonMask`, `buttonCount`, `moved`, `buttonsChanged`, `address` |
 | `onConsumerControl` | `pressed`, `usage` (16-bit HID usage code), `address` |
 | `onSystemControl` | `pressed`, `usage` (8-bit), `address` |
 | `onGamepad` | `fields`, `fieldCount`, `rawData`, `reportData`, `vid`, `pid`, `address` |

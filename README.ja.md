@@ -451,7 +451,7 @@ usb.onKeyboardState([](const EspUsbHostKeyboardState &state) {
 |-------------|--------------|
 | `onKeyboard` | `pressed`、`keycode`、`ascii`、`modifiers`、`address` |
 | `onKeyboardState` | `bitmap`、`changedBitmap`、`modifiers`、`isDown()`、`wasPressed()`、`wasReleased()`、`address` |
-| `onMouse` | `x`、`y`、`wheel`、`buttons`、`previousButtons`、`moved`、`buttonsChanged`、`address` |
+| `onMouse` | `x`、`y`、`wheel`、`pan`、`buttons`、`previousButtons`、`buttonMask`、`previousButtonMask`、`buttonCount`、`moved`、`buttonsChanged`、`address` |
 | `onConsumerControl` | `pressed`、`usage`（16ビットHIDユーセージ）、`address` |
 | `onSystemControl` | `pressed`、`usage`（8ビット）、`address` |
 | `onGamepad` | `fields`、`fieldCount`、`rawData`、`reportData`、`vid`、`pid`、`address` |

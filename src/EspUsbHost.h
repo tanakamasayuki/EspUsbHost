@@ -9,6 +9,7 @@
 #include <class/hid/hid.h>
 
 #include "EspUsbHostCcidAtr.h"
+#include "EspUsbHostHidLayout.h"
 
 // lwIP / esp_netif integration for networkAttachNetif() is optional and only
 // compiled when the esp_netif headers are available in the build.
@@ -578,8 +579,18 @@ struct EspUsbHostMouseEvent : EspUsbHostHIDReportData
   int16_t x = 0;
   int16_t y = 0;
   int16_t wheel = 0;
+  // AC Pan (horizontal wheel / tilt). Always 0 for a boot mouse report, which
+  // has no field for it.
+  int16_t pan = 0;
   uint8_t buttons = 0;
   uint8_t previousButtons = 0;
+  // All buttons the descriptor declares, bit 0 = button 1. `buttons` keeps the
+  // low 8 for compatibility; a mouse with more than 8 buttons (gaming mice
+  // routinely declare 16) reports the rest only here. buttonCount is 0 when the
+  // report was decoded as a boot mouse, where the count is not declared.
+  uint16_t buttonMask = 0;
+  uint16_t previousButtonMask = 0;
+  uint8_t buttonCount = 0;
   bool moved = false;
   bool buttonsChanged = false;
 };
@@ -1913,6 +1924,7 @@ private:
     uint8_t lastKeyboardBitmapModifiers = 0;
     bool keyboardBitmapReady = false;
     uint8_t lastMouseButtons = 0;
+    uint16_t lastMouseButtonMask = 0;
     uint16_t lastConsumerUsage = 0;
     EspUsbHostGamepadPrevState lastGamepadState;
     // Generic HID field values are only needed by decoded gamepad events.
@@ -1984,6 +1996,12 @@ private:
     uint16_t keyboardBitmapBitOffset = 0;
     uint16_t keyboardBitmapBitCount = 0;
     uint16_t keyboardBitmapUsageMin = 0;
+    // Mouse input-report layout learned from the HID report descriptor. A device
+    // is in report protocol after enumeration, so the report only matches the
+    // 4-byte boot layout by coincidence; mice that declare more than 8 buttons
+    // or 16-bit axes need their fields located from the descriptor.
+    EspUsbHostMouseReportLayout mouseLayout;
+    uint8_t mouseLayoutInterface = 0xff;
     // Keyboard LED output report learned from the HID report descriptor (LED usage
     // page in an Output item). Lets setKeyboardLeds() reach keyboards that never
     // declare a boot interface (report-ID composites, NKRO keyboards): the LED

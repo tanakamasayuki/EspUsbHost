@@ -1214,45 +1214,6 @@ void espUsbHostPrintHIDReportDescriptor(const uint8_t *data, size_t length, Prin
   }
 }
 
-static uint32_t hidExtractUnsignedBits(const uint8_t *data, size_t length, uint16_t bitOffset, uint8_t bitSize)
-{
-  if (!data || bitSize == 0 || bitSize > 32)
-  {
-    return 0;
-  }
-
-  uint32_t value = 0;
-  for (uint8_t bit = 0; bit < bitSize; bit++)
-  {
-    const size_t sourceBit = static_cast<size_t>(bitOffset) + bit;
-    const size_t byteIndex = sourceBit / 8;
-    if (byteIndex >= length)
-    {
-      break;
-    }
-    if (data[byteIndex] & (1U << (sourceBit % 8)))
-    {
-      value |= 1UL << bit;
-    }
-  }
-  return value;
-}
-
-static int32_t hidSignExtend(uint32_t value, uint8_t bitSize)
-{
-  if (bitSize == 0 || bitSize >= 32)
-  {
-    return static_cast<int32_t>(value);
-  }
-  const uint32_t signBit = 1UL << (bitSize - 1);
-  if ((value & signBit) == 0)
-  {
-    return static_cast<int32_t>(value);
-  }
-  const uint32_t extendMask = ~((1UL << bitSize) - 1);
-  return static_cast<int32_t>(value | extendMask);
-}
-
 void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out)
 {
   out.printf("hid report descriptor: address=%u iface=%u hid=0x%04x country=0x%02x type=0x%02x reported_len=%u len=%u\n",
@@ -8195,6 +8156,39 @@ void EspUsbHost::parseHIDReportDescriptor(DeviceState &device, const EspUsbHostH
     device.keyboardLedReportId = 0;
   }
 
+  // Locate the mouse report fields. Unlike the keyboard layout below this needs
+  // collection tracking (Generic Desktop X / Y also appear in joysticks and
+  // gamepads), so it is a separate walk over the descriptor in a header that
+  // host tests can compile.
+  if (device.mouseLayoutInterface == descriptor.interfaceNumber)
+  {
+    device.mouseLayout = EspUsbHostMouseReportLayout();
+    device.mouseLayoutInterface = 0xff;
+  }
+  if (!device.mouseLayout.valid)
+  {
+    EspUsbHostMouseReportLayout mouseLayout;
+    if (espUsbHostParseMouseReportLayout(descriptor.data, descriptor.length, mouseLayout))
+    {
+      device.mouseLayout = mouseLayout;
+      device.mouseLayoutInterface = descriptor.interfaceNumber;
+      ESP_LOGD(TAG,
+               "Mouse layout iface=%u reportId=%u buttons=%u@%u x=%u@%u y=%u@%u wheel=%u@%u pan=%u@%u",
+               descriptor.interfaceNumber,
+               mouseLayout.reportId,
+               mouseLayout.buttonCount,
+               mouseLayout.buttonsBitOffset,
+               mouseLayout.x.bitSize,
+               mouseLayout.x.bitOffset,
+               mouseLayout.y.bitSize,
+               mouseLayout.y.bitOffset,
+               mouseLayout.wheel.bitSize,
+               mouseLayout.wheel.bitOffset,
+               mouseLayout.pan.bitSize,
+               mouseLayout.pan.bitOffset);
+    }
+  }
+
   struct GlobalState
   {
     uint16_t usagePage = 0;
@@ -8445,8 +8439,9 @@ size_t EspUsbHost::decodeHIDInputFields(const DeviceState &device,
     value.bitOffset = inputField.bitOffset;
     value.bitSize = inputField.bitSize;
     value.flags = inputField.flags;
-    const uint32_t rawValue = hidExtractUnsignedBits(data, length, inputField.bitOffset, inputField.bitSize);
-    value.value = inputField.logicalMin < 0 ? hidSignExtend(rawValue, inputField.bitSize) : static_cast<int32_t>(rawValue);
+    const uint32_t rawValue = espUsbHostHidExtractBits(data, length, inputField.bitOffset, inputField.bitSize);
+    value.value = inputField.logicalMin < 0 ? espUsbHostHidSignExtend(rawValue, inputField.bitSize)
+                                            : static_cast<int32_t>(rawValue);
   }
   return count;
 }
@@ -8716,6 +8711,19 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
       {
         // NKRO keyboard: keys arrive as a bitmap, not the 8-byte boot report.
         handleKeyboardBitmap(*endpoint, *device, transfer->data_buffer, transfer->actual_num_bytes);
+      }
+      else if (device && device->mouseLayout.valid &&
+               endpoint->interfaceNumber == device->mouseLayoutInterface &&
+               (device->mouseLayout.reportId == 0 ||
+                (transfer->actual_num_bytes >= 2 &&
+                 transfer->data_buffer[0] == device->mouseLayout.reportId)))
+      {
+        // Report ID taken from the descriptor rather than assumed, so a mouse
+        // report that shares an interface with other reports is recognized
+        // whatever ID it was given. A descriptor with no report IDs declares
+        // exactly one input report, so on that interface every report is this
+        // one -- no protocol or first-byte guessing needed.
+        handleMouse(*endpoint, transfer->data_buffer, transfer->actual_num_bytes);
       }
       else if (device &&
                endpoint->interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
@@ -9245,25 +9253,65 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
   const uint8_t *rawData = data;
   const size_t rawLength = length;
 
-  if (endpoint.interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
-      length >= 5 &&
-      data[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE)
-  {
-    data += 1;
-    length -= 1;
-  }
+  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
+  const bool useLayout = device && device->mouseLayout.valid &&
+                         device->mouseLayoutInterface == endpoint.interfaceNumber;
 
   EspUsbHostMouseEvent event;
-  if (!espUsbHostParseBootMouseReport(endpoint.interfaceNumber,
-                                      data,
-                                      length,
-                                      endpoint.lastMouseButtons,
-                                      event))
+  if (useLayout)
   {
-    return;
+    // Report protocol: fields sit where the HID report descriptor says, which
+    // for anything past a plain 3-button mouse is not the boot layout.
+    EspUsbHostMouseReportValues values;
+    if (!espUsbHostDecodeMouseReport(device->mouseLayout, data, length, values))
+    {
+      return;
+    }
+    if (device->mouseLayout.reportId != 0)
+    {
+      data += 1;
+      length -= 1;
+    }
+
+    event.interfaceNumber = endpoint.interfaceNumber;
+    event.x = static_cast<int16_t>(values.x);
+    event.y = static_cast<int16_t>(values.y);
+    event.wheel = static_cast<int16_t>(values.wheel);
+    event.pan = static_cast<int16_t>(values.pan);
+    event.buttonMask = values.buttons;
+    event.previousButtonMask = endpoint.lastMouseButtonMask;
+    event.buttonCount = device->mouseLayout.buttonCount;
+    event.buttons = static_cast<uint8_t>(values.buttons & 0xff);
+    event.previousButtons = static_cast<uint8_t>(endpoint.lastMouseButtonMask & 0xff);
+    event.moved = event.x != 0 || event.y != 0 || event.wheel != 0 || event.pan != 0;
+    event.buttonsChanged = event.buttonMask != event.previousButtonMask;
+    if (!event.moved && !event.buttonsChanged)
+    {
+      return;
+    }
+  }
+  else
+  {
+    if (endpoint.interfaceProtocol != HID_PROTOCOL_MOUSE_VALUE &&
+        length >= 5 &&
+        data[0] == ESP_USB_HOST_HID_REPORT_ID_MOUSE)
+    {
+      data += 1;
+      length -= 1;
+    }
+
+    if (!espUsbHostParseBootMouseReport(endpoint.interfaceNumber,
+                                        data,
+                                        length,
+                                        endpoint.lastMouseButtons,
+                                        event))
+    {
+      return;
+    }
+    event.buttonMask = event.buttons;
+    event.previousButtonMask = event.previousButtons;
   }
   event.address = endpoint.deviceAddress;
-  DeviceState *device = findDeviceByHandle(endpoint.deviceHandle);
   if (device)
   {
     event.vid = device->info.vid;
@@ -9277,15 +9325,17 @@ void EspUsbHost::handleMouse(EndpointState &endpoint, const uint8_t *data, size_
   event.reportData = data;
   event.reportLength = length;
 
-  ESP_LOGD(TAG, "Mouse iface=%u x=%d y=%d wheel=%d buttons=0x%02x previous=0x%02x",
+  ESP_LOGD(TAG, "Mouse iface=%u x=%d y=%d wheel=%d pan=%d buttons=0x%04x previous=0x%04x",
            event.interfaceNumber,
            event.x,
            event.y,
            event.wheel,
-           event.buttons,
-           event.previousButtons);
+           event.pan,
+           event.buttonMask,
+           event.previousButtonMask);
   invokeHIDCallbacks(singleCallback, listeners, listenerCount, event);
   endpoint.lastMouseButtons = event.buttons;
+  endpoint.lastMouseButtonMask = event.buttonMask;
 }
 
 void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size_t length)
@@ -11064,6 +11114,8 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.keyboardBitmapBitOffset = 0;
   device.keyboardBitmapBitCount = 0;
   device.keyboardBitmapUsageMin = 0;
+  device.mouseLayout = EspUsbHostMouseReportLayout();
+  device.mouseLayoutInterface = 0xff;
   device.hasKeyboardLedOutput = false;
   device.keyboardLedInterface = 0xff;
   device.keyboardLedReportId = 0;
