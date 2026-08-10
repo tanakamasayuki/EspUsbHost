@@ -24,14 +24,23 @@ uv run --env-file .env pytest unit/
   バイト、独立実装のデコーダとのround trip、バッファ上限とcanaryによる範囲外
   書き込み検出)、Full HDのモード設定レジスタ列を対象とする。
 
-- `usb35inch`: `examples/Serial/EspUsbHostDisplayUsb35Inch` の3.5インチUSB
-  スマートスクリーンのプロトコル層(`Usb35InchProtocol.hpp`)を検証する。10bit
+- `turing`: `examples/Serial/EspUsbHostDisplayTuring` の3.5インチUSB
+  スマートスクリーンのプロトコル層(`TuringProtocol.hpp`)を検証する。10bit
   座標4つを含む6バイトコマンドパケット(独立実装のデコーダとのround tripを、
   1フィールドずつと、パネルの座標空間全域の網羅で実施)、両端を含む
   DISPLAY_BITMAPの矩形、パネルサイズとパッキング上限の両方に対する範囲ガード、
   ビッグエンディアンのサイズを持つ11バイトの向き設定パケット、ワイヤ上で逆順に
   なる輝度レベル、LovyanGFXのrgb565_nonswapped出力をバイトスワップなしでUSBへ
   流せる根拠であるRGB565リトルエンディアンのピクセルバイト列を対象とする。
+
+- `ax206`: `examples/Vendor/EspUsbHostDisplayAx206` のAX206 USBディスプレイの
+  プロトコル層(`Ax206Protocol.hpp`)を検証する。MIT参照実装からバイト単位で
+  再現した2つの16バイトvendorコマンドブロック(他はすべてここから導出される)、
+  両端を含むblit矩形とそのデータ長、範囲ガード、リトルエンディアンのtagと
+  転送長・方向フラグ・LUN・コマンド長を持つ31バイトのCommand Block Wrapper、
+  オフセットではなくシグネチャで探すCommand Status Wrapper(tag不一致・切り詰め・
+  先頭のゴミバイトを含む)、LovyanGFXのrgb565_2Byte出力をバイトスワップなしで
+  USBへ流せる根拠であるRGB565ビッグエンディアンのピクセルバイト列を対象とする。
 
 - `ccid_atr`: `src/EspUsbHostCcidAtr.h` のCCID ATRパーサを検証する。実機のSony
   RC-S300 + ISO 14443 Aカードで取得したATR(標準・レベル・カード名・宣言された

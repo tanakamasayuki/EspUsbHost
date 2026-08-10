@@ -33,6 +33,7 @@ EspUsbHostVendorInterface	KEYWORD1
 EspUsbHostVendorData	KEYWORD1
 EspUsbHostVendorWriteStats	KEYWORD1
 EspUsbHostSerialWriteStats	KEYWORD1
+EspUsbHostVendorReadMode	KEYWORD1
 EspUsbHostWriteQueueStats	KEYWORD1
 EspUsbHostCcidInterface	KEYWORD1
 EspUsbHostCcidStatus	KEYWORD1
@@ -157,6 +158,7 @@ onVendorData	KEYWORD2
 vendorOpen	KEYWORD2
 vendorWrite	KEYWORD2
 vendorRead	KEYWORD2
+vendorReadSync	KEYWORD2
 vendorOutPacketSize	KEYWORD2
 vendorInPacketSize	KEYWORD2
 vendorOutEndpoint	KEYWORD2

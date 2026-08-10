@@ -480,6 +480,23 @@ struct EspUsbHostCcidResponse
   size_t length = 0;
 };
 
+// How vendorOpen() drives the bulk IN endpoint.
+//
+// Continuous keeps an IN transfer permanently outstanding and buffers whatever
+// arrives, which suits a device that streams unprompted; vendorRead() then
+// reads from that buffer. On-demand starts no transfer at all and leaves the
+// endpoint idle until vendorReadSync() asks for data, which is what a
+// transactional protocol needs -- a Bulk-Only Transport device answers only
+// inside a transaction, and polling it outside one is a transfer error.
+enum EspUsbHostVendorReadMode : uint8_t
+{
+  ESP_USB_HOST_VENDOR_READ_CONTINUOUS = 0,
+  ESP_USB_HOST_VENDOR_READ_ON_DEMAND = 1,
+};
+
+// Default timeout for vendorReadSync().
+static constexpr uint32_t ESP_USB_HOST_VENDOR_READ_DEFAULT_TIMEOUT_MS = 1000;
+
 // Diagnostic snapshot of an asynchronous bulk OUT queue. Counters are updated
 // from the caller task (submitted, queueFullEvents) and from the USB client task
 // (completed, errors, bytes, zlp), so the snapshot is consistent per field but
@@ -1488,9 +1505,26 @@ public:
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool sendHIDVendorOutput(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool sendHIDVendorFeature(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t interfaceNumber = 0xff);
+  // Claims a bulk interface for direct transfers. With the default
+  // interfaceNumber the first vendor-specific (class 0xFF) interface is chosen.
+  // Naming an interface explicitly claims it whatever its class, for devices
+  // whose bulk protocol sits behind some other class code; an interface already
+  // claimed by another part of this library is still refused.
+  bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint8_t interfaceNumber = 0xff,
+                  EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS);
   bool vendorWrite(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   size_t vendorRead(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // One bulk IN transfer, submitted now and waited for. This is the read a
+  // request/response protocol wants, and the only one available after opening
+  // with ESP_USB_HOST_VENDOR_READ_ON_DEMAND. Like vendorWrite() it waits for
+  // completion, so it cannot be called from a USB callback. Returns false on
+  // timeout or transfer error; actualLength receives the bytes copied out.
+  bool vendorReadSync(uint8_t *buffer,
+                      size_t length,
+                      size_t *actualLength = nullptr,
+                      uint32_t timeoutMs = ESP_USB_HOST_VENDOR_READ_DEFAULT_TIMEOUT_MS,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   // Max packet size of the bulk OUT endpoint opened by vendorOpen(), or 0 when
   // no vendor interface is open. Callers that must terminate a transfer on a
   // packet boundary need this value.
@@ -2098,6 +2132,7 @@ private:
     uint8_t vendorSerialInterfaceNumber = 0;
     bool hasUsbVendorInterface = false;
     uint8_t usbVendorInterfaceNumber = 0xff;
+    bool usbVendorReadOnDemand = false;
     bool hasUsbVendorInEndpoint = false;
     uint8_t usbVendorInEndpointAddress = 0;
     uint16_t usbVendorInPacketSize = 0;
@@ -2403,6 +2438,9 @@ private:
                         uint8_t slot,
                         uint8_t address,
                         uint32_t timeoutMs);
+  bool vendorInterfaceEligible(const DeviceState &device,
+                               const EspUsbHostInterfaceInfo &intf,
+                               uint8_t interfaceNumber) const;
   int serialOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
   int serialOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   bool submitSerialOutSlot(DeviceState &device, int slot, size_t length);

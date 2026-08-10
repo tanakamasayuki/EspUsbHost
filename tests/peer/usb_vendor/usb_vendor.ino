@@ -170,6 +170,27 @@ void loop()
         Serial.printf("VENDOR_READ len=%u data=%s\n", static_cast<unsigned>(length), reinterpret_cast<const char *>(buffer));
       }
     }
+    else if (command == 'O')
+    {
+      // Re-open the same interface by number and with on-demand reads, the
+      // combination a transactional bulk protocol needs.
+      Serial.printf("VENDOR_OPEN_ONDEMAND %u\n",
+                    usb.vendorOpen(deviceAddress, 0, ESP_USB_HOST_VENDOR_READ_ON_DEMAND) ? 1 : 0);
+    }
+    else if (command == 'R')
+    {
+      // Write, then read the answer with one synchronous IN transfer instead of
+      // the continuous receive ring.
+      static const uint8_t payload[] = {'p', 'i', 'n', 'g'};
+      const bool wrote = usb.vendorWrite(payload, sizeof(payload), deviceAddress);
+      uint8_t buffer[64] = {};
+      size_t length = 0;
+      const bool ok = usb.vendorReadSync(buffer, sizeof(buffer) - 1, &length, 2000, deviceAddress);
+      buffer[length] = 0;
+      Serial.printf("VENDOR_READ_SYNC write=%u ok=%u len=%u data=%s\n",
+                    wrote ? 1 : 0, ok ? 1 : 0, static_cast<unsigned>(length),
+                    reinterpret_cast<const char *>(buffer));
+    }
     else if (command == 'd')
     {
       Serial.printf("VENDOR_DATA seen=%u data=%s\n", vendorDataSeen ? 1 : 0, vendorData);

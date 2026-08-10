@@ -6,7 +6,7 @@
 // The protocol and device layers live with the example so there is one source of
 // truth; tests/ is stripped from release archives while examples/ is not, so the
 // dependency only ever points this way.
-#include "../../../examples/Serial/EspUsbHostDisplayUsb35Inch/Usb35InchDevice.hpp"
+#include "../../../examples/Serial/EspUsbHostDisplayTuring/TuringDevice.hpp"
 
 #include <esp_timer.h>
 
@@ -14,7 +14,7 @@ static constexpr uint32_t TEST_TIMEOUT_MS = 60000;
 static constexpr uint32_t STEP_HOLD_MS = 2000;
 
 static EspUsbHost usb;
-static usb35inch::Usb35InchDevice display(usb);
+static turing::TuringDevice display(usb);
 static bool started = false;
 static bool finished = false;
 static uint32_t stepAtMs = 0;
@@ -22,7 +22,7 @@ static int step = 0;
 static bool ok = true;
 
 // One row of RGB565 little-endian pixels, the largest the panel can need.
-static uint8_t row[usb35inch::NATIVE_HEIGHT * 2];
+static uint8_t row[turing::NATIVE_HEIGHT * 2];
 
 static void fail(const char *what)
 {
@@ -52,10 +52,10 @@ static void reportStats(const char *what, int64_t startedAt)
 static bool paintColorBars()
 {
     static const uint16_t COLORS[] = {
-        usb35inch::rgb565(255, 255, 255), usb35inch::rgb565(255, 255, 0),
-        usb35inch::rgb565(0, 255, 255),   usb35inch::rgb565(0, 255, 0),
-        usb35inch::rgb565(255, 0, 255),   usb35inch::rgb565(255, 0, 0),
-        usb35inch::rgb565(0, 0, 255),     usb35inch::rgb565(0, 0, 0),
+        turing::rgb565(255, 255, 255), turing::rgb565(255, 255, 0),
+        turing::rgb565(0, 255, 255),   turing::rgb565(0, 255, 0),
+        turing::rgb565(255, 0, 255),   turing::rgb565(255, 0, 0),
+        turing::rgb565(0, 0, 255),     turing::rgb565(0, 0, 0),
     };
     static constexpr size_t BAR_COUNT = sizeof(COLORS) / sizeof(COLORS[0]);
 
@@ -63,7 +63,7 @@ static bool paintColorBars()
     const uint16_t height = display.height();
     for (uint16_t x = 0; x < width; x++)
     {
-        usb35inch::encodePixel(row + x * 2, COLORS[(static_cast<size_t>(x) * BAR_COUNT) / width]);
+        turing::encodePixel(row + x * 2, COLORS[(static_cast<size_t>(x) * BAR_COUNT) / width]);
     }
 
     if (!display.beginBitmap(0, 0, width, height))
@@ -94,9 +94,9 @@ static bool paintCheckerboard()
     {
         for (uint16_t x = 0; x < width; x++)
         {
-            usb35inch::encodePixel(row + x * 2,
-                                   ((x + y) & 1) ? usb35inch::rgb565(255, 255, 255)
-                                                 : usb35inch::rgb565(0, 0, 0));
+            turing::encodePixel(row + x * 2,
+                                   ((x + y) & 1) ? turing::rgb565(255, 255, 255)
+                                                 : turing::rgb565(0, 0, 0));
         }
         if (!display.writePixelBytes(row, width))
         {
@@ -113,10 +113,10 @@ static bool paintPrimaryPatches()
     const uint16_t width = display.width();
     const uint16_t height = display.height();
     const uint16_t band = static_cast<uint16_t>(height / 3);
-    return display.fillRect(0, 0, width, band, usb35inch::rgb565(255, 0, 0)) &&
-           display.fillRect(0, band, width, band, usb35inch::rgb565(0, 255, 0)) &&
+    return display.fillRect(0, 0, width, band, turing::rgb565(255, 0, 0)) &&
+           display.fillRect(0, band, width, band, turing::rgb565(0, 255, 0)) &&
            display.fillRect(0, static_cast<uint16_t>(band * 2), width,
-                            static_cast<uint16_t>(height - band * 2), usb35inch::rgb565(0, 0, 255)) &&
+                            static_cast<uint16_t>(height - band * 2), turing::rgb565(0, 0, 255)) &&
            display.flush();
 }
 
@@ -124,7 +124,7 @@ void setup()
 {
     Serial.begin(115200);
     delay(5000);
-    Serial.println("usb_display_usb35inch test start");
+    Serial.println("usb_display_turing test start");
     Serial.println("Connect a 3.5-inch USB smart screen (VID 0x1a86 PID 0x5722).");
 
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
@@ -192,7 +192,7 @@ void loop()
     switch (step++)
     {
     case 0:
-        if (!display.setOrientation(usb35inch::ORIENTATION_PORTRAIT))
+        if (!display.setOrientation(turing::ORIENTATION_PORTRAIT))
         {
             fail("setOrientation portrait");
             break;
@@ -205,8 +205,8 @@ void loop()
     case 2:
     case 3:
     {
-        static const uint16_t FILLS[] = {usb35inch::rgb565(255, 0, 0), usb35inch::rgb565(0, 255, 0),
-                                         usb35inch::rgb565(0, 0, 255)};
+        static const uint16_t FILLS[] = {turing::rgb565(255, 0, 0), turing::rgb565(0, 255, 0),
+                                         turing::rgb565(0, 0, 255)};
         static const char *NAMES[] = {"fill_red", "fill_green", "fill_blue"};
         const int index = step - 2;
         display.resetStats();
@@ -268,7 +268,7 @@ void loop()
             const uint16_t h = static_cast<uint16_t>(display.height() / 4);
             if (!display.fillRect(static_cast<uint16_t>(display.width() / 4),
                                   static_cast<uint16_t>(display.height() / 2 - h / 2), w, h,
-                                  usb35inch::rgb565(255, 255, 0)) ||
+                                  turing::rgb565(255, 255, 0)) ||
                 !display.flush())
             {
                 fail("partial_rect");
@@ -296,8 +296,8 @@ void loop()
                 const uint16_t rows =
                     (i + 1 == bands) ? static_cast<uint16_t>(height - y) : band;
                 painted = display.fillRect(0, y, display.width(), rows,
-                                           (i & 1) ? usb35inch::rgb565(40, 40, 40)
-                                                   : usb35inch::rgb565(200, 200, 200));
+                                           (i & 1) ? turing::rgb565(40, 40, 40)
+                                                   : turing::rgb565(200, 200, 200));
             }
             if (!painted || !display.flush())
             {
@@ -331,7 +331,7 @@ void loop()
         Serial.println("DISPLAY_PROMPT the backlight should return to full");
         break;
     case 12:
-        if (!display.setOrientation(usb35inch::ORIENTATION_LANDSCAPE))
+        if (!display.setOrientation(turing::ORIENTATION_LANDSCAPE))
         {
             fail("setOrientation landscape");
             break;
@@ -350,7 +350,7 @@ void loop()
         Serial.println("DISPLAY_PROMPT the color bars should now run along the long edge");
         break;
     case 13:
-        if (!display.setOrientation(usb35inch::ORIENTATION_PORTRAIT))
+        if (!display.setOrientation(turing::ORIENTATION_PORTRAIT))
         {
             fail("setOrientation portrait again");
             break;

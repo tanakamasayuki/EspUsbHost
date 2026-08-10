@@ -26,7 +26,7 @@ Setup:
        backlight draws real current, so use a self-powered hub or an external
        supply unless the board can feed its OTG connector.
     3. Set TEST_SERIAL_PORT_ESP32S3 in .env to the host board's serial port.
-    4. Run: uv run --env-file .env pytest manual/usb_display_usb35inch/usb_display_usb35inch.py -v -s
+    4. Run: uv run --env-file .env pytest manual/usb_display_turing/usb_display_turing.py -v -s
     5. Watch the panel while the test runs and confirm what the prompts describe.
 
 Notes:
@@ -52,7 +52,7 @@ ORIENTATION = re.compile(r"DISPLAY_ORIENTATION name=(\w+) (\d+)x(\d+)")
 SPLIT = re.compile(r"DISPLAY_SPLIT bands=(\d+) elapsed_us=(\d+) tx_bytes=(\d+) mbps=([\d.]+)")
 
 
-def test_usb_display_usb35inch(dut):
+def test_usb_display_turing(dut):
     """
     Expected result (pass):  The panel opens, the CDC OUT queue is ready, both
                              orientations report the expected size, every paint
@@ -72,7 +72,7 @@ def test_usb_display_usb35inch(dut):
       - the color bars run along the long edge in landscape, and along the short
         edge again in portrait
     """
-    dut.expect("usb_display_usb35inch test start")
+    dut.expect("usb_display_turing test start")
     print("\nConnect a 3.5-inch USB smart screen (1a86:5722) to the host port.")
     print("Watch the panel: solid fills, primary bands, color bars, checkerboard.")
 

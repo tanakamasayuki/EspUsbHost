@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace usb35inch
+namespace turing
 {
 
 // WCH USB-serial bridge in front of the panel controller. The device presents a
@@ -147,4 +147,4 @@ inline void encodePixel(uint8_t *out, uint16_t color)
   out[1] = static_cast<uint8_t>(color >> 8);
 }
 
-} // namespace usb35inch
+} // namespace turing

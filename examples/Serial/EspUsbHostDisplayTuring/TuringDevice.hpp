@@ -1,7 +1,7 @@
 // Device layer for the 3.5-inch USB smart screen: everything that needs the USB
 // host.
 //
-// Usb35InchProtocol.hpp only formats bytes. This header connects it to
+// TuringProtocol.hpp only formats bytes. This header connects it to
 // EspUsbHost: it finds the panel among the enumerated CDC devices, sets the line
 // coding, starts the asynchronous CDC OUT queue and streams commands and pixels
 // through it.
@@ -16,11 +16,11 @@
 #pragma once
 
 #include "EspUsbHost.h"
-#include "Usb35InchProtocol.hpp"
+#include "TuringProtocol.hpp"
 
 #include <string.h>
 
-namespace usb35inch
+namespace turing
 {
 
 // CDC OUT queue shape. The panel, not the bus, sets the pace: it NAKs until it
@@ -37,10 +37,10 @@ static constexpr uint32_t ACQUIRE_TIMEOUT_MS = 1000;
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 5000;
 
 // One 3.5-inch USB smart screen.
-class Usb35InchDevice
+class TuringDevice
 {
 public:
-  explicit Usb35InchDevice(EspUsbHost &host) : host_(host) {}
+  explicit TuringDevice(EspUsbHost &host) : host_(host) {}
 
   // Finds the panel: VID/PID match on a device whose CDC OUT endpoint is ready.
   uint8_t findDisplay(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const
@@ -447,4 +447,4 @@ private:
   size_t used_ = 0;
 };
 
-} // namespace usb35inch
+} // namespace turing

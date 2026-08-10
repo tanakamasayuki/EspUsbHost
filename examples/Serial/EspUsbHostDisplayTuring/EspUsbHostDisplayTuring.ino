@@ -16,11 +16,11 @@
 
 #include <LGFXVirtualCanvas.h>
 
-#include "Panel_Usb35Inch.hpp"
+#include "Panel_Turing.hpp"
 
 static EspUsbHost usb;
-static usb35inch::Usb35InchDevice panel(usb);
-static usb35inch::LGFX_Usb35Inch lcd(&panel);
+static turing::TuringDevice panel(usb);
+static turing::LGFX_Turing lcd(&panel);
 static LGFXVirtualScreen screen(lcd);
 
 static bool displayReady = false;
@@ -67,7 +67,7 @@ static bool openDisplay()
 
     // The panel rotates itself, so ask it rather than LovyanGFX. Portrait is the
     // native 320x480; ORIENTATION_LANDSCAPE gives 480x320.
-    if (!panel.setOrientation(usb35inch::ORIENTATION_PORTRAIT))
+    if (!panel.setOrientation(turing::ORIENTATION_PORTRAIT))
     {
         return false;
     }

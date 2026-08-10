@@ -2679,12 +2679,42 @@ bool EspUsbHost::sendHIDVendorFeature(const uint8_t *data, size_t length, uint8_
                        device->info.address);
 }
 
-bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
+// Whether vendorOpen() may take this interface.
+//
+// Automatic selection (interfaceNumber == 0xff) stays restricted to
+// vendor-specific interfaces, so it can never wander into one that another part
+// of this library drives. An interface the caller names explicitly is taken
+// whatever its class: a bulk protocol does not have to sit behind class 0xff,
+// and some devices put one behind a class code that is neither vendor-specific
+// nor anything with a standard meaning here -- an AX206 USB display declares
+// 0xdc / 0xa0 / 0xb0, for instance. An interface already claimed elsewhere is
+// still refused; the exception is the one this device already has open, so that
+// re-opening stays idempotent.
+bool EspUsbHost::vendorInterfaceEligible(const DeviceState &device,
+                                         const EspUsbHostInterfaceInfo &intf,
+                                         uint8_t interfaceNumber) const
+{
+  if (interfaceNumber == 0xff)
+  {
+    return intf.interfaceClass == USB_CLASS_VENDOR_VALUE;
+  }
+  if (intf.number != interfaceNumber)
+  {
+    return false;
+  }
+  if (!intf.claimed)
+  {
+    return true;
+  }
+  return device.hasUsbVendorInterface && device.usbVendorInterfaceNumber == intf.number;
+}
+
+bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber, EspUsbHostVendorReadMode readMode)
 {
   DeviceState *device = findUsbVendorCandidate(address, interfaceNumber);
   if (!device)
   {
-    ESP_LOGW(TAG, "vendorOpen() no vendor-specific bulk interface");
+    ESP_LOGW(TAG, "vendorOpen() no bulk interface to claim");
     return false;
   }
 
@@ -2705,11 +2735,7 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
   for (uint8_t i = 0; i < device->interfaceInfoCount; i++)
   {
     const EspUsbHostInterfaceInfo &intf = device->interfaceInfos[i];
-    if (intf.interfaceClass != USB_CLASS_VENDOR_VALUE)
-    {
-      continue;
-    }
-    if (interfaceNumber != 0xff && intf.number != interfaceNumber)
+    if (!vendorInterfaceEligible(*device, intf, interfaceNumber))
     {
       continue;
     }
@@ -2811,8 +2837,21 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
     ESP_LOGW(TAG, "vendorOpen() another vendor interface is already open");
     return false;
   }
+  else if (device->usbVendorReadOnDemand != (readMode == ESP_USB_HOST_VENDOR_READ_ON_DEMAND))
+  {
+    // The read mode decides whether an IN transfer is permanently outstanding,
+    // which is set up at open time and cannot be changed underneath a running
+    // one. Silently keeping the old mode would leave a continuous transfer
+    // swallowing the answers vendorReadSync() is waiting for, so this fails
+    // instead. Reopen after the device is re-enumerated to change it.
+    ESP_LOGW(TAG, "vendorOpen() interface %u is already open in the other read mode",
+             selectedInterface);
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
 
   device->hasUsbVendorInterface = true;
+  device->usbVendorReadOnDemand = readMode == ESP_USB_HOST_VENDOR_READ_ON_DEMAND;
   device->usbVendorInterfaceNumber = selectedInterface;
   device->hasUsbVendorInEndpoint = foundIn;
   device->usbVendorInEndpointAddress = foundIn ? inEndpoint.address : 0;
@@ -2821,8 +2860,11 @@ bool EspUsbHost::vendorOpen(uint8_t address, uint8_t interfaceNumber)
   device->usbVendorOutEndpointAddress = outEndpoint.address;
   device->usbVendorOutPacketSize = outEndpoint.maxPacketSize;
 
-  EndpointState *existingEndpoint = foundIn ? findEndpoint(device->handle, inEndpoint.address) : nullptr;
-  if (foundIn && !existingEndpoint)
+  // On-demand leaves the endpoint idle: no transfer is outstanding until
+  // vendorReadSync() submits one.
+  EndpointState *existingEndpoint =
+      (foundIn && !device->usbVendorReadOnDemand) ? findEndpoint(device->handle, inEndpoint.address) : nullptr;
+  if (foundIn && !device->usbVendorReadOnDemand && !existingEndpoint)
   {
     EndpointState *endpoint = allocateEndpoint(*device);
     if (!endpoint)
@@ -3030,6 +3072,160 @@ size_t EspUsbHost::vendorRead(uint8_t *buffer, size_t length, uint8_t address)
     device->usbVendorRxCount--;
   }
   return copied;
+}
+
+bool EspUsbHost::vendorReadSync(uint8_t *buffer,
+                                size_t length,
+                                size_t *actualLength,
+                                uint32_t timeoutMs,
+                                uint8_t address)
+{
+  if (actualLength)
+  {
+    *actualLength = 0;
+  }
+
+  DeviceState *device = findUsbVendorDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "vendorReadSync() called before vendorOpen()");
+    return false;
+  }
+  if (!device->hasUsbVendorInEndpoint)
+  {
+    ESP_LOGW(TAG, "vendorReadSync() no bulk IN endpoint");
+    return false;
+  }
+  if (!buffer || length == 0)
+  {
+    ESP_LOGW(TAG, "vendorReadSync() called with no destination");
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    ESP_LOGW(TAG, "vendorReadSync() cannot run from USB client task");
+    return false;
+  }
+
+  // An IN transfer length must be a whole number of max-size packets, so the
+  // request is rounded up and only what the caller asked for is copied back.
+  const uint16_t packetSize = device->usbVendorInPacketSize != 0 ? device->usbVendorInPacketSize : 64;
+  const size_t packets = (length + packetSize - 1) / packetSize;
+  const size_t requestLength = packets * packetSize;
+
+  EspUsbHostVendorTransferContext *context = new EspUsbHostVendorTransferContext();
+  if (!context)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+  context->done = xSemaphoreCreateBinary();
+  if (!context->done)
+  {
+    delete context;
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(requestLength, 0, &transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(vendor bulk IN) failed: %s", esp_err_to_name(err));
+    setLastError(err);
+    vSemaphoreDelete(context->done);
+    delete context;
+    return false;
+  }
+
+  transfer->device_handle = device->handle;
+  transfer->bEndpointAddress = device->usbVendorInEndpointAddress;
+  transfer->callback = vendorTransferCallback;
+  transfer->context = context;
+  transfer->num_bytes = requestLength;
+
+  err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(vendor bulk IN ep=0x%02x) failed: %s",
+             device->usbVendorInEndpointAddress,
+             esp_err_to_name(err));
+    setLastError(err);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context->done);
+    delete context;
+    return false;
+  }
+
+  bool done = xSemaphoreTake(context->done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  bool callerOwnsTransfer = true;
+  if (!done)
+  {
+    const uint8_t previous = context->state.exchange(ESP_USB_HOST_VENDOR_TRANSFER_ABANDONED,
+                                                     std::memory_order_acq_rel);
+    if (previous == ESP_USB_HOST_VENDOR_TRANSFER_CALLBACK)
+    {
+      // The callback won the timeout race and owns no cleanup. Wait for its
+      // semaphore give, then keep the normal caller-owned cleanup path.
+      xSemaphoreTake(context->done, portMAX_DELAY);
+      done = true;
+    }
+    else
+    {
+      callerOwnsTransfer = false;
+    }
+  }
+
+  const bool ok = done && context->status == USB_TRANSFER_STATUS_COMPLETED;
+  if (ok)
+  {
+    const size_t copied = context->actualLength < length ? context->actualLength : length;
+    if (copied != 0)
+    {
+      memcpy(buffer, transfer->data_buffer, copied);
+    }
+    if (actualLength)
+    {
+      *actualLength = copied;
+    }
+  }
+  else if (!done)
+  {
+    ESP_LOGD(TAG, "USB vendor bulk IN timeout ep=0x%02x", device->usbVendorInEndpointAddress);
+    setLastError(ESP_ERR_TIMEOUT);
+    // A submitted transfer stays owned by the HCD until its callback runs, so it
+    // is abandoned rather than freed here; the callback cleans both up.
+    usb_host_endpoint_halt(device->handle, device->usbVendorInEndpointAddress);
+    usb_host_endpoint_flush(device->handle, device->usbVendorInEndpointAddress);
+    usb_host_endpoint_clear(device->handle, device->usbVendorInEndpointAddress);
+  }
+  else
+  {
+    ESP_LOGD(TAG, "USB vendor bulk IN failed ep=0x%02x status=%d",
+             device->usbVendorInEndpointAddress,
+             context->status);
+    setLastError(ESP_FAIL);
+    // A stalled pipe stays halted, and ESP-IDF then refuses every later submit
+    // with ESP_ERR_INVALID_STATE. Clear it here so one failed read does not make
+    // the endpoint useless for the rest of the session.
+    if (context->status != USB_TRANSFER_STATUS_CANCELED)
+    {
+      const esp_err_t haltErr = usb_host_endpoint_halt(device->handle, device->usbVendorInEndpointAddress);
+      const esp_err_t flushErr = usb_host_endpoint_flush(device->handle, device->usbVendorInEndpointAddress);
+      const esp_err_t clearErr = usb_host_endpoint_clear(device->handle, device->usbVendorInEndpointAddress);
+      ESP_LOGD(TAG, "vendor bulk IN recovery halt=%s flush=%s clear=%s",
+               esp_err_to_name(haltErr), esp_err_to_name(flushErr), esp_err_to_name(clearErr));
+    }
+  }
+
+  if (callerOwnsTransfer)
+  {
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context->done);
+    delete context;
+  }
+  return ok;
 }
 
 namespace
@@ -10671,11 +10867,7 @@ EspUsbHost::DeviceState *EspUsbHost::findUsbVendorCandidate(uint8_t address, uin
     for (uint8_t i = 0; i < device.interfaceInfoCount; i++)
     {
       const EspUsbHostInterfaceInfo &intf = device.interfaceInfos[i];
-      if (intf.interfaceClass != USB_CLASS_VENDOR_VALUE)
-      {
-        continue;
-      }
-      if (interfaceNumber != 0xff && intf.number != interfaceNumber)
+      if (!vendorInterfaceEligible(device, intf, interfaceNumber))
       {
         continue;
       }

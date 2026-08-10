@@ -79,7 +79,8 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT（同期と非同期キュー）、自動ZLP、EP0 vendor IN/OUT requestに対応 |
 | CCID — スマートカードリーダー（bulkプロトコル） | ✅ 基本実装済み。interfaceの明示claim、class descriptorのparse、slot状態、power on/offとATR、ATRからのカード種別判定、APDU/XfrBlock送受信、escapeと生メッセージ、slot変化通知に対応。Sony RC-S300で確認済み。ICCD変種、チェイン応答（extended APDU）、PINパッド機能は対象外 |
 | USBグラフィックスアダプタ（DL-1xx bulkプロトコル） | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) にvendor bulk API上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。1チップファミリ・16 bppの参考実装であり、他のアダプタや高いフレームレートが必要なら [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) のような専用ライブラリを使うこと |
-| USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayUsb35Inch`](examples/Serial/EspUsbHostDisplayUsb35Inch/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
+| AX206 USBフォトフレームディスプレイ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayAx206`](examples/Vendor/EspUsbHostDisplayAx206/) に実装。ESP32-S3で2 fpsを実機確認済み。全画面blitしか受け付けないデバイスなので、1フレームが307,200バイトを運ぶBulk-Only Transportトランザクション1回になります |
+| USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
 | UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
@@ -278,7 +279,7 @@ void loop() {
 |----------|------|
 | [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | CDC ACM・VCPシリアルの双方向ブリッジ |
 | [EspUsbHostMultiUSBSerial](examples/Serial/EspUsbHostMultiUSBSerial/) | FTDIとCP210xのUSBシリアルデバイスを同時利用 |
-| [EspUsbHostDisplayUsb35Inch](examples/Serial/EspUsbHostDisplayUsb35Inch/) | 3.5インチUSBスマートスクリーン（CDCシリアルプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasの差分転送を利用 |
+| [EspUsbHostDisplayTuring](examples/Serial/EspUsbHostDisplayTuring/) | 3.5インチUSBスマートスクリーン（CDCシリアルプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasの差分転送を利用 |
 
 ### Storage
 
@@ -306,6 +307,7 @@ void loop() {
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | 汎用の非HID vendor-specificインターフェース：bulk IN/OUTとEP0 vendor control IN/OUT |
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | 汎用vendor bulk API上でAndroid ADB認証と単一shell streamを実行 |
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | USBグラフィックスアダプタ（DL-1xx bulkプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasでFull HD面を扱う |
+| [EspUsbHostDisplayAx206](examples/Vendor/EspUsbHostDisplayAx206/) | AX206のUSBフォトフレームディスプレイ（vendorコマンドのBulk-Only Transport）をLovyanGFXのpanelとして駆動。フレームバッファを持たず、1トランザクションで1フレームをストリーム |
 
 USBディスプレイ関連のexampleは [docs/usb-display.ja.md](docs/usb-display.ja.md) にまとめてあります。
 
@@ -564,7 +566,7 @@ void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 
 `serialWriteQueueBegin()` は `bufferBytes` サイズの再利用可能な transfer を `depth` 個だけ事前確保します（depthの上限は `ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH`）。submitは待ちませんが、プールが埋まると `serialWriteAcquire()` が `timeoutMs` までブロックします。この待ちが押し戻しです。キューが有効な間は `sendSerial()` と `EspUsbHostCdcSerial::write()` もこのキューを通るので、既存コードもそのままこのペース制御を受けます（スロットサイズを超える書き込みは従来の単発経路のままです）。`EspUsbHostCdcSerial::flush()` はキューが有効なときだけドレインを待ちます。`serialWriteFlush()` は完了コールバックが動く場所であるUSB client taskからは呼べません。
 
-動機となった実例が [`examples/Serial/EspUsbHostDisplayUsb35Inch`](examples/Serial/EspUsbHostDisplayUsb35Inch/) です。CDC経由のUSBディスプレイで、1フレームが300 KBあり、書き手をバスに追従させているのはこのキューだけです。
+動機となった実例が [`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) です。CDC経由のUSBディスプレイで、1フレームが300 KBあり、書き手をバスに追従させているのはこのキューだけです。
 
 `EspUsbHostCdcSerial`は標準Arduino `Stream`/`Print`ラッパーです：
 

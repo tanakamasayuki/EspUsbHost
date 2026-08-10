@@ -1,6 +1,6 @@
 """Host tests for the 3.5-inch USB smart screen protocol layer.
 
-`Usb35InchProtocol.hpp` in examples/Serial/EspUsbHostDisplayUsb35Inch is
+`TuringProtocol.hpp` in examples/Serial/EspUsbHostDisplayTuring is
 deliberately free of Arduino, LovyanGFX and USB dependencies, so like the dl1xx
 test this one needs no extraction step: it compiles the production header
 directly with g++.
@@ -22,14 +22,14 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 REPO = HERE.parents[2]
-EXAMPLE = REPO / "examples" / "Serial" / "EspUsbHostDisplayUsb35Inch"
+EXAMPLE = REPO / "examples" / "Serial" / "EspUsbHostDisplayTuring"
 
 
-def test_usb35inch_protocol():
+def test_turing_protocol():
     output = HERE / "output"
     output.mkdir(exist_ok=True)
 
-    binary = output / "usb35inch_test"
+    binary = output / "turing_test"
     compile_result = subprocess.run(
         [
             "g++",
@@ -39,7 +39,7 @@ def test_usb35inch_protocol():
             "-Werror",
             "-I",
             str(EXAMPLE),
-            str(HERE / "usb35inch_test.cpp"),
+            str(HERE / "turing_test.cpp"),
             "-o",
             str(binary),
         ],

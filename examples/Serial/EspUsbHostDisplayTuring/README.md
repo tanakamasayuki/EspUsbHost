@@ -1,8 +1,9 @@
-# EspUsbHostDisplayUsb35Inch
+# EspUsbHostDisplayTuring
 
 日本語: [README.ja.md](README.ja.md)
 
-Drive a 3.5-inch USB smart screen and expose it as a LovyanGFX panel.
+Drive a 3.5-inch USB smart screen — a Turing Smart Screen revision A or one of the
+many compatibles — and expose it as a LovyanGFX panel.
 
 The panel enumerates as a CDC serial device (`1a86:5722`, product `UsbMonitor`)
 and takes 6-byte commands followed by raw RGB565 rectangles. It is the same idea
@@ -16,9 +17,9 @@ copied into another project as they are:
 
 | File | Contents |
 |---|---|
-| `Usb35InchProtocol.hpp` | The wire format: 6-byte command packing, the DISPLAY_BITMAP rectangle, orientation, brightness, RGB565 pixels. No Arduino / LovyanGFX / USB dependencies |
-| `Usb35InchDevice.hpp` | Find the panel, set the line coding, and stream commands and pixels through the asynchronous CDC OUT queue |
-| `Panel_Usb35Inch.hpp` | `lgfx::Panel_Device` subclass plus the `LGFX_Usb35Inch` device |
+| `TuringProtocol.hpp` | The wire format: 6-byte command packing, the DISPLAY_BITMAP rectangle, orientation, brightness, RGB565 pixels. No Arduino / LovyanGFX / USB dependencies |
+| `TuringDevice.hpp` | Find the panel, set the line coding, and stream commands and pixels through the asynchronous CDC OUT queue |
+| `Panel_Turing.hpp` | `lgfx::Panel_Device` subclass plus the `LGFX_Turing` device |
 
 ## Requirements
 
@@ -59,7 +60,7 @@ like a working driver, so they are worth knowing before adapting this code.
 **A command must not arrive before the previous rectangle's pixels have landed.**
 The panel keeps consuming the bytes either way, so nothing errors and no transfer
 is lost — the command is simply discarded along with the rectangle it opened.
-`Usb35InchDevice` therefore treats a bitmap as the unit of synchronisation: it
+`TuringDevice` therefore treats a bitmap as the unit of synchronisation: it
 counts the pixels still owed to the open rectangle and drains the link when the
 last one is in. A rectangle left short is padded rather than left owing, since
 the panel counts those pixels itself and would otherwise read the next command as
@@ -100,7 +101,7 @@ through it too, so ordinary serial code inherits the backpressure unchanged.
 
 ## Making it faster
 
-Numbers below are from `tests/manual/usb_display_usb35inch` on an ESP32-S3
+Numbers below are from `tests/manual/usb_display_turing` on an ESP32-S3
 (full-speed USB). The same host reaches 1.098 MB/s on vendor bulk, so the ceiling
 here is the panel, not the bus.
 
@@ -137,7 +138,7 @@ small.
 ## Limitations
 
 - Rotation is done by the panel, not by LovyanGFX. `setRotation()` is forced back
-  to 0; call `Usb35InchDevice::setOrientation()` instead, before `init()`.
+  to 0; call `TuringDevice::setOrientation()` instead, before `init()`.
 - No read-back (`isReadable()` is false), so `readRect()`, ARGB blending and
   anything that needs the current screen contents do not work.
 - `copyRect()` does nothing. The protocol has no on-screen copy and read-back is
@@ -154,14 +155,14 @@ visible as a corrupted image on real hardware:
 
 ```sh
 cd tests
-uv run --env-file .env pytest unit/usb35inch -v -s
+uv run --env-file .env pytest unit/turing -v -s
 ```
 
 Real-hardware bring-up (orientation, solid fills, color bars, checkerboard,
 partial rectangles, the band sweep above, image persistence, brightness):
 
 ```sh
-uv run --env-file .env pytest manual/usb_display_usb35inch/usb_display_usb35inch.py -v -s
+uv run --env-file .env pytest manual/usb_display_turing/usb_display_turing.py -v -s
 ```
 
 ## Protocol references
@@ -175,9 +176,11 @@ The implementation was written from scratch from these MIT-licensed sources:
   — names `1A86:5722` / `USB35INCHIPSV2` explicitly, so it is the closest match to
   this hardware; the source for `DISPLAY_BITMAP = 197` and the 115200 line coding
 
-Everything in `Usb35InchProtocol.hpp` was then verified against the real panel by
-`tests/manual/usb_display_usb35inch`.
+Everything in `TuringProtocol.hpp` was then verified against the real panel by
+`tests/manual/usb_display_turing`.
 
 Turing Smart Screen is a product name of its respective owner. This project is not
-affiliated with, endorsed by, or certified by that vendor, and the code and file
-names here use the panel's own `USB35INCH` model string rather than the brand.
+affiliated with, endorsed by, or certified by that vendor; the name is used here
+only to identify the protocol these panels speak, because that is the name people
+search for. The device itself reports the model string `USB35INCHIPSV2`, and many
+of the panels this example drives are sold under other brands entirely.
