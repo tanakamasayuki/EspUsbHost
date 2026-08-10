@@ -29,6 +29,16 @@ uv run --env-file .env pytest unit/
   worst case, round trips against an independent decoder, buffer limits with an
   overrun canary), and the Full HD mode-set register stream.
 
+- `usb35inch`: verifies the protocol layer of the 3.5-inch USB smart screen in
+  `examples/Serial/EspUsbHostDisplayUsb35Inch` (`Usb35InchProtocol.hpp`): the
+  6-byte command packet with its four 10-bit coordinates, round-tripped against
+  an independent decoder one field at a time and exhaustively over the panel's
+  coordinate space, the DISPLAY_BITMAP rectangle (inclusive on both ends), the
+  bounds guard for both the panel size and the packing limit, the 11-byte
+  orientation packet with its big-endian size fields, the brightness levels that
+  run backwards on the wire, and the RGB565 little-endian pixel bytes that let
+  LovyanGFX's rgb565_nonswapped output reach USB without a byte swap.
+
 - `ccid_atr`: verifies the CCID ATR parser in `src/EspUsbHostCcidAtr.h`: the ATR
   captured from a real Sony RC-S300 with an ISO 14443 A card (decoded to
   standard, level, card name and announced protocols), the PC/SC PIX.SS mapping

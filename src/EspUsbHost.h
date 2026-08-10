@@ -160,6 +160,12 @@ static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 // preallocated transfer, so the practical depth is limited by DMA memory rather
 // than by this constant.
 static constexpr size_t ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH = 8;
+// Same bound for serialWriteQueueBegin(depth, ...). The CDC data OUT endpoint is
+// bulk as well, so the queue has the same shape as the vendor one.
+static constexpr size_t ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH = 8;
+// How long sendSerial() waits for a free queue slot when the asynchronous queue
+// is active. Only applies off the USB client task, where waiting can progress.
+static constexpr uint32_t ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS = 1000;
 // CCID message buffer, allocated per device while a CCID interface is open. A
 // short-APDU reader reports dwMaxCCIDMessageLength around 271 bytes, so 512 has
 // room for the 10-byte header plus a full response. Override with a build flag
@@ -474,11 +480,11 @@ struct EspUsbHostCcidResponse
   size_t length = 0;
 };
 
-// Diagnostic snapshot of the asynchronous vendor bulk OUT queue. Counters are
-// updated from the caller task (submitted, queueFullEvents) and from the USB
-// client task (completed, errors, bytes, zlp), so the snapshot is consistent per
-// field but not necessarily taken at a single instant.
-struct EspUsbHostVendorWriteStats
+// Diagnostic snapshot of an asynchronous bulk OUT queue. Counters are updated
+// from the caller task (submitted, queueFullEvents) and from the USB client task
+// (completed, errors, bytes, zlp), so the snapshot is consistent per field but
+// not necessarily taken at a single instant.
+struct EspUsbHostWriteQueueStats
 {
   uint32_t submitted = 0;       // transfers handed to the USB driver
   uint32_t completed = 0;       // completion callbacks received
@@ -487,6 +493,10 @@ struct EspUsbHostVendorWriteStats
   uint32_t zlp = 0;             // zero-length transfers sent
   uint64_t bytes = 0;           // bytes of completed transfers
 };
+
+// The vendor bulk OUT queue and the CDC serial OUT queue report the same shape.
+using EspUsbHostVendorWriteStats = EspUsbHostWriteQueueStats;
+using EspUsbHostSerialWriteStats = EspUsbHostWriteQueueStats;
 
 struct EspUsbHostHIDReportDescriptor
 {
@@ -1551,6 +1561,47 @@ public:
   bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Max packet size of the CDC data OUT endpoint, or 0 when no serial device is
+  // ready. Needed by callers that must terminate a transfer on a packet boundary.
+  uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+  // Asynchronous CDC OUT queue. Without it, sendSerial() allocates a transfer per
+  // call and never applies backpressure, so a writer that outruns the bus grows
+  // the in-flight set until DMA memory runs out. The queue preallocates a fixed
+  // pool instead: submits are still non-blocking, but an acquire blocks once the
+  // pool is busy, which is what paces a bulk producer such as a display.
+  //
+  // While the queue is active sendSerial() (and EspUsbHostCdcSerial::write())
+  // route through it, so existing code gets the backpressure without changes.
+  // Writes longer than the per-slot buffer still take the one-shot path.
+  //
+  // Preferred (zero-copy) sequence: acquire a pooled DMA buffer, fill it, submit.
+  //
+  //   size_t capacity = 0;
+  //   uint8_t *buffer = usb.serialWriteAcquire(&capacity, 100);
+  //   if (buffer) { size_t n = encode(buffer, capacity); usb.serialWriteSubmit(buffer, n); }
+  bool serialWriteQueueBegin(size_t depth,
+                             size_t bufferBytes,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint8_t *serialWriteAcquire(size_t *capacity,
+                              uint32_t timeoutMs = 0,
+                              uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool serialWriteSubmit(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  void serialWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Copies into a pooled buffer and submits it. Fails when length exceeds the
+  // per-slot buffer size; the caller decides how to split.
+  bool serialWriteAsync(const uint8_t *data,
+                        size_t length,
+                        uint32_t timeoutMs = 0,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool serialWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioInputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioInputStart(uint8_t channels,
@@ -2031,6 +2082,15 @@ private:
     uint8_t serialOutEndpointAddress = 0;
     uint16_t serialOutPacketSize = 0;
     EspUsbHostSerialConfig serialConfig;
+    // Asynchronous CDC OUT queue, same shape as the vendor bulk OUT queue below.
+    bool serialOutQueueActive = false;
+    uint8_t serialOutQueueDepth = 0;
+    size_t serialOutBufferBytes = 0;
+    usb_transfer_t *serialOutTransfers[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
+    uint8_t serialOutSlotState[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
+    SemaphoreHandle_t serialOutFreeSlots = nullptr;
+    bool serialOutHalted = false;
+    EspUsbHostSerialWriteStats serialWriteStats;
     bool serialDtr = true;
     bool serialRts = true;
     bool hasVendorSerialInterface = false;
@@ -2343,6 +2403,11 @@ private:
                         uint8_t slot,
                         uint8_t address,
                         uint32_t timeoutMs);
+  int serialOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
+  int serialOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
+  bool submitSerialOutSlot(DeviceState &device, int slot, size_t length);
+  void releaseSerialOutQueue(DeviceState &device);
+  void serialDrainOut(DeviceState &device);
   int vendorOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
   int vendorOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   bool submitVendorOutSlot(DeviceState &device, int slot, size_t length);
@@ -2552,6 +2617,7 @@ private:
   // Guards the vendor bulk OUT slot-state scan against concurrent callers and
   // against the completion callback on the USB client task.
   portMUX_TYPE vendorOutMux_ = portMUX_INITIALIZER_UNLOCKED;
+  portMUX_TYPE serialOutMux_ = portMUX_INITIALIZER_UNLOCKED;
   std::shared_ptr<SystemControlCallback> systemControlCallback_;
   NetworkFrameCallback networkFrameCallback_;
   ConfigurationSelector configurationSelector_;

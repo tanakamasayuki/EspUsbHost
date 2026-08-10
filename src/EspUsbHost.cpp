@@ -3731,6 +3731,491 @@ bool EspUsbHost::vendorControlOut(uint8_t request,
                              timeoutMs);
 }
 
+namespace
+{
+constexpr uint8_t SERIAL_OUT_SLOT_FREE = 0;
+constexpr uint8_t SERIAL_OUT_SLOT_ACQUIRED = 1;
+constexpr uint8_t SERIAL_OUT_SLOT_INFLIGHT = 2;
+} // namespace
+
+int EspUsbHost::serialOutSlotOf(const DeviceState &device, const uint8_t *buffer) const
+{
+  if (!buffer)
+  {
+    return -1;
+  }
+  for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+  {
+    const usb_transfer_t *transfer = device.serialOutTransfers[i];
+    if (transfer && transfer->data_buffer == buffer)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int EspUsbHost::serialOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
+{
+  for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+  {
+    if (device.serialOutTransfers[i] == transfer)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+bool EspUsbHost::serialWriteQueueBegin(size_t depth, size_t bufferBytes, uint8_t address)
+{
+  if (depth == 0 || depth > ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH || bufferBytes == 0)
+  {
+    ESP_LOGW(TAG, "serialWriteQueueBegin() invalid depth=%u bufferBytes=%u",
+             static_cast<unsigned>(depth),
+             static_cast<unsigned>(bufferBytes));
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+
+  DeviceState *device = findSerialDevice(address);
+  if (!device)
+  {
+    ESP_LOGW(TAG, "serialWriteQueueBegin() called before a CDC OUT endpoint is ready");
+    return false;
+  }
+
+  if (device->serialOutQueueActive)
+  {
+    // Re-begin with the same shape is a no-op; changing the shape requires an
+    // explicit end so in-flight transfers are drained first.
+    if (device->serialOutQueueDepth == depth && device->serialOutBufferBytes == bufferBytes)
+    {
+      return true;
+    }
+    ESP_LOGW(TAG, "serialWriteQueueBegin() already active with depth=%u bufferBytes=%u",
+             static_cast<unsigned>(device->serialOutQueueDepth),
+             static_cast<unsigned>(device->serialOutBufferBytes));
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
+
+  device->serialOutFreeSlots = xSemaphoreCreateCounting(depth, depth);
+  if (!device->serialOutFreeSlots)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  for (size_t i = 0; i < depth; i++)
+  {
+    usb_transfer_t *transfer = nullptr;
+    const esp_err_t err = usb_host_transfer_alloc(bufferBytes, 0, &transfer);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(serial OUT queue) failed: %s", esp_err_to_name(err));
+      setLastError(err);
+      for (size_t j = 0; j < i; j++)
+      {
+        usb_host_transfer_free(device->serialOutTransfers[j]);
+        device->serialOutTransfers[j] = nullptr;
+      }
+      vSemaphoreDelete(device->serialOutFreeSlots);
+      device->serialOutFreeSlots = nullptr;
+      return false;
+    }
+    transfer->device_handle = device->handle;
+    transfer->bEndpointAddress = device->serialOutEndpointAddress;
+    transfer->callback = serialOutTransferCallback;
+    transfer->context = this;
+    device->serialOutTransfers[i] = transfer;
+    device->serialOutSlotState[i] = SERIAL_OUT_SLOT_FREE;
+  }
+
+  device->serialOutQueueDepth = static_cast<uint8_t>(depth);
+  device->serialOutBufferBytes = bufferBytes;
+  device->serialOutHalted = false;
+  device->serialWriteStats = EspUsbHostSerialWriteStats();
+  device->serialOutQueueActive = true;
+
+  ESP_LOGI(TAG, "CDC serial OUT queue ready: address=%u ep=0x%02x depth=%u buffer=%u",
+           device->info.address,
+           device->serialOutEndpointAddress,
+           static_cast<unsigned>(depth),
+           static_cast<unsigned>(bufferBytes));
+  return true;
+}
+
+void EspUsbHost::serialWriteQueueEnd(uint8_t address)
+{
+  DeviceState *device = findSerialDevice(address);
+  if (!device || !device->serialOutQueueActive)
+  {
+    return;
+  }
+  // Stop accepting new work before draining so pending() can reach zero.
+  device->serialOutQueueActive = false;
+  serialDrainOut(*device);
+}
+
+// Wait for in-flight transfers to complete, then free the pool. Freeing a
+// transfer the HCD still owns is a use-after-free in the driver, so a wedged
+// transfer intentionally leaks its slot instead (same tradeoff as
+// vendorDrainOut()).
+void EspUsbHost::serialDrainOut(DeviceState &device)
+{
+  if (xTaskGetCurrentTaskHandle() != clientTaskHandle_)
+  {
+    const uint32_t deadline = millis() + 2000;
+    while (millis() < deadline)
+    {
+      bool inFlight = false;
+      portENTER_CRITICAL(&serialOutMux_);
+      for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+      {
+        if (device.serialOutSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT)
+        {
+          inFlight = true;
+          break;
+        }
+      }
+      portEXIT_CRITICAL(&serialOutMux_);
+      if (!inFlight)
+      {
+        break;
+      }
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+  releaseSerialOutQueue(device);
+}
+
+void EspUsbHost::releaseSerialOutQueue(DeviceState &device)
+{
+  device.serialOutQueueActive = false;
+  for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+  {
+    usb_transfer_t *transfer = device.serialOutTransfers[i];
+    const bool inFlight = device.serialOutSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT;
+    device.serialOutTransfers[i] = nullptr;
+    device.serialOutSlotState[i] = SERIAL_OUT_SLOT_FREE;
+    if (!transfer)
+    {
+      continue;
+    }
+    if (inFlight)
+    {
+      ESP_LOGW(TAG, "serial OUT slot %u still in flight; leaking it to avoid a use-after-free",
+               static_cast<unsigned>(i));
+      continue;
+    }
+    usb_host_transfer_free(transfer);
+  }
+  device.serialOutQueueDepth = 0;
+  device.serialOutBufferBytes = 0;
+  device.serialOutHalted = false;
+  if (device.serialOutFreeSlots)
+  {
+    vSemaphoreDelete(device.serialOutFreeSlots);
+    device.serialOutFreeSlots = nullptr;
+  }
+}
+
+bool EspUsbHost::serialWriteQueueReady(uint8_t address) const
+{
+  const DeviceState *device = findSerialDevice(address);
+  return device && device->serialOutQueueActive;
+}
+
+uint8_t *EspUsbHost::serialWriteAcquire(size_t *capacity, uint32_t timeoutMs, uint8_t address)
+{
+  DeviceState *device = findSerialDevice(address);
+  if (!device || !device->serialOutQueueActive || !device->serialOutFreeSlots)
+  {
+    ESP_LOGW(TAG, "serialWriteAcquire() called before serialWriteQueueBegin()");
+    return nullptr;
+  }
+
+  if (xSemaphoreTake(device->serialOutFreeSlots, 0) != pdTRUE)
+  {
+    device->serialWriteStats.queueFullEvents++;
+    if (timeoutMs == 0 ||
+        xSemaphoreTake(device->serialOutFreeSlots, pdMS_TO_TICKS(timeoutMs)) != pdTRUE)
+    {
+      setLastError(ESP_ERR_TIMEOUT);
+      return nullptr;
+    }
+  }
+
+  uint8_t *buffer = nullptr;
+  portENTER_CRITICAL(&serialOutMux_);
+  for (uint8_t i = 0; i < device->serialOutQueueDepth; i++)
+  {
+    if (device->serialOutSlotState[i] == SERIAL_OUT_SLOT_FREE && device->serialOutTransfers[i])
+    {
+      device->serialOutSlotState[i] = SERIAL_OUT_SLOT_ACQUIRED;
+      buffer = device->serialOutTransfers[i]->data_buffer;
+      break;
+    }
+  }
+  portEXIT_CRITICAL(&serialOutMux_);
+
+  if (!buffer)
+  {
+    // The semaphore count and the slot states disagree, which should not happen.
+    xSemaphoreGive(device->serialOutFreeSlots);
+    setLastError(ESP_FAIL);
+    return nullptr;
+  }
+
+  if (capacity)
+  {
+    *capacity = device->serialOutBufferBytes;
+  }
+  return buffer;
+}
+
+void EspUsbHost::serialWriteRelease(uint8_t *buffer, uint8_t address)
+{
+  DeviceState *device = findSerialDevice(address);
+  if (!device || !device->serialOutQueueActive)
+  {
+    return;
+  }
+  const int slot = serialOutSlotOf(*device, buffer);
+  if (slot < 0)
+  {
+    return;
+  }
+
+  bool released = false;
+  portENTER_CRITICAL(&serialOutMux_);
+  if (device->serialOutSlotState[slot] == SERIAL_OUT_SLOT_ACQUIRED)
+  {
+    device->serialOutSlotState[slot] = SERIAL_OUT_SLOT_FREE;
+    released = true;
+  }
+  portEXIT_CRITICAL(&serialOutMux_);
+
+  if (released && device->serialOutFreeSlots)
+  {
+    xSemaphoreGive(device->serialOutFreeSlots);
+  }
+}
+
+bool EspUsbHost::submitSerialOutSlot(DeviceState &device, int slot, size_t length)
+{
+  usb_transfer_t *transfer = device.serialOutTransfers[slot];
+  if (!transfer)
+  {
+    return false;
+  }
+
+  // A previous transfer error halts the pipe; ESP-IDF then refuses every submit
+  // until the halt is cleared. Clearing can block, so it happens here on the
+  // caller task rather than in the completion callback.
+  if (device.serialOutHalted)
+  {
+    if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+    {
+      ESP_LOGW(TAG, "serial OUT halted; cannot recover from the USB client task");
+      setLastError(ESP_ERR_INVALID_STATE);
+      return false;
+    }
+    usb_host_endpoint_clear(device.handle, device.serialOutEndpointAddress);
+    device.serialOutHalted = false;
+  }
+
+  transfer->num_bytes = static_cast<int>(length);
+
+  portENTER_CRITICAL(&serialOutMux_);
+  device.serialOutSlotState[slot] = SERIAL_OUT_SLOT_INFLIGHT;
+  portEXIT_CRITICAL(&serialOutMux_);
+
+  const esp_err_t err = usb_host_transfer_submit(transfer);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit(serial OUT ep=0x%02x len=%u) failed: %s",
+             device.serialOutEndpointAddress,
+             static_cast<unsigned>(length),
+             esp_err_to_name(err));
+    setLastError(err);
+    portENTER_CRITICAL(&serialOutMux_);
+    device.serialOutSlotState[slot] = SERIAL_OUT_SLOT_FREE;
+    portEXIT_CRITICAL(&serialOutMux_);
+    if (device.serialOutFreeSlots)
+    {
+      xSemaphoreGive(device.serialOutFreeSlots);
+    }
+    return false;
+  }
+
+  device.serialWriteStats.submitted++;
+  if (length == 0)
+  {
+    device.serialWriteStats.zlp++;
+  }
+  return true;
+}
+
+bool EspUsbHost::serialWriteSubmit(uint8_t *buffer, size_t length, uint8_t address)
+{
+  DeviceState *device = findSerialDevice(address);
+  if (!device || !device->serialOutQueueActive)
+  {
+    ESP_LOGW(TAG, "serialWriteSubmit() called before serialWriteQueueBegin()");
+    return false;
+  }
+  if (length > device->serialOutBufferBytes)
+  {
+    ESP_LOGW(TAG, "serialWriteSubmit() length=%u exceeds the slot buffer size %u",
+             static_cast<unsigned>(length),
+             static_cast<unsigned>(device->serialOutBufferBytes));
+    setLastError(ESP_ERR_INVALID_SIZE);
+    return false;
+  }
+  const int slot = serialOutSlotOf(*device, buffer);
+  if (slot < 0 || device->serialOutSlotState[slot] != SERIAL_OUT_SLOT_ACQUIRED)
+  {
+    ESP_LOGW(TAG, "serialWriteSubmit() buffer was not acquired from this queue");
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+
+  return submitSerialOutSlot(*device, slot, length);
+}
+
+bool EspUsbHost::serialWriteAsync(const uint8_t *data, size_t length, uint32_t timeoutMs, uint8_t address)
+{
+  if (length > 0 && !data)
+  {
+    ESP_LOGW(TAG, "serialWriteAsync() called with null data");
+    setLastError(ESP_ERR_INVALID_ARG);
+    return false;
+  }
+
+  size_t capacity = 0;
+  uint8_t *buffer = serialWriteAcquire(&capacity, timeoutMs, address);
+  if (!buffer)
+  {
+    return false;
+  }
+  if (length > capacity)
+  {
+    ESP_LOGW(TAG, "serialWriteAsync() length=%u exceeds the slot buffer size %u",
+             static_cast<unsigned>(length),
+             static_cast<unsigned>(capacity));
+    setLastError(ESP_ERR_INVALID_SIZE);
+    serialWriteRelease(buffer, address);
+    return false;
+  }
+  if (length > 0)
+  {
+    memcpy(buffer, data, length);
+  }
+  return serialWriteSubmit(buffer, length, address);
+}
+
+size_t EspUsbHost::serialWritePending(uint8_t address) const
+{
+  const DeviceState *device = findSerialDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+  size_t pending = 0;
+  for (uint8_t i = 0; i < device->serialOutQueueDepth; i++)
+  {
+    if (device->serialOutSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT)
+    {
+      pending++;
+    }
+  }
+  return pending;
+}
+
+size_t EspUsbHost::serialWriteQueueFree(uint8_t address) const
+{
+  const DeviceState *device = findSerialDevice(address);
+  if (!device)
+  {
+    return 0;
+  }
+  size_t free = 0;
+  for (uint8_t i = 0; i < device->serialOutQueueDepth; i++)
+  {
+    if (device->serialOutSlotState[i] == SERIAL_OUT_SLOT_FREE)
+    {
+      free++;
+    }
+  }
+  return free;
+}
+
+bool EspUsbHost::serialWriteFlush(uint32_t timeoutMs, uint8_t address)
+{
+  DeviceState *device = findSerialDevice(address);
+  if (!device)
+  {
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    // Completion callbacks run on this task, so waiting here can never progress.
+    ESP_LOGW(TAG, "serialWriteFlush() cannot run from the USB client task");
+    return false;
+  }
+
+  const uint32_t deadline = millis() + timeoutMs;
+  while (serialWritePending(address) != 0)
+  {
+    if (millis() >= deadline)
+    {
+      setLastError(ESP_ERR_TIMEOUT);
+      return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+  return true;
+}
+
+EspUsbHostSerialWriteStats EspUsbHost::serialWriteStats(uint8_t address) const
+{
+  const DeviceState *device = findSerialDevice(address);
+  if (!device)
+  {
+    return EspUsbHostSerialWriteStats();
+  }
+  // The USB client task updates these counters concurrently. Re-read until two
+  // consecutive snapshots agree so a 64-bit byte count cannot be torn.
+  EspUsbHostSerialWriteStats stats = device->serialWriteStats;
+  for (int i = 0; i < 4; i++)
+  {
+    const EspUsbHostSerialWriteStats again = device->serialWriteStats;
+    if (again.bytes == stats.bytes && again.completed == stats.completed)
+    {
+      break;
+    }
+    stats = again;
+  }
+  return stats;
+}
+
+void EspUsbHost::serialWriteStatsReset(uint8_t address)
+{
+  DeviceState *device = findSerialDevice(address);
+  if (device)
+  {
+    device->serialWriteStats = EspUsbHostSerialWriteStats();
+  }
+}
+
+uint16_t EspUsbHost::serialOutPacketSize(uint8_t address) const
+{
+  const DeviceState *device = findSerialDevice(address);
+  return device ? device->serialOutPacketSize : 0;
+}
+
 bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
 {
   DeviceState *device = findSerialDevice(address);
@@ -3743,6 +4228,17 @@ bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
   {
     ESP_LOGW(TAG, "sendSerial() called with null data");
     return false;
+  }
+
+  // With the queue active, go through it so the caller inherits its backpressure
+  // rather than growing an unbounded set of one-shot transfers. Waiting for a
+  // slot only works off the USB client task, where the completions run.
+  if (device->serialOutQueueActive && length <= device->serialOutBufferBytes)
+  {
+    const uint32_t timeoutMs = xTaskGetCurrentTaskHandle() == clientTaskHandle_
+                                   ? 0
+                                   : ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS;
+    return serialWriteAsync(data, length, timeoutMs, device->info.address);
   }
 
   const size_t packetSize = length > device->serialOutPacketSize ? length : device->serialOutPacketSize;
@@ -6718,6 +7214,7 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   device->networkLinkUp = false;
   networkDrainTx(*device); // wait out an in-flight send before tearing down
   vendorDrainOut(*device); // same for queued vendor bulk OUT transfers
+  serialDrainOut(*device); // and for queued CDC serial OUT transfers
   releaseEndpoints(*device, false);
   device->disconnectPending = true;
 
@@ -8627,15 +9124,69 @@ void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
 void EspUsbHost::serialOutTransferCallback(usb_transfer_t *transfer)
 {
   EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
-  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+  if (!host)
   {
-    ESP_LOGD(TAG, "serial OUT transfer status=%d ep=0x%02x", transfer->status, transfer->bEndpointAddress);
-    if (host)
+    usb_host_transfer_free(transfer);
+    return;
+  }
+
+  // Pool membership, not the device handle, decides ownership: on disconnect the
+  // device slot can already be reset by the time these canceled transfers are
+  // dispatched. A transfer that belongs to no pool came from the one-shot
+  // sendSerial() path and is freed here as before.
+  DeviceState *device = nullptr;
+  int slot = -1;
+  for (DeviceState &candidate : host->devices_)
+  {
+    const int found = host->serialOutSlotOfTransfer(candidate, transfer);
+    if (found >= 0)
     {
-      host->setLastError(ESP_FAIL);
+      device = &candidate;
+      slot = found;
+      break;
     }
   }
-  usb_host_transfer_free(transfer);
+
+  if (!device)
+  {
+    if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+    {
+      ESP_LOGD(TAG, "serial OUT transfer status=%d ep=0x%02x",
+               transfer->status,
+               transfer->bEndpointAddress);
+      host->setLastError(ESP_FAIL);
+    }
+    // Either a one-shot transfer, or a pooled one whose pool was already
+    // released; releaseSerialOutQueue() deliberately leaked the latter, so both
+    // are freed now that the driver is done with them.
+    usb_host_transfer_free(transfer);
+    return;
+  }
+
+  EspUsbHostSerialWriteStats &stats = device->serialWriteStats;
+  stats.completed++;
+  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+  {
+    stats.bytes += static_cast<uint64_t>(transfer->actual_num_bytes);
+  }
+  else
+  {
+    stats.errors++;
+    ESP_LOGD(TAG, "serial OUT status=%d ep=0x%02x", transfer->status, transfer->bEndpointAddress);
+    host->setLastError(ESP_FAIL);
+    if (transfer->status != USB_TRANSFER_STATUS_CANCELED)
+    {
+      device->serialOutHalted = true;
+    }
+  }
+
+  portENTER_CRITICAL(&host->serialOutMux_);
+  device->serialOutSlotState[slot] = SERIAL_OUT_SLOT_FREE;
+  portEXIT_CRITICAL(&host->serialOutMux_);
+  if (device->serialOutFreeSlots)
+  {
+    xSemaphoreGive(device->serialOutFreeSlots);
+  }
 }
 
 void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
@@ -11012,6 +11563,7 @@ void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)
 {
   releaseAudioOutputTransfers(device);
   releaseVendorOutQueue(device);
+  releaseSerialOutQueue(device);
   for (EndpointState &endpoint : endpoints_)
   {
     if (!endpoint.inUse || endpoint.deviceHandle != device.handle)
@@ -13147,6 +13699,12 @@ int EspUsbHostCdcSerial::peek()
 
 void EspUsbHostCdcSerial::flush()
 {
+  // Without the asynchronous queue there is nothing to wait for: each write is
+  // already submitted to the driver and the completion is not tracked.
+  if (host_.serialWriteQueueReady(address_))
+  {
+    host_.serialWriteFlush(ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS, address_);
+  }
 }
 
 size_t EspUsbHostCdcSerial::write(uint8_t data)
