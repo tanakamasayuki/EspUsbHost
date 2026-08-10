@@ -1,9 +1,9 @@
 // Host tests for the 3.5-inch USB smart screen protocol layer used by
-// examples/Serial/EspUsbHostDisplayUsb35Inch. The header under test is pure byte
+// examples/Serial/EspUsbHostDisplayTuring. The header under test is pure byte
 // formatting with no Arduino / USB dependencies, so it is included directly and
 // the production code itself is exercised.
 
-#include "Usb35InchProtocol.hpp"
+#include "TuringProtocol.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -82,19 +82,19 @@ Decoded decodeCommand(const uint8_t *packet)
 // independent decoder is what pins it.
 void testCommandPacking()
 {
-  uint8_t packet[usb35inch::COMMAND_BYTES];
+  uint8_t packet[turing::COMMAND_BYTES];
 
-  usb35inch::encodeCommand(packet, usb35inch::COMMAND_DISPLAY_BITMAP, 0, 0, 319, 479);
+  turing::encodeCommand(packet, turing::COMMAND_DISPLAY_BITMAP, 0, 0, 319, 479);
   const Decoded full = decodeCommand(packet);
   checkEqual(full.x, 0, "x of a full-screen rectangle");
   checkEqual(full.y, 0, "y of a full-screen rectangle");
   checkEqual(full.ex, 319, "ex of a full-screen rectangle");
   checkEqual(full.ey, 479, "ey of a full-screen rectangle");
-  checkEqual(full.command, usb35inch::COMMAND_DISPLAY_BITMAP, "command byte is last");
+  checkEqual(full.command, turing::COMMAND_DISPLAY_BITMAP, "command byte is last");
 
   // All-ones in every field: catches a mask that is one bit too wide as well as
   // a field that bleeds into its neighbour.
-  usb35inch::encodeCommand(packet, 0xff, 0x3ff, 0x3ff, 0x3ff, 0x3ff);
+  turing::encodeCommand(packet, 0xff, 0x3ff, 0x3ff, 0x3ff, 0x3ff);
   checkBytes(packet, sizeof(packet), {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
              "every coordinate at its maximum fills the packet");
 
@@ -105,7 +105,7 @@ void testCommandPacking()
                                 static_cast<uint16_t>(field == 1 ? 0x2a9 : 0),
                                 static_cast<uint16_t>(field == 2 ? 0x2a9 : 0),
                                 static_cast<uint16_t>(field == 3 ? 0x2a9 : 0)};
-    usb35inch::encodeCommand(packet, 0, values[0], values[1], values[2], values[3]);
+    turing::encodeCommand(packet, 0, values[0], values[1], values[2], values[3]);
     const Decoded one = decodeCommand(packet);
     const uint16_t back[4] = {one.x, one.y, one.ex, one.ey};
     for (int i = 0; i < 4; i++)
@@ -115,14 +115,14 @@ void testCommandPacking()
   }
 
   // Exhaustive round trip over the panel's own coordinate space.
-  for (uint16_t v = 0; v <= usb35inch::MAX_COORDINATE; v++)
+  for (uint16_t v = 0; v <= turing::MAX_COORDINATE; v++)
   {
-    usb35inch::encodeCommand(packet, usb35inch::COMMAND_DISPLAY_BITMAP, v,
-                             static_cast<uint16_t>(usb35inch::MAX_COORDINATE - v), v,
-                             static_cast<uint16_t>(usb35inch::MAX_COORDINATE - v));
+    turing::encodeCommand(packet, turing::COMMAND_DISPLAY_BITMAP, v,
+                             static_cast<uint16_t>(turing::MAX_COORDINATE - v), v,
+                             static_cast<uint16_t>(turing::MAX_COORDINATE - v));
     const Decoded d = decodeCommand(packet);
-    if (d.x != v || d.y != usb35inch::MAX_COORDINATE - v || d.ex != v ||
-        d.ey != usb35inch::MAX_COORDINATE - v)
+    if (d.x != v || d.y != turing::MAX_COORDINATE - v || d.ex != v ||
+        d.ey != turing::MAX_COORDINATE - v)
     {
       checkEqual(d.x, v, "exhaustive coordinate round trip");
       break;
@@ -134,15 +134,15 @@ void testCommandPacking()
 // row or column short and leave the pixel stream out of step with the panel.
 void testBitmapHeader()
 {
-  uint8_t packet[usb35inch::COMMAND_BYTES];
+  uint8_t packet[turing::COMMAND_BYTES];
 
-  usb35inch::encodeBitmapHeader(packet, 0, 0, 320, 480);
+  turing::encodeBitmapHeader(packet, 0, 0, 320, 480);
   Decoded d = decodeCommand(packet);
   checkEqual(d.ex, 319, "a full-width rectangle ends at width - 1");
   checkEqual(d.ey, 479, "a full-height rectangle ends at height - 1");
-  checkEqual(d.command, usb35inch::COMMAND_DISPLAY_BITMAP, "bitmap header carries DISPLAY_BITMAP");
+  checkEqual(d.command, turing::COMMAND_DISPLAY_BITMAP, "bitmap header carries DISPLAY_BITMAP");
 
-  usb35inch::encodeBitmapHeader(packet, 17, 23, 1, 1);
+  turing::encodeBitmapHeader(packet, 17, 23, 1, 1);
   d = decodeCommand(packet);
   checkEqual(d.x, 17, "single pixel x");
   checkEqual(d.y, 23, "single pixel y");
@@ -152,35 +152,35 @@ void testBitmapHeader()
 
 void testRectFits()
 {
-  check(usb35inch::rectFits(0, 0, 320, 480, 320, 480), "the whole panel fits");
-  check(usb35inch::rectFits(319, 479, 1, 1, 320, 480), "the last pixel fits");
-  check(!usb35inch::rectFits(0, 0, 321, 480, 320, 480), "one column too wide is rejected");
-  check(!usb35inch::rectFits(0, 0, 320, 481, 320, 480), "one row too tall is rejected");
-  check(!usb35inch::rectFits(320, 0, 1, 1, 320, 480), "a pixel past the right edge is rejected");
-  check(!usb35inch::rectFits(0, 0, 0, 10, 320, 480), "a zero-width rectangle is rejected");
-  check(!usb35inch::rectFits(0, 0, 10, 0, 320, 480), "a zero-height rectangle is rejected");
+  check(turing::rectFits(0, 0, 320, 480, 320, 480), "the whole panel fits");
+  check(turing::rectFits(319, 479, 1, 1, 320, 480), "the last pixel fits");
+  check(!turing::rectFits(0, 0, 321, 480, 320, 480), "one column too wide is rejected");
+  check(!turing::rectFits(0, 0, 320, 481, 320, 480), "one row too tall is rejected");
+  check(!turing::rectFits(320, 0, 1, 1, 320, 480), "a pixel past the right edge is rejected");
+  check(!turing::rectFits(0, 0, 0, 10, 320, 480), "a zero-width rectangle is rejected");
+  check(!turing::rectFits(0, 0, 10, 0, 320, 480), "a zero-height rectangle is rejected");
   // A rectangle can fit the panel and still overflow the 10-bit packing only if
   // the panel is larger than 1024, which no orientation of this one is; the
   // guard is checked here so it survives a future larger panel.
-  check(!usb35inch::rectFits(1000, 0, 100, 1, 2000, 480), "a rectangle past the packing limit is rejected");
+  check(!turing::rectFits(1000, 0, 100, 1, 2000, 480), "a rectangle past the packing limit is rejected");
 }
 
 void testOrientation()
 {
-  uint8_t packet[usb35inch::ORIENTATION_COMMAND_BYTES];
+  uint8_t packet[turing::ORIENTATION_COMMAND_BYTES];
 
-  size_t length = usb35inch::encodeOrientation(packet, usb35inch::ORIENTATION_PORTRAIT, 320, 480);
-  checkEqual(length, usb35inch::ORIENTATION_COMMAND_BYTES, "orientation packet length");
+  size_t length = turing::encodeOrientation(packet, turing::ORIENTATION_PORTRAIT, 320, 480);
+  checkEqual(length, turing::ORIENTATION_COMMAND_BYTES, "orientation packet length");
   checkBytes(packet, length, {0x00, 0x00, 0x00, 0x00, 0x00, 121, 100, 0x01, 0x40, 0x01, 0xe0},
              "portrait orientation packet");
 
-  length = usb35inch::encodeOrientation(packet, usb35inch::ORIENTATION_LANDSCAPE, 480, 320);
+  length = turing::encodeOrientation(packet, turing::ORIENTATION_LANDSCAPE, 480, 320);
   checkBytes(packet, length, {0x00, 0x00, 0x00, 0x00, 0x00, 121, 102, 0x01, 0xe0, 0x01, 0x40},
              "landscape orientation packet");
 
   // The size is big-endian; a swapped pair would still be 11 bytes, so check a
   // value whose halves differ.
-  length = usb35inch::encodeOrientation(packet, usb35inch::ORIENTATION_REVERSE_PORTRAIT, 0x1234, 0x5678);
+  length = turing::encodeOrientation(packet, turing::ORIENTATION_REVERSE_PORTRAIT, 0x1234, 0x5678);
   checkEqual(packet[6], 101, "reverse portrait is orientation + 100");
   checkEqual(packet[7], 0x12, "width high byte first");
   checkEqual(packet[8], 0x34, "width low byte second");
@@ -192,16 +192,16 @@ void testOrientation()
 // way round produces a dark panel that still looks like it is working.
 void testBrightness()
 {
-  checkEqual(usb35inch::encodeBrightnessPercent(0), 255, "0 percent is the darkest level");
-  checkEqual(usb35inch::encodeBrightnessPercent(100), 0, "100 percent is the brightest level");
-  check(usb35inch::encodeBrightnessPercent(50) > usb35inch::encodeBrightnessPercent(75),
+  checkEqual(turing::encodeBrightnessPercent(0), 255, "0 percent is the darkest level");
+  checkEqual(turing::encodeBrightnessPercent(100), 0, "100 percent is the brightest level");
+  check(turing::encodeBrightnessPercent(50) > turing::encodeBrightnessPercent(75),
         "a higher percentage encodes a lower level");
-  checkEqual(usb35inch::encodeBrightnessPercent(200), 0, "out-of-range percentages clamp");
+  checkEqual(turing::encodeBrightnessPercent(200), 0, "out-of-range percentages clamp");
 
-  uint8_t packet[usb35inch::COMMAND_BYTES];
-  usb35inch::encodeBrightness(packet, 100);
+  uint8_t packet[turing::COMMAND_BYTES];
+  turing::encodeBrightness(packet, 100);
   const Decoded d = decodeCommand(packet);
-  checkEqual(d.command, usb35inch::COMMAND_SET_BRIGHTNESS, "brightness command byte");
+  checkEqual(d.command, turing::COMMAND_SET_BRIGHTNESS, "brightness command byte");
   checkEqual(d.x, 0, "the level travels in the x field");
   checkEqual(d.y, 0, "brightness leaves the other coordinates at zero");
 }
@@ -211,16 +211,16 @@ void testBrightness()
 // from the whole example, so it is pinned here.
 void testPixels()
 {
-  checkEqual(usb35inch::rgb565(255, 0, 0), 0xf800, "pure red");
-  checkEqual(usb35inch::rgb565(0, 255, 0), 0x07e0, "pure green");
-  checkEqual(usb35inch::rgb565(0, 0, 255), 0x001f, "pure blue");
-  checkEqual(usb35inch::rgb565(255, 255, 255), 0xffff, "white");
-  checkEqual(usb35inch::rgb565(0, 0, 0), 0x0000, "black");
+  checkEqual(turing::rgb565(255, 0, 0), 0xf800, "pure red");
+  checkEqual(turing::rgb565(0, 255, 0), 0x07e0, "pure green");
+  checkEqual(turing::rgb565(0, 0, 255), 0x001f, "pure blue");
+  checkEqual(turing::rgb565(255, 255, 255), 0xffff, "white");
+  checkEqual(turing::rgb565(0, 0, 0), 0x0000, "black");
 
   uint8_t pixel[2];
-  usb35inch::encodePixel(pixel, 0xf800);
+  turing::encodePixel(pixel, 0xf800);
   checkBytes(pixel, sizeof(pixel), {0x00, 0xf8}, "red goes out low byte first");
-  usb35inch::encodePixel(pixel, 0x001f);
+  turing::encodePixel(pixel, 0x001f);
   checkBytes(pixel, sizeof(pixel), {0x1f, 0x00}, "blue goes out low byte first");
 
   // A row of pixels is exactly two bytes each with no padding or alignment, so a
@@ -229,7 +229,7 @@ void testPixels()
   uint8_t bytes[sizeof(row)];
   for (size_t i = 0; i < 3; i++)
   {
-    usb35inch::encodePixel(bytes + i * 2, row[i]);
+    turing::encodePixel(bytes + i * 2, row[i]);
   }
   checkBytes(bytes, sizeof(bytes), {0x00, 0xf8, 0xe0, 0x07, 0x1f, 0x00}, "a row packs contiguously");
 }

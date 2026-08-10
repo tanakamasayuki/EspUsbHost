@@ -1,8 +1,8 @@
-# EspUsbHostDisplayUsb35Inch
+# EspUsbHostDisplayTuring
 
 English: [README.md](README.md)
 
-3.5インチのUSBスマートスクリーンをLovyanGFXのpanelとして駆動します。
+3.5インチのUSBスマートスクリーン（Turing Smart Screen revision A、および多数ある互換機）をLovyanGFXのpanelとして駆動します。
 
 このパネルはCDCシリアルデバイス（`1a86:5722`、product `UsbMonitor`）として認識され、6バイトのコマンドとRGB565の矩形データを受け取ります。[`EspUsbHostDisplayDl1xx`](../../Vendor/EspUsbHostDisplayDl1xx/) と発想は同じ（USBディスプレイをLovyanGFXのpanelにする）ですが、トランスポートがまったく違います。両者の比較は [`docs/usb-display.ja.md`](../../../docs/usb-display.ja.md) にあります。
 
@@ -10,9 +10,9 @@ English: [README.md](README.md)
 
 | ファイル | 内容 |
 |---|---|
-| `Usb35InchProtocol.hpp` | ワイヤ形式: 6バイトコマンドのパッキング、DISPLAY_BITMAPの矩形、向き、輝度、RGB565ピクセル。Arduino / LovyanGFX / USBに非依存 |
-| `Usb35InchDevice.hpp` | パネルの探索、line codingの設定、非同期CDC OUTキュー経由のコマンド／ピクセル送出 |
-| `Panel_Usb35Inch.hpp` | `lgfx::Panel_Device` の派生クラスと `LGFX_Usb35Inch` |
+| `TuringProtocol.hpp` | ワイヤ形式: 6バイトコマンドのパッキング、DISPLAY_BITMAPの矩形、向き、輝度、RGB565ピクセル。Arduino / LovyanGFX / USBに非依存 |
+| `TuringDevice.hpp` | パネルの探索、line codingの設定、非同期CDC OUTキュー経由のコマンド／ピクセル送出 |
+| `Panel_Turing.hpp` | `lgfx::Panel_Device` の派生クラスと `LGFX_Turing` |
 
 ## 必要なもの
 
@@ -34,7 +34,7 @@ panelの色深度は `rgb565_nonswapped` 固定です。そのメモリ配置は
 
 どちらもプロトコルの参照元には書かれておらず、しかも「一見動いているドライバ」に見える壊れ方をします。このコードを流用する前に知っておく価値があります。
 
-**前の矩形のピクセルが届ききる前にコマンドを送ってはいけない。** どちらにせよパネルはバイトを消費し続けるので、エラーにもならず転送も失われません。コマンドとそれが開いた矩形が黙って捨てられるだけです。そこで `Usb35InchDevice` はビットマップを同期の単位として扱います。開いている矩形に残っているピクセル数を数え、最後の1ピクセルが入った時点でリンクをドレインします。足りないまま終わった矩形は、残しておかずパディングします。パネルはピクセル数を自分で数えているので、足りないままだと次のコマンドをピクセルデータとして読んでしまうからです（発生した場合は `underfilled()` が報告します）。
+**前の矩形のピクセルが届ききる前にコマンドを送ってはいけない。** どちらにせよパネルはバイトを消費し続けるので、エラーにもならず転送も失われません。コマンドとそれが開いた矩形が黙って捨てられるだけです。そこで `TuringDevice` はビットマップを同期の単位として扱います。開いている矩形に残っているピクセル数を数え、最後の1ピクセルが入った時点でリンクをドレインします。足りないまま終わった矩形は、残しておかずパディングします。パネルはピクセル数を自分で数えているので、足りないままだと次のコマンドをピクセルデータとして読んでしまうからです（発生した場合は `underfilled()` が報告します）。
 
 これを省くと、バーストの最初の矩形しか表示されない画面になり、さらに矩形を増やすほどスループットが**上がって**見えます。大半が捨てられているからです。後述のバンドスイープはこれを検出するためのものです。
 
@@ -56,7 +56,7 @@ usb.serialWriteSubmit(buffer, length);
 
 ## 速くするには
 
-以下の数値はESP32-S3（full-speed USB）での `tests/manual/usb_display_usb35inch` の実測です。同じホストはvendor bulkで1.098 MB/s出るので、ここでの上限はバスではなくパネル側です。
+以下の数値はESP32-S3（full-speed USB）での `tests/manual/usb_display_turing` の実測です。同じホストはvendor bulkで1.098 MB/s出るので、ここでの上限はバスではなくパネル側です。
 
 **送るピクセルを減らす。** 圧縮がない以上、変えられるのはこれだけです。パネルは約0.155 MB/sの固定レートで描くので、画面に出るまでの時間は「バイト数 ÷ そのレート」であり、バイト数は1ピクセル2バイトです。`setDiffMode(LGFXVirtualDiffMode::Tile)` は有効のままにし、動いた部分だけを描き直してください。
 
@@ -79,7 +79,7 @@ usb.serialWriteSubmit(buffer, length);
 
 ## 制限
 
-- 回転はLovyanGFXではなくパネル側が行います。`setRotation()` は0に戻されます。`init()` の前に `Usb35InchDevice::setOrientation()` を使ってください。
+- 回転はLovyanGFXではなくパネル側が行います。`setRotation()` は0に戻されます。`init()` の前に `TuringDevice::setOrientation()` を使ってください。
 - 読み戻し不可（`isReadable()` は false）。`readRect()`、ARGB合成、画面内容を必要とする処理は動きません。
 - `copyRect()` は何もしません。プロトコルに画面内コピーがなく読み戻しもできないため、実装しようがありません。
 - 16 bppのみ。プロトコルに他のピクセル形式はありません。
@@ -92,13 +92,13 @@ usb.serialWriteSubmit(buffer, length);
 
 ```sh
 cd tests
-uv run --env-file .env pytest unit/usb35inch -v -s
+uv run --env-file .env pytest unit/turing -v -s
 ```
 
 実機のbring-up（向き、単色塗り、カラーバー、チェッカーボード、部分矩形、上記のバンドスイープ、表示保持、輝度）:
 
 ```sh
-uv run --env-file .env pytest manual/usb_display_usb35inch/usb_display_usb35inch.py -v -s
+uv run --env-file .env pytest manual/usb_display_turing/usb_display_turing.py -v -s
 ```
 
 ## プロトコルの参照元
@@ -110,6 +110,6 @@ uv run --env-file .env pytest manual/usb_display_usb35inch/usb_display_usb35inch
 - [Kwonsunuk/turing-lcd-monitor](https://github.com/Kwonsunuk/turing-lcd-monitor)
   — `1A86:5722` / `USB35INCHIPSV2` を明示しており今回の個体との一致度が高い。`DISPLAY_BITMAP = 197` と115200のline codingの出典
 
-そのうえで `Usb35InchProtocol.hpp` の内容は `tests/manual/usb_display_usb35inch` により実機で検証済みです。
+そのうえで `TuringProtocol.hpp` の内容は `tests/manual/usb_display_turing` により実機で検証済みです。
 
-Turing Smart Screenは各権利者の製品名です。本プロジェクトは当該ベンダーと提携・推奨・認定の関係にありません。コードとファイル名にはブランド名ではなくパネル自身のモデル文字列 `USB35INCH` を使っています。
+Turing Smart Screenは各権利者の製品名です。本プロジェクトは当該ベンダーと提携・推奨・認定の関係にありません。ここで名前を使っているのは、これらのパネルが話すプロトコルを識別するためだけで、実際に検索される語がそれだからです。デバイス自身が名乗るモデル文字列は `USB35INCHIPSV2` で、このexampleが駆動するパネルの多くは別のブランドで売られています。

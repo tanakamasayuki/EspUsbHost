@@ -29,8 +29,8 @@ uv run --env-file .env pytest unit/
   worst case, round trips against an independent decoder, buffer limits with an
   overrun canary), and the Full HD mode-set register stream.
 
-- `usb35inch`: verifies the protocol layer of the 3.5-inch USB smart screen in
-  `examples/Serial/EspUsbHostDisplayUsb35Inch` (`Usb35InchProtocol.hpp`): the
+- `turing`: verifies the protocol layer of the 3.5-inch USB smart screen in
+  `examples/Serial/EspUsbHostDisplayTuring` (`TuringProtocol.hpp`): the
   6-byte command packet with its four 10-bit coordinates, round-tripped against
   an independent decoder one field at a time and exhaustively over the panel's
   coordinate space, the DISPLAY_BITMAP rectangle (inclusive on both ends), the
@@ -38,6 +38,17 @@ uv run --env-file .env pytest unit/
   orientation packet with its big-endian size fields, the brightness levels that
   run backwards on the wire, and the RGB565 little-endian pixel bytes that let
   LovyanGFX's rgb565_nonswapped output reach USB without a byte swap.
+
+- `ax206`: verifies the protocol layer of the AX206 USB display in
+  `examples/Vendor/EspUsbHostDisplayAx206` (`Ax206Protocol.hpp`): the two 16-byte
+  vendor command blocks reproduced byte for byte from the MIT reference, which
+  anchor everything else; the blit rectangle with its inclusive corners and its
+  data length; the bounds guard; the 31-byte Command Block Wrapper with its
+  little-endian tag and transfer length, direction flag, LUN and command length;
+  the Command Status Wrapper located by signature rather than offset, including
+  tag mismatch, truncation and leading stray bytes; and the RGB565 big-endian
+  pixel bytes that let LovyanGFX's rgb565_2Byte output reach USB without a byte
+  swap.
 
 - `ccid_atr`: verifies the CCID ATR parser in `src/EspUsbHostCcidAtr.h`: the ATR
   captured from a real Sony RC-S300 with an ISO 14443 A card (decoded to

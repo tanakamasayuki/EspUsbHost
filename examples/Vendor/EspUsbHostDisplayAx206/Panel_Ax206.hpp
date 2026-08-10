@@ -1,46 +1,50 @@
-// LovyanGFX panel for the 3.5-inch USB smart screen.
+// LovyanGFX panel for an AX206 USB display.
 //
-// Include LovyanGFX before this header. The panel holds no frame buffer: the
-// panel has its own, so every drawing operation turns straight into a
-// DISPLAY_BITMAP rectangle followed by its pixels. That also means read-back is
+// Include LovyanGFX before this header. The panel holds no frame buffer, and
+// neither does the device layer: the display accepts only whole-screen blits, so
+// a frame is opened on beginTransaction(), pixels are streamed straight to USB as
+// they are drawn, and the transaction closes on endTransaction(). Read-back is
 // not possible.
 //
-// The panel's color depth is fixed at rgb565_nonswapped, whose memory layout is
-// little-endian RGB565 -- exactly the wire format. Converted pixels therefore
-// reach the USB buffer with no byte swapping.
+// That makes the drawing order part of the contract. Pixels must arrive in
+// reading order -- left to right, top to bottom. Skipping ahead is fine, and the
+// gap is padded; going back to a pixel already sent is not, and such a write is
+// dropped and counted. This is exactly the order LGFXVirtualScreen renders its
+// tiles in, which is what this panel is meant to be driven by. Code that needs
+// arbitrary drawing order needs a frame buffer of its own to draw into.
 //
-// The protocol has no compression, so a rectangle always costs 2 bytes per pixel
-// plus a 6-byte header. Sending fewer, larger rectangles is the only lever, and
-// that is what makes the full-width bands of a tiled canvas the right update
-// shape here.
+// The panel's color depth is fixed at rgb565_2Byte, whose memory layout is
+// big-endian RGB565 -- exactly the wire format. Converted pixels therefore reach
+// the USB buffer with no byte swapping.
+//
+// The protocol has no compression and no partial update, so a frame always costs
+// 307,200 bytes however little of it changed.
 
 #pragma once
 
-#include "Usb35InchDevice.hpp"
+#include "Ax206Device.hpp"
 
 #include <stdlib.h>
 
-namespace usb35inch
+namespace ax206
 {
 
-class Panel_Usb35Inch : public lgfx::Panel_Device
+class Panel_Ax206 : public lgfx::Panel_Device
 {
 public:
-  Panel_Usb35Inch(Usb35InchDevice *device = nullptr) : device_(device)
+  Panel_Ax206(Ax206Device *device = nullptr) : device_(device)
   {
-    _write_depth = lgfx::color_depth_t::rgb565_nonswapped;
-    _read_depth = lgfx::color_depth_t::rgb565_nonswapped;
+    _write_depth = lgfx::color_depth_t::rgb565_2Byte;
+    _read_depth = lgfx::color_depth_t::rgb565_2Byte;
   }
 
-  ~Panel_Usb35Inch() { free(line_); }
+  ~Panel_Ax206() { free(line_); }
 
-  void setDevice(Usb35InchDevice *device) { device_ = device; }
-  Usb35InchDevice *device() const { return device_; }
+  void setDevice(Ax206Device *device) { device_ = device; }
+  Ax206Device *device() const { return device_; }
 
-  // Adopts the size the device reports, so setOrientation() must run before
-  // init() if the default portrait is not wanted. Allocates one row of
-  // pixel-conversion scratch space, which is where LovyanGFX's converters write
-  // before the bytes are handed to USB.
+  // Allocates one row of pixel-conversion scratch space, which is where
+  // LovyanGFX's converters write before the bytes are handed to USB.
   bool init(bool use_reset) override
   {
     if (!device_ || !device_->ready())
@@ -69,8 +73,8 @@ public:
     return true;
   }
 
-  // True when the device was reopened or rotated since init(). Anything caching
-  // what is on screen must drop that cache and redraw.
+  // True when the device was reopened since init(). Anything caching what is on
+  // screen must drop that cache and redraw.
   bool invalidated() const
   {
     return !device_ || !device_->ready() || device_->generation() != generation_;
@@ -78,30 +82,38 @@ public:
 
   void acknowledgeInvalidation() { generation_ = device_ ? device_->generation() : 0; }
 
-  void beginTransaction(void) override {}
+  // A LovyanGFX transaction is one frame. LGFXVirtualScreen wraps its whole tile
+  // loop in one startWrite/endWrite, so a rendered screen becomes exactly one
+  // blit however many tiles it was drawn in.
+  void beginTransaction(void) override
+  {
+    if (device_)
+    {
+      device_->beginFrame();
+    }
+  }
 
-  // Hands the buffered bytes to USB without waiting, so drawing keeps flowing.
   void endTransaction(void) override
   {
     if (device_)
     {
-      device_->push();
+      device_->endFrame();
     }
   }
 
   lgfx::color_depth_t setColorDepth(lgfx::color_depth_t) override
   {
-    // The wire format is 16 bpp RGB565 little-endian and nothing else.
-    _write_depth = lgfx::color_depth_t::rgb565_nonswapped;
-    _read_depth = lgfx::color_depth_t::rgb565_nonswapped;
+    // The wire format is 16 bpp RGB565 big-endian and nothing else.
+    _write_depth = lgfx::color_depth_t::rgb565_2Byte;
+    _read_depth = lgfx::color_depth_t::rgb565_2Byte;
     return _write_depth;
   }
 
-  // Rotation is not supported here: the panel rotates itself, and mixing that
-  // with a host-side rotation would apply it twice. Anything other than 0 is
-  // forced back so a caller cannot silently get a mirrored image; use
-  // Usb35InchDevice::setOrientation() instead. Panel_Device leaves setRotation
-  // pure virtual, so the state is set here rather than delegated.
+  // Rotation is not supported: the blit command addresses the panel in its native
+  // landscape orientation, and this panel does not transform coordinates. Other
+  // values are forced back to 0 so a caller cannot silently get a mirrored image.
+  // Panel_Device leaves setRotation pure virtual, so the state is set here rather
+  // than delegated.
   void setRotation(uint_fast8_t r) override
   {
     (void)r;
@@ -112,13 +124,7 @@ public:
   }
 
   void setInvert(bool) override {}
-  void setSleep(bool enable) override
-  {
-    if (device_)
-    {
-      enable ? device_->screenOff() : device_->screenOn();
-    }
-  }
+  void setSleep(bool) override {}
   void setPowerSave(bool) override {}
   void writeCommand(uint32_t, uint_fast8_t) override {}
   void writeData(uint32_t, uint_fast8_t) override {}
@@ -131,22 +137,11 @@ public:
   bool isReadable(void) const override { return false; }
   bool isBusShared(void) const override { return false; }
 
-  // Waits for everything drawn so far to reach the panel.
-  void waitDisplay(void) override
-  {
-    if (device_)
-    {
-      device_->flush();
-    }
-  }
+  // The frame is closed by endTransaction(), which LovyanGFX calls right after
+  // display(), so there is nothing to force out here.
+  void waitDisplay(void) override {}
 
-  void display(uint_fast16_t, uint_fast16_t, uint_fast16_t, uint_fast16_t) override
-  {
-    if (device_)
-    {
-      device_->flush();
-    }
-  }
+  void display(uint_fast16_t, uint_fast16_t, uint_fast16_t, uint_fast16_t) override {}
 
   void setWindow(uint_fast16_t xs, uint_fast16_t ys, uint_fast16_t xe, uint_fast16_t ye) override
   {
@@ -160,12 +155,11 @@ public:
 
   void drawPixelPreclipped(uint_fast16_t x, uint_fast16_t y, uint32_t rawcolor) override
   {
-    if (!device_)
+    if (!device_ || !device_->seekTo(static_cast<uint16_t>(x), static_cast<uint16_t>(y)))
     {
       return;
     }
-    device_->fillRect(static_cast<uint16_t>(x), static_cast<uint16_t>(y), 1, 1,
-                      static_cast<uint16_t>(rawcolor));
+    device_->writeFill(static_cast<uint16_t>(rawcolor), 1);
   }
 
   void writeFillRectPreclipped(uint_fast16_t x, uint_fast16_t y, uint_fast16_t w, uint_fast16_t h,
@@ -175,10 +169,25 @@ public:
     {
       return;
     }
-    // One rectangle covers the whole area: unlike a linear frame buffer this
-    // protocol addresses in 2D, so there is nothing to split.
-    device_->fillRect(static_cast<uint16_t>(x), static_cast<uint16_t>(y), static_cast<uint16_t>(w),
-                      static_cast<uint16_t>(h), static_cast<uint16_t>(rawcolor));
+    const uint16_t color = static_cast<uint16_t>(rawcolor);
+    // Full-width rows are one contiguous run in the stream, so they go out
+    // without a seek between them -- which is the common case, a cleared screen.
+    if (x == 0 && w == ax206::WIDTH)
+    {
+      if (device_->seekTo(0, static_cast<uint16_t>(y)))
+      {
+        device_->writeFill(color, static_cast<size_t>(w) * h);
+      }
+      return;
+    }
+    for (uint_fast16_t row = 0; row < h; row++)
+    {
+      if (!device_->seekTo(static_cast<uint16_t>(x), static_cast<uint16_t>(y + row)))
+      {
+        continue;
+      }
+      device_->writeFill(color, w);
+    }
   }
 
   // Stream of same-colored pixels following the window set by setWindow(),
@@ -222,7 +231,7 @@ public:
       // fp_copy converts into the panel's write format, which is already the wire
       // format, so these bytes go out as they are.
       param->fp_copy(line_, 0, take, param);
-      if (device_->beginBitmap(_xpos, _ypos, static_cast<uint16_t>(take), 1))
+      if (device_->seekTo(_xpos, _ypos))
       {
         device_->writePixelBytes(line_, take);
       }
@@ -240,18 +249,10 @@ public:
       return;
     }
 
-    // An opaque image is one rectangle whose pixels stream row by row, so the
-    // whole band costs a single 6-byte header. This is the path a tiled canvas
-    // takes, and the reason a band is much cheaper than its rows would be.
+    // An opaque image streams row by row into the open frame. This is the path a
+    // tiled canvas takes, and when the tile spans the full width its rows are one
+    // contiguous run needing no seek at all.
     const bool opaque = param->transp == lgfx::pixelcopy_t::NON_TRANSP;
-    if (opaque)
-    {
-      if (!device_->beginBitmap(static_cast<uint16_t>(x), static_cast<uint16_t>(y),
-                                static_cast<uint16_t>(w), static_cast<uint16_t>(h)))
-      {
-        return;
-      }
-    }
 
     for (uint_fast16_t row = 0; row < h; row++)
     {
@@ -263,7 +264,10 @@ public:
       if (opaque)
       {
         param->fp_copy(line_, 0, w, param);
-        device_->writePixelBytes(line_, w);
+        if (device_->seekTo(static_cast<uint16_t>(x), static_cast<uint16_t>(y + row)))
+        {
+          device_->writePixelBytes(line_, w);
+        }
       }
       else
       {
@@ -274,12 +278,12 @@ public:
           const int32_t copied = param->fp_copy(line_, pos, end, param);
           if (copied != pos)
           {
-            // Only the converted range is written; transparent pixels are skipped
-            // below and left as they are on screen. Each opaque run is its own
-            // rectangle.
+            // Only the converted range is written. Transparent pixels cannot be
+            // left as they are -- nothing on this side knows what is under them,
+            // and the stream has to carry every pixel of the frame -- so they
+            // become the pad color when the next run seeks past them.
             const uint16_t runWidth = static_cast<uint16_t>(copied - pos);
-            if (device_->beginBitmap(static_cast<uint16_t>(x + pos), static_cast<uint16_t>(y + row),
-                                     runWidth, 1))
+            if (device_->seekTo(static_cast<uint16_t>(x + pos), static_cast<uint16_t>(y + row)))
             {
               device_->writePixelBytes(line_ + static_cast<size_t>(pos) * 2, runWidth);
             }
@@ -302,7 +306,7 @@ public:
   }
 
   // The protocol has no on-screen copy, and read-back is not possible, so there
-  // is no way to implement this. Doing nothing beats writing garbage.
+  // is no way to implement this.
   void copyRect(uint_fast16_t, uint_fast16_t, uint_fast16_t, uint_fast16_t, uint_fast16_t,
                 uint_fast16_t) override
   {
@@ -336,7 +340,7 @@ private:
     }
   }
 
-  Usb35InchDevice *device_ = nullptr;
+  Ax206Device *device_ = nullptr;
   uint8_t *line_ = nullptr;
   uint16_t _xpos = 0;
   uint16_t _ypos = 0;
@@ -344,16 +348,16 @@ private:
 };
 
 // Ready-made LGFX device wrapping the panel.
-class LGFX_Usb35Inch : public lgfx::LGFX_Device
+class LGFX_Ax206 : public lgfx::LGFX_Device
 {
 public:
-  LGFX_Usb35Inch(Usb35InchDevice *device = nullptr) : panel_(device) { setPanel(&panel_); }
+  LGFX_Ax206(Ax206Device *device = nullptr) : panel_(device) { setPanel(&panel_); }
 
-  void setDevice(Usb35InchDevice *device) { panel_.setDevice(device); }
-  Panel_Usb35Inch &panel() { return panel_; }
+  void setDevice(Ax206Device *device) { panel_.setDevice(device); }
+  Panel_Ax206 &panel() { return panel_; }
 
 private:
-  Panel_Usb35Inch panel_;
+  Panel_Ax206 panel_;
 };
 
-} // namespace usb35inch
+} // namespace ax206
