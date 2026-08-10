@@ -51,6 +51,17 @@ uv run --env-file .env pytest unit/
   拒否(null、T0欠落、不正なTS、historical bytesの不足、TD1欠落、RID不一致、
   historical bytesより長いTLV)を対象とする。
 
+- `felica_idm`: `examples/Ccid/EspUsbHostCcidFelicaIdm` のFeliCa IDm例が持つ2つの
+  protocol層(`FelicaProtocol.hpp`・`Rcs300Protocol.hpp`)を検証する。交通系System
+  Code 0x0003とワイルドカード0xffffのFeliCa Pollingフレーム(自身を含む長さバイトを
+  含む)、リクエストデータ有無それぞれのPolling応答と応答元System Code、および不正
+  入力の拒否(応答コード不一致、宣言長が短すぎる・長すぎる・バッファを超える)、
+  `tests/probe/rcs300_felica` が実機に送ったものと同一のRC-S300 transparent session
+  疑似APDU全て(manage session 4種、FeliCaへのswitch protocol、Pollingを載せた
+  transparent exchange)、実機が実際に返した応答オブジェクト(受理、8F 01 08を返す
+  switch protocol、フィールドが空のexchange、拒否の6301 / 6401 / 6700 / 6A81)、
+  成功時のexchangeを応答バイトからIDmまで復号する経路を対象とする。
+
 - `mouse_layout`: `src/EspUsbHostHidLayout.h` のマウスreport descriptorパーサと
   レポートデコーダを検証する。boot mouseのdescriptorから、従来の固定boot解釈と
   完全に同じレイアウトが得られること、issue #39で報告されたLogitech G502 HEROの
@@ -80,8 +91,9 @@ uv run --env-file .env pytest unit/
 
 ## 仕組み
 
-`dl1xx`のヘッダと`src/EspUsbHostCcidAtr.h`・`src/EspUsbHostHidLayout.h`は
-Arduino/USB非依存の純粋なバイト処理なので、`test_dl1xx.py`・`test_ccid_atr.py`・
+`dl1xx`・`ax206`・`felica_idm`のヘッダと`src/EspUsbHostCcidAtr.h`・
+`src/EspUsbHostHidLayout.h`はArduino/USB非依存の純粋なバイト処理なので、
+`test_dl1xx.py`・`test_ax206.py`・`test_felica_idm.py`・`test_ccid_atr.py`・
 `test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は不要である。
 
 `src/EspUsbHost.h`はArduinoとESP USB hostスタックをincludeするため、`audio_uac`は
