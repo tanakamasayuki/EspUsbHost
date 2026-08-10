@@ -24,6 +24,7 @@ uv run --env-file .env pytest manual/vendor_bulk_out_only/vendor_bulk_out_only.p
 uv run --env-file .env pytest manual/vendor_bulk_throughput/vendor_bulk_throughput.py -v -s
 uv run --env-file .env pytest manual/usb_display_dl1xx/usb_display_dl1xx.py -v -s
 uv run --env-file .env pytest manual/usb_display_throughput/usb_display_throughput.py -v -s
+uv run --env-file .env pytest manual/usb_display_usb35inch/usb_display_usb35inch.py -v -s
 ```
 
 Always pass `-s` for manual tests so that serial output and operator prompts are visible.
@@ -64,6 +65,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`vendor_bulk_out_only/`](vendor_bulk_out_only/) | `vendorOpen()` accepts a 0xff interface with a bulk OUT but no bulk IN; packet sizes and endpoint channel accounting match the descriptor. Also dumps the interface/endpoint layout | USB graphics adapter (DisplayLink DL-1xx, VID 0x17e9) or another bulk-OUT-only vendor device | ✅ |
 | [`vendor_bulk_throughput/`](vendor_bulk_throughput/) | Effective bulk OUT throughput: synchronous `vendorWrite()` against the async queue at depths 1/2/4/8 and transfer sizes 512 B–16 KB, plus queue slot accounting and reuse. Establishes the practical bulk OUT ceiling of the board: 1.098 MB/s at full speed (ESP32-S3), 36.4 MB/s at high speed (ESP32-P4) | Any device with a vendor-specific (0xff) bulk OUT endpoint | ✅ |
 | [`usb_display_dl1xx/`](usb_display_dl1xx/) | DL-1xx bring-up: EDID read, 1920x1080 mode set, solid fills, color bars, 1px checkerboard, image persistence with no traffic, and mode resend. The images must be judged on the monitor | USB graphics adapter (DisplayLink DL-1xx, VID 0x17e9) + a 1920x1080 monitor | ✅ |
+| [`usb_display_usb35inch/`](usb_display_usb35inch/) | 3.5-inch USB smart screen bring-up: CDC OUT queue, orientation, solid fills, primary bands, color bars, 1px checkerboard, partial rectangle, a 1/3/8/24/48/96-rectangle sweep of the same full screen, image persistence with no traffic, and brightness. The images must be judged on the panel | 3.5-inch USB smart screen (`1a86:5722`, `USB35INCHIPSV2`) | ✅ |
 | [`usb_display_throughput/`](usb_display_throughput/) | Tuning sweep for the display path: tile geometry, double buffering, diff transfer, auto clear, whole-screen vs sprite redraw, direct-to-panel (including the full-clear flicker case) and scene content. Source of the guidance in the example README. Run per target: the bus share is taken against the ceiling of the board selected by `--profile` | Same as `usb_display_dl1xx`; on an ESP32-P4 the adapter needs a self-powered hub and must be the only device on it | ✅ |
 
 ## ESP32-S3 HCD Channel Limits

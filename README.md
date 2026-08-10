@@ -84,6 +84,7 @@ Host/Device loopback tests.
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT (synchronous and an asynchronous queue), automatic ZLP, and EP0 vendor IN/OUT requests |
 | CCID — smart card readers (bulk protocol) | ✅ Basic support implemented. Covers explicit interface claim, class descriptor parsing, slot status, power on/off with ATR, card type decoding from the ATR, APDU/XfrBlock exchange, escape and raw messages, and slot-change notifications. Verified with a Sony RC-S300; ICCD variants, chained (extended APDU) responses, and PIN-pad features are out of scope |
 | USB graphics adapter (DL-1xx bulk protocol) | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) on top of the vendor bulk API — nothing display-specific is in the library. A reference implementation for one chip family at 16 bpp; for other adapters or higher frame rates use a dedicated library such as [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) |
+| USB smart screen (CDC serial protocol) | 📄 Example only, best effort. Implemented in [`examples/Serial/EspUsbHostDisplayUsb35Inch`](examples/Serial/EspUsbHostDisplayUsb35Inch/) on top of the CDC serial write queue — nothing display-specific is in the library. Covers the 3.5-inch `USB35INCHIPSV2` panel (`1a86:5722`) at 16 bpp. Indexed with the other display examples in [docs/usb-display.md](docs/usb-display.md) |
 | UAC — USB audio input/output | 🔲 Experimental. UAC1 Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`, UAC2 with an `EspUsbDevice` peer (descriptors, Clock Source sample rates, Feature Unit mute/volume, and OUT/IN streaming); real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | CDC-NCM / CDC-ECM — USB Ethernet with raw frame access and lwIP netif attach | 🔲 Experimental. Peer-tested against the EspUsbDevice `UsbNetwork` sketch and an AX88179A adapter. Adapters whose network function is not in the default configuration need `setConfigurationSelector()` and two enumeration passes |
@@ -282,6 +283,7 @@ void loop() {
 |--------|-------------|
 | [EspUsbHostUSBSerial](examples/Serial/EspUsbHostUSBSerial/) | Bidirectional serial bridge (CDC ACM and VCP) |
 | [EspUsbHostMultiUSBSerial](examples/Serial/EspUsbHostMultiUSBSerial/) | Use FTDI and CP210x USB serial devices at the same time |
+| [EspUsbHostDisplayUsb35Inch](examples/Serial/EspUsbHostDisplayUsb35Inch/) | Drive a 3.5-inch USB smart screen (CDC serial protocol) as a LovyanGFX panel, with LGFXVirtualCanvas for diff transfer |
 
 ### Storage
 
@@ -309,6 +311,8 @@ void loop() {
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | Generic non-HID vendor-specific interface: bulk IN/OUT and EP0 vendor control IN/OUT |
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | Authenticate Android ADB and run one shell stream over the generic vendor-bulk API |
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | Drive a USB graphics adapter (DL-1xx bulk protocol) as a LovyanGFX panel, with LGFXVirtualCanvas for a Full HD surface |
+
+Both USB display examples are indexed together in [docs/usb-display.md](docs/usb-display.md).
 
 ## API reference
 
@@ -546,7 +550,35 @@ bool setSerialBaudRate(uint32_t baud,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool setSerialConfig(const EspUsbHostSerialConfig &config,
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 ```
+
+`sendSerial()` does not wait for completion: it allocates a transfer per call and hands it to the driver. That is fine for terminal-rate traffic, but a writer that outruns the endpoint keeps growing the in-flight set until DMA memory runs out. The asynchronous CDC OUT queue is the bounded form, and it has the same shape as the vendor bulk one:
+
+```cpp
+bool serialWriteQueueBegin(size_t depth, size_t bufferBytes,
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+uint8_t *serialWriteAcquire(size_t *capacity, uint32_t timeoutMs = 0,
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool serialWriteSubmit(uint8_t *buffer, size_t length,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void serialWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool serialWriteAsync(const uint8_t *data, size_t length, uint32_t timeoutMs = 0,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool serialWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+```
+
+`serialWriteQueueBegin()` preallocates `depth` reusable transfers of `bufferBytes` each (max depth `ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH`). Submits never wait, but `serialWriteAcquire()` blocks up to `timeoutMs` once the pool is busy, and that wait is the backpressure. While the queue is active `sendSerial()` and `EspUsbHostCdcSerial::write()` route through it, so existing code inherits that pacing unchanged; writes longer than the slot size still take the one-shot path. `EspUsbHostCdcSerial::flush()` waits for the queue to drain, and does nothing without it. `serialWriteFlush()` cannot be called from the USB client task, because that is where completion callbacks run.
+
+[`examples/Serial/EspUsbHostDisplayUsb35Inch`](examples/Serial/EspUsbHostDisplayUsb35Inch/) is the motivating case: a USB display over CDC, where a frame is 300 KB and nothing but the queue keeps the writer in step with the bus.
 
 `EspUsbHostCdcSerial` wraps the above as a standard Arduino `Stream` / `Print`:
 

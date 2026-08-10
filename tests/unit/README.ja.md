@@ -24,6 +24,15 @@ uv run --env-file .env pytest unit/
   バイト、独立実装のデコーダとのround trip、バッファ上限とcanaryによる範囲外
   書き込み検出)、Full HDのモード設定レジスタ列を対象とする。
 
+- `usb35inch`: `examples/Serial/EspUsbHostDisplayUsb35Inch` の3.5インチUSB
+  スマートスクリーンのプロトコル層(`Usb35InchProtocol.hpp`)を検証する。10bit
+  座標4つを含む6バイトコマンドパケット(独立実装のデコーダとのround tripを、
+  1フィールドずつと、パネルの座標空間全域の網羅で実施)、両端を含む
+  DISPLAY_BITMAPの矩形、パネルサイズとパッキング上限の両方に対する範囲ガード、
+  ビッグエンディアンのサイズを持つ11バイトの向き設定パケット、ワイヤ上で逆順に
+  なる輝度レベル、LovyanGFXのrgb565_nonswapped出力をバイトスワップなしでUSBへ
+  流せる根拠であるRGB565リトルエンディアンのピクセルバイト列を対象とする。
+
 - `ccid_atr`: `src/EspUsbHostCcidAtr.h` のCCID ATRパーサを検証する。実機のSony
   RC-S300 + ISO 14443 Aカードで取得したATR(標準・レベル・カード名・宣言された
   プロトコルへの分解)、PC/SC PIX.SSのISO 14443 A/B・ISO 15693・ISO 7816-10メモリ
