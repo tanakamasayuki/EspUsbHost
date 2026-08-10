@@ -293,6 +293,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | CCIDスマートカードリーダーをopenし、カードの挿入・排出を通知、ATRとカード種別を読み、PC/SCのGet UID APDUを送る |
+| [EspUsbHostCcidFelicaIdm](examples/Ccid/EspUsbHostCcidFelicaIdm/) | Sony RC-S300でSystem Codeを指定してFeliCaのIDmを読む。transparent sessionでRFフィールドを奪い、FeliCa Pollingフレームを自分で送る。リーダー自前のワイルドカードポーリングが捕まえたものではなく、特定のシステムに届かせる唯一の方法 |
 
 ### Network
 

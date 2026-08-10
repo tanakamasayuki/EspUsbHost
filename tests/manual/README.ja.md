@@ -61,6 +61,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`adb_connect/`](adb_connect/) | Android実機のADBを許可・永続RSA鍵で認証し、単一shell echo streamを検証すること | USBデバッグを有効にしたAndroid端末＋USBデータケーブル | ✅ |
 | [`ccid_info/`](ccid_info/) | interface/endpoint構成を列挙し、CCID interface（class 0x0b）の有無を判定すること | CCIDスマートカードリーダー（Sony RC-S300 PaSoRiなど） | ✅ |
 | [`ccid_card/`](ccid_card/) | CCIDリーダーの一連の動作: open、class descriptor、slot状態、power onとATR、Get UID APDUの繰り返し、生のGetSlotStatus | CCIDスマートカードリーダー＋カード | ✅ |
+| [`ccid_felica/`](ccid_felica/) | Sony RC-S300のtransparent session経由でSystem Codeを指定したFeliCa IDm取得: session開始、FeliCaへのswitch protocol、RF on/off、ワイルドカード0xffffと交通系0x0003でのPolling、応答からのIDm。比較用にリーダー自前のポーリング結果も出力する | Sony RC-S300＋FeliCaカード（交通系カードなら0x0003も確認できる） | ✅ |
 | [`ccid_hotplug/`](ccid_hotplug/) | カードを外して戻したときにslot変化通知がonCcidCardRemoved()/onCcidCardInserted()に届くこと | interrupt IN endpointを持つCCIDリーダー＋カード | ✅ |
 | [`vendor_bulk_out_only/`](vendor_bulk_out_only/) | bulk OUTのみでbulk INを持たない0xff interfaceを `vendorOpen()` が受け付け、packet sizeとendpoint channelの計上がdescriptorと一致すること。interface/endpointの一覧も出力する | USBグラフィックスアダプタ（DisplayLink DL-1xx、VID 0x17e9）またはbulk OUTのみのvendorデバイス | ✅ |
 | [`vendor_bulk_throughput/`](vendor_bulk_throughput/) | bulk OUTの実効スループット。同期 `vendorWrite()` と非同期キュー（depth 1/2/4/8 × 転送サイズ512 B〜16 KB）を比較し、キューのスロット計上と再利用も検証する。実機のbulk OUT実効上限を確定させる（full-speed / ESP32-S3で1.098 MB/s、high speed / ESP32-P4で36.4 MB/s） | vendor-specific (0xff) のbulk OUT endpointを持つ任意のデバイス | ✅ |

@@ -298,6 +298,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | Open a CCID smart card reader, report card insertion/removal, read the ATR and card type, and send the PC/SC Get UID APDU |
+| [EspUsbHostCcidFelicaIdm](examples/Ccid/EspUsbHostCcidFelicaIdm/) | Read a FeliCa IDm for a chosen System Code on a Sony RC-S300: take the RF field over with a transparent session and send the FeliCa Polling frame, which is the only way to reach one system rather than whatever the reader's own wildcard poll found |
 
 ### Network
 

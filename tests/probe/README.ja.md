@@ -1,7 +1,7 @@
 # Probe tests
 
-ESP32-P4 の bring-up と USB ポート識別用の一時的な確認スケッチです。
-正式な回帰テストではなく、ボード配線・接続先・PC 側認識に依存する初期切り分け用です。
+bring-up と、デバイスのプロトコル解明用の一時的な確認スケッチです。
+正式な回帰テストではなく、ボード配線・接続先・PC 側認識、あるいはプロトコルが未解明なデバイスに依存する初期切り分け用です。
 
 `tests/` ディレクトリから個別に実行します。
 プロファイル名は個別実行用の汎用 P4 として `esp32p4` を使います。
@@ -11,6 +11,7 @@ uv run --env-file .env pytest probe/p4_hs_host/p4_hs_host_probe.py
 uv run --env-file .env pytest probe/p4_fs_host/p4_fs_host_probe.py
 uv run --env-file .env pytest probe/p4_hs_device/p4_hs_device_probe.py
 uv run --env-file .env pytest probe/p4_cdc/p4_cdc_probe.py
+uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
 ```
 
 ## ESP32-P4 probes
@@ -25,3 +26,16 @@ uv run --env-file .env pytest probe/p4_cdc/p4_cdc_probe.py
 
 `.env` では `TEST_SERIAL_PORT_ESP32P4` に、この確認で使う P4 ボードのシリアルポートを設定してください。このリポジトリでは現在 `loopback/` の実行用 P4 プロファイルは使いません。
 `p4_cdc` は意図的に `USBMode=hwcdc,CDCOnBoot=cdc` を付けていません。この設定を付けると `Serial` が Hardware CDC/JTAG に割り当たるため、ポート配線の素の状態を確認する用途には向きません。
+
+## リーダーのプロトコル解明用 probe
+
+- `rcs300_felica` — Sony RC-S300 で System Code を指定した FeliCa Polling を行うための
+  コマンド列を解明します。スケッチは単なるバイトポンプで、シリアルから hex 行で疑似 APDU を
+  受け取り `PC_to_RDR_XfrBlock` または `PC_to_RDR_Escape` で送るだけなので、候補となる
+  コマンド列はホスト側だけで差し替えられます(再フラッシュ不要)。解明した内容は probe の
+  docstring と
+  [`examples/Ccid/EspUsbHostCcidFelicaIdm`](../../examples/Ccid/EspUsbHostCcidFelicaIdm/)
+  に記録しています。ログ自体が出力なので `-s` を付けて実行します。
+
+`rcs300_felica` を実行する前にリーダーへ FeliCa カードを載せてください。ポートは
+`TEST_SERIAL_PORT_ESP32S3` を使います。

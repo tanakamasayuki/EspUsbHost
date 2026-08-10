@@ -396,6 +396,7 @@ CCID_IDENTIFY standard="ISO 14443 (type A or B)" fromUid=1 uidLength=4 uid=08391
 - ATR は `3b 80 80 01 01` で historical bytes が 0 byte。ATR にカード識別情報が一切入らないケースがあることが分かり、これを `ISO 7816 card` と誤判定しないよう `unknown` を返す実装に修正した
 - Get UID は 4 byte の `08391eaf` を返した。先頭 `0x08` は ISO 14443-3 がランダム NFCID1 用に予約している値で、iPhone は FeliCa ではなく ISO 14443 Type A として応答している。この結果を受けて、4 byte かつ先頭 `0x08` は ISO 14443 A と判定するようにした (上記ログはその修正前のもの)
 - iPhone のこの応答はリーダー側の制限ではない。同じリーダーに FeliCa カードを載せると上記のとおり FeliCa として識別されるため、iPhone 側が ISO 14443 Type A で応答していたということ
+- 後日追記: この iPhone から Suica の IDm を取る方法は `examples/Ccid/EspUsbHostCcidFelicaIdm` で確立した。リーダー自前のポーリングでは Type A のランダム NFCID1 しか返らないが、RC-S300 の transparent session で RF フィールドを奪って FeliCa の Polling を自分で撃つと、同じ端末から 8 byte の IDm と応答元 System Code `0x0003` が返る。設計方針どおりライブラリ本体には手を入れず、`ccidTransfer()` の上に example 内で実装している (実測は `tests/probe/rcs300_felica`)
 
 ## README / ドキュメント反映方針
 
@@ -424,3 +425,4 @@ CCID_IDENTIFY standard="ISO 14443 (type A or B)" fromUid=1 uidLength=4 uid=08391
 - 複数 slot リーダーでの slot 状態キャッシュの公開方法 (`ccidSlotPresent(slot)` を足すか)
 - interrupt IN を持たないリーダー向けに、ライブラリ側でポーリングして挿抜 callback を出す仕組みを入れるか
 - ICCD (protocol 0x01 / 0x02) 対応の要否
+- transparent session (PC/SC part 3) を型付き API としてライブラリに入れるか。現状は `examples/Ccid/EspUsbHostCcidFelicaIdm` が RC-S300 の方言として example 内に持っている。データオブジェクト自体は PC/SC 標準なので共通化の余地はあるが、検証できたリーダーが 1 機種しかないため保留

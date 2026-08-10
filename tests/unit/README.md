@@ -61,6 +61,20 @@ uv run --env-file .env pytest unit/
   historical bytes, missing TD1, wrong RID, TLV longer than the historical
   bytes).
 
+- `felica_idm`: verifies the two protocol layers of the FeliCa IDm example in
+  `examples/Ccid/EspUsbHostCcidFelicaIdm` (`FelicaProtocol.hpp` and
+  `Rcs300Protocol.hpp`): the FeliCa Polling frame for the transit System Code
+  0x0003 and for the wildcard 0xffff with the length byte that counts itself; the
+  Polling answer with and without request data, the answering System Code, and its
+  rejects (wrong response code, a declared length too small, too large, or past
+  the buffer); every RC-S300 transparent session pseudo APDU byte for byte against
+  what `tests/probe/rcs300_felica` actually sent (the four manage session
+  commands, switch protocol to FeliCa, a transparent exchange carrying the
+  Polling); the response objects the reader actually returned (accepted, switch
+  protocol answering 8F 01 08, an exchange with nothing in the field, and the
+  refusals 6301 / 6401 / 6700 / 6A81); and a successful exchange decoded all the
+  way from response bytes to an IDm.
+
 - `mouse_layout`: verifies the mouse report descriptor parser and report decoder
   in `src/EspUsbHostHidLayout.h`: the boot mouse descriptor producing exactly the
   layout the old fixed boot parsing assumed, the layout reported in issue #39 for
@@ -95,8 +109,9 @@ uv run --env-file .env pytest unit/
 
 ## How it works
 
-The `dl1xx` headers, `src/EspUsbHostCcidAtr.h` and `src/EspUsbHostHidLayout.h`
-are pure byte formatting with no Arduino / USB dependencies, so `test_dl1xx.py`,
+The `dl1xx`, `ax206` and `felica_idm` headers, `src/EspUsbHostCcidAtr.h` and
+`src/EspUsbHostHidLayout.h` are pure byte formatting with no Arduino / USB
+dependencies, so `test_dl1xx.py`, `test_ax206.py`, `test_felica_idm.py`,
 `test_ccid_atr.py` and `test_mouse_layout.py` compile them directly and need no
 extraction step.
 
