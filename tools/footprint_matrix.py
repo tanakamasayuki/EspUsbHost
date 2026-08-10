@@ -47,7 +47,7 @@ PROBES = [
     ("MIDI", (2, 0, 0), tuple(TARGETS)),
     ("Vendor", (2, 1, 0), tuple(TARGETS)),
     ("Network", (2, 2, 0), tuple(TARGETS)),
-    ("Ccid", (2, 8, 0), tuple(TARGETS)),
+    ("Ccid", (2, 7, 1), tuple(TARGETS)),
     ("Info", (2, 0, 0), tuple(TARGETS)),
 ]
 
