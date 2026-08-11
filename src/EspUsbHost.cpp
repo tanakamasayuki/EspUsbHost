@@ -2175,6 +2175,31 @@ bool EspUsbHost::keyboardUsesBitmapReport(uint8_t address) const
   return device && device->keyboardBitmapReport;
 }
 
+void EspUsbHost::setHubTrackingEnabled(bool enabled)
+{
+  hubTrackingEnabled_ = enabled;
+  if (enabled)
+  {
+    return;
+  }
+  // Let go of any hub already being tracked, so the switch also works as a way out
+  // once a hub has turned out to be a problem. This runs the ordinary disconnect
+  // path, which closes the handle and reports the hub as gone.
+  for (DeviceState &device : devices_)
+  {
+    if (device.inUse && device.isHub && device.handle)
+    {
+      ESP_LOGI(TAG, "Releasing tracked hub address=%u: hub tracking disabled", device.info.address);
+      handleDeviceGone(device.handle);
+    }
+  }
+}
+
+bool EspUsbHost::hubTrackingEnabled() const
+{
+  return hubTrackingEnabled_;
+}
+
 bool EspUsbHost::setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable)
 {
   if (!running_ || !clientHandle_)
@@ -7459,6 +7484,12 @@ void EspUsbHost::refreshDeviceTopology(DeviceState &device)
 void EspUsbHost::scanHostDevices()
 {
   if (!running_ || !clientHandle_)
+  {
+    return;
+  }
+  // Identifying a hub means opening it, so with tracking off there is nothing to
+  // scan for: leaving external hubs untouched is the whole point.
+  if (!hubTrackingEnabled_)
   {
     return;
   }

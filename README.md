@@ -1029,6 +1029,10 @@ USB Hub support covers detection, simple topology reporting, hub descriptor quer
 
 `getHubInfo()` fetches the hub descriptor and fills `EspUsbHostHubInfo` with port count, PPPS/ganged/no power switching, over-current mode, power-on-to-power-good time, and related fields. `getHubPortStatus()` returns current status and change bits for a downstream port. `setHubPortPower()` sends the hub class request to enable or disable port power.
 
+`setHubTrackingEnabled(false)` makes the library leave external hubs completely alone. Tracking a hub means opening it as a client device and keeping the handle, which is what the three calls above and the hub's own connect/disconnect events are built on; with tracking off, devices behind a hub still enumerate and work but the hub does not appear in `getDevices()` and those calls stop working. Default is on.
+
+It is not a fix for a misbehaving hub, and one case is worth knowing about: a CH335F hub (`1a86:8094`) with an ALIENTEK DP100 behind it crashes ESP-IDF v5.5.5's own hub driver with tracking off as well, before the hub reaches the host stack's address list. The combinations tested, and what `tests/probe/hub_enum` established, are recorded in [tests/manual/README.md](tests/manual/README.md#hub-combinations-that-crash-esp-idf).
+
 Per-port power control is only safe when the hub reports PPPS (Per-Port Power Switching). On ganged-power hubs, a port power request may affect multiple ports or the whole hub. USB 3.x hubs and products implemented internally as cascaded hubs can be more complex, so a self-powered USB 2.0 hub is recommended for validation.
 
 This is not a complete hub class driver. It exposes user-facing information and explicit port power control. Clearing port change bits, cascaded hub behavior, USB 3.x hub compatibility, and ESP32-P4 FS/HS differences remain validation items. Do not call these APIs from USB callbacks, because they wait for USB transfer completion.

@@ -29,6 +29,16 @@ for these checks. This repository currently does not use a runnable P4 profile
 for `loopback/`.
 `p4_cdc` intentionally does not use `USBMode=hwcdc,CDCOnBoot=cdc`. That option maps `Serial` to Hardware CDC/JTAG, which is not suitable when the goal is to identify the board's default port wiring.
 
+## Hub / enumeration probes
+
+- `hub_enum` — for a device that enumerates when connected directly but not through
+  a particular hub. Built with `DebugLevel=verbose`, it reports the tracked devices,
+  the host stack's own address list, and each hub's per-port connection status, then
+  power-cycles every downstream port and reports again. It never sends anything that
+  is not diagnostic, so it also separates "the hub cannot see the device" from
+  "`printAllDeviceInfo()`'s hub queries broke the enumeration". Run it with `-s`: the
+  log is the output.
+
 ## Reader protocol probes
 
 - `rcs300_felica` — works out the command sequence a Sony RC-S300 needs for a

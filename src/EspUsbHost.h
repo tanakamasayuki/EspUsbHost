@@ -1934,6 +1934,23 @@ public:
   bool midiSendSysEx(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool setKeyboardLeds(bool numLock, bool capsLock, bool scrollLock, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool setHubPortPower(uint8_t hubAddress, uint8_t port, bool enable);
+  // Whether external hubs are tracked. Tracking opens the hub as a client device
+  // and keeps the handle, which is what makes hub topology, getHubInfo(),
+  // getHubPortStatus() and setHubPortPower() work, and what produces
+  // connect/disconnect events for the hub itself. Turning it off makes this library
+  // leave external hubs completely alone: devices behind a hub still enumerate and
+  // work, but the hub does not appear in getDevices() and the calls above stop
+  // working.
+  //
+  // Note what this does not fix. An external hub is also owned by the ESP-IDF host
+  // stack's own hub driver, and one hub/device combination has been seen to crash
+  // that driver (a `device_release` assert in ext_hub.c) with this switch off, so
+  // holding a client handle is not what provokes it. See the hub notes in
+  // tests/manual/README.md.
+  //
+  // Defaults to on. Set it before begin() to take effect from the first scan.
+  void setHubTrackingEnabled(bool enabled);
+  bool hubTrackingEnabled() const;
   bool getHubPortStatus(uint8_t hubAddress, uint8_t port, uint16_t &status, uint16_t &change);
   bool networkOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool networkOpen(const EspUsbHostNetworkInterfaceInfo &network);
@@ -2630,6 +2647,7 @@ private:
   EspUsbHostSerialConfig defaultSerialConfig_;
   uint32_t defaultAudioSampleRate_ = 48000;
   uint8_t nextHubIndex_ = 1;
+  bool hubTrackingEnabled_ = true;
   uint32_t lastHostDeviceScanMs_ = 0;
 
   EndpointState endpoints_[16];

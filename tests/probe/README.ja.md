@@ -27,6 +27,15 @@ uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
 `.env` では `TEST_SERIAL_PORT_ESP32P4` に、この確認で使う P4 ボードのシリアルポートを設定してください。このリポジトリでは現在 `loopback/` の実行用 P4 プロファイルは使いません。
 `p4_cdc` は意図的に `USBMode=hwcdc,CDCOnBoot=cdc` を付けていません。この設定を付けると `Serial` が Hardware CDC/JTAG に割り当たるため、ポート配線の素の状態を確認する用途には向きません。
 
+## ハブ・列挙の調査用 probe
+
+- `hub_enum` — 直結では列挙されるのに特定のハブ経由では列挙されないデバイスを調べます。
+  `DebugLevel=verbose` でビルドし、追跡中のデバイス、ホストスタック自身のアドレス一覧、
+  各ハブのポート単位の接続状態を出し、続いて全ダウンストリームポートの電源を入れ直して
+  もう一度出します。診断以外のことをしないので、「ハブがデバイスを認識できていない」のか
+  「`printAllDeviceInfo()` のハブ問い合わせが列挙を壊した」のかも切り分けられます。
+  ログ自体が出力なので `-s` を付けて実行します。
+
 ## リーダーのプロトコル解明用 probe
 
 - `rcs300_felica` — Sony RC-S300 で System Code を指定した FeliCa Polling を行うための
