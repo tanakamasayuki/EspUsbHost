@@ -8171,9 +8171,19 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       return;
     }
 
-    if (currentClaimResult_ == ESP_OK &&
+    // Only the endpoints of the one MIDI Streaming interface that was claimed
+    // above. A device with a second MS interface leaves it unclaimed, and
+    // currentClaimResult_ alone does not exclude it: it is reset to ESP_OK at
+    // every interface descriptor and only overwritten where a claim is
+    // attempted, so an unclaimed interface still reads as ESP_OK. Without the
+    // interface number the later interface's endpoints would overwrite the
+    // tracked ones and the fields of EspUsbHostMidiPortInfo could end up
+    // describing two different interfaces.
+    if (currentInterfaceClaimed_ &&
         currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
         currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
+        device->hasMidiInterface &&
+        currentInterfaceNumber_ == device->midiInterfaceNumber &&
         isBulk)
     {
       currentMidiEndpointDirection_ = isIn ? ESP_USB_HOST_MIDI_ENDPOINT_IN

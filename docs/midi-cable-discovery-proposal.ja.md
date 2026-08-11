@@ -144,6 +144,18 @@ CS_ENDPOINT の `baAssocJackID` 配列を機器ごとに保持することにな
 - 機器の最初の MIDI Streaming インターフェースと、その中の方向ごとに 1 本の bulk endpoint
   だけを追跡する。cable 番号は endpoint ごとに 0 起算なので、同一方向の MS bulk endpoint を
   複数持つ機器は表現できない。送信 API と受信コールバックの対象範囲と同じ制約である。
+
+  インターフェースの選択は以前から `isMidiInterface` の `!device->hasMidiInterface` で
+  最初の 1 つに固定されていたが、endpoint 側にはインターフェースの絞り込みが無かった。
+  claim のゲートに使われていた `currentClaimResult_` はインターフェース記述子ごとに
+  ESP_OK にリセットされ、claim を試みた箇所でしか上書きされないため、claim していない
+  2 つ目の MS インターフェースも ESP_OK として通過していた。結果として、MS インターフェースを
+  2 つ持つ機器では endpoint 由来のフィールド(`midiOutEndpointAddress`、`midiOutPacketSize`、
+  今回追加した cable 数)が後のインターフェースのもので上書きされ、`interfaceNumber` は
+  最初のインターフェースのままという食い違いが起きえた。ゲートを
+  `currentInterfaceClaimed_` と `currentInterfaceNumber_ == device->midiInterfaceNumber` に
+  変更して、追跡対象のインターフェースの endpoint だけを見るようにした。MS インターフェースが
+  1 つの機器(通常の機器すべて)では挙動は変わらない。
 - cable 数が 0 の場合は、その方向の descriptor が無いか、MS_GENERAL でないか、宣言した
   jack ID を収めるには短いか、cable 番号(4 bit)で指せない本数を宣言している。
 
