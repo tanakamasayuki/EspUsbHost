@@ -113,6 +113,23 @@ uv run --env-file .env pytest unit/
   Push / Pop, and rejects (null, empty and truncated descriptors, a collection
   without Y, decoding with an invalid layout).
 
+- `escpos`: verifies the USB Printer Class request layer and the ESC/POS builder in
+  `examples/Vendor/EspUsbHostPrinterEscPos` (`PrinterProtocol.hpp`, `EscPos.hpp`,
+  `ReceiptJa.hpp`): the three class requests' bmRequestType and codes, and the
+  byte-swapped wIndex that only GET_DEVICE_ID uses; the IEEE 1284 device ID with its
+  self-counting big-endian length, an empty ID being well formed (which is what a real
+  XP-C58K answers) while a declared length past the response is rejected, and field
+  lookup that matches whole keys so CMDL does not answer a search for CMD;
+  GET_PORT_STATUS bit senses including the two that are inverted, and 0x00 reported as
+  no information rather than as the "deselected, error" it literally decodes to; every
+  ESC/POS command the example emits byte for byte, notably the GS ! size packing with
+  its clamping, the cut variants that do and do not take a feed argument, the
+  length-prefixed barcode, the five-command QR sequence with its little-endian store
+  length, and the GS v 0 raster header; the builder's overflow behaviour, which is what
+  stops a receipt whose tail was dropped from being sent; and the receipt itself -- it
+  fits the shipped buffer, kanji mode is switched off as many times as it is switched
+  on, and the ASCII fallback slip stays single-byte throughout.
+
 - `audio_uac`: verifies the USB Audio descriptor and control decoders in
   `src/EspUsbHost.h`: the Feature Unit `bmaControls` layout for both class
   revisions (UAC1's `bControlSize` stride versus UAC2's fixed 4 bytes, including
@@ -135,12 +152,12 @@ uv run --env-file .env pytest unit/
 
 ## How it works
 
-The `dl1xx`, `ax206`, `felica_idm`, `usbtmc` and `dp100` headers,
+The `dl1xx`, `ax206`, `felica_idm`, `usbtmc`, `dp100` and `escpos` headers,
 `src/EspUsbHostCcidAtr.h` and `src/EspUsbHostHidLayout.h` are pure byte
 formatting with no Arduino / USB dependencies, so `test_dl1xx.py`,
 `test_ax206.py`, `test_felica_idm.py`, `test_usbtmc.py`, `test_dp100.py`,
-`test_ccid_atr.py` and `test_mouse_layout.py` compile them directly and need no
-extraction step.
+`test_escpos.py`, `test_ccid_atr.py` and `test_mouse_layout.py` compile them
+directly and need no extraction step.
 
 `src/EspUsbHost.h` pulls in Arduino and the ESP USB host stack, so `audio_uac`
 extracts the audio constants, structs and `inline` decoders it needs into

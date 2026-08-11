@@ -68,9 +68,41 @@ Host/Device loopback tests.
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
 - **USB network** — CDC-NCM / CDC-ECM USB Ethernet adapters, either as raw Ethernet frames or attached as an lwIP (`esp_netif`) interface so `NetworkClient` / `HTTPClient` run over USB with no Wi-Fi
 - **CCID smart card readers** — claim a CCID interface, card insertion/removal notifications, card activation with ATR, card type (ISO 14443 A/B, ISO 15693, FeliCa, ...) from the ATR, APDU exchange, and reader-specific escape commands
-- **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT, an asynchronous bulk OUT queue with zero-copy buffers and automatic ZLP handling, and EP0 vendor requests
+- **Vendor bulk/control** — generic non-HID vendor-specific interfaces with bulk IN/OUT, an asynchronous bulk OUT queue with zero-copy buffers and automatic ZLP handling, and EP0 vendor requests. Also how classes without a dedicated API are reached: USBTMC instruments and ESC/POS printers are examples built entirely on it
 - **Device discovery** — enumerate connected devices, interfaces, and endpoints
 - **Multiple devices** — each callback and send API accepts an optional `address` parameter to target a specific device
+
+## Supported USB classes
+
+Every USB class code this library has been used with, and how. **Library API** means
+the library has a dedicated API for that class; **example** means the class is
+handled entirely in a sketch on top of a general-purpose API, with nothing
+class-specific in the library. The next section lists the same ground by maturity.
+
+| Class | Code | How it is supported | Where |
+|---|---|---|---|
+| Audio (UAC1 / UAC2) | `0x01` | Library API — isochronous IN payloads and OUT writes | [`examples/Audio/`](examples/Audio/) |
+| MIDI (Audio subclass 3) | `0x01`/`0x03` | Library API — MIDI in and out | [`examples/MIDI/`](examples/MIDI/) |
+| CDC Control / Data (ACM) | `0x02`/`0x0a` | Library API — `EspUsbHostCdcSerial`, Arduino `Stream`/`Print` | [`examples/Serial/`](examples/Serial/) |
+| HID | `0x03` | Library API — keyboard, mouse, gamepad, consumer/system control, vendor reports | [`examples/HID/`](examples/HID/) |
+| **Printer** | **`0x07`** | **Example — ESC/POS receipt printers over the vendor bulk/control API** | [`examples/Vendor/EspUsbHostPrinterEscPos/`](examples/Vendor/EspUsbHostPrinterEscPos/) |
+| Mass Storage (BOT/SCSI) | `0x08` | Library API — block I/O and FatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
+| Hub | `0x09` | Library API — detection, topology, per-port power (PPPS) | [`examples/Info/`](examples/Info/) |
+| Smart Card (CCID) | `0x0b` | Library API — ATR, card type, APDU exchange, escape commands | [`examples/Ccid/`](examples/Ccid/) |
+| Video (UVC) | `0x0e` | **Not supported** — see the descriptor size limit below | — |
+| CDC-NCM / CDC-ECM Ethernet | `0x02` subclasses | Library API — raw frames or an lwIP `esp_netif` | [`examples/UsbNetwork/`](examples/UsbNetwork/) |
+| Application Specific (USBTMC) | `0xfe` | Example — USBTMC/USB488 + SCPI over the vendor bulk/control API | [`examples/Vendor/EspUsbHostUsbtmcScpi/`](examples/Vendor/EspUsbHostUsbtmcScpi/) |
+| Vendor-specific | `0xff` | Library API — explicit interface claim, bulk IN/OUT, EP0 requests | [`examples/Vendor/`](examples/Vendor/) |
+
+Devices whose interface class says nothing useful are reached the same way: USB
+serial bridges (FTDI, CP210x, CH34x) are vendor-specific interfaces driven by
+`EspUsbHostCdcSerial`, and an ALIENTEK DP100 power supply is a plain HID interface
+carrying its own framed protocol
+([`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/)).
+
+`printDeviceInfo()` and the [`device_dump`](tests/manual/device_dump/) manual test
+print the class of anything you plug in, supported or not, so an unknown device can
+be identified before any code is written for it.
 
 ## Roadmap
 
@@ -87,6 +119,7 @@ Host/Device loopback tests.
 | AX206 USB photo-frame display | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayAx206`](examples/Vendor/EspUsbHostDisplayAx206/). Verified on an ESP32-S3 at 2 fps: the device takes whole-screen blits only, so every frame is one Bulk-Only Transport transaction carrying 307,200 bytes |
 | USB smart screen (CDC serial protocol) | 📄 Example only, best effort. Implemented in [`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) on top of the CDC serial write queue — nothing display-specific is in the library. Covers the 3.5-inch `USB35INCHIPSV2` panel (`1a86:5722`) at 16 bpp. Indexed with the other display examples in [docs/usb-display.md](docs/usb-display.md) |
 | USBTMC — SCPI test and measurement instruments | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) on top of the vendor bulk/control API — nothing USBTMC-specific is in the library. The interface class is 0xFE (Application Specific), not vendor-specific; the example lives under `Vendor/` because that is the API it uses. Verified against a KIKUSUI PMX18-5A DC power supply (`0b3e:1029`): class requests, the bulk message layer, and SCPI queries. The USB488 interrupt IN (service requests) is not used |
+| Printer — ESC/POS receipt printers | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostPrinterEscPos`](examples/Vendor/EspUsbHostPrinterEscPos/) on top of the vendor bulk/control API — nothing printer-specific is in the library. The interface class is 0x07; the example lives under `Vendor/` because that is the API it uses. Verified against an Xprinter XP-C58K (`0483:070b`): the three class requests, ESC/POS real-time status, and printing a Japanese receipt with a barcode, a QR code and an auto cut. Both class requests turned out to be answered-but-empty on that model, so real-time status (`DLE EOT n`) is the status path to rely on. IPP / PWG-Raster / PCL and IEEE 1284.4 packet mode are out of scope |
 | ALIENTEK DP100 digital power supply | 📄 Example only, best effort. Implemented in [`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/) on top of the HID API -- nothing DP100-specific is in the library. The device is a plain HID interface carrying its own framed protocol, so `onHIDInput()` and `sendHIDVendorOutput()` cover it. Reading is verified on an ESP32-S3 (identity, input rail, output V/A, temperatures, units confirmed by measurement); the setpoint frame is implemented but not verified, because it carries the output enable |
 | UAC — USB audio input/output | 🔲 Experimental. UAC1 Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`, UAC2 with an `EspUsbDevice` peer (descriptors, Clock Source sample rates, Feature Unit mute/volume, and OUT/IN streaming); real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
@@ -318,6 +351,7 @@ void loop() {
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | Drive a USB graphics adapter (DL-1xx bulk protocol) as a LovyanGFX panel, with LGFXVirtualCanvas for a Full HD surface |
 | [EspUsbHostDisplayAx206](examples/Vendor/EspUsbHostDisplayAx206/) | Drive an AX206 USB photo-frame display (Bulk-Only Transport with vendor commands) as a LovyanGFX panel, streaming a whole frame per transaction with no frame buffer |
 | [EspUsbHostUsbtmcScpi](examples/Vendor/EspUsbHostUsbtmcScpi/) | Talk SCPI to a USBTMC instrument (class 0xFE): class requests on EP0, the bulk message layer, and a KIKUSUI PMX power supply wrapper |
+| [EspUsbHostPrinterEscPos](examples/Vendor/EspUsbHostPrinterEscPos/) | Print on an ESC/POS receipt printer (class 0x07): class requests on EP0, real-time status, and a Japanese receipt with a barcode, a QR code and the cutter |
 
 Both USB display examples are indexed together in [docs/usb-display.md](docs/usb-display.md).
 

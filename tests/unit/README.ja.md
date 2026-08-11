@@ -111,12 +111,26 @@ uv run --env-file .env pytest unit/
   wildcard、幅やレートが異なるalt間のランク付け、指定レートがスコア優先より優先される
   こと、連続range、`startable == false`のフォーマット専用altが除外されること)。
 
+- `escpos`: `examples/Vendor/EspUsbHostPrinterEscPos` のUSB Printerクラス要求層と
+  ESC/POSビルダ(`PrinterProtocol.hpp`・`EscPos.hpp`・`ReceiptJa.hpp`)を検証する。
+  クラス要求3種のbmRequestTypeとコード、GET_DEVICE_IDだけバイト順が逆になるwIndex。
+  IEEE 1284デバイスIDの自身を含むビッグエンディアン長さ、空のIDは形式として正しい
+  こと(実機XP-C58Kがまさにこれを返す)、応答長を超える長さ申告は拒否すること、
+  キー全体で一致する検索(CMDLがCMDの検索に答えないこと)。GET_PORT_STATUSのビット
+  (論理が反転している2つを含む)と、0x00を文字どおりの「非選択・エラー」ではなく
+  「情報なし」として報告すること。exampleが出す全ESC/POSコマンドのバイト単位一致
+  (GS !のサイズ packing とクランプ、紙送り引数を取る/取らないカットの各形式、
+  長さ前置バーコード、リトルエンディアン長さを含むQRの5コマンド列、GS v 0の
+  ラスタヘッダ)。末尾を落としたレシートの送信を止めるオーバーフロー挙動。そして
+  レシート自体(出荷時バッファに収まること、漢字モードのON/OFF回数が一致すること、
+  ASCIIフォールバック伝票が全バイト単バイトであること)。
+
 ## 仕組み
 
-`dl1xx`・`ax206`・`felica_idm`・`usbtmc`・`dp100`のヘッダと`src/EspUsbHostCcidAtr.h`・
+`dl1xx`・`ax206`・`felica_idm`・`usbtmc`・`dp100`・`escpos`のヘッダと`src/EspUsbHostCcidAtr.h`・
 `src/EspUsbHostHidLayout.h`はArduino/USB非依存の純粋なバイト処理なので、
 `test_dl1xx.py`・`test_ax206.py`・`test_felica_idm.py`・`test_usbtmc.py`・
-`test_dp100.py`・`test_ccid_atr.py`・`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は
+`test_dp100.py`・`test_escpos.py`・`test_ccid_atr.py`・`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は
 不要である。
 
 `src/EspUsbHost.h`はArduinoとESP USB hostスタックをincludeするため、`audio_uac`は

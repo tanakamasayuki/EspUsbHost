@@ -63,9 +63,32 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
 - **USBネットワーク** — CDC-NCM / CDC-ECMのUSB Ethernetアダプタに対応。生Ethernetフレームでも、lwIP（`esp_netif`）インターフェースとしてattachしてWi-Fi無しで`NetworkClient` / `HTTPClient`をUSB経由で動かすことも可能
 - **CCIDスマートカードリーダー** — CCID interfaceのclaim、カード挿入・排出通知、カードの活性化とATR取得、ATRからのカード種別判定（ISO 14443 A/B・ISO 15693・FeliCaなど）、APDU送受信、リーダー固有のescapeコマンド
-- **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUT、ゼロコピーバッファと自動ZLP処理を備えた非同期bulk OUTキュー、EP0 vendor request
+- **Vendor bulk/control** — HIDではないvendor-specific interfaceのbulk IN/OUT、ゼロコピーバッファと自動ZLP処理を備えた非同期bulk OUTキュー、EP0 vendor request。専用APIを持たないクラスへの入口でもあり、USBTMC計測器やESC/POSプリンタはすべてこの上のexampleとして実装している
 - **デバイス探索** — 接続デバイス・インターフェース・エンドポイントの列挙
 - **複数デバイス対応** — 各コールバックと送信APIにオプションの`address`引数があり、特定デバイスを指定可能
+
+## 対応USBクラス一覧
+
+このライブラリで扱ったUSBクラスコードと、その扱い方です。**ライブラリAPI**はそのクラス専用のAPIが本体にあるという意味、**example**はライブラリ側は汎用APIのみでクラス固有処理がすべてスケッチ側にあるという意味です。成熟度で見た同じ範囲は次節にあります。
+
+| クラス | コード | 対応の形 | 場所 |
+|---|---|---|---|
+| Audio（UAC1 / UAC2） | `0x01` | ライブラリAPI — Isochronous INペイロード受信とOUT送信 | [`examples/Audio/`](examples/Audio/) |
+| MIDI（Audio subclass 3） | `0x01`/`0x03` | ライブラリAPI — MIDI入出力 | [`examples/MIDI/`](examples/MIDI/) |
+| CDC Control / Data（ACM） | `0x02`/`0x0a` | ライブラリAPI — `EspUsbHostCdcSerial`、Arduino `Stream`/`Print` 互換 | [`examples/Serial/`](examples/Serial/) |
+| HID | `0x03` | ライブラリAPI — キーボード・マウス・ゲームパッド・コンシューマー/システムコントロール・ベンダーレポート | [`examples/HID/`](examples/HID/) |
+| **Printer** | **`0x07`** | **example — ESC/POSレシートプリンタをvendor bulk/control API上で** | [`examples/Vendor/EspUsbHostPrinterEscPos/`](examples/Vendor/EspUsbHostPrinterEscPos/) |
+| Mass Storage（BOT/SCSI） | `0x08` | ライブラリAPI — ブロックI/OとFatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
+| Hub | `0x09` | ライブラリAPI — 検出・トポロジ・ポート単位の電源制御（PPPS） | [`examples/Info/`](examples/Info/) |
+| Smart Card（CCID） | `0x0b` | ライブラリAPI — ATR、カード種別、APDU送受信、escapeコマンド | [`examples/Ccid/`](examples/Ccid/) |
+| Video（UVC） | `0x0e` | **未対応** — 後述のディスクリプタサイズ制限のため | — |
+| CDC-NCM / CDC-ECM Ethernet | `0x02` のsubclass | ライブラリAPI — 生フレーム、またはlwIP `esp_netif` | [`examples/UsbNetwork/`](examples/UsbNetwork/) |
+| Application Specific（USBTMC） | `0xfe` | example — USBTMC/USB488 + SCPIをvendor bulk/control API上で | [`examples/Vendor/EspUsbHostUsbtmcScpi/`](examples/Vendor/EspUsbHostUsbtmcScpi/) |
+| Vendor-specific | `0xff` | ライブラリAPI — interfaceの明示claim、bulk IN/OUT、EP0 request | [`examples/Vendor/`](examples/Vendor/) |
+
+interface classが役に立たないデバイスも同じ道筋で扱います。USBシリアル変換（FTDI・CP210x・CH34x）はvendor-specific interfaceを`EspUsbHostCdcSerial`で駆動し、ALIENTEK DP100電源は素のHID interfaceに独自フレームを載せたデバイスです（[`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/)）。
+
+`printDeviceInfo()` と [`device_dump`](tests/manual/device_dump/) 実機テストは、対応・非対応にかかわらず挿したデバイスのクラスを表示します。コードを書く前に正体を確認できます。
 
 ## ロードマップ
 
@@ -82,6 +105,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | AX206 USBフォトフレームディスプレイ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayAx206`](examples/Vendor/EspUsbHostDisplayAx206/) に実装。ESP32-S3で2 fpsを実機確認済み。全画面blitしか受け付けないデバイスなので、1フレームが307,200バイトを運ぶBulk-Only Transportトランザクション1回になります |
 | USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
 | USBTMC — SCPI計測器 | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) にvendor bulk/control API上で実装。ライブラリ本体にUSBTMC固有の処理は入っていない。interface classは0xFE（Application Specific）でvendor-specificではないが、使うAPIで分類しているためexampleは `Vendor/` にある。菊水電子工業の直流電源 PMX18-5A（`0b3e:1029`）で実機確認済み（class request、bulkメッセージ層、SCPIクエリ）。USB488のinterrupt IN（service request）は使わない |
+| Printer — ESC/POSレシートプリンタ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostPrinterEscPos`](examples/Vendor/EspUsbHostPrinterEscPos/) にvendor bulk/control API上で実装。ライブラリ本体にプリンタ固有の処理は入っていない。interface classは0x07だが、使うAPIで分類しているためexampleは `Vendor/` にある。Xprinter XP-C58K（`0483:070b`）で実機確認済み（class request 3種、ESC/POSリアルタイムステータス、日本語レシート＋バーコード＋QR＋オートカット）。この機種はclass requestが「応答はするが中身が空」だったため、頼れるステータス経路はリアルタイムステータス（`DLE EOT n`）。IPP / PWG-Raster / PCL と IEEE 1284.4 パケットモードは対象外 |
 | ALIENTEK DP100 数控電源 | 📄 example限りのbest effort。[`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/) にHID API上で実装。ライブラリ本体にDP100固有の処理は入っていない。素のHID interfaceに独自フレームを載せたデバイスなので `onHIDInput()` と `sendHIDVendorOutput()` で足りる。読み取りはESP32-S3で実機確認済み（機器情報、入力電圧、出力V/A、温度。単位も実測で確定）。設定書き込みフレームは出力ON/OFFを含むため実装のみで未検証 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
@@ -313,6 +337,7 @@ void loop() {
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | USBグラフィックスアダプタ（DL-1xx bulkプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasでFull HD面を扱う |
 | [EspUsbHostDisplayAx206](examples/Vendor/EspUsbHostDisplayAx206/) | AX206のUSBフォトフレームディスプレイ（vendorコマンドのBulk-Only Transport）をLovyanGFXのpanelとして駆動。フレームバッファを持たず、1トランザクションで1フレームをストリーム |
 | [EspUsbHostUsbtmcScpi](examples/Vendor/EspUsbHostUsbtmcScpi/) | USBTMC計測器（class 0xFE）にSCPIで話す。EP0のclass request、bulkメッセージ層、菊水PMX電源のラッパー |
+| [EspUsbHostPrinterEscPos](examples/Vendor/EspUsbHostPrinterEscPos/) | ESC/POSレシートプリンタ（class 0x07）で印字する。EP0のclass request、リアルタイムステータス、日本語レシート＋バーコード＋QR＋カット |
 
 USBディスプレイ関連のexampleは [docs/usb-display.ja.md](docs/usb-display.ja.md) にまとめてあります。
 
