@@ -2,21 +2,21 @@
 
 日本語: [README.ja.md](README.ja.md)
 
-Read an ALIENTEK DP100 digital power supply (`ATK-MDP100`, `2e3c:af01`) over USB:
-device identity, input rail, output voltage and current, and temperatures.
+Drive an ALIENTEK DP100 digital power supply (`ATK-MDP100`, `2e3c:af01`) over USB:
+read its identity, input rail, output voltage and current and temperatures, and set
+the voltage, the current limit and the output on/off.
 
-> **Status: reading works, verified on an ESP32-S3.** Every field below was
+> **Status: working, verified on an ESP32-S3.** Every field and flag below was
 > measured against the real instrument by `tests/probe/dp100` and is checked by
-> `tests/manual/dp100`; the capture is in [What was measured](#what-was-measured).
-> **The setpoint frame is implemented but not verified** — see
-> [The write side](#the-write-side-unverified).
+> `tests/manual/dp100` (reads) and `tests/manual/dp100_output` (setpoint and output
+> enable); the captures are in [What was measured](#what-was-measured).
 
 | File | Contents |
 |---|---|
 | `Dp100Protocol.hpp` | The wire format: the 64-byte report frame, CRC-16/MODBUS, the read payloads. No Arduino / USB dependencies |
 | `Dp100Device.hpp` | Find the HID interface, send requests on the interrupt OUT endpoint, pair them with the reports arriving on the interrupt IN endpoint |
-| `Dp100Power.hpp` | The meaning layer: volts, amps, degrees |
-| `EspUsbHostDp100Power.ino` | Connect, print the device info, then poll measurements |
+| `Dp100Power.hpp` | The meaning layer: volts, amps, degrees, and the setpoint calls |
+| `EspUsbHostDp100Power.ino` | Connect, print the device info and setpoint, then poll measurements |
 
 ## Why this is under `examples/HID/`
 
@@ -74,10 +74,11 @@ A `DEVICE_INFO` request is therefore:
 fb 10 00 00 <crc lo> <crc hi> 00 00 ... 00
 ```
 
-**A rejected frame is answered, not ignored:** the opcode is echoed with a
-one-byte body of `0x00`. That was established by sending the same request with
-three wrong CRC variants — all three came back as `fa 10 00 01 00`. `isRefusal()`
-recognises it so a refusal is never read as a payload.
+**A one-byte body is a status code, not a payload:** `0x01` is success and `0x00`
+is failure. That was established by sending the same request with three wrong CRC
+variants — all three came back as `fa 10 00 01 00` — and later by an accepted
+`BASIC_SET`, which answers `fa 35 00 01 01`. `isSuccess()` / `isFailure()` tell
+them apart, so a status is never read as a payload.
 
 ### Opcodes
 
@@ -85,7 +86,7 @@ recognises it so a refusal is never read as a payload.
 |---|---|---|
 | 0x10 | DEVICE_INFO | yes |
 | 0x30 | BASIC_INFO | yes |
-| 0x35 | BASIC_SET | implemented, unverified |
+| 0x35 | BASIC_SET | yes — setpoint and output enable |
 | 0x40 | SYSTEM_INFO | yes, as raw bytes |
 | 0x45 | SYSTEM_SET | no |
 | 0x50 / 0x55 | SCAN_OUT / SERIAL_OUT | no |
@@ -146,6 +147,24 @@ interleaved reads done
 50 repeated reads and 5 rounds of interleaved `DEVICE_INFO` / `BASIC_INFO` ran with
 no refusals and no mispaired frames.
 
+`tests/manual/dp100_output`, with the output terminals bare:
+
+```
+original setpoint index=0 state=0x00 4000mV 3000mA ovp=30500mV ocp=5050mA
+before: out 0.000V 0.000A
+after write: setpoint 5000mV 500mA state=0x00
+after setpoint write: out 0.000V 0.000A
+output on: out 4.998V 0.000A mode=1 status=0
+output off: out 0.000V 0.000A
+restored: 4000mV 3000mA state=0x00
+final: out 0.000V 0.000A
+refusals=0 received=15
+```
+
+The setpoint write leaves the output alone, the state byte switches it, and the
+4.998 V is the supply measuring its own terminals — the only evidence that the
+write did anything.
+
 Descriptors, for reference (`tests/manual/device_dump`):
 
 ```
@@ -156,19 +175,41 @@ Strings manufacturer="ALIENTEK" product="ATK-MDP100" serial="16A1C1C74000"
     Endpoint iface=0 ep=0x01 dir=OUT type=interrupt max_packet=64 interval=1
 ```
 
-## The write side (unverified)
+## The write side
 
 `BASIC_SET (0x35)` carries the voltage and current setpoints, the protection
-thresholds **and the output enable, in one frame**. Probing it blind can switch a
-bench supply's output on, so `tests/probe/dp100` stops short of it and
-`tests/manual/dp100` never sends it. The layout in `Dp100Protocol.hpp` is what the
-public reverse-engineering projects describe; unlike everything above, it is not
-confirmed by this project's own measurement.
+thresholds **and the output enable, in one frame** — so changing one of them means
+reading the setpoint, editing it and writing it back, which is what
+`Dp100Power::setVoltage()` and friends do.
 
-In the sketch it sits behind `APPLY_SETPOINT`, which is `false`. Before enabling
-it: disconnect whatever is on the output terminals, keep the values low, and watch
-the front panel after each call. A failure means the request form is not
-confirmed, not that the supply is broken.
+| offset | field |
+|---|---|
+| 0 | index, **with a flag** |
+| 1 | state — the output enable: 1 on, 0 off |
+| 2 | voltage setpoint, mV |
+| 4 | current setpoint, mA |
+| 6 | over-voltage threshold, mV |
+| 8 | over-current threshold, mA |
+
+**The index flag is the whole trick, and getting it wrong is silent:**
+
+- read with `index | 0x80`
+- write with `index | 0x20`
+
+A write to a bare index — or to `index | 0x80`, or `| 0xa0` — is answered with the
+success status and then **completely ignored**. Nothing in the answer tells the two
+apart, which is why `Dp100Device` reads back rather than trusting the status, and
+why the manual test confirms every step against `BASIC_INFO`. Three rounds of
+sweeping the index and state bytes on real hardware found no effect at all before
+`0x20` was tried.
+
+The indices are preset groups. Index 0 is the one the supply runs from; this DP100
+came with 0 = 4.000 V / 3.000 A, 1 = 2.000 V / 1.000 A, 2 = 3.000 V / 1.500 A,
+3 = 4.000 V / 2.000 A, all with OVP 30.5 V / OCP 5.05 A.
+
+In the sketch, writing sits behind `APPLY_SETPOINT` and the output enable behind
+`TURN_OUTPUT_ON`, both `false`. They are physical actions on a bench supply: know
+what is connected to the output terminals first.
 
 ## Retargeting
 
@@ -188,7 +229,7 @@ order.
 | Source | License | Use |
 |---|---|---|
 | [ElluIFX/DP100-PyQt5-GUI](https://github.com/ElluIFX/DP100-PyQt5-GUI) | Unlicense | consulted |
-| [scottbez1/webdp100](https://github.com/scottbez1/webdp100) | Apache-2.0 | consulted |
+| [scottbez1/webdp100](https://github.com/scottbez1/webdp100) | Apache-2.0 | consulted — this is where the `0x20` write flag came from, after sweeping the index and state bytes on hardware found nothing. It carries the same open question about what the bit means |
 | [lessu/open_dp100](https://github.com/lessu/open_dp100) | no LICENSE file | cross-checked against, nothing copied |
 | [weigu1/dp100_manipulator](https://github.com/weigu1/dp100_manipulator) | GPL-3.0 | **not consulted** |
 | ALIENTEK's Windows DLL | proprietary | **not reverse engineered here** |

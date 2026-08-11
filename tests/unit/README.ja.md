@@ -50,7 +50,9 @@ uv run --env-file .env pytest unit/
   対する応答解析と、信用せず拒否すべき全ケース(短い読み取り・方向バイト不一致・CRC不一致・
   本体の破損・読み取り長を超える長さフィールド)。不正フレームに対してデバイスが返す
   1バイト0x00の拒否応答。上記キャプチャで固定したDEVICE_INFO・BASIC_INFOのフィールド
-  オフセットと単位。および実機未確認であるBASIC_SETの往復。
+  オフセットと単位。BASIC_SET については実機キャプチャの設定値レポート、要求に必要な
+  indexフラグ(読み出し0x80・書き込み0x20。素のindexへの書き込みは成功を返して無視
+  されるため、実機では気付けずテストで捕まえる)、および往復。
 
 - `usbtmc`: `examples/Vendor/EspUsbHostUsbtmcScpi` のUSBTMCメッセージ層
   (`UsbtmcProtocol.hpp`)を検証する。全メッセージが従う4バイト境界、0にならず

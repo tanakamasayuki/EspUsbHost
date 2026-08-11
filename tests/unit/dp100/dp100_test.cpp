@@ -191,8 +191,15 @@ const char *REAL_BASIC_INFO =
     "fa300010802f00000000182e2a012401cb13020096f4"
     "0e000b00aa00c7819d000040041622a75005e8070c022c52000000000000000000000000000000000000";
 
-// Captured from a real DP100: the answer to a frame with a wrong CRC.
-const char *REAL_REFUSAL = "fa10000100f944";
+// Captured from a real DP100: the answer to a frame with a wrong CRC. A one-byte
+// body of 0x00 is the failure status.
+const char *REAL_FAILURE = "fa10000100f944";
+// Captured from a real DP100: the answer to an accepted BASIC_SET. Same shape, but
+// the status byte is 0x01.
+const char *REAL_SUCCESS = "fa350001013388";
+// Captured from a real DP100: BASIC_SET read of index 0 (`35 80`), the setpoint the
+// supply was found running from.
+const char *REAL_BASIC_SET = "fa35000a0001a00fb80b2477ba13f3c0";
 
 void testDecodeResponse()
 {
@@ -204,7 +211,7 @@ void testDecodeResponse()
         "a captured DEVICE_INFO report decodes");
   checkEqual(response.opcode, dp100::OP_DEVICE_INFO, "opcode");
   checkEqual(static_cast<long>(response.length), 40, "body length");
-  check(!dp100::isRefusal(response), "a payload is not a refusal");
+  check(!dp100::isStatus(response), "a payload is not a status");
 
   // Each of these means the report cannot be trusted.
   check(!dp100::decodeResponse(report.data(), 5, response), "a short read is refused");
@@ -231,15 +238,29 @@ void testDecodeResponse()
   check(!dp100::decodeResponse(overrun.data(), 40, response),
         "a length past the end of the read is refused");
 
-  // The refusal the device sends for a frame it did not accept.
-  const std::vector<uint8_t> refusal = fromHex(REAL_REFUSAL);
-  check(dp100::decodeResponse(refusal.data(), refusal.size(), response),
-        "the refusal report itself is a valid frame");
-  checkEqual(static_cast<long>(response.length), 1, "refusal body is one byte");
-  check(dp100::isRefusal(response), "a one-byte 0x00 body is a refusal");
+  // The status the device answers a frame it did not accept with. Both statuses are
+  // valid frames; what differs is the one byte inside.
+  const std::vector<uint8_t> failure = fromHex(REAL_FAILURE);
+  check(dp100::decodeResponse(failure.data(), failure.size(), response),
+        "the failure report itself is a valid frame");
+  checkEqual(static_cast<long>(response.length), 1, "status body is one byte");
+  check(dp100::isStatus(response), "a one-byte body is a status");
+  check(dp100::isFailure(response), "0x00 is failure");
+  check(!dp100::isSuccess(response), "0x00 is not success");
 
   dp100::DeviceInfo info;
-  check(!dp100::decodeDeviceInfo(response, info), "a refusal is not a DEVICE_INFO payload");
+  check(!dp100::decodeDeviceInfo(response, info), "a status is not a DEVICE_INFO payload");
+
+  const std::vector<uint8_t> success = fromHex(REAL_SUCCESS);
+  check(dp100::decodeResponse(success.data(), success.size(), response), "success decodes");
+  checkEqual(response.opcode, dp100::OP_BASIC_SET, "success came from BASIC_SET");
+  check(dp100::isSuccess(response), "0x01 is success");
+  check(!dp100::isFailure(response), "0x01 is not failure");
+
+  // A payload is neither.
+  const std::vector<uint8_t> payload = fromHex(REAL_BASIC_INFO);
+  check(dp100::decodeResponse(payload.data(), payload.size(), response), "payload decodes");
+  check(!dp100::isStatus(response), "a 16-byte body is not a status");
 }
 
 void testDeviceInfo()
@@ -296,47 +317,75 @@ void testBasicInfo()
   check(!dp100::decodeBasicInfo(truncated, info), "a truncated BASIC_INFO is refused");
 }
 
-// The setpoint frame. Its field offsets are not confirmed against hardware (see
-// Dp100Protocol.hpp), so this only holds the encoder to its own definition and
-// checks the round trip.
-void testBasicSetRoundTrip()
+// The setpoint frame, against the report a real DP100 answered a read with, and
+// against the flags a write needs. The index flags matter: a write to a bare index
+// is answered with success and then silently ignored, which is exactly the kind of
+// mistake a test can catch and a bench cannot.
+void testBasicSet()
 {
+  const std::vector<uint8_t> report = fromHex(REAL_BASIC_SET);
+  dp100::Response response;
+  check(dp100::decodeResponse(report.data(), report.size(), response), "decode");
+  checkEqual(response.opcode, dp100::OP_BASIC_SET, "opcode");
+
   dp100::BasicSet set;
-  set.index = 0;
-  set.state = dp100::SET_STATE_ACTIVE;
-  set.voltageMillivolts = 5000;
-  set.currentMilliamps = 500;
-  set.overVoltageMillivolts = 6000;
-  set.overCurrentMilliamps = 1000;
+  check(dp100::decodeBasicSet(response, set), "BASIC_SET decodes");
+  checkEqual(set.index, 0, "index is echoed without the request's flag");
+  checkEqual(set.state, dp100::STATE_OUTPUT_ON, "state, the output enable");
+  checkEqual(set.voltageMillivolts, 4000, "4.000 V setpoint");
+  checkEqual(set.currentMilliamps, 3000, "3.000 A setpoint");
+  checkEqual(set.overVoltageMillivolts, 30500, "OVP 30.5 V, the model's ceiling");
+  checkEqual(set.overCurrentMilliamps, 5050, "OCP 5.05 A");
 
-  uint8_t report[dp100::REPORT_SIZE];
-  checkEqual(static_cast<long>(dp100::encodeBasicSet(report, sizeof(report), set)),
-             dp100::REPORT_SIZE, "BASIC_SET is a whole report");
-  checkEqual(report[1], dp100::OP_BASIC_SET, "opcode");
-  checkEqual(report[3], dp100::BASIC_SET_SIZE, "length");
-  checkEqual(report[4], 0x00, "index");
-  checkEqual(report[5], 0x80, "state");
-  checkEqual(report[6], 5000 & 0xff, "voltage low byte");
-  checkEqual(report[7], 5000 >> 8, "voltage high byte");
+  // A read request is one byte: the index with the read flag.
+  uint8_t request[dp100::REPORT_SIZE];
+  checkEqual(static_cast<long>(dp100::encodeBasicSetRead(request, sizeof(request), 0)),
+             dp100::REPORT_SIZE, "a read request is a whole report");
+  checkEqual(request[1], dp100::OP_BASIC_SET, "opcode");
+  checkEqual(request[3], 1, "one byte of data");
+  checkEqual(request[4], 0x80, "index 0 carries the read flag");
+  dp100::encodeBasicSetRead(request, sizeof(request), 2);
+  checkEqual(request[4], 0x82, "index 2 carries the read flag");
 
-  // Turn it into a response frame and read it back, which is the only way to
-  // exercise the decoder until the read side is probed on hardware.
+  // A write request is ten bytes, and the index carries the write flag instead.
+  dp100::BasicSet write;
+  write.index = 0;
+  write.state = dp100::STATE_OUTPUT_ON;
+  write.voltageMillivolts = 5000;
+  write.currentMilliamps = 500;
+  write.overVoltageMillivolts = 30500;
+  write.overCurrentMilliamps = 5050;
+  checkEqual(static_cast<long>(dp100::encodeBasicSet(request, sizeof(request), write)),
+             dp100::REPORT_SIZE, "a write is a whole report");
+  checkEqual(request[3], dp100::BASIC_SET_SIZE, "ten bytes of data");
+  checkEqual(request[4], 0x20, "index 0 carries the write flag, not the read flag");
+  checkEqual(request[5], dp100::STATE_OUTPUT_ON, "state");
+  checkEqual(request[6], 5000 & 0xff, "voltage low byte");
+  checkEqual(request[7], 5000 >> 8, "voltage high byte");
+  checkEqual(request[8], 500 & 0xff, "current low byte");
+  checkEqual(dp100::readUint16Le(request + 10), 30500, "OVP carried through");
+  checkEqual(dp100::readUint16Le(request + 12), 5050, "OCP carried through");
+  write.index = 3;
+  dp100::encodeBasicSet(request, sizeof(request), write);
+  checkEqual(request[4], 0x23, "index 3 with the write flag");
+
+  // Round trip: turn the request into a response frame and read it back.
   uint8_t asResponse[dp100::REPORT_SIZE];
-  memcpy(asResponse, report, sizeof(asResponse));
+  memcpy(asResponse, request, sizeof(asResponse));
   asResponse[0] = dp100::DIRECTION_DEVICE_TO_HOST;
   const uint16_t crc = referenceCrc(asResponse, 4 + dp100::BASIC_SET_SIZE);
   asResponse[4 + dp100::BASIC_SET_SIZE] = static_cast<uint8_t>(crc & 0xff);
   asResponse[5 + dp100::BASIC_SET_SIZE] = static_cast<uint8_t>(crc >> 8);
-
-  dp100::Response response;
   check(dp100::decodeResponse(asResponse, sizeof(asResponse), response), "decode");
   dp100::BasicSet readBack;
   check(dp100::decodeBasicSet(response, readBack), "BASIC_SET decodes");
-  checkEqual(readBack.voltageMillivolts, set.voltageMillivolts, "voltage round trip");
-  checkEqual(readBack.currentMilliamps, set.currentMilliamps, "current round trip");
-  checkEqual(readBack.overVoltageMillivolts, set.overVoltageMillivolts, "OVP round trip");
-  checkEqual(readBack.overCurrentMilliamps, set.overCurrentMilliamps, "OCP round trip");
-  checkEqual(readBack.state, set.state, "state round trip");
+  checkEqual(readBack.voltageMillivolts, 5000, "voltage round trip");
+  checkEqual(readBack.currentMilliamps, 500, "current round trip");
+  checkEqual(readBack.state, dp100::STATE_OUTPUT_ON, "state round trip");
+
+  dp100::Response truncated = response;
+  truncated.length = dp100::BASIC_SET_SIZE - 1;
+  check(!dp100::decodeBasicSet(truncated, readBack), "a truncated BASIC_SET is refused");
 }
 
 } // namespace
@@ -348,7 +397,7 @@ int main()
   testDecodeResponse();
   testDeviceInfo();
   testBasicInfo();
-  testBasicSetRoundTrip();
+  testBasicSet();
 
   if (failures != 0)
   {
