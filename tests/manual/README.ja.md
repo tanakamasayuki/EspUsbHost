@@ -68,6 +68,8 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`usb_display_dl1xx/`](usb_display_dl1xx/) | DL-1xxの立ち上げ。EDID読み出し、1920x1080のモード設定、単色塗り、カラーバー、1px市松、無通信での表示保持、モード再送を確認する。画像はモニタで目視判定する | USBグラフィックスアダプタ（DisplayLink DL-1xx、VID 0x17e9）＋1920x1080対応モニタ | ✅ |
 | [`usb_display_turing/`](usb_display_turing/) | 3.5インチUSBスマートスクリーンの立ち上げ。CDC OUTキュー、向き、単色塗り、原色帯、カラーバー、1px市松、部分矩形、同じ全画面を1/3/8/24/48/96矩形に分けて送るスイープ、無通信での表示保持、輝度を確認する。画像はパネルで目視判定する | 3.5インチUSBスマートスクリーン（`1a86:5722`、`USB35INCHIPSV2`） | ✅ |
 | [`usb_display_throughput/`](usb_display_throughput/) | 表示経路のチューニング計測。タイル形状、ダブルバッファ、差分転送、auto clear、全画面 vs sprite 再描画、panel直接描画（全クリアのちらつき含む）、シーン内容を振る。exampleのREADMEに書いた指針の出どころ。ターゲットごとに実行する（bus使用率は `--profile` で選ばれた実機の上限に対して計算される） | `usb_display_dl1xx` と同じ。ESP32-P4ではアダプタにセルフパワードハブが必要で、そのハブには他をつながないこと | ✅ |
+| [`usbtmc_scpi/`](usbtmc_scpi/) | USBTMCの通し確認。vendor bulk APIでclass 0xfe / subclass 0x03のinterfaceを検出してclaim、`vendorControlTransfer()` によるEP0のGET_CAPABILITIESとCLEAR、`*IDN?`、設定値の書き込みと読み戻し、実測値、20回連続クエリ、接続中のCLEAR、SCPIエラーキューが空であること。機器の出力はONにしない | 菊水電子工業のPMXシリーズ直流電源（PMX18-5A `0b3e:1029` で開発） | ✅ |
+| [`device_dump/`](device_dump/) | 全列挙デバイスのdescriptor・interface・endpoint・チャネル集計をダンプし、ライブラリ本体がclaimしないinterface（USBTMC・printer・vendor-specific）についてはラッパーが使うbulk/interrupt endpointも表示する。未対応デバイスの素性調査用 | 任意のUSBデバイス | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
 

@@ -50,6 +50,18 @@ uv run --env-file .env pytest unit/
   pixel bytes that let LovyanGFX's rgb565_2Byte output reach USB without a byte
   swap.
 
+- `usbtmc`: verifies the USBTMC message layer in
+  `examples/Vendor/EspUsbHostUsbtmcScpi` (`UsbtmcProtocol.hpp`): the 4-byte
+  alignment every message ends on, the bTag sequence that must never yield 0 or
+  repeat, the DEV_DEP_MSG_OUT and REQUEST_DEV_DEP_MSG_IN headers byte for byte
+  including the little-endian TransferSize and the EOM / TermChar attributes,
+  response header decoding against headers built independently from the field
+  layout together with every out-of-sync case that must be rejected rather than
+  trusted (wrong MsgID, bad bTagInverse, bTag 0, TransferSize past the read), the
+  GET_CAPABILITIES bit fields, and the bytes a real PMX18-5A returns as a
+  regression on the USB488 field offsets, which sit at 14 and 15 because
+  bcdUSB488 occupies 12..13.
+
 - `ccid_atr`: verifies the CCID ATR parser in `src/EspUsbHostCcidAtr.h`: the ATR
   captured from a real Sony RC-S300 with an ISO 14443 A card (decoded to
   standard, level, card name and announced protocols), the PC/SC PIX.SS mapping
@@ -109,11 +121,11 @@ uv run --env-file .env pytest unit/
 
 ## How it works
 
-The `dl1xx`, `ax206` and `felica_idm` headers, `src/EspUsbHostCcidAtr.h` and
-`src/EspUsbHostHidLayout.h` are pure byte formatting with no Arduino / USB
-dependencies, so `test_dl1xx.py`, `test_ax206.py`, `test_felica_idm.py`,
-`test_ccid_atr.py` and `test_mouse_layout.py` compile them directly and need no
-extraction step.
+The `dl1xx`, `ax206`, `felica_idm` and `usbtmc` headers,
+`src/EspUsbHostCcidAtr.h` and `src/EspUsbHostHidLayout.h` are pure byte
+formatting with no Arduino / USB dependencies, so `test_dl1xx.py`,
+`test_ax206.py`, `test_felica_idm.py`, `test_usbtmc.py`, `test_ccid_atr.py` and
+`test_mouse_layout.py` compile them directly and need no extraction step.
 
 `src/EspUsbHost.h` pulls in Arduino and the ESP USB host stack, so `audio_uac`
 extracts the audio constants, structs and `inline` decoders it needs into

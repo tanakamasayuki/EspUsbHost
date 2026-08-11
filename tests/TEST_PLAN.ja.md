@@ -74,6 +74,7 @@ tests/
 | USBオーディオ入出力 — UAC2 | ✅ peer（`usb_audio_uac2`: class revision、Clock Sourceのサンプルレート、4バイト・2ビットのFeature Unit control、volumeの`RANGE`、explicit feedback endpointのポーリングとOUTのレート追従、双方向streaming）、✅ ホスト単体（`unit/audio_uac`: descriptorと`RANGE`のデコード） | | ⬜ 実UAC2機器（high-speed設計が多く、full-speedホストでは列挙できない）、Clock Selector / Clock Multiplier、実DACでの長時間の非同期playback（peerのfeedbackはFIFO残量からの計算でハードウェアクロック由来ではない） |
 | USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否、write失敗検出） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、`fs::FS` wrapper、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ data phase失敗後の完全なBOT復旧、複数LUN、32-bit sector超のFatFs mount |
 | CCIDスマートカードリーダー | | ✅ manual（`ccid_info` のdescriptorダンプ、`ccid_card` のopen/状態/ATR/APDU、`ccid_hotplug` のslot変化通知をSony RC-S300で確認） | ⬜ 複数slotリーダー、接触カード、チェイン応答、ICCD変種 |
+| USBTMC — SCPI計測器 | | ✅ manual（`usbtmc_scpi`: class 0xfeのinterface claim、EP0のGET_CAPABILITIESとCLEAR、`*IDN?`、設定値の読み戻し、実測値、連続クエリ、菊水PMX18-5Aでエラーキューが空）、✅ host unit（`unit/usbtmc`: メッセージヘッダ、bTag規則、同期ずれの拒否、capabilityオフセット） | ⬜ interrupt INによるUSB488 service request、実機でのABORT_BULK_IN/OUT回復、PMX電源以外の計測器 |
 | USB Ethernet — CDC-ECM/CDC-NCM | | ✅ manual（configuration横断の汎用descriptor候補検出） | ⬜ configuration選択、frame RX/TX、lwIP統合 |
 | 複数デバイス同時接続 | | ✅ manual | |
 | デバイス活線挿抜 | | ✅ manual | |

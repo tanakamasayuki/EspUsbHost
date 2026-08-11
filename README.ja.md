@@ -81,6 +81,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | USBグラフィックスアダプタ（DL-1xx bulkプロトコル） | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) にvendor bulk API上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。1チップファミリ・16 bppの参考実装であり、他のアダプタや高いフレームレートが必要なら [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) のような専用ライブラリを使うこと |
 | AX206 USBフォトフレームディスプレイ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayAx206`](examples/Vendor/EspUsbHostDisplayAx206/) に実装。ESP32-S3で2 fpsを実機確認済み。全画面blitしか受け付けないデバイスなので、1フレームが307,200バイトを運ぶBulk-Only Transportトランザクション1回になります |
 | USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
+| USBTMC — SCPI計測器 | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) にvendor bulk/control API上で実装。ライブラリ本体にUSBTMC固有の処理は入っていない。interface classは0xFE（Application Specific）でvendor-specificではないが、使うAPIで分類しているためexampleは `Vendor/` にある。菊水電子工業の直流電源 PMX18-5A（`0b3e:1029`）で実機確認済み（class request、bulkメッセージ層、SCPIクエリ）。USB488のinterrupt IN（service request）は使わない |
 | UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
@@ -309,6 +310,7 @@ void loop() {
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | 汎用vendor bulk API上でAndroid ADB認証と単一shell streamを実行 |
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | USBグラフィックスアダプタ（DL-1xx bulkプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasでFull HD面を扱う |
 | [EspUsbHostDisplayAx206](examples/Vendor/EspUsbHostDisplayAx206/) | AX206のUSBフォトフレームディスプレイ（vendorコマンドのBulk-Only Transport）をLovyanGFXのpanelとして駆動。フレームバッファを持たず、1トランザクションで1フレームをストリーム |
+| [EspUsbHostUsbtmcScpi](examples/Vendor/EspUsbHostUsbtmcScpi/) | USBTMC計測器（class 0xFE）にSCPIで話す。EP0のclass request、bulkメッセージ層、菊水PMX電源のラッパー |
 
 USBディスプレイ関連のexampleは [docs/usb-display.ja.md](docs/usb-display.ja.md) にまとめてあります。
 
@@ -623,6 +625,12 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
                       const uint8_t *data = nullptr, size_t length = 0,
                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+bool vendorControlTransfer(uint8_t requestType, uint8_t request,
+                          uint16_t value, uint16_t index,
+                          uint8_t *data = nullptr, size_t length = 0,
+                          size_t *actualLength = nullptr,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                          uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
 ```
 
 `vendorOpen()` は vendor-specific interface を明示的に claim し、bulk IN 受信を開始します。bulk IN と bulk OUT の両方を持つ interface を優先しますが、bulk OUT だけを持つ interface も受け付けます。その場合 IN 転送は開始されず、`vendorRead()` / `onVendorData()` にデータは届きません。たとえばUSBグラフィックスアダプタは bulk OUT と interrupt IN の組み合わせで、このAPIは interrupt IN を使いません。
@@ -631,7 +639,7 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
 
 `vendorWrite()` は転送完了を待つため、`onDeviceConnected()` や `onVendorData()` などUSB callback内では呼び出せません。callbackでは送信要求だけを記録し、`loop()` から呼び出してください。`vendorRead()` はノンブロッキングで、deviceごとの512 byte受信バッファから読み出します。`onVendorData()` の `data` ポインタはcallback中だけ有効です。
 
-`vendorControlIn()` は `bmRequestType = 0xc0`、`vendorControlOut()` は `bmRequestType = 0x40` を使います。
+`vendorControlIn()` は `bmRequestType = 0xc0`、`vendorControlOut()` は `bmRequestType = 0x40` を使います。どちらも vendor 型・device recipient です。`vendorControlTransfer()` は代わりに `bmRequestType` を第 1 引数で受け取ります。vendor 以外のクラスの上に載るプロトコルに必要なもので、たとえば USBTMC は class request を `0xa1` / `0x21`（`wIndex` に interface 番号）で送り、`CLEAR_FEATURE(ENDPOINT_HALT)` のような standard request は `0x02`（`wIndex` に endpoint アドレス）になります。転送方向は `requestType` の bit 7 で決まり、IN 転送では `actualLength` に実受信バイト数が入ります。上記 2 つと同様に完了を待つため USB callback 内では呼べません。EP0 は interface ではなく device に属するので `vendorOpen()` の前でも使えます。これを使ってプロトコルを組んだ例は [`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) にあります。
 
 非同期 bulk OUT キューは複数の転送を同時に飛ばし続けるため、転送間でバスがアイドルになりません。
 
