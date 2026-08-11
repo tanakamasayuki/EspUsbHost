@@ -46,6 +46,20 @@ uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
   [`examples/Ccid/EspUsbHostCcidFelicaIdm`](../../examples/Ccid/EspUsbHostCcidFelicaIdm/)
   に記録しています。ログ自体が出力なので `-s` を付けて実行します。
 
+- `printer_class` — ESC/POS プリンタが USB Printer クラスの要求のうちどれに実際に応答
+  するのかを解明します。`manual/printer_escpos` で GET_DEVICE_ID が失敗し、
+  GET_PORT_STATUS が「非選択・エラー」とデコードされる値を返す一方でプリンタは明らかに
+  正常でした。しかもホスト側の間違いは未実装と全く同じに見えます(wValue は
+  コンフィグレーションインデックス、wIndex は interface を**上位**バイトに置く、という
+  このクラスの他の要求と異なる形式のため)。スケッチは両フィールドに加えて
+  device recipient 形式・vendor type 形式も総当たりし、ポートステータスは他のやり取りの
+  前と SOFT_RESET の後にも読みます。結論は「spec どおりの形式だけが受け付けられ、
+  プリンタには言うことが無い(空のデバイス ID と 0x00 のステータス)」でした。だから
+  example はどちらも失敗として扱いません。用紙は消費しません。解明した内容は probe の
+  docstring と
+  [`examples/Vendor/EspUsbHostPrinterEscPos`](../../examples/Vendor/EspUsbHostPrinterEscPos/)
+  に記録しています。ログ自体が出力なので `-s` を付けて実行します。
+
 - `dp100` — ALIENTEK DP100 電源が 64 バイトの HID レポートの中で期待するフレーム構造を
   解明します。スケッチは単なるバイトポンプで、シリアルから OpCode とデータを hex 行で
   受け取ってフレームを組み立て、CRC の変種を選べるので、フレーム形式はホスト側だけで

@@ -75,6 +75,20 @@ _KNOWN_SERIAL_FINDINGS = (
         max_count=1,
         reason="the test reboots the peer on purpose to produce a disconnect, so an in-flight transfer can race it",
     ),
+    _KnownSerialFinding(
+        nodeid_pattern="*printer*",
+        log_name="dut.log",
+        line_pattern=re.compile(r"ENUM: Device returned less bytes than requested$"),
+        max_count=2,
+        reason="the XP-C58K declares product and serial string descriptors it then returns short; enumeration continues and the printer works",
+    ),
+    _KnownSerialFinding(
+        nodeid_pattern="*probe/printer_class/*",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USBH: Dev \d+ EP 0 STALL$"),
+        max_count=3,
+        reason="the probe deliberately sends GET_DEVICE_ID forms the printer rejects, to find which addressing it accepts",
+    ),
 )
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _AUDIT_RESULTS_KEY = pytest.StashKey[

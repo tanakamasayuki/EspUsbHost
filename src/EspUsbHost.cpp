@@ -708,12 +708,16 @@ static const char *className(uint8_t cls)
     return "CDC Control";
   case 0x03:
     return "HID";
+  case 0x07:
+    return "Printer"; // ESC/POS receipt printers, IPP/raw printers
   case 0x08:
     return "Mass Storage";
   case 0x09:
     return "Hub";
   case 0x0a:
     return "CDC Data";
+  case 0x0b:
+    return "Smart Card"; // CCID
   case 0x0e:
     return "Video";
   case 0xfe:

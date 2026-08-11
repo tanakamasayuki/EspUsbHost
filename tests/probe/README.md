@@ -60,5 +60,20 @@ for `loopback/`.
   [`examples/HID/EspUsbHostDp100Power`](../../examples/HID/EspUsbHostDp100Power/).
   Run it with `-s`: the log is the output.
 
+- `printer_class` — works out which USB Printer Class requests an ESC/POS printer
+  really answers. `manual/printer_escpos` found GET_DEVICE_ID failing and
+  GET_PORT_STATUS returning a byte that decodes as "deselected, error" while the
+  printer was demonstrably fine, and a host mistake looks exactly like an
+  unimplemented request: wValue is the configuration index and wIndex packs the
+  interface in the *high* byte, unlike the other requests in the class. The sketch
+  sweeps both fields plus the device-recipient and vendor-type forms, and reads the
+  port status before other exchanges and after SOFT_RESET. The answer was that the
+  spec-correct form is the only one accepted and the printer simply has nothing to
+  say -- an empty device ID and a 0x00 status -- which is why the example treats
+  neither as a failure. Uses no paper. What it established is written up in the
+  probe's docstring and in
+  [`examples/Vendor/EspUsbHostPrinterEscPos`](../../examples/Vendor/EspUsbHostPrinterEscPos/).
+  Run it with `-s`: the log is the output.
+
 Place a FeliCa card on the reader before running `rcs300_felica`, and use
 `TEST_SERIAL_PORT_ESP32S3` for it.
