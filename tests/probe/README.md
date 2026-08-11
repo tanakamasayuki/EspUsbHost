@@ -39,5 +39,16 @@ for `loopback/`.
   [`examples/Ccid/EspUsbHostCcidFelicaIdm`](../../examples/Ccid/EspUsbHostCcidFelicaIdm/).
   Run it with `-s`: the log is the output.
 
+- `dp100` — works out the frame layout an ALIENTEK DP100 power supply expects
+  inside its 64-byte HID reports. The sketch is a byte pump: it composes frames
+  from an opcode and data given as hex lines on serial, with a selectable CRC
+  variant, so the frame format is searched from the host side without reflashing.
+  Which CRC gets a payload rather than the device's one-byte refusal is what
+  identifies it. Read-only: the setpoint opcode carries the output enable and is
+  deliberately never sent. What it established is written up in the probe's
+  docstring and in
+  [`examples/HID/EspUsbHostDp100Power`](../../examples/HID/EspUsbHostDp100Power/).
+  Run it with `-s`: the log is the output.
+
 Place a FeliCa card on the reader before running `rcs300_felica`, and use
 `TEST_SERIAL_PORT_ESP32S3` for it.
