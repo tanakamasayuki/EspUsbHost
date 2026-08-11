@@ -73,6 +73,35 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`dp100_output/`](dp100_output/) | ALIENTEK DP100 write path: the BASIC_SET frame with its 0x20 index flag, the state byte as the output enable, and the protection thresholds surviving a setpoint change. Nothing is trusted from the write's answer -- the device reports success for a write it then ignores -- so each step is confirmed by reading the setpoint back and by reading what the output is doing. **Energises the output at 5.000 V / 0.500 A: run with the terminals bare.** Refuses to start if the output is already on, and restores the original setpoint | ALIENTEK DP100 (`2e3c:af01`) connected directly, output terminals disconnected | ✅ |
 | [`device_dump/`](device_dump/) | Dumps descriptors, interfaces, endpoints and channel accounting for every enumerated device, plus the bulk/interrupt endpoints a wrapper would use for interfaces the library does not claim itself (USBTMC, printer, vendor-specific). For working out what an unsupported device exposes | Any USB device | ✅ |
 
+## Hub combinations that crash ESP-IDF
+
+Some hub / device pairs take down the ESP-IDF host stack's own hub driver, and
+nothing this library does or avoids changes it. Recorded here so a run that
+reboot-loops can be recognised rather than re-investigated.
+
+| Hub | Device behind it | Result |
+|---|---|---|
+| CH335F (`1a86:8094`) | ALIENTEK DP100 (`2e3c:af01`) | **Reboot loop.** `assert failed: device_release ext_hub.c:509 (ext_hub_dev->dynamic.flags.waiting_release)`, inside `ext_hub_process` -> `handle_device` -> `device_control_response_handling` -> `handle_hub_descriptor` -> `device_configure`. ESP-IDF v5.5.5 / arduino-esp32 3.3.11 |
+| CH335F (`1a86:8094`) | KIKUSUI PMX18-5A, USB flash drives, HID devices | Fine |
+| RTD5411 (`0bda:5411`) | ALIENTEK DP100 | Fine |
+| — (direct connection) | ALIENTEK DP100 | Fine |
+
+What was established with `probe/hub_enum`:
+
+- The CH335F never reports a connection on **any** port with the DP100 attached
+  (`connected=0` on all four, `powered=1`), and power-cycling the ports does not
+  change that. So the hub does not see the device even when it is not crashing.
+- **The library is not part of the mechanism.** It crashes with hub tracking turned
+  off, i.e. with no client handle on the hub and no hub descriptor or port-status
+  traffic from this library. The log line before the assert is
+  `[phase1] tracked=0 hub_tracking=0 host_addresses=0`: it goes down inside ext_hub
+  before the hub even reaches the host stack's address list.
+- It is intermittent: the same firmware survived two runs before one caught it.
+
+A board stuck in this loop can be hard to flash. `probe/hub_enum` therefore boots
+with `setHubTrackingEnabled(false)` and only turns tracking on part way through, so
+it always comes up in a state that can be reflashed.
+
 ## ESP32-S3 HCD Channel Limits
 
 ESP32-S3 has 8 USB host channels (`OTG_NUM_HOST_CHAN`). When several devices are connected through a USB hub, ESP-IDF may fail to allocate enough host channels for all claimed interfaces. Because the exact channel use depends on the hub and device descriptors, this document records only combinations that have been observed with this test suite.

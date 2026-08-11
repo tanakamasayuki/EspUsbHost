@@ -1002,6 +1002,10 @@ USB Hubは検出、簡易トポロジー表示、Hub descriptor取得、port sta
 
 `getHubInfo()`はHub descriptorを取得し、ポート数、PPPS/ganged/no power switching、over-current方式、power-on-to-power-good時間などを`EspUsbHostHubInfo`へ格納します。`getHubPortStatus()`は各ポートのcurrent statusとchange bitを返します。`setHubPortPower()`はHub class requestでポート電源をON/OFFします。
 
+`setHubTrackingEnabled(false)` にすると、ライブラリは外部ハブに一切触らなくなります。ハブの追跡とはハブをクライアントデバイスとして open してハンドルを保持することで、上記 3 つの呼び出しとハブ自身の connect/disconnect イベントはこれに依存しています。OFF の場合、ハブ配下のデバイスは変わらず列挙・動作しますが、ハブが `getDevices()` に現れず上記の呼び出しは使えません。既定は ON です。
+
+これは挙動の悪いハブに対する解決策ではありません。既知の例として、CH335F（`1a86:8094`）の配下に ALIENTEK DP100 を置くと、追跡を OFF にした状態でも ESP-IDF v5.5.5 自身のハブドライバが（ハブがホストスタックのアドレスリストに載る前に）落ちます。試した組み合わせと `tests/probe/hub_enum` で確認した内容は [tests/manual/README.ja.md](tests/manual/README.ja.md) に記録しています。
+
 ポート単位で安全に電源制御するには、HubがPPPS（Per-Port Power Switching）対応として報告される必要があります。ganged powerのHubでは、指定ポートだけでなく複数ポートまたはHub全体に影響する場合があります。USB 3.x Hubや内部で多段Hubになっている製品は挙動が複雑なため、確認用途ではセルフパワーのUSB 2.0 Hubを推奨します。
 
 現状はHub class driverとしての完全な管理ではなく、利用者向けの情報取得と明示的なポート電源制御を提供する段階です。port change bitのclear、複数段Hub、USB 3.x Hub互換性、ESP32-P4のFS/HS差分は継続確認項目です。これらのAPIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。

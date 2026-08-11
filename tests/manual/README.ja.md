@@ -73,6 +73,34 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`dp100_output/`](dp100_output/) | ALIENTEK DP100の書き込み経路。0x20のindexフラグを持つBASIC_SETフレーム、出力ON/OFFとしてのstateバイト、設定値変更で保護しきい値が保たれること。書き込みの応答は信用しない（無視された書き込みにも成功が返る）ので、各段を設定値の読み戻しと出力の実測で確認する。**5.000V / 0.500Aで出力を投入するので、端子に何も接続しない状態で実行する。** 既に出力ONなら開始せず、元の設定値に復元する | ALIENTEK DP100（`2e3c:af01`）を直結、出力端子は未接続 | ✅ |
 | [`device_dump/`](device_dump/) | 全列挙デバイスのdescriptor・interface・endpoint・チャネル集計をダンプし、ライブラリ本体がclaimしないinterface（USBTMC・printer・vendor-specific）についてはラッパーが使うbulk/interrupt endpointも表示する。未対応デバイスの素性調査用 | 任意のUSBデバイス | ✅ |
 
+## ESP-IDF がクラッシュするハブの組み合わせ
+
+一部のハブとデバイスの組み合わせは ESP-IDF ホストスタック自身のハブドライバを落とし、
+本ライブラリ側で何をしても・何を避けても変わりません。リブートループに遭遇したときに
+「調査済み」と分かるよう記録します。
+
+| ハブ | 配下のデバイス | 結果 |
+|---|---|---|
+| CH335F（`1a86:8094`） | ALIENTEK DP100（`2e3c:af01`） | **リブートループ。** `assert failed: device_release ext_hub.c:509 (ext_hub_dev->dynamic.flags.waiting_release)`。経路は `ext_hub_process` → `handle_device` → `device_control_response_handling` → `handle_hub_descriptor` → `device_configure`。ESP-IDF v5.5.5 / arduino-esp32 3.3.11 |
+| CH335F（`1a86:8094`） | 菊水 PMX18-5A、USBメモリ、HIDデバイス | 問題なし |
+| RTD5411（`0bda:5411`） | ALIENTEK DP100 | 問題なし |
+| —（直結） | ALIENTEK DP100 | 問題なし |
+
+`probe/hub_enum` で確認した内容:
+
+- **ライブラリは機構の一部ではない。** ハブ追跡を OFF にした状態、つまりハブに対する
+  クライアントハンドルも hub descriptor / port status の通信も無い状態でも落ちる。
+  assert 直前のログは `[phase1] tracked=0 hub_tracking=0 host_addresses=0` で、ハブが
+  ホストスタックのアドレスリストに載る前に ext_hub 内部で落ちている
+- DP100 を挿しても CH335F は**どのポートでも**接続を報告しない（4 ポートすべて
+  `connected=0`、`powered=1`）。ポート電源を入れ直しても変わらない。落ちていないときも
+  ハブがデバイスを認識していない
+- 間欠的で、同じファームウェアが 2 回は無事に完走してから 1 回捕まえた
+
+このループに入ったボードは書き込みが難しくなることがあります。そのため `probe/hub_enum`
+は `setHubTrackingEnabled(false)` の状態で起動し、途中で追跡を有効化する構成にしてあり、
+常に再書き込みできる状態で立ち上がります。
+
 ## ESP32-S3 の HCD チャネル制限
 
 ESP32-S3 のUSBホストチャネル数は8個です（`OTG_NUM_HOST_CHAN`）。USBハブ経由で複数デバイスを接続すると、ESP-IDFがclaimするインターフェース分のホストチャネルを確保できずに失敗することがあります。実際の消費量はハブやデバイスのdescriptorに依存するため、このドキュメントにはこのテスト環境で実測した組み合わせだけを記録します。
