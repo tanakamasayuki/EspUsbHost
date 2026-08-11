@@ -82,6 +82,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | AX206 USBフォトフレームディスプレイ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostDisplayAx206`](examples/Vendor/EspUsbHostDisplayAx206/) に実装。ESP32-S3で2 fpsを実機確認済み。全画面blitしか受け付けないデバイスなので、1フレームが307,200バイトを運ぶBulk-Only Transportトランザクション1回になります |
 | USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
 | USBTMC — SCPI計測器 | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) にvendor bulk/control API上で実装。ライブラリ本体にUSBTMC固有の処理は入っていない。interface classは0xFE（Application Specific）でvendor-specificではないが、使うAPIで分類しているためexampleは `Vendor/` にある。菊水電子工業の直流電源 PMX18-5A（`0b3e:1029`）で実機確認済み（class request、bulkメッセージ層、SCPIクエリ）。USB488のinterrupt IN（service request）は使わない |
+| ALIENTEK DP100 数控電源 | 📄 example限りのbest effort。[`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/) にHID API上で実装。ライブラリ本体にDP100固有の処理は入っていない。素のHID interfaceに独自フレームを載せたデバイスなので `onHIDInput()` と `sendHIDVendorOutput()` で足りる。読み取りはESP32-S3で実機確認済み（機器情報、入力電圧、出力V/A、温度。単位も実測で確定）。設定書き込みフレームは出力ON/OFFを含むため実装のみで未検証 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
@@ -247,6 +248,7 @@ void loop() {
 | [EspUsbHostGamepad](examples/HID/EspUsbHostGamepad/) | ゲームパッドのスティック・十字キー・ボタンを取得 |
 | [EspUsbHostHIDVendor](examples/HID/EspUsbHostHIDVendor/) | ベンダーHID入力と出力/フィーチャーレポートの送信 |
 | [EspUsbHostHIDRawDump](examples/HID/EspUsbHostHIDRawDump/) | デバイスアドレス付きでHexダンプ（複数デバイス対応） |
+| [EspUsbHostDp100Power](examples/HID/EspUsbHostDp100Power/) | ALIENTEK DP100電源を読み取る。64バイトHIDレポートに載った独自フレーム（CRC-16/MODBUS） |
 
 ### Info
 

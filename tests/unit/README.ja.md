@@ -42,6 +42,16 @@ uv run --env-file .env pytest unit/
   先頭のゴミバイトを含む)、LovyanGFXのrgb565_2Byte出力をバイトスワップなしで
   USBへ流せる根拠であるRGB565ビッグエンディアンのピクセルバイト列を対象とする。
 
+- `dp100`: `examples/HID/EspUsbHostDp100Power` のALIENTEK DP100フレーム層
+  (`Dp100Protocol.hpp`)を検証する。CRC-16/MODBUSを標準チェック値"123456789"と、
+  テーブル方式で書いた独立実装に対してレポート全長までの全ての長さで突き合わせる。
+  データが入ったときにCRCが来る位置と64バイトレポートの残りがゼロであることを含む
+  要求フレームのバイト単位一致。`tests/probe/dp100`で実機DP100から取得したレポートに
+  対する応答解析と、信用せず拒否すべき全ケース(短い読み取り・方向バイト不一致・CRC不一致・
+  本体の破損・読み取り長を超える長さフィールド)。不正フレームに対してデバイスが返す
+  1バイト0x00の拒否応答。上記キャプチャで固定したDEVICE_INFO・BASIC_INFOのフィールド
+  オフセットと単位。および実機未確認であるBASIC_SETの往復。
+
 - `usbtmc`: `examples/Vendor/EspUsbHostUsbtmcScpi` のUSBTMCメッセージ層
   (`UsbtmcProtocol.hpp`)を検証する。全メッセージが従う4バイト境界、0にならず
   直前と重複もしないbTag列、リトルエンディアンのTransferSizeとEOM/TermChar属性を
@@ -101,10 +111,10 @@ uv run --env-file .env pytest unit/
 
 ## 仕組み
 
-`dl1xx`・`ax206`・`felica_idm`・`usbtmc`のヘッダと`src/EspUsbHostCcidAtr.h`・
+`dl1xx`・`ax206`・`felica_idm`・`usbtmc`・`dp100`のヘッダと`src/EspUsbHostCcidAtr.h`・
 `src/EspUsbHostHidLayout.h`はArduino/USB非依存の純粋なバイト処理なので、
 `test_dl1xx.py`・`test_ax206.py`・`test_felica_idm.py`・`test_usbtmc.py`・
-`test_ccid_atr.py`・`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は
+`test_dp100.py`・`test_ccid_atr.py`・`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は
 不要である。
 
 `src/EspUsbHost.h`はArduinoとESP USB hostスタックをincludeするため、`audio_uac`は

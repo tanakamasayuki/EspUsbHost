@@ -50,6 +50,19 @@ uv run --env-file .env pytest unit/
   pixel bytes that let LovyanGFX's rgb565_2Byte output reach USB without a byte
   swap.
 
+- `dp100`: verifies the ALIENTEK DP100 frame layer in
+  `examples/HID/EspUsbHostDp100Power` (`Dp100Protocol.hpp`): CRC-16/MODBUS against
+  the canonical "123456789" check value and against a second, table-driven
+  implementation over every length up to a full report; the request frame byte for
+  byte, including where the CRC lands once there is data and that the rest of the
+  64-byte report stays zero; response decoding against reports captured from a real
+  DP100 by `tests/probe/dp100`, together with every case that must be rejected
+  rather than trusted (short read, wrong direction byte, bad CRC, corrupted body, a
+  length field past the end of the read); the one-byte 0x00 refusal the device
+  answers a bad frame with; the DEVICE_INFO and BASIC_INFO field offsets and units
+  pinned to those captures; and the BASIC_SET round trip, whose offsets are not
+  hardware-confirmed.
+
 - `usbtmc`: verifies the USBTMC message layer in
   `examples/Vendor/EspUsbHostUsbtmcScpi` (`UsbtmcProtocol.hpp`): the 4-byte
   alignment every message ends on, the bTag sequence that must never yield 0 or
@@ -121,11 +134,12 @@ uv run --env-file .env pytest unit/
 
 ## How it works
 
-The `dl1xx`, `ax206`, `felica_idm` and `usbtmc` headers,
+The `dl1xx`, `ax206`, `felica_idm`, `usbtmc` and `dp100` headers,
 `src/EspUsbHostCcidAtr.h` and `src/EspUsbHostHidLayout.h` are pure byte
 formatting with no Arduino / USB dependencies, so `test_dl1xx.py`,
-`test_ax206.py`, `test_felica_idm.py`, `test_usbtmc.py`, `test_ccid_atr.py` and
-`test_mouse_layout.py` compile them directly and need no extraction step.
+`test_ax206.py`, `test_felica_idm.py`, `test_usbtmc.py`, `test_dp100.py`,
+`test_ccid_atr.py` and `test_mouse_layout.py` compile them directly and need no
+extraction step.
 
 `src/EspUsbHost.h` pulls in Arduino and the ESP USB host stack, so `audio_uac`
 extracts the audio constants, structs and `inline` decoders it needs into
