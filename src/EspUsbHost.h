@@ -658,6 +658,63 @@ struct EspUsbHostMidiMessage
   size_t length = 0;
 };
 
+// A cable number occupies 4 bits of the USB-MIDI 1.0 packet header, so an
+// endpoint carries at most 16 of them.
+static constexpr uint8_t ESP_USB_HOST_MIDI_MAX_CABLES = 16;
+
+// Class-specific descriptor type (CS_ENDPOINT) and the MS_GENERAL subtype that
+// the MIDI Streaming class document gives the descriptor following a bulk
+// endpoint.
+static constexpr uint8_t ESP_USB_HOST_MIDI_CS_ENDPOINT = 0x25;
+static constexpr uint8_t ESP_USB_HOST_MIDI_MS_GENERAL = 0x01;
+
+// Cable configuration of a device's MIDI Streaming interface, filled in from the
+// descriptors at enumeration so the count is known before any traffic arrives.
+//
+// The two counts are directions as the host sees them: inCableCount is device to
+// host, outCableCount is host to device. Beware that the class document names
+// the jacks the other way round, see espUsbHostMidiEndpointCableCount().
+struct EspUsbHostMidiPortInfo
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t inCableCount = 0;
+  uint8_t outCableCount = 0;
+};
+
+// Number of cables carried by a MIDI Streaming bulk endpoint, decoded from the
+// class-specific endpoint descriptor that follows it:
+//
+//   bLength, CS_ENDPOINT, MS_GENERAL, bNumEmbMIDIJack, baAssocJackID[]
+//
+// A cable number is an index into baAssocJackID, so the cables of an endpoint are
+// numbered 0 .. bNumEmbMIDIJack - 1, matching EspUsbHostMidiMessage::cable.
+//
+// The embedded jacks listed here are named from the device's point of view and
+// are therefore the opposite of the endpoint direction: the descriptor on a bulk
+// IN endpoint lists Embedded MIDI OUT Jacks (device to host) and the one on a
+// bulk OUT endpoint lists Embedded MIDI IN Jacks. The direction that matters to a
+// caller is the endpoint's, which is why this helper only returns the count and
+// leaves the naming to the caller.
+//
+// Returns 0 for a descriptor that is not MS_GENERAL, declares more cables than a
+// cable number can address, or is too short to hold the jack IDs it declares.
+inline uint8_t espUsbHostMidiEndpointCableCount(const uint8_t *data)
+{
+  if (!data || data[0] < 4 ||
+      data[1] != ESP_USB_HOST_MIDI_CS_ENDPOINT ||
+      data[2] != ESP_USB_HOST_MIDI_MS_GENERAL)
+  {
+    return 0;
+  }
+  const uint8_t count = data[3];
+  if (count > ESP_USB_HOST_MIDI_MAX_CABLES || data[0] < 4 + count)
+  {
+    return 0;
+  }
+  return count;
+}
+
 struct EspUsbHostAudioData
 {
   uint8_t address = 0;
@@ -1656,6 +1713,16 @@ public:
   void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+
+  // Cable configuration of a connected MIDI device, known from the descriptors
+  // as soon as it enumerates. False when the address has no MIDI Streaming
+  // interface or is not connected.
+  //
+  // Only the first MIDI Streaming interface of a device is tracked, and within
+  // it one bulk endpoint per direction, which is the same interface midiSend()
+  // and the message callbacks work with.
+  bool getMidiPortInfo(EspUsbHostMidiPortInfo &info,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioInputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioInputStart(uint8_t channels,
                        uint8_t bitsPerSample,
@@ -2196,6 +2263,8 @@ private:
     bool hasMidiOutEndpoint = false;
     uint8_t midiOutEndpointAddress = 0;
     uint16_t midiOutPacketSize = 0;
+    uint8_t midiInCableCount = 0;
+    uint8_t midiOutCableCount = 0;
     bool hasAudioInterface = false;
     uint8_t audioInterfaceNumber = 0;
     bool hasAudioInEndpoint = false;
@@ -2669,6 +2738,13 @@ private:
   uint8_t currentAudioTerminalLink_ = 0;
   bool currentInterfaceClaimed_ = false;
   esp_err_t currentClaimResult_ = ESP_OK;
+  // Direction of the MIDI Streaming bulk endpoint the scan just passed, so the
+  // class-specific endpoint descriptor that follows can be attributed to it.
+  // ESP_USB_HOST_MIDI_ENDPOINT_NONE while the scan is not directly after one.
+  static constexpr uint8_t ESP_USB_HOST_MIDI_ENDPOINT_NONE = 0;
+  static constexpr uint8_t ESP_USB_HOST_MIDI_ENDPOINT_IN = 1;
+  static constexpr uint8_t ESP_USB_HOST_MIDI_ENDPOINT_OUT = 2;
+  uint8_t currentMidiEndpointDirection_ = ESP_USB_HOST_MIDI_ENDPOINT_NONE;
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;
 

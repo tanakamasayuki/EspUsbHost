@@ -51,6 +51,7 @@ EspUsbHostNetworkFrame	KEYWORD1
 EspUsbHostNetworkConfig	KEYWORD1
 EspUsbHostNetworkStats	KEYWORD1
 EspUsbHostListenerId	KEYWORD1
+EspUsbHostMidiPortInfo	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -74,6 +75,7 @@ addGamepadListener	KEYWORD2
 addDeviceConnectedListener	KEYWORD2
 addDeviceDisconnectedListener	KEYWORD2
 addMidiMessageListener	KEYWORD2
+getMidiPortInfo	KEYWORD2
 removeListener	KEYWORD2
 onHIDInput	KEYWORD2
 onAudioData	KEYWORD2
