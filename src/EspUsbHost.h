@@ -1590,6 +1590,25 @@ public:
                         size_t length = 0,
                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                         uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+  // One EP0 control transfer with a caller-supplied bmRequestType. The two calls
+  // above cover vendor requests addressed to the device; this is the escape hatch
+  // for class or standard requests and for interface or endpoint recipients, which
+  // is what a protocol layered on a non-vendor class needs. USBTMC, for example,
+  // sends its class requests as 0xa1 / 0x21 with wIndex set to the interface, and
+  // clears a halted bulk endpoint with the standard 0x02 / CLEAR_FEATURE.
+  //
+  // The transfer direction comes from bit 7 of requestType; actualLength receives
+  // the bytes received on an IN transfer. Like the calls above it waits for
+  // completion, so it cannot be called from a USB callback.
+  bool vendorControlTransfer(uint8_t requestType,
+                             uint8_t request,
+                             uint16_t value,
+                             uint16_t index,
+                             uint8_t *data = nullptr,
+                             size_t length = 0,
+                             size_t *actualLength = nullptr,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
   bool sendSerial(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;

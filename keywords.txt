@@ -217,6 +217,7 @@ onCcidCardInserted	KEYWORD2
 onCcidCardRemoved	KEYWORD2
 vendorControlIn	KEYWORD2
 vendorControlOut	KEYWORD2
+vendorControlTransfer	KEYWORD2
 setKeyboardLeds	KEYWORD2
 getKeyboardNumLock	KEYWORD2
 getKeyboardCapsLock	KEYWORD2

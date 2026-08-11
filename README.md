@@ -86,6 +86,7 @@ Host/Device loopback tests.
 | USB graphics adapter (DL-1xx bulk protocol) | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayDl1xx`](examples/Vendor/EspUsbHostDisplayDl1xx/) on top of the vendor bulk API — nothing display-specific is in the library. A reference implementation for one chip family at 16 bpp; for other adapters or higher frame rates use a dedicated library such as [Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp) |
 | AX206 USB photo-frame display | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostDisplayAx206`](examples/Vendor/EspUsbHostDisplayAx206/). Verified on an ESP32-S3 at 2 fps: the device takes whole-screen blits only, so every frame is one Bulk-Only Transport transaction carrying 307,200 bytes |
 | USB smart screen (CDC serial protocol) | 📄 Example only, best effort. Implemented in [`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) on top of the CDC serial write queue — nothing display-specific is in the library. Covers the 3.5-inch `USB35INCHIPSV2` panel (`1a86:5722`) at 16 bpp. Indexed with the other display examples in [docs/usb-display.md](docs/usb-display.md) |
+| USBTMC — SCPI test and measurement instruments | 📄 Example only, best effort. Implemented in [`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) on top of the vendor bulk/control API — nothing USBTMC-specific is in the library. The interface class is 0xFE (Application Specific), not vendor-specific; the example lives under `Vendor/` because that is the API it uses. Verified against a KIKUSUI PMX18-5A DC power supply (`0b3e:1029`): class requests, the bulk message layer, and SCPI queries. The USB488 interrupt IN (service requests) is not used |
 | UAC — USB audio input/output | 🔲 Experimental. UAC1 Audio OUT/IN are peer-tested with the standard Arduino `USBAudioCard`, UAC2 with an `EspUsbDevice` peer (descriptors, Clock Source sample rates, Feature Unit mute/volume, and OUT/IN streaming); real USB microphone/audio-interface validation remains |
 | HUB — hub detection, topology info, and port power control | ✅ Basic support implemented. `hub_info` and `hub_power` manual tests pass; change-bit handling, cascaded hubs, and USB 3.x hub compatibility remain ongoing |
 | CDC-NCM / CDC-ECM — USB Ethernet with raw frame access and lwIP netif attach | 🔲 Experimental. Peer-tested against the EspUsbDevice `UsbNetwork` sketch and an AX88179A adapter. Adapters whose network function is not in the default configuration need `setConfigurationSelector()` and two enumeration passes |
@@ -314,6 +315,7 @@ void loop() {
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | Authenticate Android ADB and run one shell stream over the generic vendor-bulk API |
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | Drive a USB graphics adapter (DL-1xx bulk protocol) as a LovyanGFX panel, with LGFXVirtualCanvas for a Full HD surface |
 | [EspUsbHostDisplayAx206](examples/Vendor/EspUsbHostDisplayAx206/) | Drive an AX206 USB photo-frame display (Bulk-Only Transport with vendor commands) as a LovyanGFX panel, streaming a whole frame per transaction with no frame buffer |
+| [EspUsbHostUsbtmcScpi](examples/Vendor/EspUsbHostUsbtmcScpi/) | Talk SCPI to a USBTMC instrument (class 0xFE): class requests on EP0, the bulk message layer, and a KIKUSUI PMX power supply wrapper |
 
 Both USB display examples are indexed together in [docs/usb-display.md](docs/usb-display.md).
 
@@ -637,6 +639,12 @@ bool vendorControlOut(uint8_t request, uint16_t value, uint16_t index,
                       const uint8_t *data = nullptr, size_t length = 0,
                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                       uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
+bool vendorControlTransfer(uint8_t requestType, uint8_t request,
+                          uint16_t value, uint16_t index,
+                          uint8_t *data = nullptr, size_t length = 0,
+                          size_t *actualLength = nullptr,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                          uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
 ```
 
 `vendorOpen()` explicitly claims an interface and starts bulk IN reception. With the default `interfaceNumber` the first vendor-specific (class 0xFF) interface is chosen; naming an interface explicitly claims it whatever its class, for devices whose bulk protocol sits behind some other class code (an AX206 USB display declares 0xDC/0xA0/0xB0, for instance). An interface already claimed by another part of the library is still refused.
@@ -656,7 +664,7 @@ When an interface exposes several bulk endpoints in the same direction, the firs
 
 `vendorWrite()` waits for transfer completion and therefore cannot be called from USB callbacks such as `onDeviceConnected()` or `onVendorData()`; record the send request in the callback and perform it from `loop()`. `vendorRead()` is non-blocking and reads from a 512-byte per-device receive buffer. `onVendorData()` receives the same bulk IN payload as a callback; its data pointer is valid only during the callback.
 
-`vendorControlIn()` uses `bmRequestType = 0xc0`; `vendorControlOut()` uses `bmRequestType = 0x40`.
+`vendorControlIn()` uses `bmRequestType = 0xc0`; `vendorControlOut()` uses `bmRequestType = 0x40`. Both are vendor-type requests addressed to the device. `vendorControlTransfer()` takes the `bmRequestType` as its first argument instead, which is what a protocol layered on a non-vendor class needs: USBTMC sends its class requests as `0xa1` / `0x21` with `wIndex` set to the interface, and a standard request such as `CLEAR_FEATURE(ENDPOINT_HALT)` is `0x02` with `wIndex` set to an endpoint. The direction comes from bit 7 of `requestType`, and `actualLength` receives the bytes received on an IN transfer. Like the two typed calls it waits for completion, so it cannot be called from a USB callback, and it works before `vendorOpen()` because EP0 belongs to the device rather than to the interface. See [`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) for a full protocol built on it.
 
 The asynchronous bulk OUT queue keeps several transfers in flight, so the bus does not go idle between them:
 

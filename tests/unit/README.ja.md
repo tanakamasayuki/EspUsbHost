@@ -42,6 +42,16 @@ uv run --env-file .env pytest unit/
   先頭のゴミバイトを含む)、LovyanGFXのrgb565_2Byte出力をバイトスワップなしで
   USBへ流せる根拠であるRGB565ビッグエンディアンのピクセルバイト列を対象とする。
 
+- `usbtmc`: `examples/Vendor/EspUsbHostUsbtmcScpi` のUSBTMCメッセージ層
+  (`UsbtmcProtocol.hpp`)を検証する。全メッセージが従う4バイト境界、0にならず
+  直前と重複もしないbTag列、リトルエンディアンのTransferSizeとEOM/TermChar属性を
+  含むDEV_DEP_MSG_OUT・REQUEST_DEV_DEP_MSG_INヘッダのバイト単位一致、フィールド
+  レイアウトから独立に組んだヘッダに対する応答解析と、信用せず拒否すべき同期ずれ
+  全パターン(MsgID不一致・bTagInverse不正・bTag 0・読み取り長を超えるTransferSize)、
+  GET_CAPABILITIESのビットフィールド、および実機PMX18-5Aが返すバイト列を
+  USB488フィールドのオフセット回帰(bcdUSB488が12-13を占めるため14/15にある)として
+  対象とする。
+
 - `ccid_atr`: `src/EspUsbHostCcidAtr.h` のCCID ATRパーサを検証する。実機のSony
   RC-S300 + ISO 14443 Aカードで取得したATR(標準・レベル・カード名・宣言された
   プロトコルへの分解)、PC/SC PIX.SSのISO 14443 A/B・ISO 15693・ISO 7816-10メモリ
@@ -91,10 +101,11 @@ uv run --env-file .env pytest unit/
 
 ## 仕組み
 
-`dl1xx`・`ax206`・`felica_idm`のヘッダと`src/EspUsbHostCcidAtr.h`・
+`dl1xx`・`ax206`・`felica_idm`・`usbtmc`のヘッダと`src/EspUsbHostCcidAtr.h`・
 `src/EspUsbHostHidLayout.h`はArduino/USB非依存の純粋なバイト処理なので、
-`test_dl1xx.py`・`test_ax206.py`・`test_felica_idm.py`・`test_ccid_atr.py`・
-`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は不要である。
+`test_dl1xx.py`・`test_ax206.py`・`test_felica_idm.py`・`test_usbtmc.py`・
+`test_ccid_atr.py`・`test_mouse_layout.py`はそのままg++でコンパイルでき、抽出は
+不要である。
 
 `src/EspUsbHost.h`はArduinoとESP USB hostスタックをincludeするため、`audio_uac`は
 必要なaudioの定数・struct・`inline`デコーダを`output/espusbhost_audio_real.h`へ

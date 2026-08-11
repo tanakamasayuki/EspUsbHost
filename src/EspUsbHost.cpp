@@ -716,6 +716,8 @@ static const char *className(uint8_t cls)
     return "CDC Data";
   case 0x0e:
     return "Video";
+  case 0xfe:
+    return "Application Specific"; // USBTMC, DFU, IrDA bridge
   case 0xff:
     return "Vendor";
   default:
@@ -3870,19 +3872,23 @@ uint8_t EspUsbHost::vendorInEndpoint(uint8_t address) const
   return device->usbVendorInEndpointAddress;
 }
 
-bool EspUsbHost::vendorControlIn(uint8_t request,
-                                 uint16_t value,
-                                 uint16_t index,
-                                 uint8_t *data,
-                                 size_t length,
-                                 size_t *actualLength,
-                                 uint8_t address,
-                                 uint32_t timeoutMs)
+bool EspUsbHost::vendorControlTransfer(uint8_t requestType,
+                                      uint8_t request,
+                                      uint16_t value,
+                                      uint16_t index,
+                                      uint8_t *data,
+                                      size_t length,
+                                      size_t *actualLength,
+                                      uint8_t address,
+                                      uint32_t timeoutMs)
 {
   if (length > 0 && !data)
   {
     return false;
   }
+  // EP0 belongs to the device, not to the vendor interface, so a control request
+  // is allowed before vendorOpen(). Prefer the vendor device so that
+  // ESP_USB_HOST_ANY_ADDRESS keeps picking the interface the caller opened.
   DeviceState *device = findUsbVendorDevice(address);
   if (!device)
   {
@@ -3892,7 +3898,19 @@ bool EspUsbHost::vendorControlIn(uint8_t request,
   {
     return false;
   }
-  return submitVendorControl(*device, VENDOR_IN_REQUEST_TYPE, request, value, index, data, length, actualLength, timeoutMs);
+  return submitVendorControl(*device, requestType, request, value, index, data, length, actualLength, timeoutMs);
+}
+
+bool EspUsbHost::vendorControlIn(uint8_t request,
+                                 uint16_t value,
+                                 uint16_t index,
+                                 uint8_t *data,
+                                 size_t length,
+                                 size_t *actualLength,
+                                 uint8_t address,
+                                 uint32_t timeoutMs)
+{
+  return vendorControlTransfer(VENDOR_IN_REQUEST_TYPE, request, value, index, data, length, actualLength, address, timeoutMs);
 }
 
 bool EspUsbHost::vendorControlOut(uint8_t request,
@@ -3903,28 +3921,15 @@ bool EspUsbHost::vendorControlOut(uint8_t request,
                                   uint8_t address,
                                   uint32_t timeoutMs)
 {
-  if (length > 0 && !data)
-  {
-    return false;
-  }
-  DeviceState *device = findUsbVendorDevice(address);
-  if (!device)
-  {
-    device = findDevice(address);
-  }
-  if (!device || !device->handle)
-  {
-    return false;
-  }
-  return submitVendorControl(*device,
-                             VENDOR_OUT_REQUEST_TYPE,
-                             request,
-                             value,
-                             index,
-                             const_cast<uint8_t *>(data),
-                             length,
-                             nullptr,
-                             timeoutMs);
+  return vendorControlTransfer(VENDOR_OUT_REQUEST_TYPE,
+                               request,
+                               value,
+                               index,
+                               const_cast<uint8_t *>(data),
+                               length,
+                               nullptr,
+                               address,
+                               timeoutMs);
 }
 
 namespace
