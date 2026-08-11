@@ -786,6 +786,8 @@ void onMidiMessage(MidiCallback callback);   // 受信
 EspUsbHostListenerId addMidiMessageListener(MidiCallback callback);
 
 bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getMidiPortInfo(EspUsbHostMidiPortInfo &info,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool midiSend(const uint8_t *data, size_t length,
               uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity,
@@ -809,6 +811,30 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 ```
 
 `onMidiMessage`コールバックは`const EspUsbHostMidiMessage &message`を受け取ります。フィールド：`cable`、`codeIndex`、`status`、`data1`、`data2`。
+
+`getMidiPortInfo()`は機器が持つcable（仮想MIDIポート）の本数を返します。descriptorから
+enumeration時に読むため、受信メッセージの`cable`から事後的に推測するのではなく、
+最初のメッセージが届く前に本数が分かります。
+
+```cpp
+struct EspUsbHostMidiPortInfo
+{
+  uint8_t address;
+  uint8_t interfaceNumber;
+  uint8_t inCableCount;   // 機器 → ホスト
+  uint8_t outCableCount;  // ホスト → 機器
+};
+```
+
+本数はホストから見た方向で、それぞれ自分のbulk endpointに付く
+class-specific descriptorから個別に読むため、2つの方向で値が異なることがあります。
+cable番号は各方向で`0 .. count - 1`、`EspUsbHostMidiMessage::cable`と同じ基準です。
+`midiSend()`は生バイト送信なので、送信パケットのcableは呼び出し側がheaderのnibbleに
+立てます。0はその方向のdescriptorが無いか読めなかったことを意味します。
+
+追跡するのは機器の最初のMIDI Streamingインターフェースと、その中の方向ごとに1本の
+bulk endpointだけです（送信APIと受信コールバックが使うものと同じ）。cable名
+（`iJack`文字列）は読みません。
 
 `addMidiMessageListener()`は[HID入力](#hid入力)のlistenerと同じ契約で受信先を追加し、上限は
 `ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`を共有します。1回のbulk転送は複数の4 byteパケットを

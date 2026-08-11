@@ -6,6 +6,19 @@ def test_usb_midi_device_to_host(dut, peers):
     dut.expect_exact("MIDI_RX cable=0 cin=09 status=90 data1=64 data2=110")
 
 
+def test_usb_midi_port_info(dut, peers):
+    # The cable configuration comes from the descriptors, so it is available
+    # without any traffic having been exchanged. The peer's USBMIDI interface is
+    # the single-cable default: one embedded jack on each bulk endpoint.
+    #
+    # A multi-cable peer needs EspUsbDevice to emit more than one embedded jack;
+    # until then this covers the one-cable case only.
+    assert peers  # the peer must be attached for the host to have a MIDI device
+
+    dut.write("i")
+    dut.expect_exact("MIDI_PORT_INFO ok=1 in=1 out=1")
+
+
 def test_usb_midi_host_to_device(dut, peers):
     device = peers["device"]
 

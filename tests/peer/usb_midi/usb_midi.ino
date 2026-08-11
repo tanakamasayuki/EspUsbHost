@@ -127,6 +127,18 @@ void loop()
             const uint8_t sysex[] = {0xf0, 0x7d, 0x01, 0x02, 0xf7};
             Serial.printf("MIDI_TX_SYSEX %u\n", usb.midiSendSysEx(sysex, sizeof(sysex)) ? 1 : 0);
         }
+        else if (command == 'i')
+        {
+            EspUsbHostMidiPortInfo info;
+            const bool ok = usb.getMidiPortInfo(info);
+            // The interface number is last so a test can match the cable counts
+            // without pinning the peer's interface layout.
+            Serial.printf("MIDI_PORT_INFO ok=%u in=%u out=%u iface=%u\n",
+                          ok ? 1 : 0,
+                          info.inCableCount,
+                          info.outCableCount,
+                          info.interfaceNumber);
+        }
         else if (command == 'l')
         {
             clearMidiListenerTest();

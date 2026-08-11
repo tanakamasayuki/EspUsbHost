@@ -31,6 +31,9 @@ static constexpr uint8_t USB_CLASS_MASS_STORAGE_VALUE = 0x08;
 static constexpr uint8_t USB_CLASS_VENDOR_VALUE = 0xff;
 static constexpr uint8_t USB_CLASS_CCID_VALUE = 0x0b;
 static constexpr uint8_t USB_CS_INTERFACE_DESC = 0x24;
+// Aliased rather than repeated: the MIDI cable decoder in the header validates
+// the same descriptor type, and the two must not drift apart.
+static constexpr uint8_t USB_CS_ENDPOINT_DESC = ESP_USB_HOST_MIDI_CS_ENDPOINT;
 static constexpr uint8_t USB_CDC_SUBCLASS_ECM = 0x06;
 static constexpr uint8_t USB_CDC_SUBCLASS_NCM = 0x0d;
 static constexpr uint8_t USB_CDC_SUBCLASS_ACM = 0x02;
@@ -4572,6 +4575,21 @@ bool EspUsbHost::midiReady(uint8_t address) const
   return findMidiDevice(address) != nullptr;
 }
 
+bool EspUsbHost::getMidiPortInfo(EspUsbHostMidiPortInfo &info, uint8_t address) const
+{
+  const DeviceState *device = findMidiDevice(address);
+  if (!device)
+  {
+    return false;
+  }
+  info = EspUsbHostMidiPortInfo();
+  info.address = device->info.address;
+  info.interfaceNumber = device->midiInterfaceNumber;
+  info.inCableCount = device->midiInCableCount;
+  info.outCableCount = device->midiOutCableCount;
+  return true;
+}
+
 bool EspUsbHost::audioInputReady(uint8_t address) const
 {
   return findAudioInputDevice(address) != nullptr;
@@ -7823,6 +7841,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     currentAudioSampleRateMax_ = 0;
     currentAudioSampleRateResolution_ = 0;
     currentAudioTerminalLink_ = 0;
+    currentMidiEndpointDirection_ = ESP_USB_HOST_MIDI_ENDPOINT_NONE;
     if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
         currentInterfaceProtocol_ == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
     {
@@ -8009,6 +8028,37 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     break;
   }
 
+  case USB_CS_ENDPOINT_DESC:
+  {
+    if (currentMidiEndpointDirection_ == ESP_USB_HOST_MIDI_ENDPOINT_NONE)
+    {
+      break;
+    }
+    const bool isIn = currentMidiEndpointDirection_ == ESP_USB_HOST_MIDI_ENDPOINT_IN;
+    const uint8_t cables = espUsbHostMidiEndpointCableCount(data);
+    if (cables == 0)
+    {
+      ESP_LOGW(TAG, "USB MIDI %s endpoint has no usable MS_GENERAL descriptor: iface=%u length=%u",
+               isIn ? "IN" : "OUT",
+               currentInterfaceNumber_,
+               data[0]);
+      break;
+    }
+    if (isIn)
+    {
+      device->midiInCableCount = cables;
+    }
+    else
+    {
+      device->midiOutCableCount = cables;
+    }
+    ESP_LOGI(TAG, "USB MIDI %s cables: iface=%u count=%u",
+             isIn ? "IN" : "OUT",
+             currentInterfaceNumber_,
+             cables);
+    break;
+  }
+
   case USB_ENDPOINT_DESC:
   {
     const usb_ep_desc_t *ep = reinterpret_cast<const usb_ep_desc_t *>(data);
@@ -8022,6 +8072,10 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       info.interval = ep->bInterval;
     }
     const bool isIn = (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) != 0;
+    // Only the descriptor immediately after a MIDI Streaming bulk endpoint may
+    // claim its cables, so clear the latch before any of the branches below can
+    // return.
+    currentMidiEndpointDirection_ = ESP_USB_HOST_MIDI_ENDPOINT_NONE;
     const bool isInterrupt = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_INT;
     const bool isBulk = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK;
     const bool isIsochronous = (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_ISOC;
@@ -8122,6 +8176,8 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_MIDI_STREAMING &&
         isBulk)
     {
+      currentMidiEndpointDirection_ = isIn ? ESP_USB_HOST_MIDI_ENDPOINT_IN
+                                           : ESP_USB_HOST_MIDI_ENDPOINT_OUT;
       if (!isIn)
       {
         device->hasMidiOutEndpoint = true;

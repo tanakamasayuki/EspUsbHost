@@ -820,6 +820,8 @@ void onMidiMessage(MidiCallback callback);   // receive
 EspUsbHostListenerId addMidiMessageListener(MidiCallback callback);
 
 bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getMidiPortInfo(EspUsbHostMidiPortInfo &info,
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 bool midiSend(const uint8_t *data, size_t length,
               uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 bool midiSendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity,
@@ -843,6 +845,32 @@ bool midiSendSysEx(const uint8_t *data, size_t length,
 ```
 
 `onMidiMessage` callback receives `const EspUsbHostMidiMessage &message` with fields `cable`, `codeIndex`, `status`, `data1`, `data2`.
+
+`getMidiPortInfo()` reports how many cables (virtual MIDI ports) the device
+carries, read from the descriptors at enumeration, so the count is known before
+any message arrives rather than being inferred from the `cable` of a received
+one.
+
+```cpp
+struct EspUsbHostMidiPortInfo
+{
+  uint8_t address;
+  uint8_t interfaceNumber;
+  uint8_t inCableCount;   // device to host
+  uint8_t outCableCount;  // host to device
+};
+```
+
+The counts are directions as the host sees them, and each is decoded from the
+class-specific descriptor on its own bulk endpoint, so a device may report
+different numbers for the two. Cable numbers run `0 .. count - 1` in each
+direction and match `EspUsbHostMidiMessage::cable`; `midiSend()` takes raw bytes,
+so the cable of an outgoing packet goes in the header nibble the caller writes.
+A count of 0 means the descriptor for that direction is missing or unusable.
+
+Only the first MIDI Streaming interface of a device is tracked, and within it one
+bulk endpoint per direction — the same interface the send helpers and message
+callbacks use. Cable names (the `iJack` strings) are not read.
 
 `addMidiMessageListener()` registers an additional receiver under the same
 contract as the [HID input](#hid-input) listeners, sharing
