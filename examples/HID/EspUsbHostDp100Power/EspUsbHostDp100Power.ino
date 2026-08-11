@@ -6,10 +6,10 @@
 // sends the requests - which is why this example lives under examples/HID/. See
 // README.md.
 //
-// SAFETY: as shipped this sketch only reads. The setpoint frame is implemented but
-// not confirmed against hardware, so it stays behind APPLY_SETPOINT, which is
-// false by default. Do not enable it with anything connected to the output
-// terminals.
+// SAFETY: as shipped this sketch only reads. Writing a setpoint works and is
+// verified, but it changes what a bench supply is doing, so it stays behind
+// APPLY_SETPOINT and the output enable behind TURN_OUTPUT_ON - both false by
+// default. Know what is connected to the output terminals before enabling either.
 
 #include "EspUsbHost.h"
 #include "Dp100Power.hpp"
@@ -17,9 +17,11 @@
 EspUsbHost usb;
 dp100::Dp100Power supply(usb);
 
-// Leave false unless you are deliberately testing the unverified write path with
-// the output terminals disconnected.
+// Set to true to write the setpoint below. TURN_OUTPUT_ON additionally switches the
+// output on, which is a physical change: leave it false until you know the output
+// terminals are safe to energise.
 static constexpr bool APPLY_SETPOINT = false;
+static constexpr bool TURN_OUTPUT_ON = false;
 static constexpr float SET_VOLTAGE = 5.0f;
 static constexpr float SET_CURRENT = 0.5f;
 
@@ -87,14 +89,35 @@ static bool connect()
                 supply.outputMode(),
                 supply.workStatus());
 
+  // What the supply is set to do, which is not the same as what it is doing.
+  dp100::BasicSet setpoint;
+  if (supply.readSetpoint(setpoint))
+  {
+    Serial.printf("setpoint index=%u output=%s %umV %umA ovp=%umV ocp=%umA\n",
+                  setpoint.index,
+                  setpoint.state == dp100::STATE_OUTPUT_ON ? "on" : "off",
+                  setpoint.voltageMillivolts,
+                  setpoint.currentMilliamps,
+                  setpoint.overVoltageMillivolts,
+                  setpoint.overCurrentMilliamps);
+  }
+
   if (APPLY_SETPOINT)
   {
-    // Unverified path. A failure here means the request form is not confirmed,
-    // not that the supply is broken.
-    Serial.printf("applying %.3fV %.3fA (unverified path)\n", SET_VOLTAGE, SET_CURRENT);
-    if (!supply.apply(SET_VOLTAGE, SET_CURRENT, false))
+    Serial.printf("applying %.3fV %.3fA output=%s\n",
+                  SET_VOLTAGE, SET_CURRENT, TURN_OUTPUT_ON ? "on" : "off");
+    if (!supply.apply(SET_VOLTAGE, SET_CURRENT, TURN_OUTPUT_ON))
     {
-      Serial.println("BASIC_SET was refused or went unanswered");
+      Serial.println("BASIC_SET failed");
+    }
+    else if (supply.readSetpoint(setpoint))
+    {
+      // The device answers a write it ignores with success too, so the readback is
+      // what proves the setpoint took.
+      Serial.printf("setpoint readback %umV %umA output=%s\n",
+                    setpoint.voltageMillivolts,
+                    setpoint.currentMilliamps,
+                    setpoint.state == dp100::STATE_OUTPUT_ON ? "on" : "off");
     }
   }
 

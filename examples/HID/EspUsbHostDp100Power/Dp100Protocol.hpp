@@ -135,12 +135,29 @@ inline bool decodeResponse(const uint8_t *report, size_t reportLength, Response 
   return true;
 }
 
-// The device answers a frame it did not accept with the opcode echoed and a
-// single 0x00 data byte - observed for every wrong CRC variant. It is a refusal,
-// not a payload, so a caller that gets one should not read fields out of it.
-inline bool isRefusal(const Response &response)
+// A one-byte body is a status code rather than a payload: 0x01 is success (what an
+// accepted BASIC_SET answers with) and 0x00 is failure (what every wrong CRC
+// variant answered with). Anything else is unknown and treated as failure.
+static constexpr uint8_t STATUS_OK = 0x01;
+static constexpr uint8_t STATUS_FAIL = 0x00;
+
+inline bool isStatus(const Response &response)
 {
-  return response.length == 1 && response.data && response.data[0] == 0x00;
+  return response.length == 1 && response.data != nullptr;
+}
+
+// True when the response is a status body reporting success.
+inline bool isSuccess(const Response &response)
+{
+  return isStatus(response) && response.data[0] == STATUS_OK;
+}
+
+// True when the device answered but said no. A malformed frame - a wrong CRC, for
+// instance - comes back this way rather than as silence, so it is worth telling
+// apart from a timeout.
+inline bool isFailure(const Response &response)
+{
+  return isStatus(response) && response.data[0] != STATUS_OK;
 }
 
 // DEVICE_INFO (0x10), 40 bytes.
@@ -228,20 +245,24 @@ inline bool decodeBasicInfo(const Response &response, BasicInfo &info)
 
 // BASIC_SET (0x35), 10 bytes: the setpoints and the output enable.
 //
-// UNVERIFIED. The read side of this opcode was not probed, because a wrong guess
-// at its request form can switch a bench supply's output on. The layout below is
-// what the public reverse-engineering projects describe; the field offsets are
-// not confirmed by this project's own measurement, unlike everything above.
+// The index carries a flag that says what the frame is for, and getting it wrong
+// is silent: a write to a bare index is answered with STATUS_OK and then ignored.
+// Both flags were established by measurement (tests/probe/dp100).
 static constexpr size_t BASIC_SET_SIZE = 10;
+static constexpr uint8_t INDEX_WRITE_FLAG = 0x20; // set a value
+static constexpr uint8_t INDEX_READ_FLAG = 0x80;  // read the live value back
 
-// state flags, per the same unverified source: bit 7 marks the setting active,
-// and 0xa0 activates it after the change.
-static constexpr uint8_t SET_STATE_ACTIVE = 0x80;
-static constexpr uint8_t SET_STATE_ACTIVATE = 0xa0;
+// The state byte is the output enable, measured: 1 put 5.000 V on the terminals,
+// 0 took it back to 0.
+static constexpr uint8_t STATE_OUTPUT_OFF = 0x00;
+static constexpr uint8_t STATE_OUTPUT_ON = 0x01;
 
 struct BasicSet
 {
+  // The bare group index, without a flag: encodeBasicSet() adds the write flag and
+  // encodeBasicSetRead() the read flag.
   uint8_t index = 0;
+  // Output enable on a write; on a read, what the supply is set to do.
   uint8_t state = 0;
   uint16_t voltageMillivolts = 0;
   uint16_t currentMilliamps = 0;
@@ -249,10 +270,18 @@ struct BasicSet
   uint16_t overCurrentMilliamps = 0;
 };
 
+// Reads one setpoint. The bare index answers too, but it reports the stored preset
+// rather than the live value, so the read flag is what a caller wants.
+inline size_t encodeBasicSetRead(uint8_t *out, size_t capacity, uint8_t index)
+{
+  const uint8_t data[1] = {static_cast<uint8_t>(index | INDEX_READ_FLAG)};
+  return encodeRequest(out, capacity, OP_BASIC_SET, data, sizeof(data));
+}
+
 inline size_t encodeBasicSet(uint8_t *out, size_t capacity, const BasicSet &set)
 {
   uint8_t data[BASIC_SET_SIZE] = {};
-  data[0] = set.index;
+  data[0] = static_cast<uint8_t>(set.index | INDEX_WRITE_FLAG);
   data[1] = set.state;
   data[2] = static_cast<uint8_t>(set.voltageMillivolts & 0xff);
   data[3] = static_cast<uint8_t>(set.voltageMillivolts >> 8);
@@ -272,6 +301,7 @@ inline bool decodeBasicSet(const Response &response, BasicSet &set)
     return false;
   }
   const uint8_t *data = response.data;
+  // The device echoes the bare index, without the flag the request carried.
   set.index = data[0];
   set.state = data[1];
   set.voltageMillivolts = readUint16Le(data + 2);

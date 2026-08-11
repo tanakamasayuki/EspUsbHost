@@ -3,20 +3,20 @@
 English: [README.md](README.md)
 
 ALIENTEK（正点原子）の数控電源 DP100（`ATK-MDP100`、`2e3c:af01`）を USB 経由で
-読み取る例。機器情報、入力電圧、出力電圧・電流、温度を取得する。
+操作する例。機器情報・入力電圧・出力電圧電流・温度の読み取りと、電圧・電流制限・
+出力 ON/OFF の設定を行う。
 
-> **状態: 読み取りは動作確認済み（ESP32-S3）。** 以下の全フィールドは
-> `tests/probe/dp100` で実機から実測し、`tests/manual/dp100` で検証している。
+> **状態: 動作確認済み（ESP32-S3）。** 以下の全フィールドとフラグは
+> `tests/probe/dp100` で実機から実測し、`tests/manual/dp100`（読み取り）と
+> `tests/manual/dp100_output`（設定値と出力 ON/OFF）で検証している。
 > 実測ログは [実測結果](#実測結果) にある。
-> **設定書き込みフレームは実装済みだが未検証** —
-> [書き込み側（未検証）](#書き込み側未検証) を参照。
 
 | ファイル | 内容 |
 |---|---|
 | `Dp100Protocol.hpp` | ワイヤフォーマット。64 バイトのレポートフレーム、CRC-16/MODBUS、読み取り payload。Arduino / USB 依存なし |
 | `Dp100Device.hpp` | HID interface の検出、interrupt OUT への要求送信、interrupt IN で返るレポートとの対応付け |
-| `Dp100Power.hpp` | 意味づけ層。ボルト・アンペア・摂氏 |
-| `EspUsbHostDp100Power.ino` | 接続 → 機器情報表示 → 実測値の定期取得 |
+| `Dp100Power.hpp` | 意味づけ層。ボルト・アンペア・摂氏と設定系 API |
+| `EspUsbHostDp100Power.ino` | 接続 → 機器情報と設定値の表示 → 実測値の定期取得 |
 
 ## なぜ `examples/HID/` にあるのか
 
@@ -73,10 +73,11 @@ usb.onHIDInput([](const EspUsbHostHIDInput &input) { /* input.data をラッチ 
 fb 10 00 00 <crc lo> <crc hi> 00 00 ... 00
 ```
 
-**拒否されたフレームは無視ではなく応答が返る。** OpCode がエコーされ、本体は
-1 バイトの `0x00` になる。同じ要求を誤った CRC 3 種で送ったところ、3 つとも
-`fa 10 00 01 00` が返ったことで確定した。`isRefusal()` がこれを判定し、拒否応答を
-payload として読まないようにしている。
+**1 バイトの本体は payload ではなくステータスコード。** `0x01` が成功、`0x00` が
+失敗である。同じ要求を誤った CRC 3 種で送ったところ 3 つとも `fa 10 00 01 00` が
+返り、後に受理された `BASIC_SET` が `fa 35 00 01 01` を返したことで確定した。
+`isSuccess()` / `isFailure()` で判別し、ステータスを payload として読まないように
+している。
 
 ### OpCode
 
@@ -84,7 +85,7 @@ payload として読まないようにしている。
 |---|---|---|
 | 0x10 | DEVICE_INFO | 使用 |
 | 0x30 | BASIC_INFO | 使用 |
-| 0x35 | BASIC_SET | 実装済み・未検証 |
+| 0x35 | BASIC_SET | 使用（設定値と出力 ON/OFF） |
 | 0x40 | SYSTEM_INFO | 使用（生バイト） |
 | 0x45 | SYSTEM_SET | 未使用 |
 | 0x50 / 0x55 | SCAN_OUT / SERIAL_OUT | 未使用 |
@@ -144,6 +145,23 @@ interleaved reads done
 50 回の連続読み出しと、`DEVICE_INFO` / `BASIC_INFO` を交互に 5 ラウンド行って、
 拒否 0・フレームの取り違え 0 で完走している。
 
+`tests/manual/dp100_output`（出力端子に何も接続しない状態）:
+
+```
+original setpoint index=0 state=0x00 4000mV 3000mA ovp=30500mV ocp=5050mA
+before: out 0.000V 0.000A
+after write: setpoint 5000mV 500mA state=0x00
+after setpoint write: out 0.000V 0.000A
+output on: out 4.998V 0.000A mode=1 status=0
+output off: out 0.000V 0.000A
+restored: 4000mV 3000mA state=0x00
+final: out 0.000V 0.000A
+refusals=0 received=15
+```
+
+設定値の書き込みは出力を触らず、`state` バイトが出力を切り替える。4.998V は
+電源自身が自分の端子を測った値で、**書き込みが効いたことの唯一の証拠**である。
+
 参考として descriptor（`tests/manual/device_dump`）:
 
 ```
@@ -154,17 +172,38 @@ Strings manufacturer="ALIENTEK" product="ATK-MDP100" serial="16A1C1C74000"
     Endpoint iface=0 ep=0x01 dir=OUT type=interrupt max_packet=64 interval=1
 ```
 
-## 書き込み側（未検証）
+## 書き込み側
 
 `BASIC_SET (0x35)` は電圧・電流の設定値、保護しきい値、**そして出力の ON/OFF を
-1 フレームに載せている**。当てずっぽうで撃つと電源の出力が入りかねないので、
-`tests/probe/dp100` はこれを送らず、`tests/manual/dp100` も一切触らない。
-`Dp100Protocol.hpp` のレイアウトは公開されているリバースエンジニアリング実装の
-記述に基づくもので、上記のフィールドと違い**本プロジェクトの実測では確認していない**。
+1 フレームに載せている**。だから 1 項目だけ変えたい場合も「読んで、直して、書き戻す」
+必要があり、`Dp100Power::setVoltage()` などはそうしている。
 
-スケッチでは `APPLY_SETPOINT`（既定 `false`）の後ろに置いてある。有効にする前に、
-出力端子から負荷を外し、値を低く設定し、呼び出しごとに前面パネルを確認すること。
-失敗した場合は「要求の形が未確定」であって「電源が壊れている」わけではない。
+| offset | フィールド |
+|---|---|
+| 0 | index（**フラグ付き**） |
+| 1 | state — 出力 ON/OFF: 1 で ON、0 で OFF |
+| 2 | 電圧設定値 mV |
+| 4 | 電流設定値 mA |
+| 6 | 過電圧しきい値 mV |
+| 8 | 過電流しきい値 mA |
+
+**index のフラグが最大の勘所で、間違えても何も言われない。**
+
+- 読み出しは `index | 0x80`
+- 書き込みは `index | 0x20`
+
+素の index や `index | 0x80`、`| 0xa0` への書き込みは**成功ステータスを返した上で
+完全に無視される**。応答から区別する手段は無い。だから `Dp100Device` はステータスを
+信用せず読み戻し、manual テストは各段を `BASIC_INFO` で確認している。実機で index と
+state を 3 巡スイープしても何も起きず、`0x20` を試して初めて動いた。
+
+index はプリセット群で、index 0 が電源が実際に使う設定。この DP100 の初期値は
+0 = 4.000V / 3.000A、1 = 2.000V / 1.000A、2 = 3.000V / 1.500A、3 = 4.000V / 2.000A、
+いずれも OVP 30.5V / OCP 5.05A だった。
+
+スケッチでは書き込みが `APPLY_SETPOINT`、出力 ON が `TURN_OUTPUT_ON` の後ろにあり、
+どちらも既定 `false`。電源に対する物理的な操作なので、出力端子に何が繋がっているかを
+先に確認すること。
 
 ## 他デバイスへの流用
 
@@ -183,7 +222,7 @@ Windows 用 DLL `ATK-DP100DLL` だけ）。したがって **この実装の参�
 | 参照元 | ライセンス | 扱い |
 |---|---|---|
 | [ElluIFX/DP100-PyQt5-GUI](https://github.com/ElluIFX/DP100-PyQt5-GUI) | Unlicense | 参照した |
-| [scottbez1/webdp100](https://github.com/scottbez1/webdp100) | Apache-2.0 | 参照した |
+| [scottbez1/webdp100](https://github.com/scottbez1/webdp100) | Apache-2.0 | 参照した。`0x20` の書き込みフラグはここで判明した（実機で index / state をスイープしても分からなかった）。このビットの意味が不明という点も同じ |
 | [lessu/open_dp100](https://github.com/lessu/open_dp100) | LICENSE ファイルなし | 裏取りにのみ使用。転記はしていない |
 | [weigu1/dp100_manipulator](https://github.com/weigu1/dp100_manipulator) | GPL-3.0 | **参照していない** |
 | ALIENTEK の Windows DLL | プロプライエタリ | **逆解析していない** |

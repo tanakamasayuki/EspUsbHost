@@ -59,19 +59,22 @@ public:
   uint8_t workStatus() const { return basic_.workStatus; }
 
   // ---------------------------------------------------------------------------
-  // Write side. UNVERIFIED.
+  // Write side. Confirmed on hardware (tests/probe/dp100, tests/manual/dp100_output):
+  // a write goes to the group index with the write flag added, and the state byte is
+  // the output enable - state 1 put 5.000 V on the terminals, state 0 took it back
+  // to 0. A write to a bare index is answered with success and then ignored, which
+  // is why the flag lives in the encoder rather than in a caller's hands.
   //
-  // BASIC_SET carries the setpoints and the output enable in one frame, so
-  // probing it blind can switch a bench supply's output on. tests/probe/dp100
-  // therefore stops short of it and tests/manual/dp100 never calls it. The frame
-  // layout below is what the public reverse-engineering projects describe; it is
-  // not confirmed by this project's own measurement.
-  //
-  // Before using these on your own bench: disconnect whatever is on the output
-  // terminals, keep the values low, and check the front panel after each call.
+  // These change what a bench supply is doing. Know what is connected to the output
+  // terminals before calling them.
   // ---------------------------------------------------------------------------
 
-  // Applies a full setpoint. The other calls are conveniences over this one.
+  // Reads the setpoint the supply runs from (index 0), or one of its stored presets.
+  bool readSetpoint(BasicSet &set, uint8_t index = 0) { return device_.readBasicSet(set, index); }
+
+  // Applies voltage, current and the output state in one frame - the only form the
+  // device offers, so a caller that wants to change one of them reads the setpoint
+  // first. The protection thresholds are carried through unchanged.
   bool apply(float volts, float amps, bool outputOn, uint8_t index = 0)
   {
     if (volts < 0.0f || volts > MAX_VOLTAGE || amps < 0.0f || amps > MAX_CURRENT)
@@ -79,21 +82,53 @@ public:
       return false;
     }
     BasicSet set;
-    set.index = index;
-    set.state = outputOn ? SET_STATE_ACTIVATE : SET_STATE_ACTIVE;
-    set.voltageMillivolts = static_cast<uint16_t>(volts * 1000.0f + 0.5f);
-    set.currentMilliamps = static_cast<uint16_t>(amps * 1000.0f + 0.5f);
-    // Protection thresholds a little above the setpoint, so a setpoint change does
-    // not trip the supply on its own.
-    set.overVoltageMillivolts = static_cast<uint16_t>(set.voltageMillivolts + 500);
-    set.overCurrentMilliamps = static_cast<uint16_t>(set.currentMilliamps + 100);
-
-    Response response;
-    if (!device_.writeBasicSet(set, response))
+    if (!device_.readBasicSet(set, index))
     {
       return false;
     }
-    return !isRefusal(response);
+    set.index = index;
+    set.state = outputOn ? STATE_OUTPUT_ON : STATE_OUTPUT_OFF;
+    set.voltageMillivolts = static_cast<uint16_t>(volts * 1000.0f + 0.5f);
+    set.currentMilliamps = static_cast<uint16_t>(amps * 1000.0f + 0.5f);
+    return device_.writeBasicSet(set);
+  }
+
+  // Changes the setpoint, leaving the output where it is.
+  bool setVoltage(float volts, uint8_t index = 0)
+  {
+    BasicSet set;
+    if (!device_.readBasicSet(set, index) || volts < 0.0f || volts > MAX_VOLTAGE)
+    {
+      return false;
+    }
+    set.index = index;
+    set.voltageMillivolts = static_cast<uint16_t>(volts * 1000.0f + 0.5f);
+    return device_.writeBasicSet(set);
+  }
+
+  bool setCurrent(float amps, uint8_t index = 0)
+  {
+    BasicSet set;
+    if (!device_.readBasicSet(set, index) || amps < 0.0f || amps > MAX_CURRENT)
+    {
+      return false;
+    }
+    set.index = index;
+    set.currentMilliamps = static_cast<uint16_t>(amps * 1000.0f + 0.5f);
+    return device_.writeBasicSet(set);
+  }
+
+  // Switches the output, keeping the present setpoint.
+  bool setOutput(bool on, uint8_t index = 0)
+  {
+    BasicSet set;
+    if (!device_.readBasicSet(set, index))
+    {
+      return false;
+    }
+    set.index = index;
+    set.state = on ? STATE_OUTPUT_ON : STATE_OUTPUT_OFF;
+    return device_.writeBasicSet(set);
   }
 
   Dp100Device &device() { return device_; }

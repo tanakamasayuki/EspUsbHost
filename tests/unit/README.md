@@ -58,10 +58,11 @@ uv run --env-file .env pytest unit/
   64-byte report stays zero; response decoding against reports captured from a real
   DP100 by `tests/probe/dp100`, together with every case that must be rejected
   rather than trusted (short read, wrong direction byte, bad CRC, corrupted body, a
-  length field past the end of the read); the one-byte 0x00 refusal the device
-  answers a bad frame with; the DEVICE_INFO and BASIC_INFO field offsets and units
-  pinned to those captures; and the BASIC_SET round trip, whose offsets are not
-  hardware-confirmed.
+  length field past the end of the read); the one-byte status body (0x01 success,
+  0x00 failure); the DEVICE_INFO and BASIC_INFO field offsets and units pinned to
+  those captures; and BASIC_SET - the captured setpoint report, the index flags a
+  request needs (0x80 to read, 0x20 to write, a write to a bare index being answered
+  with success and then ignored), and the round trip.
 
 - `usbtmc`: verifies the USBTMC message layer in
   `examples/Vendor/EspUsbHostUsbtmcScpi` (`UsbtmcProtocol.hpp`): the 4-byte

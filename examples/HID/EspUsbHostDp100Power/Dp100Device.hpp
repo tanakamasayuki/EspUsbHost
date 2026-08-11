@@ -131,6 +131,12 @@ public:
       return false;
     }
 
+    return exchange(frame, opcode, response);
+  }
+
+  // Sends a prepared report and waits for the answer to the same opcode.
+  bool exchange(const uint8_t *frame, uint8_t opcode, Response &response)
+  {
     for (uint8_t attempt = 0; attempt < REQUEST_ATTEMPTS; attempt++)
     {
       latched_ = false;
@@ -142,8 +148,10 @@ public:
       {
         continue;
       }
-      if (isRefusal(response))
+      if (isFailure(response))
       {
+        // The device answered but said no, which means the frame was malformed
+        // rather than lost. Worth one retry, then the caller hears about it.
         refusals_++;
         continue;
       }
@@ -185,14 +193,35 @@ public:
     return true;
   }
 
-  // The setpoint frame.
+  // Reads a setpoint back. Index 0 is the group the supply runs from; the higher
+  // indices are its stored presets.
+  bool readBasicSet(BasicSet &set, uint8_t index = 0)
+  {
+    if (!ready())
+    {
+      return false;
+    }
+    uint8_t frame[REPORT_SIZE];
+    if (encodeBasicSetRead(frame, sizeof(frame), index) == 0)
+    {
+      return false;
+    }
+    Response response;
+    if (!exchange(frame, OP_BASIC_SET, response))
+    {
+      return false;
+    }
+    return decodeBasicSet(response, set);
+  }
+
+  // Writes a setpoint and the output enable. `set.index` is the bare group index;
+  // the write flag is added by the encoder.
   //
-  // UNVERIFIED against hardware, unlike everything above: this opcode carries the
-  // output enable, so tests/probe/dp100 deliberately does not send it. Treat a
-  // failure here as "the request form is not confirmed" rather than "the device
-  // is broken", and never call it with a load connected until it has been proven
-  // on your own bench.
-  bool writeBasicSet(const BasicSet &set, Response &response)
+  // The status is checked rather than assumed: a write whose index lacks the write
+  // flag is answered with success and then ignored, so "it returned OK" is not by
+  // itself evidence that anything changed. A caller that needs proof should read
+  // the value back, or read BASIC_INFO for what the output is actually doing.
+  bool writeBasicSet(const BasicSet &set)
   {
     if (!ready())
     {
@@ -203,12 +232,12 @@ public:
     {
       return false;
     }
-    latched_ = false;
-    if (!host_.sendHIDVendorOutput(frame, REPORT_SIZE, address_))
+    Response response;
+    if (!exchange(frame, OP_BASIC_SET, response))
     {
       return false;
     }
-    return waitForOpcode(OP_BASIC_SET, response);
+    return isSuccess(response);
   }
 
   // How many answers were the device's one-byte refusal. A non-zero count with

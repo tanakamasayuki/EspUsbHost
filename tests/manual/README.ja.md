@@ -70,6 +70,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`usb_display_throughput/`](usb_display_throughput/) | 表示経路のチューニング計測。タイル形状、ダブルバッファ、差分転送、auto clear、全画面 vs sprite 再描画、panel直接描画（全クリアのちらつき含む）、シーン内容を振る。exampleのREADMEに書いた指針の出どころ。ターゲットごとに実行する（bus使用率は `--profile` で選ばれた実機の上限に対して計算される） | `usb_display_dl1xx` と同じ。ESP32-P4ではアダプタにセルフパワードハブが必要で、そのハブには他をつながないこと | ✅ |
 | [`usbtmc_scpi/`](usbtmc_scpi/) | USBTMCの通し確認。vendor bulk APIでclass 0xfe / subclass 0x03のinterfaceを検出してclaim、`vendorControlTransfer()` によるEP0のGET_CAPABILITIESとCLEAR、`*IDN?`、設定値の書き込みと読み戻し、実測値、20回連続クエリ、接続中のCLEAR、SCPIエラーキューが空であること。機器の出力はONにしない | 菊水電子工業のPMXシリーズ直流電源（PMX18-5A `0b3e:1029` で開発） | ✅ |
 | [`dp100/`](dp100/) | ALIENTEK DP100電源のHID通信。`onHIDInput()` と `sendHIDVendorOutput()` によるフレーム往復、DEVICE_INFO・BASIC_INFOのフィールドオフセット、mV / 0.1℃スケールを物理的な妥当範囲で検証、50回連続＋5回交互読み出しで拒否0。読み取り専用なので負荷を接続したままでも安全 | ALIENTEK DP100（`2e3c:af01`）をハブを介さず直結 | ✅ |
+| [`dp100_output/`](dp100_output/) | ALIENTEK DP100の書き込み経路。0x20のindexフラグを持つBASIC_SETフレーム、出力ON/OFFとしてのstateバイト、設定値変更で保護しきい値が保たれること。書き込みの応答は信用しない（無視された書き込みにも成功が返る）ので、各段を設定値の読み戻しと出力の実測で確認する。**5.000V / 0.500Aで出力を投入するので、端子に何も接続しない状態で実行する。** 既に出力ONなら開始せず、元の設定値に復元する | ALIENTEK DP100（`2e3c:af01`）を直結、出力端子は未接続 | ✅ |
 | [`device_dump/`](device_dump/) | 全列挙デバイスのdescriptor・interface・endpoint・チャネル集計をダンプし、ライブラリ本体がclaimしないinterface（USBTMC・printer・vendor-specific）についてはラッパーが使うbulk/interrupt endpointも表示する。未対応デバイスの素性調査用 | 任意のUSBデバイス | ✅ |
 
 ## ESP32-S3 の HCD チャネル制限
