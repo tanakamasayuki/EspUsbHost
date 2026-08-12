@@ -34,7 +34,7 @@ Host 側の未リリース修正を `EspUsbDevice` で先行確認する場合�
 組み合わせを基準にします。
 
 `peer/` で `EspUsbDevice` peer を使うのは、Arduino Core 標準 device stack ではそのデバイスを
-表現できない場合だけです（`usb_vendor`、`usb_ncm`、`hid_keyboard_composite`、
+表現できない場合だけです（`usb_vendor`、`usb_ncm`、`usb_ncm_throughput`、`hid_keyboard_composite`、
 `hid_keyboard_nkro`、`usb_audio_uac2`）。UAC2 はまさにこのケースで、`USBAudioCard` が UAC1 専用の
 ため、Host 側の UAC2 実装が扱う Clock Source entity・4 バイトの Feature Unit control・`RANGE`
 リクエストを Arduino Core からは提示できません。

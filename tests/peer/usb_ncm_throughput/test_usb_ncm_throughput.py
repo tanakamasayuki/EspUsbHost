@@ -95,7 +95,8 @@ def test_usb_ncm_throughput(dut, peers):
     # peer_device/build even after the flags change.
     assert negotiated > 3200, (
         f"peer advertises only {negotiated} bytes (its sketch reports {device_ntb_in}); "
-        "delete tests/peer/usb_ncm_throughput/peer_device/build so build_opt.h takes effect"
+        "re-run with --clean so the peer's build_opt.h takes effect for the cached "
+        "EspUsbDevice build too"
     )
     # A multiple of the bulk IN max packet size (64 on this full-speed peer),
     # because ESP-IDF specifies IN transfer lengths as integer multiples of MPS.

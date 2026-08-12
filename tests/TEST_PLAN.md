@@ -40,7 +40,8 @@ implementation.
 
 A `peer/` test uses an `EspUsbDevice` peer only when the Arduino Core device
 stack cannot express the device at all: `usb_vendor`, `usb_ncm`,
-`hid_keyboard_composite`, `hid_keyboard_nkro`, and `usb_audio_uac2`. UAC2 is such
+`usb_ncm_throughput`, `hid_keyboard_composite`, `hid_keyboard_nkro`, and
+`usb_audio_uac2`. UAC2 is such
 a case because `USBAudioCard` is UAC1 only, so nothing in Arduino Core can
 present the Clock Source entity, the 4-byte Feature Unit controls, or the
 `RANGE` requests that the host's UAC2 path exists to handle.

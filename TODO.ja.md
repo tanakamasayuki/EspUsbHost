@@ -46,7 +46,8 @@ ESP32-P4のFS/HS OTGでHub可否を確認する
 - raw frame API: `onNetworkFrame()` / `networkWriteFrame()` / `networkReadFrame()` / `networkLinkUp()`。
 - lwIP (`esp_netif`) 統合: `networkAttachNetif()` / `networkDetachNetif()` / `networkLocalIP()`、DHCP client / static IP(+DNS)、切断時 detach。
 - host netif MAC は CDC `iMACAddress` を読んでそのまま採用（未提供時はローカル管理MACにフォールバック）。
-- 診断: `networkStats()`。peer test `tests/peer/usb_ncm`（DHCP + HTTP GET）。
+- NTB 入力サイズの交渉: `GET_NTB_PARAMETERS` を読み、`SET_NTB_INPUT_SIZE`（`bmNetworkCapabilities` bit 3）で device を制限、非対応なら device の最大値へバッファを合わせる（上限 `ESP_USB_HOST_NETWORK_NTB_IN_LIMIT`）。決定値は bulk IN の MPS の倍数。
+- 診断: `networkStats()`（`ntbInSize` / `rxOversized` 込み）。peer test `tests/peer/usb_ncm`（DHCP + HTTP GET）と `tests/peer/usb_ncm_throughput`（両方向 soak、複数 datagram を 1 NTB にまとめる device 相手の回帰）。
 
 方針:
 特定VID/PID専用ではなく、CDC-NCM、CDC-ECMの順に標準クラスを優先する。
