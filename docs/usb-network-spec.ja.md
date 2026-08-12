@@ -423,16 +423,32 @@ raw frame API は NCM 経路で先に実装した（peer device が NCM のた�
 実装済み。
 
 - NTH16 / NDP16 の parse（`handleNetworkInput`）と 1 NTB 1 frame の build（`buildNcmFrame`）
-- bulk IN（NTB 受信、`ESP_USB_HOST_NETWORK_NTB_IN_MAX=3200`）/ bulk OUT（同期送信）/ interrupt IN 通知
+- bulk IN（NTB 受信、サイズは device 毎に交渉。既定の希望値が `ESP_USB_HOST_NETWORK_NTB_IN_MAX=3200`）/ bulk OUT（同期送信）/ interrupt IN 通知
 - 通知（NETWORK_CONNECTION / SPEED_CHANGE）による link 状態更新（`networkLinkUp`）
 - 複数 datagram aggregation の受信は NDP chain / datagram table を辿って対応。送信は 1 datagram 固定。
-- GET_NTB_PARAMETERS / SET_NTB_INPUT_SIZE の明示 control request は未送信（TinyUSB 既定の NTB≤3200 前提）。
+- NTB 入力サイズの交渉（`negotiateNetworkNtbInput`、open 時に device 毎）:
+  `GET_NTB_PARAMETERS`(0xA1/0x80) で `dwNtbInMaxSize` / `dwNtbOutMaxSize` を読み、
+  NCM functional descriptor（subtype 0x1a）の `bmNetworkCapabilities` bit 3 が対応を示せば
+  `SET_NTB_INPUT_SIZE`(0x21/0x86) で device 側を希望値まで下げる。非対応なら受信バッファを
+  device の最大値に合わせて確保する（上限 `ESP_USB_HOST_NETWORK_NTB_IN_LIMIT`=16KB、`-D` 可）。
+  決定値は bulk IN の max packet size の倍数へ切り下げる（ESP-IDF は IN 転送長を MPS の整数倍と
+  規定。3200 は 64 の倍数だが 512 の倍数ではないので、High-Speed では 3072 になる）。
+  結果は `EspUsbHostNetworkStats::ntbInSize`、超過で破棄した NTB 数は `rxOversized` で公開。
+
+  この交渉が無いと何が起きるか（実測）: NCM では host が下げない限り `dwNtbInMaxSize` は device 任せで、
+  device は負荷が上がってから複数 datagram を 1 NTB にまとめ始める。固定 3200 バッファを超える NTB を
+  破棄していた版では、8192 を申告する device 相手に device→host が **0.098 Mbps・2.2 秒の TCP ストール**まで
+  落ちた（同じ device を 3200 にすれば 3.20 Mbps）。リンクは up、`txFails` も 0 のままなので原因不明の
+  パケットロスに見える。交渉後は同条件で 3.3〜4.4 Mbps・`rxOversized=0`。回帰は
+  `tests/peer/usb_ncm_throughput` が押さえる（`usb_ncm` は 1 NTB 1 datagram しか作らず検出できない）。
+  未検証: `SET_NTB_INPUT_SIZE` 側の分岐（capability bit 3 を申告する device が手元に無い。
+  EspUsbDevice peer は 0 を申告する）と、High-Speed（ESP32-P4）での MPS 倍数の実機確認。
 
 data interface は CDC-DATA class（0x0a）で CDC-ACM serial と同一のため、`handleTransfer` で network data endpoint を serial より先に分岐する。
 
 実機知見（重要）: ESP32-S3 の Full Speed では、1つの NTB が **bulk IN の複数完了（USB パケット=64B 単位）にまたがって**届く。「1 完了 = 1 NTB」を前提にすると、先頭 64B パケット（NTH を含む）しか見えず datagram が blockLength 外になって全フレームを取りこぼす（`rxNtb>0` だが `rxFrames=0`）。そのため `handleNetworkInput` は device 毎の再アセンブルバッファにチャンクを追記し、`wBlockLength` 分たまってから `parseNetworkNtb` で解析する。ESP-IDF が 1 完了で NTB 全体を返す構成でも同じロジックで動く。
 
-DHCP client 起動順序: netif は `action_start` → `action_connected`（リンク up）→ `dhcpc_start` の順で起動する必要がある（リンク up より先に dhcpc_start すると DISCOVER が送出されない）。診断用に `EspUsbHostNetworkStats` / `networkStats()`（rxNtb/rxFrames/tx/txFail/link）を公開している。
+DHCP client 起動順序: netif は `action_start` → `action_connected`（リンク up）→ `dhcpc_start` の順で起動する必要がある（リンク up より先に dhcpc_start すると DISCOVER が送出されない）。診断用に `EspUsbHostNetworkStats` / `networkStats()`（rxNtb/rxFrames/tx/txFail/rxOversized/ntbInSize/link）を公開している。
 
 ### Phase 4: lwIP netif
 

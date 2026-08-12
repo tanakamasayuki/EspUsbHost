@@ -163,6 +163,11 @@ static constexpr size_t ESP_USB_HOST_NETWORK_NTB_IN_MAX = 3200;
 #ifndef ESP_USB_HOST_NETWORK_NTB_IN_LIMIT
 #define ESP_USB_HOST_NETWORK_NTB_IN_LIMIT 16384
 #endif
+// wBlockLength and the negotiated size are 16-bit, so an override above this
+// would wrap to a tiny (or zero) buffer instead of a large one.
+static_assert(ESP_USB_HOST_NETWORK_NTB_IN_LIMIT > 0 &&
+                  ESP_USB_HOST_NETWORK_NTB_IN_LIMIT <= 0xffff,
+              "ESP_USB_HOST_NETWORK_NTB_IN_LIMIT must fit in a 16-bit NTB length");
 // Per-device raw RX ring for networkReadFrame() (frames stored as [uint16 len][payload]).
 static constexpr size_t ESP_USB_HOST_NETWORK_RX_RING_SIZE = 4096;
 // Largest Ethernet frame we accept/transmit (CDC ECM/NCM wMaxSegmentSize default).

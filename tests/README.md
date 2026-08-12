@@ -56,6 +56,22 @@ uv run --env-file .env pytest peer/hid_logic
 uv run --env-file .env pytest peer/hid_keyboard
 ```
 
+Builds are cached per sketch directory, and that cache is not invalidated by
+everything that should invalidate it. Pass `--clean` (it forwards `--clean` to
+`arduino-cli compile` and removes stale artifacts first) whenever the build
+inputs changed rather than the sources:
+
+```sh
+uv run --env-file .env pytest --clean peer/usb_ncm_throughput
+```
+
+Required after changing compiler flags (a sketch's `build_opt.h`, e.g. the peer
+in `peer/usb_ncm_throughput`), changing a profile in `sketch.yaml`, or upgrading
+the arduino-esp32 core. Without it a run can silently use the previous binary:
+a `build_opt.h` change is picked up for the sketch itself while the cached
+library is reused, so the firmware ends up built from two different
+configurations and the test measures something other than what it claims to.
+
 Test results are saved between runs (`--save-state` is enabled by default). Re-running only failed tests is therefore possible with:
 
 ```sh

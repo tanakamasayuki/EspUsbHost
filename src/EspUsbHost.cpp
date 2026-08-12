@@ -12262,7 +12262,9 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
   // Agree on the device->host NTB size before allocating the buffer it sizes.
   // This runs on ep0, so it does not need the interfaces to be claimed yet, and
   // it precedes the data interface's SET_INTERFACE the same way a Linux host
-  // orders the two.
+  // orders the two. It also waits for control transfer completions, which are
+  // dispatched by the USB client task -- safe only because the sole path here is
+  // networkOpen(), which refuses to run from that task.
   const uint16_t ntbInSize = negotiateNetworkNtbInput(device, network);
 
   // Network receive storage is intentionally lazy: serial/HID/audio-only
