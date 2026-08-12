@@ -1146,6 +1146,23 @@ Arduino-ESP32 core). Without it, `networkAttachNetif()` returns `false` and the
 raw frame API can still be used. Call these APIs from the application task, not
 from a USB callback.
 
+**NTB size negotiation (CDC-NCM).** An NCM device packs Ethernet datagrams into
+NTBs and decides for itself how large those get, up to the `dwNtbInMaxSize` it
+advertises — unless the host lowers it. Since devices only start batching several
+datagrams per NTB once traffic picks up, a receive buffer that is merely "big
+enough for one frame" works in light testing and then loses whole NTBs under
+load, which looks like severe packet loss on an otherwise healthy link. So at
+open time the library reads `GET_NTB_PARAMETERS`, and either caps the device with
+`SET_NTB_INPUT_SIZE` (when `bmNetworkCapabilities` bit 3 says it is supported) or
+sizes its own buffer after the device's maximum, up to
+`ESP_USB_HOST_NETWORK_NTB_IN_LIMIT` (16 KB, overridable with `-D`). The result is
+reported as `EspUsbHostNetworkStats::ntbInSize`; it is always a multiple of the
+bulk IN endpoint's max packet size, because ESP-IDF specifies IN transfer lengths
+as integer multiples of MPS (which is why a high-speed link uses 3072 rather than
+3200). `rxOversized` counts NTBs dropped for exceeding that size: it stays 0
+unless a device sends more than it advertised, and a non-zero value is the thing
+to look at when throughput is poor while `linkUp` and `txFails` look fine.
+
 ### Device discovery
 
 ```cpp

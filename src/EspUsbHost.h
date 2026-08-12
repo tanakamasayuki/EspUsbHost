@@ -144,9 +144,25 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_TERMINALS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
 static constexpr size_t ESP_USB_HOST_MAX_NETWORK_INTERFACES = 4;
-// Bulk-IN NTB receive buffer. Matches TinyUSB's default CFG_TUD_NCM_IN_NTB_MAX_SIZE
-// (3200) so a whole device->host NTB fits in one transfer.
+// Preferred bulk-IN NTB receive buffer. Matches TinyUSB's default
+// CFG_TUD_NCM_IN_NTB_MAX_SIZE (3200) so a whole device->host NTB fits in one
+// transfer. NCM devices may batch several datagrams into one NTB and are
+// entitled to fill their own advertised dwNtbInMaxSize, so the size actually
+// used per device is negotiated at open time (SET_NTB_INPUT_SIZE) and reported
+// as EspUsbHostNetworkStats::ntbInSize -- it is rounded down to a multiple of
+// the endpoint's max packet size, because ESP-IDF wants IN transfer lengths to
+// be an integer multiple of MPS (3200 is 50 x 64 but not a multiple of 512, so
+// a high-speed link lands on 3072).
 static constexpr size_t ESP_USB_HOST_NETWORK_NTB_IN_MAX = 3200;
+// Upper bound on the receive buffer we are willing to allocate for a device
+// that will not accept SET_NTB_INPUT_SIZE. Such a device keeps its own maximum,
+// so the buffer has to follow it or its larger NTBs are unreadable. NCM 1.0
+// caps a 16-bit NTB at 0xffff; this is the practical ceiling we pay DMA memory
+// for. Override with -DESP_USB_HOST_NETWORK_NTB_IN_LIMIT=... if a device needs
+// more.
+#ifndef ESP_USB_HOST_NETWORK_NTB_IN_LIMIT
+#define ESP_USB_HOST_NETWORK_NTB_IN_LIMIT 16384
+#endif
 // Per-device raw RX ring for networkReadFrame() (frames stored as [uint16 len][payload]).
 static constexpr size_t ESP_USB_HOST_NETWORK_RX_RING_SIZE = 4096;
 // Largest Ethernet frame we accept/transmit (CDC ECM/NCM wMaxSegmentSize default).
@@ -314,6 +330,11 @@ struct EspUsbHostNetworkInterfaceInfo
   uint8_t dataInterfaceAlternate = 0;
   uint8_t macAddressStringIndex = 0;
   uint16_t maxSegmentSize = 0;
+  // NCM functional descriptor (bDescriptorSubtype 0x1a): bmNetworkCapabilities.
+  // Bit 3 tells us whether the device implements SET/GET_NTB_INPUT_SIZE, i.e.
+  // whether the host can cap how large a device->host NTB may get.
+  uint8_t networkCapabilities = 0;
+  uint16_t ncmVersion = 0;
   uint8_t notificationEndpoint = 0;
   uint16_t notificationMaxPacketSize = 0;
   uint8_t inEndpoint = 0;
@@ -366,6 +387,12 @@ struct EspUsbHostNetworkStats
   uint32_t rxFrames = 0; // Ethernet datagrams extracted from NTBs
   uint32_t txFrames = 0; // frames sent (NTB built + bulk OUT ok)
   uint32_t txFails = 0;  // frame send failures
+  // NTBs dropped because wBlockLength exceeded ntbInSize. Non-zero means the
+  // device ignored (or never offered) SET_NTB_INPUT_SIZE and is batching beyond
+  // the negotiated maximum: every datagram in such an NTB is lost, which shows
+  // up as heavy TCP retransmission rather than as a link failure.
+  uint32_t rxOversized = 0;
+  uint16_t ntbInSize = 0; // negotiated device->host NTB limit / receive buffer size
 };
 
 struct EspUsbHostVendorInterface
@@ -2392,6 +2419,14 @@ private:
     uint32_t networkRxFrameCount = 0;
     uint32_t networkTxCount = 0;
     uint32_t networkTxFailCount = 0;
+    uint32_t networkRxOversizedCount = 0;
+    // Negotiated device->host NTB limit: the size of networkAsm, the length the
+    // bulk-IN transfer is submitted with, and the value handed to the device via
+    // SET_NTB_INPUT_SIZE. Always a multiple of the IN endpoint's max packet size.
+    uint16_t networkNtbInSize = 0;
+    // dwNtbOutMaxSize from GET_NTB_PARAMETERS: the largest host->device NTB the
+    // device accepts. 0 when the device did not answer the request.
+    uint16_t networkNtbOutMax = 0;
     // Reassembly buffer: a device->host NTB can span several bulk-IN completions
     // (one per USB packet at full speed), so accumulate until wBlockLength bytes.
     uint8_t *networkAsm = nullptr;
@@ -2574,6 +2609,10 @@ private:
   bool submitSetInterface(DeviceState &device, uint8_t interfaceNumber, uint8_t alternateSetting);
   bool claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network);
   void releaseNetworkInterface(DeviceState &device);
+  // Reads GET_NTB_PARAMETERS and, when the device allows it, caps the
+  // device->host NTB size with SET_NTB_INPUT_SIZE. Returns the size to allocate
+  // the receive buffer with and to submit the bulk-IN transfer with.
+  uint16_t negotiateNetworkNtbInput(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network);
   bool startNetworkEndpoints(DeviceState &device);
   void handleNetworkInput(DeviceState &device, EndpointState &endpoint, const uint8_t *data, size_t length);
   void parseNetworkNtb(DeviceState &device, const uint8_t *data, size_t length);
