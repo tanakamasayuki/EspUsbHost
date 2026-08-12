@@ -30,9 +30,25 @@ USBシリアルデバイスとESP32のUART間でデータを双方向に中継�
 
 - `EspUsbHostCdcSerial CdcSerial(usb)` — `EspUsbHost`インスタンスに紐づいたシリアルストリームを生成
 - `CdcSerial.begin(baud)` — 指定ボーレートでシリアルポートを初期化
+- `CdcSerial.setRxBufferSize(bytes)` — 受信リングのサイズを変更（スケッチにはコメントアウトで用意。下記参照）
 - `CdcSerial.available()` / `CdcSerial.read()` — USBデバイスからデータを受信
 - `CdcSerial.write(data)` — USBデバイスへデータを送信
 - `usb.onDeviceConnected(callback)` — デバイス接続時に通知
+
+## 受信バッファサイズ
+
+受信したバイトは、USB client taskが書き込み`read()`が読み出すリングバッファに蓄えられます。既定は512バイトで、溢れると最も古いバイトをエラーも返さずに捨てます。症状として現れるのは戻り値の失敗ではなく、データの欠落や文字化けです。
+
+512バイトは921600 baudで約5.5ms分、115200 baudでも約44ms分しかありません。そのため`loop()`が時間内に読み出せない場合（WiFiのブロッキング呼び出し、SDへの書き込み、画面描画など）や、デバイスがバースト送信する場合（1秒分のNMEAをまとめて出すGPS、起動時のログダンプなど）に不足します。取りこぼす場合はリングを拡張してください。スケッチにはコメントアウトした状態で用意してあります：
+
+```cpp
+// CdcSerial.setRxBufferSize(8192);
+CdcSerial.begin(115200);
+```
+
+バッファはヒープから確保するため、`begin()`より前（または`end()`の後）に呼ぶ必要があります。attach中はUSB client taskがリングへ書き込んでいるためです。attach中・サイズが2未満・確保失敗のいずれかでは`false`を返します。現在のサイズは`CdcSerial.rxBufferSize()`で取得できます。
+
+コンパイル時の既定値を変更する方法もありますが非推奨です。[メインREADME](../../../README.ja.md)の「USBシリアル（CDC ACM・VCP）」の節を参照してください。
 
 ## シリアル出力例
 
