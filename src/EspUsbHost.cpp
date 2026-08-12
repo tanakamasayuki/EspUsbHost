@@ -14137,20 +14137,85 @@ EspUsbHostCdcSerial::EspUsbHostCdcSerial(EspUsbHost &host) : host_(host)
 {
 }
 
+EspUsbHostCdcSerial::~EspUsbHostCdcSerial()
+{
+  if (attached_)
+  {
+    host_.detachCdcSerial(this);
+    attached_ = false;
+  }
+  free(rxBuffer_);
+  rxBuffer_ = nullptr;
+}
+
+bool EspUsbHostCdcSerial::allocateRxBuffer()
+{
+  if (rxBuffer_)
+  {
+    return true;
+  }
+  rxBuffer_ = static_cast<uint8_t *>(malloc(rxBufferSize_));
+  if (!rxBuffer_)
+  {
+    ESP_LOGE(TAG, "cdc serial rx buffer alloc failed (%u bytes)", static_cast<unsigned>(rxBufferSize_));
+    return false;
+  }
+  rxHead_ = 0;
+  rxTail_ = 0;
+  return true;
+}
+
+bool EspUsbHostCdcSerial::setRxBufferSize(size_t size)
+{
+  // The USB client task writes into the ring, so the buffer can only be swapped
+  // while nothing is attached. Call this before begin(), or after end().
+  if (attached_ || size < 2)
+  {
+    return false;
+  }
+  if (rxBuffer_ && size == rxBufferSize_)
+  {
+    return true;
+  }
+  uint8_t *buffer = static_cast<uint8_t *>(malloc(size));
+  if (!buffer)
+  {
+    return false;
+  }
+  free(rxBuffer_);
+  rxBuffer_ = buffer;
+  rxBufferSize_ = size;
+  rxHead_ = 0;
+  rxTail_ = 0;
+  return true;
+}
+
+size_t EspUsbHostCdcSerial::rxBufferSize() const
+{
+  return rxBufferSize_;
+}
+
 bool EspUsbHostCdcSerial::begin(uint32_t baud)
 {
+  if (!allocateRxBuffer())
+  {
+    return false;
+  }
+
   portENTER_CRITICAL(&rxMux_);
   rxHead_ = 0;
   rxTail_ = 0;
   portEXIT_CRITICAL(&rxMux_);
 
   host_.attachCdcSerial(this);
+  attached_ = true;
   return host_.setSerialBaudRate(baud, address_);
 }
 
 void EspUsbHostCdcSerial::end()
 {
   host_.detachCdcSerial(this);
+  attached_ = false;
 }
 
 bool EspUsbHostCdcSerial::connected() const
@@ -14161,7 +14226,7 @@ bool EspUsbHostCdcSerial::connected() const
 int EspUsbHostCdcSerial::available()
 {
   portENTER_CRITICAL(&rxMux_);
-  const size_t count = rxHead_ >= rxTail_ ? rxHead_ - rxTail_ : RX_BUFFER_SIZE - rxTail_ + rxHead_;
+  const size_t count = rxHead_ >= rxTail_ ? rxHead_ - rxTail_ : rxBufferSize_ - rxTail_ + rxHead_;
   portEXIT_CRITICAL(&rxMux_);
   return static_cast<int>(count);
 }
@@ -14284,6 +14349,10 @@ void EspUsbHostCdcSerial::clearAddress()
 
 void EspUsbHostCdcSerial::pushData(const uint8_t *data, size_t length)
 {
+  if (!rxBuffer_)
+  {
+    return;
+  }
   portENTER_CRITICAL(&rxMux_);
   for (size_t i = 0; i < length; i++)
   {
@@ -14306,7 +14375,7 @@ bool EspUsbHostCdcSerial::accepts(uint8_t address) const
 size_t EspUsbHostCdcSerial::nextIndex(size_t index) const
 {
   index++;
-  if (index >= RX_BUFFER_SIZE)
+  if (index >= rxBufferSize_)
   {
     return 0;
   }

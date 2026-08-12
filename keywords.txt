@@ -191,6 +191,8 @@ serialWriteQueueFree	KEYWORD2
 serialWriteFlush	KEYWORD2
 serialWriteStats	KEYWORD2
 serialWriteStatsReset	KEYWORD2
+setRxBufferSize	KEYWORD2
+rxBufferSize	KEYWORD2
 vendorSetAutoZlp	KEYWORD2
 vendorAutoZlp	KEYWORD2
 ccidOpen	KEYWORD2

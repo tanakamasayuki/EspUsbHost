@@ -603,6 +603,8 @@ void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```cpp
 EspUsbHostCdcSerial CdcSerial(usb);
 
+bool    setRxBufferSize(size_t size);
+size_t  rxBufferSize() const;
 bool    begin(uint32_t baud = 115200);
 void    end();
 bool    connected() const;
@@ -620,6 +622,29 @@ void    setAddress(uint8_t address);
 uint8_t address() const;
 void    clearAddress();
 ```
+
+受信バイトは、USB client taskが書き込み`read()`が読み出すリングバッファに入ります。既定は512バイトで、溢れると最も古いバイトを黙って捨てるため、`read()`が呼ばれない時間がリングの容量を超えるとデータを失います。921600 baudでは512バイトは約5.5ms分でしかなく、バースト的なデバイス（1秒分のNMEAをまとめて出すGPS、起動時のログダンプなど）は平均レートが低くても超えることがあります。`setRxBufferSize()`はインスタンス毎にリングサイズを指定します。attach中はUSB client taskが書き込んでいるため、`begin()`の前（または`end()`の後）に呼ぶ必要があります。attach中・`size`が2未満・確保失敗のいずれかで`false`を返します：
+
+```cpp
+void setup() {
+  CdcSerial.setRxBufferSize(8192);
+  CdcSerial.begin(115200);
+}
+```
+
+通常は`setRxBufferSize()`を使ってください。コンパイル時の既定値を変更する方法は**非推奨**です。渡し方が環境（Arduino IDE・arduino-cli・PlatformIO）ごとに異なり、全インスタンスに一律で効いてしまい、ビルドキャッシュが残っていると「変えたのに効かない」状態になるためです。`setRxBufferSize()`を呼べない構成でのみ使ってください。
+
+必要な場合は、`.ino`と同じフォルダに`build_opt.h`というファイルを置き、そこにフラグを書きます。このファイルはArduinoのビルドが全翻訳単位に渡します。スケッチとライブラリは別の翻訳単位としてコンパイルされるため、`.ino`内の`#define`では片側にしか届かず、クラスのレイアウトが片側だけ変わるODR違反（リンクは通るのに実行時に壊れる）になります。
+
+```c
+// build_opt.h（.inoと同じスケッチフォルダに置く）
+-DESP_USB_HOST_CDC_RX_BUFFER_SIZE=8192
+-DESP_USB_HOST_VENDOR_RX_BUFFER_SIZE=2048
+```
+
+> **注意**: `build_opt.h`を編集してもビルドキャッシュが無効化されず、変更が反映されないことがあります。効いていないと感じたらクリーンビルドしてください。Arduino IDEはテンポラリのビルドフォルダを削除する（またはIDEを閉じて開き直す）、arduino-cliは`arduino-cli compile --clean`、PlatformIOは`pio run -t clean`です。またArduino IDEはコンパイル開始時点で`build_opt.h`が存在しないと認識しないため、ビルド前にファイルを作成しておく必要があります。
+
+`ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE`（既定512）はvendor bulk INのリングです。こちらはライブラリ内部のデバイス構造体に埋まっているため、実行時APIはありません。PlatformIOでは`platformio.ini`の`build_flags = -D...`でも同じことができます（渡し方が環境依存だと書いているのはこのためです）。
 
 `EspUsbHostSerialConfig`のデフォルトは115200 8N1です。`dataBits`は5〜8ビット、`parity`は`ESP_USB_HOST_SERIAL_PARITY_NONE`、`ODD`、`EVEN`、`MARK`、`SPACE`、`stopBits`は`ESP_USB_HOST_SERIAL_STOP_BITS_1`、`1_5`、`2`を指定できます。
 
