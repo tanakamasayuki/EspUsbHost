@@ -634,17 +634,18 @@ void setup() {
 
 通常は`setRxBufferSize()`を使ってください。コンパイル時の既定値を変更する方法は**非推奨**です。渡し方が環境（Arduino IDE・arduino-cli・PlatformIO）ごとに異なり、全インスタンスに一律で効いてしまい、ビルドキャッシュが残っていると「変えたのに効かない」状態になるためです。`setRxBufferSize()`を呼べない構成でのみ使ってください。
 
-必要な場合は、`.ino`と同じフォルダに`build_opt.h`というファイルを置き、そこにフラグを書きます。このファイルはArduinoのビルドが全翻訳単位に渡します。スケッチとライブラリは別の翻訳単位としてコンパイルされるため、`.ino`内の`#define`では片側にしか届かず、クラスのレイアウトが片側だけ変わるODR違反（リンクは通るのに実行時に壊れる）になります。
+必要な場合は、`.ino`と同じスケッチフォルダに`build_opt.h`というファイルを置き、そこにフラグを書きます。このファイルはArduinoのビルドが全翻訳単位に渡します。`.ino`内の`#define`ではこれができません。スケッチとライブラリは別の翻訳単位としてコンパイルされるため、スケッチ側の定義は片側にしか届かず、クラスのレイアウトが片側だけ変わるODR違反（リンクは通るのに実行時に壊れる）になります。
 
-```c
-// build_opt.h（.inoと同じスケッチフォルダに置く）
+```
 -DESP_USB_HOST_CDC_RX_BUFFER_SIZE=8192
 -DESP_USB_HOST_VENDOR_RX_BUFFER_SIZE=2048
 ```
 
-> **注意**: `build_opt.h`を編集してもビルドキャッシュが無効化されず、変更が反映されないことがあります。効いていないと感じたらクリーンビルドしてください。Arduino IDEはテンポラリのビルドフォルダを削除する（またはIDEを閉じて開き直す）、arduino-cliは`arduino-cli compile --clean`、PlatformIOは`pio run -t clean`です。またArduino IDEはコンパイル開始時点で`build_opt.h`が存在しないと認識しないため、ビルド前にファイルを作成しておく必要があります。
+拡張子が`.h`でもCのソースではありません。コンパイラにはレスポンスファイルとして渡されるため、書けるのはオプションだけです。`//`や`#`のコメント行を入れると、その行の各単語が入力ファイル名として扱われ、`cannot specify '-o' with '-c' ... with multiple files`でビルドが失敗します。
 
-`ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE`（既定512）はvendor bulk INのリングです。こちらはライブラリ内部のデバイス構造体に埋まっているため、実行時APIはありません。PlatformIOでは`platformio.ini`の`build_flags = -D...`でも同じことができます（渡し方が環境依存だと書いているのはこのためです）。
+> **注意**: `build_opt.h`を編集してもビルドキャッシュが無効化されず、変更が反映されないことがあります。変更したら必ずクリーンビルドしてください。arduino-cliは`arduino-cli compile --clean`、PlatformIOは`pio run -t clean`、Arduino IDEはIDEを再起動するか、verboseビルド出力に表示されるテンポラリのビルドフォルダを削除します。またArduino IDEはコンパイル開始時点で`build_opt.h`が存在しないと認識しないため、ビルド前にファイルを作成しておく必要があります。
+
+`ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE`（既定512）はvendor bulk INのリングです。こちらはライブラリ内部のデバイス構造体に埋まっているため、実行時APIはありません。PlatformIOでは`platformio.ini`の`build_flags`で同じフラグを渡せます。この環境ごとの差こそが、この方法を非推奨としている理由です。
 
 `EspUsbHostSerialConfig`のデフォルトは115200 8N1です。`dataBits`は5〜8ビット、`parity`は`ESP_USB_HOST_SERIAL_PARITY_NONE`、`ODD`、`EVEN`、`MARK`、`SPACE`、`stopBits`は`ESP_USB_HOST_SERIAL_STOP_BITS_1`、`1_5`、`2`を指定できます。
 

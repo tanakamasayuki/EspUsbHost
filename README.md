@@ -657,17 +657,18 @@ void setup() {
 
 `setRxBufferSize()` is the supported way to change this, and changing the compile-time default is **not recommended** — it needs build configuration that differs per environment (Arduino IDE, arduino-cli, PlatformIO), it applies to every instance at once, and a stale build cache makes it look like it did nothing. Use it only in sketches that cannot call `setRxBufferSize()`.
 
-If you do need it, put the flag in a file named `build_opt.h` next to the `.ino`, which the Arduino build passes to every translation unit — the sketch and the library are compiled separately, so a `#define` in the `.ino` would reach only one of them and change the class layout on one side (an ODR violation that links cleanly and misbehaves at runtime):
+If you do need it, put the flag in a file named `build_opt.h` in the sketch folder, alongside the `.ino`. The Arduino build passes that file to every translation unit, which is what a `#define` in the `.ino` cannot do: the sketch and the library are compiled separately, so a sketch-level define would reach only one side and change the class layout there (an ODR violation that links cleanly and misbehaves at runtime).
 
-```c
-// build_opt.h (in the sketch folder, alongside the .ino)
+```
 -DESP_USB_HOST_CDC_RX_BUFFER_SIZE=8192
 -DESP_USB_HOST_VENDOR_RX_BUFFER_SIZE=2048
 ```
 
-> **Note**: editing `build_opt.h` does not always invalidate the build cache. If the new value does not seem to take effect, force a clean build — Arduino IDE: *Sketch > Export Compiled Binary* after closing/reopening, or delete the temporary build folder; arduino-cli: `arduino-cli compile --clean`; PlatformIO: `pio run -t clean`. Note also that Arduino IDE only picks the file up if it exists when the compile starts, so create it before building.
+Despite the `.h` name the file is not C source — it is handed to the compiler as a response file, so it may contain nothing but options. A `//` or `#` comment line breaks the build with `cannot specify '-o' with '-c' ... with multiple files`, because every word in it is taken as an input file name.
 
-`ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE` (512 by default) is the vendor bulk IN ring, which has no runtime equivalent because it lives inside a library-private per-device struct. PlatformIO users can equivalently use `build_flags = -D...` in `platformio.ini`, which is why the setting is described as environment-dependent.
+> **Note**: editing `build_opt.h` does not always invalidate the build cache, so the new value can appear to do nothing. Force a clean build after every change — arduino-cli: `arduino-cli compile --clean`; PlatformIO: `pio run -t clean`; Arduino IDE: restart the IDE, or delete the temporary build folder shown in the verbose compile output. Arduino IDE also only picks the file up if it exists when the compile starts, so create it before building.
+
+`ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE` (512 by default) is the vendor bulk IN ring, which has no runtime equivalent because it lives inside a library-private per-device struct. PlatformIO can pass the same flags through `build_flags` in `platformio.ini` instead — that per-environment difference is exactly why this route is discouraged.
 
 `EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`.
 

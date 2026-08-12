@@ -74,6 +74,14 @@ void setup()
   Serial.println("Connect one FTDI device and one CP210x device.");
   Serial.println("Serial Monitor input is sent to both devices.");
 
+  // en: Each wrapper owns its own 512-byte receive ring, which drops the oldest
+  //     byte on overflow. The size is per instance, so only the device that
+  //     actually needs more has to pay for it. Call it before begin().
+  // ja: 受信リングはラッパーごとに独立していて（既定512バイト）、溢れると古い
+  //     バイトから捨てます。サイズはインスタンス単位なので、必要なデバイスの
+  //     分だけ増やせます。begin()より前に呼びます。
+  // FtdiSerial.setRxBufferSize(8192);
+
   FtdiSerial.begin(115200);
   Cp210xSerial.begin(115200);
   FtdiSerial.setAddress(0);

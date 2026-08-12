@@ -41,6 +41,21 @@ Uses two independent USB serial devices at the same time. For clarity, this exam
 - `device.address` — current USB address passed to `setAddress()`
 - `CdcSerial.setAddress(address)` — bind a stream wrapper to one connected device
 - `CdcSerial.setAddress(0)` — leave a stream wrapper unassigned when no device is present
+- `CdcSerial.setRxBufferSize(bytes)` — resizes that wrapper's receive ring (commented out in the sketch; see below)
+
+## Receive buffer size
+
+Each wrapper owns a separate receive ring, 512 bytes by default, filled by the USB client task and drained by `read()`. Overflow drops the oldest byte silently, so a device that sends faster than `loop()` forwards it loses data with no error — and here `loop()` services both ports plus `Serial`, so a slow reader on one port delays the other.
+
+Because the size is per instance, only the port that needs more has to pay for it. The sketch has the call ready, commented out:
+
+```cpp
+// FtdiSerial.setRxBufferSize(8192);
+FtdiSerial.begin(115200);
+Cp210xSerial.begin(115200);
+```
+
+It allocates from the heap and must be called before that wrapper's `begin()` (or after its `end()`), since the USB client task writes into the ring while the port is attached. It returns `false` if the port is attached, if the size is below 2, or if the allocation fails.
 
 ## Expected Serial output
 
