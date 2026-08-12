@@ -7,7 +7,7 @@ profiles:
     libraries:
       - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.4.0)
-      - dir: ../../../
+      - EspUsbHost (2.7.6)
 
   esp32s3-v:
     fqbn: esp32:esp32:esp32s3:USBMode=default,DebugLevel=verbose
@@ -17,7 +17,7 @@ profiles:
     libraries:
       - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.4.0)
-      - dir: ../../../
+      - EspUsbHost (2.7.6)
 
   esp32p4:
     fqbn: esp32:esp32:esp32p4
@@ -27,7 +27,7 @@ profiles:
     libraries:
       - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.4.0)
-      - dir: ../../../
+      - EspUsbHost (2.7.6)
 
   esp32p4-v:
     fqbn: esp32:esp32:esp32p4:DebugLevel=verbose
@@ -37,7 +37,7 @@ profiles:
     libraries:
       - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.4.0)
-      - dir: ../../../
+      - EspUsbHost (2.7.6)
 
   esp32s2:
     fqbn: esp32:esp32:esp32s2
@@ -47,6 +47,6 @@ profiles:
     libraries:
       - LovyanGFX (1.2.26)
       - LGFXVirtualCanvas (1.4.0)
-      - dir: ../../../
+      - EspUsbHost (2.7.6)
 
 default_profile: esp32s3
