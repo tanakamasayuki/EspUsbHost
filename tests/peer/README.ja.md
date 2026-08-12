@@ -60,6 +60,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `usb_audio_uac2`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbAudioFunction` をUAC2指定にしたheadsetとペアで動作。`USBAudioCard` はUAC1専用のため、Arduino Core標準device stackでは作れない唯一のaudio構成である。class revision、Clock Sourceのサンプルレート（UAC2 descriptorが持たないため `SAM_FREQ` の `RANGE` リクエストで取得）、4バイト・2ビットのFeature Unit controlとvolumeの `RANGE` リクエスト、feedback IN endpointがstream一覧に出ずポーリングされてOUTパケットのレート追従に使われること（`f`: 報告レートが48 kHz近傍、追従レートが一致、更新が継続すること）、OUT/IN streaming、およびUAC2固有ではないが引数を0にした「最良フォーマット自動選択」での起動を検証する
 - `usb_vendor`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` とペアで動作
 - `usb_ncm`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceNet`（CDC-NCM）device とペアで動作。Host は USB NIC を DHCP クライアントの lwIP netif として attach し、device の DHCP サーバから `192.168.7.x` のリースを取得して、固定ページを HTTP GET で取得する。
+- `usb_ncm_throughput`: 同じ組み合わせに連続負荷をかける。device 側の TCP sink（port 9000）と TCP source（port 9001）へ各5秒間フルレートで流し、両方向が動き続けること、bulk OUT が失敗を報告しないこと、交渉したサイズを超えて破棄される NTB が無いことを確認する。peer の `build_opt.h` で `CFG_TUD_NCM_IN_NTB_MAX_SIZE` を 8192・送信バッファ3面に上げ、device 側はバースト書き込みするため、実売 USB NIC と同様に複数 datagram を1つの NTB にまとめる。これが、以前は固定3200バイトだった host 側バッファを超える NTB を丸ごと破棄していた問題を露出させた構成である。この peer 設定は維持すること: `usb_ncm` は 1NTB=1datagram しか作らず、この回帰を検出できない。
 
 追加予定のカバレッジ：
 

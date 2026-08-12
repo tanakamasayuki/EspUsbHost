@@ -1104,6 +1104,20 @@ lwIP統合にはビルドに`esp_netif`が必要です（標準のArduino-ESP32 
 `networkAttachNetif()`は`false`を返し、生フレームAPIは引き続き使えます。これらのAPIはUSB
 コールバック内ではなくapplication taskから呼び出してください。
 
+**NTBサイズのネゴシエーション（CDC-NCM）。** NCM deviceはEthernet datagramをNTBにまとめて送り、
+その大きさは申告した`dwNtbInMaxSize`までdevice自身が決めます（hostが下げない限り）。
+複数datagramのまとめ送りはトラフィックが増えてから始まるため、「1フレーム分あれば足りる」
+サイズの受信バッファは軽い動作確認では問題なく通り、負荷が上がるとNTBを丸ごと取りこぼします。
+リンクは正常に見えたまま激しいパケットロスとして現れるので厄介です。そこでopen時に
+`GET_NTB_PARAMETERS`を読み、`bmNetworkCapabilities`のbit 3が対応を示していれば
+`SET_NTB_INPUT_SIZE`でdevice側を制限し、そうでなければdeviceの最大値に合わせて自分の
+バッファを確保します（上限は`ESP_USB_HOST_NETWORK_NTB_IN_LIMIT`＝16KB、`-D`で変更可）。
+決定値は`EspUsbHostNetworkStats::ntbInSize`で確認できます。ESP-IDFはIN転送長をMPSの整数倍と
+規定しているため、この値は常にbulk IN endpointのmax packet sizeの倍数になります
+（High-Speedでは3200ではなく3072になるのはこのため）。`rxOversized`はサイズ超過で破棄した
+NTB数で、deviceが申告以上のNTBを送らない限り0のままです。`linkUp`と`txFails`が正常なのに
+スループットが出ないときに最初に見るべき値です。
+
 ### デバイス探索
 
 ```cpp

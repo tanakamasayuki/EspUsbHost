@@ -39,6 +39,14 @@ static constexpr uint8_t USB_CDC_SUBCLASS_NCM = 0x0d;
 static constexpr uint8_t USB_CDC_SUBCLASS_ACM = 0x02;
 static constexpr uint8_t USB_CDC_CS_UNION = 0x06;
 static constexpr uint8_t USB_CDC_CS_ETHERNET = 0x0f;
+static constexpr uint8_t USB_CDC_CS_NCM = 0x1a;
+// CDC NCM class-specific requests (NCM 1.0 table 6-2).
+static constexpr uint8_t USB_CDC_REQ_GET_NTB_PARAMETERS = 0x80;
+static constexpr uint8_t USB_CDC_REQ_SET_NTB_INPUT_SIZE = 0x86;
+// bmNetworkCapabilities bit 3: SetNtbInputSize / GetNtbInputSize supported.
+static constexpr uint8_t USB_CDC_NCM_CAP_NTB_INPUT_SIZE = 0x08;
+// NTB parameter structure length (NCM 1.0 table 6-3).
+static constexpr size_t USB_CDC_NCM_NTB_PARAM_LEN = 28;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_CONTROL = 0x01;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_AUDIO_STREAMING = 0x02;
 static constexpr uint8_t USB_AUDIO_SUBCLASS_MIDI_STREAMING = 0x03;
@@ -7762,6 +7770,13 @@ size_t EspUsbHost::parseNetworkInterfaces(uint8_t address,
           network.maxSegmentSize = static_cast<uint16_t>(p[offset + 5]) |
                                    (static_cast<uint16_t>(p[offset + 6]) << 8);
         }
+        else if (descriptorSubType == USB_CDC_CS_NCM && length >= 6)
+        {
+          // NCM functional descriptor: bcdNcmVersion(3..5) bmNetworkCapabilities(5).
+          network.ncmVersion = static_cast<uint16_t>(p[offset + 3]) |
+                               (static_cast<uint16_t>(p[offset + 4]) << 8);
+          network.networkCapabilities = p[offset + 5];
+        }
       }
     }
     else if (descriptorType == USB_ENDPOINT_DESC && length >= sizeof(usb_ep_desc_t))
@@ -12026,6 +12041,10 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
     free(device.networkAsm);
     device.networkRxRing = nullptr;
     device.networkAsm = nullptr;
+    device.networkNtbInSize = 0;
+    device.networkNtbOutMax = 0;
+    device.networkAsmLen = 0;
+    device.networkAsmExpected = 0;
     device.networkInterface = EspUsbHostNetworkInterfaceInfo();
     return;
   }
@@ -12093,6 +12112,144 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
   free(device.networkAsm);
   device.networkRxRing = nullptr;
   device.networkAsm = nullptr;
+  // The buffer is gone, so the size it was negotiated at must not survive: a
+  // reopen renegotiates it (the device may even be a different one).
+  device.networkNtbInSize = 0;
+  device.networkNtbOutMax = 0;
+  device.networkAsmLen = 0;
+  device.networkAsmExpected = 0;
+}
+
+// Decide how large a device->host NTB may be, and make the device agree.
+//
+// Without this the host would just hope the device stays under its compile-time
+// buffer: NCM leaves dwNtbInMaxSize entirely to the device unless the host
+// lowers it with SET_NTB_INPUT_SIZE, and a device that batches several datagrams
+// into one NTB (which they do once traffic picks up) then produces NTBs the host
+// cannot read at all. The size is also rounded down to a multiple of the IN
+// endpoint's max packet size because ESP-IDF documents IN transfer lengths as
+// integer multiples of MPS.
+uint16_t EspUsbHost::negotiateNetworkNtbInput(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network)
+{
+  const uint16_t mps = network.inMaxPacketSize ? network.inMaxPacketSize : 64;
+  auto alignDown = [mps](size_t value) -> size_t
+  {
+    return (value / mps) * mps;
+  };
+  auto alignUp = [mps](size_t value) -> size_t
+  {
+    return ((value + mps - 1) / mps) * mps;
+  };
+
+  // What we would like to use: the compile-time default, MPS aligned. A device
+  // whose MPS exceeds the default (not a real case today, but cheap to guard)
+  // still gets one whole packet.
+  size_t preferred = alignDown(ESP_USB_HOST_NETWORK_NTB_IN_MAX);
+  if (preferred < mps)
+  {
+    preferred = mps;
+  }
+  device.networkNtbOutMax = 0;
+
+  // ECM has no NTB layer at all, and a device that does not implement the NCM
+  // functional descriptor cannot be asked about NTB parameters either.
+  if (network.protocol != ESP_USB_HOST_NETWORK_PROTOCOL_CDC_NCM)
+  {
+    return static_cast<uint16_t>(preferred);
+  }
+
+  uint8_t params[USB_CDC_NCM_NTB_PARAM_LEN] = {0};
+  size_t actual = 0;
+  const bool haveParams = submitVendorControl(device,
+                                              0xa1, // IN | class | interface
+                                              USB_CDC_REQ_GET_NTB_PARAMETERS,
+                                              0,
+                                              network.controlInterfaceNumber,
+                                              params,
+                                              sizeof(params),
+                                              &actual,
+                                              1000) &&
+                          actual >= USB_CDC_NCM_NTB_PARAM_LEN;
+  if (!haveParams)
+  {
+    // Not fatal: fall back to the default and let the oversized-NTB counter
+    // report it if the device turns out to send more than that.
+    ESP_LOGW(TAG, "network: GET_NTB_PARAMETERS failed (iface=%u); assuming %u byte NTB IN",
+             network.controlInterfaceNumber,
+             static_cast<unsigned>(preferred));
+    return static_cast<uint16_t>(preferred);
+  }
+
+  const uint32_t deviceInMax = ncmRead32(params + 4);
+  const uint32_t deviceOutMax = ncmRead32(params + 16);
+  device.networkNtbOutMax = deviceOutMax > 0xffff ? 0xffff : static_cast<uint16_t>(deviceOutMax);
+  ESP_LOGI(TAG, "network NTB parameters: dwNtbInMaxSize=%lu dwNtbOutMaxSize=%lu caps=0x%02x mps=%u",
+           static_cast<unsigned long>(deviceInMax),
+           static_cast<unsigned long>(deviceOutMax),
+           network.networkCapabilities,
+           mps);
+
+  // Our host->device NTB is one datagram wide, so it only breaks if a device
+  // advertises less than a full Ethernet frame plus framing.
+  const size_t ourOutNtb = ncmAlign4(ESP_USB_HOST_NCM_NTH16_LEN + ESP_USB_HOST_NCM_NDP16_MIN_LEN) +
+                           ESP_USB_HOST_NETWORK_MAX_FRAME;
+  if (deviceOutMax != 0 && deviceOutMax < ourOutNtb)
+  {
+    ESP_LOGW(TAG, "network: device accepts only %lu byte NTBs OUT, we may send up to %u",
+             static_cast<unsigned long>(deviceOutMax),
+             static_cast<unsigned>(ourOutNtb));
+  }
+
+  if (deviceInMax <= preferred)
+  {
+    // The device already stays within our buffer; nothing to negotiate. Keep the
+    // buffer at the device's maximum when that is smaller, still MPS aligned.
+    size_t size = alignUp(deviceInMax);
+    if (size == 0 || size > preferred)
+    {
+      size = preferred;
+    }
+    return static_cast<uint16_t>(size);
+  }
+
+  if (network.networkCapabilities & USB_CDC_NCM_CAP_NTB_INPUT_SIZE)
+  {
+    uint8_t payload[4];
+    ncmWrite32(payload, static_cast<uint32_t>(preferred));
+    size_t written = 0;
+    if (submitVendorControl(device,
+                            0x21, // OUT | class | interface
+                            USB_CDC_REQ_SET_NTB_INPUT_SIZE,
+                            0,
+                            network.controlInterfaceNumber,
+                            payload,
+                            sizeof(payload),
+                            &written,
+                            1000))
+    {
+      ESP_LOGI(TAG, "network: SET_NTB_INPUT_SIZE(%u) accepted", static_cast<unsigned>(preferred));
+      return static_cast<uint16_t>(preferred);
+    }
+    ESP_LOGW(TAG, "network: SET_NTB_INPUT_SIZE(%u) failed; following the device maximum instead",
+             static_cast<unsigned>(preferred));
+  }
+
+  // The device keeps its own maximum, so the buffer has to follow it or every
+  // batched NTB is unreadable. Pay the DMA memory up to the configured ceiling.
+  size_t size = alignUp(deviceInMax);
+  if (size > ESP_USB_HOST_NETWORK_NTB_IN_LIMIT)
+  {
+    size = alignDown(ESP_USB_HOST_NETWORK_NTB_IN_LIMIT);
+    ESP_LOGW(TAG, "network: device may send %lu byte NTBs, capping the receive buffer at %u; "
+                  "larger NTBs will be dropped (rxOversized)",
+             static_cast<unsigned long>(deviceInMax),
+             static_cast<unsigned>(size));
+  }
+  if (size < preferred)
+  {
+    size = preferred;
+  }
+  return static_cast<uint16_t>(size);
 }
 
 bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetworkInterfaceInfo &network)
@@ -12102,11 +12259,17 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
     return false;
   }
 
+  // Agree on the device->host NTB size before allocating the buffer it sizes.
+  // This runs on ep0, so it does not need the interfaces to be claimed yet, and
+  // it precedes the data interface's SET_INTERFACE the same way a Linux host
+  // orders the two.
+  const uint16_t ntbInSize = negotiateNetworkNtbInput(device, network);
+
   // Network receive storage is intentionally lazy: serial/HID/audio-only
   // sketches should not pay ~7 KB for every available device slot. Allocate
   // before claiming interfaces so failure leaves the USB device untouched.
   device.networkRxRing = static_cast<uint8_t *>(malloc(ESP_USB_HOST_NETWORK_RX_RING_SIZE));
-  device.networkAsm = static_cast<uint8_t *>(malloc(ESP_USB_HOST_NETWORK_NTB_IN_MAX));
+  device.networkAsm = static_cast<uint8_t *>(malloc(ntbInSize));
   if (!device.networkRxRing || !device.networkAsm)
   {
     free(device.networkRxRing);
@@ -12208,24 +12371,27 @@ bool EspUsbHost::claimNetworkInterface(DeviceState &device, const EspUsbHostNetw
   }
   device.networkAsmLen = 0;
   device.networkAsmExpected = 0;
+  device.networkNtbInSize = ntbInSize;
   device.networkRxNtbCount = 0;
   device.networkRxFrameCount = 0;
   device.networkTxCount = 0;
   device.networkTxFailCount = 0;
+  device.networkRxOversizedCount = 0;
 
   // Start the bulk IN (NTB receive) and, if present, the interrupt IN
   // (link-status notification) transfers. Failure here is not fatal to the
   // claim itself; frames just will not flow until it succeeds.
   startNetworkEndpoints(device);
 
-  ESP_LOGI(TAG, "USB Network ready: address=%u config=%u protocol=%s control_iface=%u data_iface=%u alt=%u endpoints=%u",
+  ESP_LOGI(TAG, "USB Network ready: address=%u config=%u protocol=%s control_iface=%u data_iface=%u alt=%u endpoints=%u ntb_in=%u",
            device.info.address,
            network.configurationValue,
            espUsbHostNetworkProtocolName(network.protocol),
            network.controlInterfaceNumber,
            network.dataInterfaceNumber,
            network.dataInterfaceAlternate,
-           channelCount);
+           channelCount,
+           device.networkNtbInSize);
   return true;
 }
 
@@ -12238,15 +12404,18 @@ bool EspUsbHost::startNetworkEndpoints(DeviceState &device)
   const EspUsbHostNetworkInterfaceInfo &network = device.networkInterface;
   bool ok = true;
 
-  // Bulk IN: one transfer sized for a whole device->host NTB. At full speed the
-  // NTB spans many max-packet reads, but a single submit of NTB_IN_MAX bytes
-  // completes on the terminating short packet, so one completion == one NTB.
+  // Bulk IN: one transfer sized for a whole device->host NTB, using the size
+  // negotiated in negotiateNetworkNtbInput(). The NTB spans many max-packet
+  // reads, but a single submit of that length completes on the terminating short
+  // packet, so one completion == one NTB.
+  const uint16_t ntbInSize = device.networkNtbInSize ? device.networkNtbInSize
+                                                    : static_cast<uint16_t>(ESP_USB_HOST_NETWORK_NTB_IN_MAX);
   if (network.inEndpoint && !findEndpoint(device.handle, network.inEndpoint))
   {
     EndpointState *endpoint = allocateEndpoint(device);
     if (endpoint)
     {
-      esp_err_t err = usb_host_transfer_alloc(ESP_USB_HOST_NETWORK_NTB_IN_MAX, 0, &endpoint->transfer);
+      esp_err_t err = usb_host_transfer_alloc(ntbInSize, 0, &endpoint->transfer);
       if (err == ESP_OK)
       {
         endpoint->address = network.inEndpoint;
@@ -12257,7 +12426,7 @@ bool EspUsbHost::startNetworkEndpoints(DeviceState &device)
         endpoint->transfer->bEndpointAddress = network.inEndpoint;
         endpoint->transfer->callback = transferCallback;
         endpoint->transfer->context = this;
-        endpoint->transfer->num_bytes = ESP_USB_HOST_NETWORK_NTB_IN_MAX;
+        endpoint->transfer->num_bytes = ntbInSize;
         if (!submitInputTransfer(*endpoint))
         {
           ok = false;
@@ -12337,6 +12506,9 @@ void EspUsbHost::handleNetworkInput(DeviceState &device, EndpointState &endpoint
     device.networkAsmExpected = 0;
   }
 
+  const uint16_t ntbInSize = device.networkNtbInSize ? device.networkNtbInSize
+                                                    : static_cast<uint16_t>(ESP_USB_HOST_NETWORK_NTB_IN_MAX);
+
   // Start of a new NTB: the chunk must begin with an NTH16 header.
   if (device.networkAsmLen == 0)
   {
@@ -12348,9 +12520,31 @@ void EspUsbHost::handleNetworkInput(DeviceState &device, EndpointState &endpoint
     const uint16_t headerLength = ncmRead16(data + 4);
     const uint16_t blockLength = ncmRead16(data + 8);
     if (headerLength < ESP_USB_HOST_NCM_NTH16_LEN ||
-        blockLength < ESP_USB_HOST_NCM_NTH16_LEN ||
-        blockLength > ESP_USB_HOST_NETWORK_NTB_IN_MAX)
+        blockLength < ESP_USB_HOST_NCM_NTH16_LEN)
     {
+      return;
+    }
+    if (blockLength > ntbInSize)
+    {
+      // The device is sending larger NTBs than it agreed to (or than we could
+      // negotiate). Every datagram in this NTB is lost, so make it visible
+      // instead of failing as unexplained packet loss: the first occurrence
+      // warns, the rest only bump the counter reported by networkStats().
+      device.networkRxOversizedCount++;
+      if (device.networkRxOversizedCount == 1)
+      {
+        ESP_LOGW(TAG, "network RX: NTB of %u bytes exceeds the negotiated %u; dropping it "
+                      "(device ignores SET_NTB_INPUT_SIZE - raise ESP_USB_HOST_NETWORK_NTB_IN_LIMIT)",
+                 blockLength,
+                 ntbInSize);
+      }
+      else
+      {
+        ESP_LOGD(TAG, "network RX: oversized NTB (%u > %u), dropped %lu so far",
+                 blockLength,
+                 ntbInSize,
+                 static_cast<unsigned long>(device.networkRxOversizedCount));
+      }
       return;
     }
     device.networkAsmExpected = blockLength;
@@ -12359,9 +12553,9 @@ void EspUsbHost::handleNetworkInput(DeviceState &device, EndpointState &endpoint
 
   // Append this chunk to the reassembly buffer.
   size_t copy = length;
-  if (device.networkAsmLen + copy > ESP_USB_HOST_NETWORK_NTB_IN_MAX)
+  if (device.networkAsmLen + copy > ntbInSize)
   {
-    copy = ESP_USB_HOST_NETWORK_NTB_IN_MAX - device.networkAsmLen;
+    copy = ntbInSize - device.networkAsmLen;
   }
   memcpy(device.networkAsm + device.networkAsmLen, data, copy);
   device.networkAsmLen = static_cast<uint16_t>(device.networkAsmLen + copy);
@@ -12758,6 +12952,8 @@ bool EspUsbHost::networkStats(EspUsbHostNetworkStats &stats, uint8_t address) co
   stats.rxFrames = device->networkRxFrameCount;
   stats.txFrames = device->networkTxCount;
   stats.txFails = device->networkTxFailCount;
+  stats.rxOversized = device->networkRxOversizedCount;
+  stats.ntbInSize = device->networkNtbInSize;
   return true;
 }
 
