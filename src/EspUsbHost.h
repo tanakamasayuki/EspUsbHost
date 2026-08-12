@@ -173,7 +173,26 @@ static constexpr size_t ESP_USB_HOST_NETWORK_RX_RING_SIZE = 4096;
 // Largest Ethernet frame we accept/transmit (CDC ECM/NCM wMaxSegmentSize default).
 static constexpr size_t ESP_USB_HOST_NETWORK_MAX_FRAME = 1514;
 static constexpr size_t ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS = 4;
-static constexpr size_t ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE = 512;
+// Per-device vendor bulk IN ring. Overflow drops the oldest byte, so a device
+// that bursts faster than the sketch drains it needs a larger ring. Overriding
+// this is a last resort (see README): the value must reach every translation
+// unit, so it goes in the sketch's build_opt.h as
+// -DESP_USB_HOST_VENDOR_RX_BUFFER_SIZE=..., never as a #define in the sketch,
+// and a stale build cache can silently keep the old value.
+#ifndef ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE
+#define ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE 512
+#endif
+static_assert(ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE >= 2,
+              "ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE must leave room for at least one byte");
+// Default size of the EspUsbHostCdcSerial receive ring. Prefer the runtime
+// setRxBufferSize(): it needs no build configuration and is the supported way to
+// change this. Moving the default is only for sketches that cannot call it, and
+// then it belongs in the sketch's build_opt.h, with the same caveats as above.
+#ifndef ESP_USB_HOST_CDC_RX_BUFFER_SIZE
+#define ESP_USB_HOST_CDC_RX_BUFFER_SIZE 512
+#endif
+static_assert(ESP_USB_HOST_CDC_RX_BUFFER_SIZE >= 2,
+              "ESP_USB_HOST_CDC_RX_BUFFER_SIZE must leave room for at least one byte");
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
 static constexpr uint32_t ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
@@ -2858,6 +2877,10 @@ class EspUsbHostCdcSerial : public Stream
 {
 public:
   explicit EspUsbHostCdcSerial(EspUsbHost &host);
+  ~EspUsbHostCdcSerial();
+
+  bool setRxBufferSize(size_t size);
+  size_t rxBufferSize() const;
 
   bool begin(uint32_t baud = 115200);
   void end();
@@ -2880,16 +2903,19 @@ public:
   void clearAddress();
 
 private:
-  static constexpr size_t RX_BUFFER_SIZE = 512;
-
   void pushData(const uint8_t *data, size_t length);
   bool accepts(uint8_t address) const;
   size_t nextIndex(size_t index) const;
+  bool allocateRxBuffer();
   friend class EspUsbHost;
 
   EspUsbHost &host_;
   uint8_t address_ = ESP_USB_HOST_ANY_ADDRESS;
-  uint8_t rxBuffer_[RX_BUFFER_SIZE] = {};
+  // Allocated by begin() (or early by setRxBufferSize()) rather than embedded,
+  // so the size can be chosen from the sketch without changing sizeof(*this).
+  uint8_t *rxBuffer_ = nullptr;
+  size_t rxBufferSize_ = ESP_USB_HOST_CDC_RX_BUFFER_SIZE;
+  bool attached_ = false;
   size_t rxHead_ = 0;
   size_t rxTail_ = 0;
   portMUX_TYPE rxMux_ = portMUX_INITIALIZER_UNLOCKED;

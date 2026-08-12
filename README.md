@@ -626,6 +626,8 @@ void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 ```cpp
 EspUsbHostCdcSerial CdcSerial(usb);
 
+bool    setRxBufferSize(size_t size);
+size_t  rxBufferSize() const;
 bool    begin(uint32_t baud = 115200);
 void    end();
 bool    connected() const;
@@ -643,6 +645,29 @@ void    setAddress(uint8_t address);
 uint8_t address() const;
 void    clearAddress();
 ```
+
+Received bytes land in a ring buffer filled from the USB client task and drained by `read()`. The ring defaults to 512 bytes, and when it overflows the oldest byte is dropped silently, so anything that keeps `read()` waiting longer than the ring holds loses data — at 921600 baud 512 bytes is about 5.5 ms of traffic, and devices that burst (a GPS emitting a second of NMEA at once, a boot-time log dump) can exceed it even at a low average rate. `setRxBufferSize()` sizes the ring per instance and must be called before `begin()` (or after `end()`), because the USB client task writes into it while attached; it returns `false` if the instance is attached, if `size` is below 2, or if the allocation fails:
+
+```cpp
+void setup() {
+  CdcSerial.setRxBufferSize(8192);
+  CdcSerial.begin(115200);
+}
+```
+
+`setRxBufferSize()` is the supported way to change this, and changing the compile-time default is **not recommended** — it needs build configuration that differs per environment (Arduino IDE, arduino-cli, PlatformIO), it applies to every instance at once, and a stale build cache makes it look like it did nothing. Use it only in sketches that cannot call `setRxBufferSize()`.
+
+If you do need it, put the flag in a file named `build_opt.h` next to the `.ino`, which the Arduino build passes to every translation unit — the sketch and the library are compiled separately, so a `#define` in the `.ino` would reach only one of them and change the class layout on one side (an ODR violation that links cleanly and misbehaves at runtime):
+
+```c
+// build_opt.h (in the sketch folder, alongside the .ino)
+-DESP_USB_HOST_CDC_RX_BUFFER_SIZE=8192
+-DESP_USB_HOST_VENDOR_RX_BUFFER_SIZE=2048
+```
+
+> **Note**: editing `build_opt.h` does not always invalidate the build cache. If the new value does not seem to take effect, force a clean build — Arduino IDE: *Sketch > Export Compiled Binary* after closing/reopening, or delete the temporary build folder; arduino-cli: `arduino-cli compile --clean`; PlatformIO: `pio run -t clean`. Note also that Arduino IDE only picks the file up if it exists when the compile starts, so create it before building.
+
+`ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE` (512 by default) is the vendor bulk IN ring, which has no runtime equivalent because it lives inside a library-private per-device struct. PlatformIO users can equivalently use `build_flags = -D...` in `platformio.ini`, which is why the setting is described as environment-dependent.
 
 `EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`.
 
