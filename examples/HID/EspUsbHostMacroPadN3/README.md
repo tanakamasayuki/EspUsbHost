@@ -83,7 +83,7 @@ buffers from PSRAM. The profiles in `sketch.yaml` set both.
 Every host→device packet is one 1024-byte interrupt OUT transfer:
 
 ```
-"CRT" 00 00 | 3 command letters | arguments | zero padding to 1024
+"CRT" 00 00 | ASCII command | arguments | zero padding to 1024
 ```
 
 The command is ASCII of no fixed length: most are three letters, but `CONNECT` is
@@ -147,10 +147,9 @@ Every code above was produced by working through all twelve controls of a STREON
 in a known order. The codes are unrelated arithmetically, so `MacroPadN3Protocol.hpp`
 holds them as a table.
 
-The encoder numbering is this example's own, taken from the push codes: on the S6 that
-comes out as encoder 1 = bottom-left knob, 2 = bottom-right, 3 = top-middle. Another
-brand's unit may seat the same codes at different positions, so a sketch that cares
-about position should check its own.
+The encoder numbering matches the pad's own: encoder 1 is the bottom-left knob, 2 the
+bottom-right, 3 the top one. Another brand's unit may seat the same codes at different
+positions, so a sketch that cares about position should check its own.
 
 ### Use `onHIDInput()`, not `onHIDVendorInput()`
 
@@ -234,14 +233,36 @@ key 6: 1428 byte JPEG sent
   bus-powered hub port budget. Give the host port a supply that can hold 500 mA or
   more, especially with the backlight up.
 
-Also confirmed, the hard way: pressing a key makes the pad redraw its own stored
-icons over the uploaded tiles, which is why the sketch repaints on input.
+### What the vendor application does
 
-Read out of a USB capture of the vendor application driving the same unit
-(`11.pcapng`, 55k USB frames): the startup sequence `DIS` / `LIG 25` / `QUCMD` /
-`CLE ff` / six `BAT` uploads / `STP`, the `CONNECT` keepalive at 9.4-10.0 s intervals,
-the input report header and the key and encoder codes, and that the application
-re-uploads and refreshes continuously rather than relying on the pad to hold an image.
+The session handshake and the keepalive interval come from a USB capture of the vendor
+application driving the same unit, over 40 s and 55k USB frames. Its startup, with
+capture-relative timestamps:
+
+```
+282.887  CRT..DIS                         session start
+282.888  CRT..LIG 00 00 19                brightness 0x19 = 25
+282.889  CRT..QUCMD 1f 11 00 11 00 11     purpose unknown
+282.945  CRT..CLE 00 00 00 ff             clear every key
+282.953  CRT..BAT 00 00 10 7f 01          key 1, 4223 bytes of JPEG
+282.958  CRT..BAT 00 00 0e 81 02          key 2, 3713 bytes
+   ...   four more                        keys 3..6
+282.979  CRT..STP                         show it
+```
+
+Then, with the pad idle:
+
+```
+293.458  CRT..CONNECT
+302.879  CRT..CONNECT     9.42 s
+312.914  CRT..CONNECT    10.03 s
+322.879  CRT..CONNECT     9.97 s
+```
+
+Two more things the traffic shows. The application does not rely on the pad to hold an
+image: over those 40 s it sent 3151 `BAT` uploads and 3131 `STP` refreshes, several a
+second, with key image sizes between 2110 and 5025 bytes. And it uploads to seven image
+targets, not six - key ids 1..6 plus `0x0b`, which it writes as often as keys 5 and 6.
 
 Still open:
 

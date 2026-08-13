@@ -192,10 +192,10 @@ static constexpr uint8_t INPUT_HEADER[] = {'A', 'C', 'K', 0x00, 0x00, 'O', 'K', 
 // way the keys do. The codes are not in an arithmetic relation to each other, so they
 // are a table rather than a formula.
 //
-// The order here is the encoder numbering this example uses. On the STREONOR S6 it
-// comes out as encoder 1 = bottom-left knob, 2 = bottom-right, 3 = top-middle; another
-// brand's unit may place the same codes differently, so a sketch that cares about
-// position should check its own.
+// The order here is the pad's own numbering, confirmed on a STREONOR S6: encoder 1 is
+// the bottom-left knob, 2 the bottom-right, 3 the top one. Another brand's unit may
+// place the same codes differently, so a sketch that cares about position should check
+// its own.
 struct EncoderCodes
 {
   uint8_t counterClockwise;
