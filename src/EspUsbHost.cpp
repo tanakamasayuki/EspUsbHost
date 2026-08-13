@@ -5,6 +5,7 @@
 #include "esp_vfs_fat.h"
 #include "vfs_api.h"
 
+#include <esp_idf_version.h>
 #include <string.h>
 #include <math.h>
 #include <atomic>
@@ -16,6 +17,13 @@
 #if defined(CONFIG_CACHE_L1_CACHE_LINE_SIZE) && CONFIG_CACHE_L1_CACHE_LINE_SIZE > 0
 #include "esp_cache.h"
 #define ESP_USB_HOST_DMA_CACHE_SYNC 1
+#endif
+
+// usb_host_config_t::fifo_settings_custom arrived in ESP-IDF 5.5 (arduino-esp32
+// 3.3.0). Before that the FIFO split could only be chosen through the Kconfig
+// bias, which is baked into the precompiled core libraries.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#define ESP_USB_HOST_HAS_FIFO_SETTINGS 1
 #endif
 
 #if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
@@ -613,6 +621,23 @@ static unsigned hostPeripheralMap(EspUsbHostPort port)
   default:
     return 0;
   }
+}
+#endif
+
+#if defined(ESP_USB_HOST_HAS_FIFO_SETTINGS)
+// Total FIFO the controller has to divide up, in lines of 4 bytes: 4 kB behind a
+// high-speed PHY, 1 kB behind a full-speed one. The hardware keeps a few lines
+// at the end for endpoint bookkeeping, so a split can still be rejected by the
+// host driver slightly below this; it is only used to catch a config that cannot
+// possibly fit before a device gets plugged in.
+static uint32_t hostFifoCapacityLines(EspUsbHostPort port)
+{
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  return (port == ESP_USB_HOST_PORT_FULL_SPEED) ? 256 : 1024;
+#else
+  (void)port;
+  return 256;
+#endif
 }
 #endif
 
@@ -7011,6 +7036,54 @@ void EspUsbHost::taskLoop()
   usb_host_config_t hostConfig = {};
   hostConfig.skip_phy_setup = false;
   hostConfig.intr_flags = ESP_INTR_FLAG_LOWMED;
+  const EspUsbHostFifoConfig &fifo = config_.fifo;
+  if (fifo.rxFifoLines != 0 || fifo.nptxFifoLines != 0 || fifo.ptxFifoLines != 0)
+  {
+#if defined(ESP_USB_HOST_HAS_FIFO_SETTINGS)
+    // The driver only accepts the whole split, so a missing RX or NPTX size
+    // would leave control transfers with no FIFO at all.
+    if (fifo.rxFifoLines == 0 || fifo.nptxFifoLines == 0)
+    {
+      ESP_LOGE(TAG, "FIFO config needs rxFifoLines and nptxFifoLines > 0");
+      setLastError(ESP_ERR_INVALID_ARG);
+      running_ = false;
+      taskHandle_ = nullptr;
+      vTaskDelete(nullptr);
+      return;
+    }
+    const uint32_t totalLines = fifo.rxFifoLines + fifo.nptxFifoLines + fifo.ptxFifoLines;
+    const uint32_t capacityLines = hostFifoCapacityLines(config_.port);
+    if (totalLines > capacityLines)
+    {
+      ESP_LOGE(TAG, "FIFO config total %lu lines exceeds the %lu lines this port has",
+               (unsigned long)totalLines,
+               (unsigned long)capacityLines);
+      setLastError(ESP_ERR_INVALID_SIZE);
+      running_ = false;
+      taskHandle_ = nullptr;
+      vTaskDelete(nullptr);
+      return;
+    }
+    hostConfig.fifo_settings_custom.rx_fifo_lines = fifo.rxFifoLines;
+    hostConfig.fifo_settings_custom.nptx_fifo_lines = fifo.nptxFifoLines;
+    hostConfig.fifo_settings_custom.ptx_fifo_lines = fifo.ptxFifoLines;
+    // The MPS limits are logged as well: they are what an endpoint claim is
+    // checked against, so a claim failing with ESP_ERR_NOT_SUPPORTED can be
+    // compared against this line directly.
+    ESP_LOGI(TAG,
+             "FIFO lines rx=%lu nptx=%lu ptx=%lu (total=%lu) -> max MPS in=%lu bulk_out=%lu periodic_out=%lu",
+             (unsigned long)fifo.rxFifoLines,
+             (unsigned long)fifo.nptxFifoLines,
+             (unsigned long)fifo.ptxFifoLines,
+             (unsigned long)totalLines,
+             (unsigned long)((fifo.rxFifoLines - 2) * 4),
+             (unsigned long)(fifo.nptxFifoLines * 4),
+             (unsigned long)(fifo.ptxFifoLines * 4));
+#else
+    ESP_LOGW(TAG, "FIFO config needs arduino-esp32 3.3.0 or newer; using the driver default");
+#endif
+  }
+
 #if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
   if (enumerationHost_ && enumerationHost_ != this)
   {
