@@ -106,6 +106,7 @@ interface classが役に立たないデバイスも同じ道筋で扱います�
 | USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
 | USBTMC — SCPI計測器 | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) にvendor bulk/control API上で実装。ライブラリ本体にUSBTMC固有の処理は入っていない。interface classは0xFE（Application Specific）でvendor-specificではないが、使うAPIで分類しているためexampleは `Vendor/` にある。菊水電子工業の直流電源 PMX18-5A（`0b3e:1029`）で実機確認済み（class request、bulkメッセージ層、SCPIクエリ）。USB488のinterrupt IN（service request）は使わない |
 | Printer — ESC/POSレシートプリンタ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostPrinterEscPos`](examples/Vendor/EspUsbHostPrinterEscPos/) にvendor bulk/control API上で実装。ライブラリ本体にプリンタ固有の処理は入っていない。interface classは0x07だが、使うAPIで分類しているためexampleは `Vendor/` にある。Xprinter XP-C58K（`0483:070b`）で実機確認済み（class request 3種、ESC/POSリアルタイムステータス、日本語レシート＋バーコード＋QR＋オートカット）。この機種はclass requestが「応答はするが中身が空」だったため、頼れるステータス経路はリアルタイムステータス（`DLE EOT n`）。IPP / PWG-Raster / PCL と IEEE 1284.4 パケットモードは対象外 |
+| Mirabox N3 / Ajazz AKP03系 LCDマクロパッド | 📄 example限りのbest effort。[`examples/HID/EspUsbHostMacroPadN3`](examples/HID/EspUsbHostMacroPadN3/) にHID API上で実装。ライブラリ本体にパッド固有の処理は入っていない。vendor interfaceに独自の`CRT`プロトコルを載せたcomposite HIDデバイスなので `onHIDVendorInput()` と `sendHIDVendorOutput()` で足りる。STREONOR S6（`1500:3006`）で実機確認済み（輝度、クリア、リフレッシュ、6キー画面への64x64 JPEG表示）。パッドのinterrupt OUTがMPS 1024のため、ESP32-P4のHigh-speedポート限定。シーンキーとノブの入力レポートコードは未確定 |
 | ALIENTEK DP100 数控電源 | 📄 example限りのbest effort。[`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/) にHID API上で実装。ライブラリ本体にDP100固有の処理は入っていない。素のHID interfaceに独自フレームを載せたデバイスなので `onHIDInput()` と `sendHIDVendorOutput()` で足りる。読み取りはESP32-S3で実機確認済み（機器情報、入力電圧、出力V/A、温度。単位も実測で確定）。設定書き込みフレームは出力ON/OFFを含むため実装のみで未検証 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
@@ -273,6 +274,7 @@ void loop() {
 | [EspUsbHostHIDVendor](examples/HID/EspUsbHostHIDVendor/) | ベンダーHID入力と出力/フィーチャーレポートの送信 |
 | [EspUsbHostHIDRawDump](examples/HID/EspUsbHostHIDRawDump/) | デバイスアドレス付きでHexダンプ（複数デバイス対応） |
 | [EspUsbHostDp100Power](examples/HID/EspUsbHostDp100Power/) | ALIENTEK DP100電源を読み取る。64バイトHIDレポートに載った独自フレーム（CRC-16/MODBUS） |
+| [EspUsbHostMacroPadN3](examples/HID/EspUsbHostMacroPadN3/) | Mirabox N3 / Ajazz AKP03系のLCDマクロパッドを駆動する。6キーの画面描画とキー入力（ESP32-P4限定） |
 
 ### Info
 
