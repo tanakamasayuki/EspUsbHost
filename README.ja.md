@@ -373,10 +373,32 @@ struct EspUsbHostConfig {
   UBaseType_t taskPriority  = 5;
   BaseType_t  taskCore      = tskNO_AFFINITY;
   EspUsbHostPort port       = ESP_USB_HOST_PORT_DEFAULT;
+  EspUsbHostFifoConfig fifo = {};
 };
 ```
 
 ESP32-P4で特定のOTG peripheralを選びたい場合は、`port`に`ESP_USB_HOST_PORT_FULL_SPEED`または`ESP_USB_HOST_PORT_HIGH_SPEED`を指定します。他のチップではこの設定は無視されます。
+
+#### エンドポイントサイズの上限（`fifo`）
+
+Host controllerはパケットをハードウェアFIFOに一時保存し、その領域を3分割して使います。この分割が、hostが開けるエンドポイントの最大サイズを決めます。
+
+| エンドポイント | 上限 | High-speedポートの既定値 |
+| --- | --- | --- |
+| IN（転送種別を問わず） | `(rxFifoLines - 2) * 4` | 約2400バイト |
+| Control / bulk OUT | `nptxFifoLines * 4` | 1024バイト |
+| Interrupt / isochronous OUT | `ptxFifoLines * 4` | **512バイト** |
+
+512バイトを超えるinterrupt OUTエンドポイントを持つデバイス（Stream Deck系マクロパッドなどのhigh-speed vendor HIDは1024バイトを使います）はclaimに失敗して`ESP_ERR_NOT_SUPPORTED`となり、host driverが`HCD DWC: EP MPS (1024) exceeds supported limit (512)`を出力します。FIFOを再分割して領域を確保してください。
+
+```cpp
+EspUsbHostConfig config;
+config.port = ESP_USB_HOST_PORT_HIGH_SPEED;
+config.fifo = ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT;  // {260, 128, 280} lines
+usb.begin(config);
+```
+
+`ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT`は、512バイトのbulk転送を使えるまま1024バイトのinterrupt OUTエンドポイントを許可します。別の配分にしたい場合は3つのフィールドを直接指定します。単位は4バイトのline、`rxFifoLines`と`nptxFifoLines`は0にできず、合計はポートの容量に収める必要があります（ESP32-P4のhigh-speedポートは1024 line＝4 kB、full-speedポートは256 line＝1 kB）。1024バイトのエンドポイントがhigh-speedポートでしか開けないのはこのためです。`fifo`を既定値のままにすればdriver側の分割を使います。arduino-esp32 3.3.0以降が必要で、それ以前のコアでは警告を出して既定の分割を使います。
 
 ### デバイスイベント
 

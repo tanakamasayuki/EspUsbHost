@@ -217,12 +217,41 @@ static constexpr uint32_t ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS = 1000;
 static constexpr size_t ESP_USB_HOST_CCID_MAX_ATR = 33;
 static constexpr uint32_t ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS = 5000;
 
+// How the host controller splits its hardware FIFO between the three staging
+// areas, in lines of 4 bytes. The split caps the largest endpoint the host can
+// open: IN endpoints are limited to (rxFifoLines - 2) * 4, control/bulk OUT to
+// nptxFifoLines * 4, and interrupt/isochronous OUT to ptxFifoLines * 4.
+//
+// Leave every field 0 to keep the driver default, which on a high-speed port is
+// rx = total - 384, nptx = 256 and ptx = 128 lines: 1024 bytes for bulk OUT but
+// only 512 for periodic OUT. A device with an interrupt OUT endpoint larger than
+// that (a high-speed vendor HID display panel, for instance) fails to claim with
+// ESP_ERR_NOT_SUPPORTED and needs ptxFifoLines raised.
+//
+// The total must fit the controller's FIFO: 1024 lines on the ESP32-P4
+// high-speed port, 256 lines on a full-speed port. A larger total, or a zero
+// rxFifoLines or nptxFifoLines, is rejected by begin() with ESP_ERR_INVALID_SIZE
+// or ESP_ERR_INVALID_ARG in lastError(). Requires arduino-esp32 3.3.0 or newer
+// (ESP-IDF 5.5); older cores log a warning and use the driver default.
+struct EspUsbHostFifoConfig
+{
+  uint32_t rxFifoLines = 0;
+  uint32_t nptxFifoLines = 0;
+  uint32_t ptxFifoLines = 0;
+};
+
+// Room for a 1024-byte interrupt OUT endpoint while keeping 512-byte bulk OUT
+// and IN endpoints usable. 668 of the 1024 lines an ESP32-P4 high-speed port
+// has, so it is only valid on that port.
+static constexpr EspUsbHostFifoConfig ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT = {260, 128, 280};
+
 struct EspUsbHostConfig
 {
   uint32_t taskStackSize = 8192;
   UBaseType_t taskPriority = 5;
   BaseType_t taskCore = tskNO_AFFINITY;
   EspUsbHostPort port = ESP_USB_HOST_PORT_DEFAULT;
+  EspUsbHostFifoConfig fifo = {};
 };
 
 enum EspUsbHostSerialParity : uint8_t

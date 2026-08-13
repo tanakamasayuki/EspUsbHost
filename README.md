@@ -388,10 +388,44 @@ struct EspUsbHostConfig {
   UBaseType_t taskPriority  = 5;
   BaseType_t  taskCore      = tskNO_AFFINITY;
   EspUsbHostPort port       = ESP_USB_HOST_PORT_DEFAULT;
+  EspUsbHostFifoConfig fifo = {};
 };
 ```
 
 On ESP32-P4, set `port` to `ESP_USB_HOST_PORT_FULL_SPEED` or `ESP_USB_HOST_PORT_HIGH_SPEED` when you need to choose a specific OTG peripheral. Other chips ignore this setting.
+
+#### Endpoint size limits (`fifo`)
+
+The host controller stages packets in a hardware FIFO that it splits three ways,
+and the split caps how large an endpoint the host can open:
+
+| Endpoint | Limit | High-speed port default |
+| --- | --- | --- |
+| IN (any transfer type) | `(rxFifoLines - 2) * 4` | ~2400 bytes |
+| Control / bulk OUT | `nptxFifoLines * 4` | 1024 bytes |
+| Interrupt / isochronous OUT | `ptxFifoLines * 4` | **512 bytes** |
+
+A device with an interrupt OUT endpoint larger than 512 bytes — high-speed vendor
+HID panels such as Stream Deck style macro pads use 1024 — fails to claim with
+`ESP_ERR_NOT_SUPPORTED`, and the host driver logs
+`HCD DWC: EP MPS (1024) exceeds supported limit (512)`. Repartition the FIFO to
+make room:
+
+```cpp
+EspUsbHostConfig config;
+config.port = ESP_USB_HOST_PORT_HIGH_SPEED;
+config.fifo = ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT;  // {260, 128, 280} lines
+usb.begin(config);
+```
+
+`ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT` allows a 1024-byte interrupt OUT endpoint
+while keeping 512-byte bulk transfers usable. Set the three fields yourself for a
+different balance; sizes are in lines of 4 bytes, `rxFifoLines` and
+`nptxFifoLines` must be non-zero, and the total must fit the port: 1024 lines
+(4 kB) on the ESP32-P4 high-speed port, 256 lines (1 kB) on any full-speed port —
+which is why a 1024-byte endpoint can only be opened on the high-speed port.
+Leave `fifo` at its default to keep the driver's own split. Requires
+arduino-esp32 3.3.0 or newer; older cores log a warning and use the default.
 
 ### Device events
 
