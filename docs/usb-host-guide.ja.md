@@ -501,5 +501,6 @@ pytestから実行し、ログを残す形のツールです。実行方法は [
 - [USBPcap](https://desowin.org/usbpcap/) / [Wireshark](https://www.wireshark.org/) — Windowsでのキャプチャ
 - [Linux USB project](https://www.kernel.org/doc/html/latest/driver-api/usb/index.html) — カーネルドライバ（事実上の仕様書）
 - [ESP-IDF USB Host Library](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/usb_host.html) — このライブラリの土台
+- [動作確認済みデバイスとボード](tested-devices.ja.md) — 実機で確認した機器のVID:PIDと条件、推奨ボード
 - このリポジトリの [README.ja.md](../README.ja.md) — API仕様と各クラスの対応状況
 - [docs/](.) — 個別デバイス・プロトコルの解析メモ

@@ -6,7 +6,41 @@ Arduino library for using USB Host on ESP32-S3, ESP32-S2 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
-New to USB Host, or stuck with a device that will not work? Start with the **[USB Host Development Guide](docs/usb-host-guide.md)**: USB fundamentals, the ESP32-specific limits (power, speeds, hubs, channels), and the route from checking a board through identifying an unknown device to working out an undocumented protocol. The [advanced guide](docs/usb-host-advanced.md) continues into descriptor byte layouts, host channels and the FIFO split, error recovery, throughput design, callback context, and writing your own class wrapper.
+New to USB Host, or stuck with a device that will not work? Start with the **[USB Host Development Guide](docs/usb-host-guide.md)**: USB fundamentals, the ESP32-specific limits (power, speeds, hubs, channels), and the route from checking a board through identifying an unknown device to working out an undocumented protocol. The [advanced guide](docs/usb-host-advanced.md) continues into descriptor byte layouts, host channels and the FIFO split, error recovery, throughput design, callback context, and writing your own class wrapper. Devices and boards that have been verified on real hardware are listed in [Tested Devices and Boards](docs/tested-devices.md).
+
+## Contents
+
+- [Requirements](#requirements)
+- [Version 2 status](#version-2-status)
+- [Sibling Library: EspUsbDevice](#sibling-library-espusbdevice)
+- [Features](#features)
+- [Supported USB classes](#supported-usb-classes)
+- [Roadmap](#roadmap)
+- [Current limits and cautions](#current-limits-and-cautions)
+- [Hardware requirements](#hardware-requirements)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Examples](#examples)
+- [API reference](#api-reference)
+  - [Core](#core)
+  - [Device events](#device-events)
+  - [HID input](#hid-input)
+  - [HID output](#hid-output)
+  - [USB serial (CDC ACM and VCP)](#usb-serial-cdc-acm-and-vcp)
+  - [Vendor bulk/control](#vendor-bulkcontrol)
+  - [CCID smart card reader](#ccid-smart-card-reader)
+  - [MIDI](#midi-1)
+  - [USB audio](#usb-audio)
+  - [USB Mass Storage](#usb-mass-storage)
+  - [USB Hub](#usb-hub)
+  - [USB network (CDC-NCM / CDC-ECM)](#usb-network-cdc-ncm--cdc-ecm)
+  - [Device discovery](#device-discovery)
+  - [Error handling](#error-handling)
+- [Design](#design)
+- [Multiple devices](#multiple-devices)
+- [Tests](#tests)
+- [Release checklist](#release-checklist)
+- [License](#license)
 
 ## Requirements
 
@@ -154,7 +188,7 @@ be identified before any code is written for it.
 - **Hot plug:** unplugging while files, serial transfers, audio streams, or class operations are active can still fail or lose data depending on device behavior.
 - **ESP32-P4:** FS/HS OTG selection is supported through `EspUsbHostConfig::port`, but P4 validation is still ongoing. HS OTG has practical limitations, especially with hubs.
 
-## Requirements
+## Hardware requirements
 
 - ESP32-S3, or any board supported by Arduino-ESP32 USB Host
 - Arduino-ESP32 core
@@ -490,7 +524,7 @@ returns a nonzero `EspUsbHostListenerId`; zero
 (`ESP_USB_HOST_INVALID_LISTENER_ID`) means that the callback was empty or the
 event's listener capacity was reached. `removeListener()` accepts an ID from any
 listener type — HID input, [device lifecycle](#device-events) or
-[MIDI](#midi) — and returns whether it removed one.
+[MIDI](#midi-1) — and returns whether it removed one.
 
 There are four listeners per event by default (`EspUsbHost::MaxListenersPerEvent`),
 configurable at compile time with `ESP_USB_HOST_MAX_LISTENERS_PER_EVENT`. The
