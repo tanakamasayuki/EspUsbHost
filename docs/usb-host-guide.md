@@ -4,6 +4,8 @@
 
 How to get a USB device working on an ESP32. The first half covers USB Host itself, the second half covers what is specific to the ESP32 series and how to actually run the experiments.
 
+The deeper material -- descriptor byte layouts, channels and the FIFO split, error recovery, throughput design, callback context, and implementing your own class -- is in the [advanced guide](usb-host-advanced.md).
+
 It is written so that someone who has never touched USB can follow it, but the goal is that you can diagnose "why doesn't this work" yourself, so the mechanics are not skipped. If you are in a hurry, start at [Running the experiments](#4-running-the-experiments) and come back when a term is unfamiliar.
 
 ## Contents
