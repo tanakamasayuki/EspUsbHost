@@ -497,5 +497,6 @@ Run from pytest so the output is logged. See [tests/manual/README.md](../tests/m
 - [USBPcap](https://desowin.org/usbpcap/) / [Wireshark](https://www.wireshark.org/) — capturing on Windows
 - [Linux USB project](https://www.kernel.org/doc/html/latest/driver-api/usb/index.html) — kernel drivers as de-facto specifications
 - [ESP-IDF USB Host Library](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/usb_host.html) — what this library is built on
+- [Tested Devices and Boards](tested-devices.md) — verified units with their VID:PIDs and conditions, and board notes
 - [README.md](../README.md) in this repository — API reference and per-class status
 - [docs/](.) — per-device protocol notes

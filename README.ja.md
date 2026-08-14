@@ -6,7 +6,41 @@ ESP32-S3 / ESP32-S2 / ESP32-P4でUSB Hostを使うためのArduinoライブラ�
 
 USB処理はバックグラウンドのFreeRTOSタスクで行われるため、`loop()`でUSBポーリング関数を呼ぶ必要はありません。`setup()`でコールバックを登録して`begin()`を呼ぶだけで動作します。
 
-USB Hostが初めての方、あるいは手元のデバイスが動かない方は、まず **[USB Host開発ガイド](docs/usb-host-guide.ja.md)** をご覧ください。USBの基礎、ESP32シリーズ固有の制限（電源・速度・ハブ・チャネル数）、ボードの確認から未知デバイスの識別、仕様非公開プロトコルの解析までの手順をまとめています。さらに踏み込んだ内容（ディスクリプタのバイト構造、ホストチャネルとFIFO分割、エラー復帰、スループット設計、コールバックのコンテキスト、独自クラスの実装）は **[上級編](docs/usb-host-advanced.ja.md)** にあります。
+USB Hostが初めての方、あるいは手元のデバイスが動かない方は、まず **[USB Host開発ガイド](docs/usb-host-guide.ja.md)** をご覧ください。USBの基礎、ESP32シリーズ固有の制限（電源・速度・ハブ・チャネル数）、ボードの確認から未知デバイスの識別、仕様非公開プロトコルの解析までの手順をまとめています。さらに踏み込んだ内容（ディスクリプタのバイト構造、ホストチャネルとFIFO分割、エラー復帰、スループット設計、コールバックのコンテキスト、独自クラスの実装）は **[上級編](docs/usb-host-advanced.ja.md)** にあります。実機で確認済みのデバイスとボードは [動作確認済みデバイスとボード](docs/tested-devices.ja.md) にまとめています。
+
+## 目次
+
+- [対応環境](#対応環境)
+- [バージョン2系の位置づけ](#バージョン2系の位置づけ)
+- [兄弟ライブラリ: EspUsbDevice](#兄弟ライブラリ-espusbdevice)
+- [機能](#機能)
+- [対応USBクラス一覧](#対応usbクラス一覧)
+- [ロードマップ](#ロードマップ)
+- [現状の制限と注意点](#現状の制限と注意点)
+- [ハードウェア要件](#ハードウェア要件)
+- [インストール](#インストール)
+- [クイックスタート](#クイックスタート)
+- [サンプル一覧](#サンプル一覧)
+- [APIリファレンス](#apiリファレンス)
+  - [コア](#コア)
+  - [デバイスイベント](#デバイスイベント)
+  - [HID入力](#hid入力)
+  - [HID出力](#hid出力)
+  - [USBシリアル（CDC ACM・VCP）](#usbシリアルcdc-acmvcp)
+  - [Vendor bulk/control](#vendor-bulkcontrol)
+  - [CCIDスマートカードリーダー](#ccidスマートカードリーダー)
+  - [MIDI](#midi-1)
+  - [USBオーディオ](#usbオーディオ)
+  - [USB Mass Storage](#usb-mass-storage)
+  - [USB Hub](#usb-hub)
+  - [USBネットワーク（CDC-NCM / CDC-ECM）](#usbネットワークcdc-ncm--cdc-ecm)
+  - [デバイス探索](#デバイス探索)
+  - [エラーハンドリング](#エラーハンドリング)
+- [設計方針](#設計方針)
+- [複数デバイスの扱い](#複数デバイスの扱い)
+- [テスト](#テスト)
+- [リリースチェックリスト](#リリースチェックリスト)
+- [ライセンス](#ライセンス)
 
 ## 対応環境
 
@@ -140,7 +174,7 @@ interface classが役に立たないデバイスも同じ道筋で扱います�
 - **活線挿抜:** ファイル、シリアル転送、Audio stream、各クラス操作の途中で抜くと、デバイスによっては失敗やデータ喪失が起こります。
 - **ESP32-P4:** `EspUsbHostConfig::port`でFS/HS OTGを選べますが、P4向け検証は継続中です。特にHS OTGとHubの組み合わせには実用上の制限があります。
 
-## 必要環境
+## ハードウェア要件
 
 - ESP32-S3、またはArduino-ESP32 USB Hostに対応したボード
 - Arduino-ESP32コア
@@ -458,7 +492,7 @@ const char *espUsbHostSystemControlUsageName(uint8_t usage);
 `add*Listener()`を使うと、アダプタとスケッチが互いを上書きせず、同じパース済みHIDイベントを
 受信できます。登録成功時は0以外の`EspUsbHostListenerId`を返します。0
 （`ESP_USB_HOST_INVALID_LISTENER_ID`）は空callbackまたはeventのlistener上限到達を表します。
-`removeListener()`はHID入力・[デバイスlifecycle](#デバイスイベント)・[MIDI](#midi)の
+`removeListener()`はHID入力・[デバイスlifecycle](#デバイスイベント)・[MIDI](#midi-1)の
 どのlistener IDも受け取り、解除できたかを返します。
 
 listenerはeventごとに既定4件（`EspUsbHost::MaxListenersPerEvent`）で、コンパイル時に

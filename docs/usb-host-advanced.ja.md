@@ -579,6 +579,7 @@ Core Debug Level を `Verbose` にすると、ESP-IDFのホストスタックが
 ## 関連ドキュメント
 
 - [USB Host開発ガイド（入門編）](usb-host-guide.ja.md) — 基礎、電源、実験手順、キャプチャ
+- [動作確認済みデバイスとボード](tested-devices.ja.md) — 実機で確認した機器と条件
 - [README.ja.md](../README.ja.md) — APIリファレンスとクラス対応状況
 - [tests/manual/README.ja.md](../tests/manual/README.ja.md) — マニュアルテスト一覧と既知の問題
 - [tests/TEST_PLAN.ja.md](../tests/TEST_PLAN.ja.md) — テスト戦略

@@ -579,6 +579,7 @@ With Core Debug Level at `Verbose`, the ESP-IDF host stack reports enumeration a
 ## Related documents
 
 - [USB Host Development Guide](usb-host-guide.md) — fundamentals, power, the experiment order, capturing
+- [Tested Devices and Boards](tested-devices.md) — verified units and their conditions
 - [README.md](../README.md) — API reference and per-class status
 - [tests/manual/README.md](../tests/manual/README.md) — the manual test catalog and known issues
 - [tests/TEST_PLAN.md](../tests/TEST_PLAN.md) — test strategy
