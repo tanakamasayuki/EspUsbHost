@@ -74,6 +74,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`printer_escpos/`](printer_escpos/) | USB Printerクラスの要求層。vendor bulk APIでclass 0x07のinterfaceを検出してclaim、`vendorControlTransfer()` によるEP0のGET_DEVICE_ID / GET_PORT_STATUS / SOFT_RESET、ESC/POSリアルタイムステータス4種の固定ビット確認、20回連続ポーリング、SOFT_RESET後もendpointが生きていること。**用紙を消費しない**（印字データを一切キューしない）。クラス要求に「中身の無い応答」を返すプリンタ（空のデバイスID、0x00のポートステータス）も許容する。XP-C58Kがまさにそれ | 用紙を装填したESC/POS USBレシートプリンタ（Xprinter XP-C58K `0483:070b` で開発） | ✅ |
 | [`printer_print/`](printer_print/) | ESC/POS印字データ経路。レシート1枚を1転送で送り、プリンタのShift-JISフォントROMによる日本語、CODE128バーコード、QRコード、オートカッターまで確認する。印字前後のステータスと、転送後にステータス経路が生きていることも見る。**1回の実行で伝票1枚（約10cm）を消費し、用紙をカットする。** 用紙切れやエラーが報告されていれば印字せず、印字後に現れた場合は失敗にする。伝票の内容自体は目視判定 | `printer_escpos` と同じ。日本語には2バイトフォントROMを持つプリンタが必要 | ✅ |
 | [`device_dump/`](device_dump/) | 全列挙デバイスのdescriptor・interface・endpoint・チャネル集計をダンプし、ライブラリ本体がclaimしないinterface（USBTMC・printer・vendor-specific）についてはラッパーが使うbulk/interrupt endpointも表示する。未対応デバイスの素性調査用 | 任意のUSBデバイス | ✅ |
+| [`raw_descriptor/`](raw_descriptor/) | EP0への標準GET_DESCRIPTORでDEVICE/CONFIGURATIONディスクリプタの生バイトを読み、コンフィグレーションをブロック単位で走査して各ブロックを`bDescriptorType`付きで表示する。解析済みダンプでは見えないクラス固有ディスクリプタ（HID・CDC機能・CCID・UAC）も含む。USBPcapのキャプチャや`lsusb -v`と突き合わせるためのバイト列。コントロール転送の制限により248バイトで打ち切り | 任意のUSBデバイス | ✅ |
 
 ## ESP-IDF がクラッシュするハブの組み合わせ
 

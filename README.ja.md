@@ -6,6 +6,8 @@ ESP32-S3 / ESP32-S2 / ESP32-P4でUSB Hostを使うためのArduinoライブラ�
 
 USB処理はバックグラウンドのFreeRTOSタスクで行われるため、`loop()`でUSBポーリング関数を呼ぶ必要はありません。`setup()`でコールバックを登録して`begin()`を呼ぶだけで動作します。
 
+USB Hostが初めての方、あるいは手元のデバイスが動かない方は、まず **[USB Host開発ガイド](docs/usb-host-guide.ja.md)** をご覧ください。USBの基礎、ESP32シリーズ固有の制限（電源・速度・ハブ・チャネル数）、ボードの確認から未知デバイスの識別、仕様非公開プロトコルの解析までの手順をまとめています。
+
 ## 対応環境
 
 対応する Arduino-ESP32 コア（ボードパッケージ）の最低バージョン:
@@ -280,6 +282,8 @@ void loop() {
 
 | スケッチ | 説明 |
 |----------|------|
+| [EspUsbHostBringUpCheck](examples/Info/EspUsbHostBringUpCheck/) | 新しいボードで最初に動かすツール。ホストが起動したか、何か列挙されたか、速度は何か。列挙されない場合のチェックリスト付き |
+| [EspUsbHostDeviceExplorer](examples/Info/EspUsbHostDeviceExplorer/) | 未知のデバイスの識別。インターフェースごとの「何であり、どのAPIで扱うか」と、生ディスクリプタのバイト列およびブロック単位の走査 |
 | [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | 接続中の全デバイスのディスクリプタ・インターフェース・エンドポイントを表示 |
 | [EspUsbHostHIDReportDescriptor](examples/Info/EspUsbHostHIDReportDescriptor/) | HID調査用にHIDレポートディスクリプタと簡易item decodeを表示 |
 | [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | 接続・切断コールバックを自分で定義し、接続デバイスを調べる |
@@ -334,6 +338,7 @@ void loop() {
 
 | スケッチ | 説明 |
 |----------|------|
+| [EspUsbHostProtocolConsole](examples/Vendor/EspUsbHostProtocolConsole/) | 仕様非公開のプロトコル解析用の対話コンソール。シリアルモニタからコントロール／バルク転送を打ち込み、応答を確認する |
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | 汎用の非HID vendor-specificインターフェース：bulk IN/OUTとEP0 vendor control IN/OUT |
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | 汎用vendor bulk API上でAndroid ADB認証と単一shell streamを実行 |
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | USBグラフィックスアダプタ（DL-1xx bulkプロトコル）をLovyanGFXのpanelとして駆動。LGFXVirtualCanvasでFull HD面を扱う |
