@@ -56,4 +56,4 @@ exampleは**機能別ではなくトランスポート別**に置いています
 
 ## 設計資料
 
-- [`usb-display-spec.ja.md`](usb-display-spec.ja.md) — DL-1xxの設計文書。プロトコル調査、ライセンス、Full HD実現性の数値根拠、フェーズ分割。
+- [`usb-display-spec.ja.md`](usb-display-spec.ja.md) — DL-1xxの設計文書。プロトコル調査、ライセンス、Full HD実現性の数値根拠、フェーズ分割。プロトコル部の英語版は [`usb-display-spec.md`](usb-display-spec.md)。

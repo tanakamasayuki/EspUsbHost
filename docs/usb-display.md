@@ -105,6 +105,9 @@ adapter families, higher frame rates — use
 
 ## Design notes
 
-- [`usb-display-spec.ja.md`](usb-display-spec.ja.md) — the DL-1xx design document:
-  protocol survey, licensing, the Full HD feasibility arithmetic, and the phase
-  breakdown.
+- [`usb-display-spec.md`](usb-display-spec.md) — the DL-1xx protocol in English:
+  sources and licensing, the measured USB layout, the control requests, the `0xAF`
+  bulk commands, the video registers and their LFSR16 encoding, the RLE format,
+  display persistence, and the Full HD feasibility arithmetic.
+- [`usb-display-spec.ja.md`](usb-display-spec.ja.md) — the same document in Japanese,
+  plus the development record: test plan, phase breakdown and open items.

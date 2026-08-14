@@ -1,5 +1,9 @@
 # EspUsbHost MIDI cable 情報の公開 仕様案
 
+> **English readers:** the design proposal for exposing USB MIDI cable (virtual port)
+> information. The cable **count** is implemented (`getMidiPortInfo()`, see "MIDI" in
+> [README.md](../README.md)); cable **names** are not. Kept for the reasoning.
+
 > **状態: cable 数は実装済み、cable 名は未着手。** 統合ライブラリ
 > `/home/mt/dev/EspMidi/` からの要求。既存 API を変えない純粋な追加として設計している。
 >

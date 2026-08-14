@@ -1,5 +1,11 @@
 # EspUsbHost USBTMC (SCPI 計測器) 対応 仕様案
 
+> **English readers:** analysis notes for USBTMC / USB488 (interface class `0xfe`,
+> subclass `0x03`) and SCPI, written while implementing the instrument example against a
+> KIKUSUI PMX18-5A (`0b3e:1029`). The English summary — the class requests, the bulk
+> message layer and the SCPI wrapper — is in
+> [`examples/Vendor/EspUsbHostUsbtmcScpi/README.md`](../examples/Vendor/EspUsbHostUsbtmcScpi/README.md).
+
 ## 目的
 
 USBTMC (USB Test and Measurement Class) の計測器を EspUsbHost から使えるようにする。最初の対象は菊水電子工業の直流電源 PMX18-5A (`0b3e:1029`)。

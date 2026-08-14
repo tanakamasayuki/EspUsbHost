@@ -1,5 +1,10 @@
 # EspUsbHost device lifecycle / MIDI listener API 仕様案
 
+> **English readers:** the design proposal for the device lifecycle and MIDI listener API.
+> **Adopted and implemented** — the shipped API is documented under "Device events" in
+> [README.md](../README.md). This file is kept for the reasoning and the alternatives that
+> were rejected.
+
 > **状態: 採用・実装済み（Unreleased）。** 案 A を採用した。実装で判明した必須事項は
 > 「実装メモ」に、仕様案の記述の誤りは該当箇所に反映済み。
 

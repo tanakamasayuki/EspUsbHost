@@ -26,11 +26,11 @@ Notes:
 
 | Device | VID:PID | Status | What was verified | Reference |
 |--------|---------|--------|-------------------|-----------|
-| USB keyboards (generic) | — | ✅ | Boot protocol, NKRO (bitmap reports), LED control, international layouts | [`keyboard_leds`](../tests/manual/keyboard_leds/) / [HID](../examples/HID/) |
+| USB keyboards (generic) | — | ✅ | Boot protocol, NKRO (bitmap reports), LED control. The international layout conversion is covered by host unit tests | [`keyboard_leds`](../tests/manual/keyboard_leds/) / [`tests/unit/keymap`](../tests/unit/) / [HID](../examples/HID/) |
 | USB mice (generic) | — | ✅ | Movement, buttons, wheel | [HID](../examples/HID/) |
 | Keyboard and mouse together | — | ✅ | Both deliver events independently | [`multi_hid_keyboard_mouse`](../tests/manual/multi_hid_keyboard_mouse/) |
 | Gamepads | — | ✅ | Axes, hat switch, buttons, decoded from the report descriptor | [`EspUsbHostGamepad`](../examples/HID/EspUsbHostGamepad/) |
-| ALIENTEK DP100 power supply | `2e3c:af01` | ⚠️ | A private protocol inside HID reports. Reads verified; the setpoint write is implemented. **Direct connection only, no hub** (see the hub section) | [`EspUsbHostDp100Power`](../examples/HID/EspUsbHostDp100Power/) / [dp100-spec.ja.md](dp100-spec.ja.md) |
+| ALIENTEK DP100 power supply | `2e3c:af01` | ⚠️ | A private protocol inside HID reports. Reads verified; the setpoint write is implemented. The manual tests assume a **direct connection**; behind a hub it depends on the hub — a reboot loop with a CH335F, fine with an RTD5411 (see the hub section) | [`EspUsbHostDp100Power`](../examples/HID/EspUsbHostDp100Power/) / [dp100-spec.ja.md](dp100-spec.ja.md) |
 | STREONOR S6 LCD macro pad | `1500:3006` | ⚠️ | Six key screens, brightness, key input. **ESP32-P4 high-speed port only** (1024-byte interrupt OUT) | [`EspUsbHostMacroPadN3`](../examples/HID/EspUsbHostMacroPadN3/) |
 
 The macro pad is one design sold under many brands: Mirabox Stream Dock N3 (`6602:1000`, `6602:1002`, `6603:1002`, `6603:1003`), the Ajazz AKP03 family (`0300:300x`), and unbranded units (`1500:3001`). The example matches on **interface shape** rather than on VID:PID.

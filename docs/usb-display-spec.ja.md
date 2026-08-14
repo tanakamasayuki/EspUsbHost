@@ -1,5 +1,10 @@
 # EspUsbHost USB Display (DL-1xx) 対応 仕様案
 
+> **English readers:** the protocol findings from this document are available in English as
+> [usb-display-spec.md](usb-display-spec.md). This file additionally holds the development
+> record — test plan, implementation phases, acceptance criteria and open items. An index of
+> the display examples is in [usb-display.md](usb-display.md).
+
 ## 目的
 
 USB グラフィックスディスプレイアダプタを EspUsbHost から使えるようにする。
