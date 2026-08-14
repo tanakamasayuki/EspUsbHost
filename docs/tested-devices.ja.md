@@ -26,11 +26,11 @@
 
 | 機器 | VID:PID | 状態 | 内容 | 参照 |
 |------|---------|------|------|------|
-| USBキーボード（一般） | — | ✅ | ブートプロトコル、NKRO（ビットマップレポート）、LED制御、各国レイアウト | [`keyboard_leds`](../tests/manual/keyboard_leds/) / [HID](../examples/HID/) |
+| USBキーボード（一般） | — | ✅ | ブートプロトコル、NKRO（ビットマップレポート）、LED制御。各国レイアウト変換はホスト上の単体テストで検証 | [`keyboard_leds`](../tests/manual/keyboard_leds/) / [`tests/unit/keymap`](../tests/unit/) / [HID](../examples/HID/) |
 | USBマウス（一般） | — | ✅ | 移動・ボタン・ホイール | [HID](../examples/HID/) |
 | キーボード＋マウス同時接続 | — | ✅ | 2台が独立してイベントを出す | [`multi_hid_keyboard_mouse`](../tests/manual/multi_hid_keyboard_mouse/) |
 | ゲームパッド | — | ✅ | 軸・ハット・ボタン。レポートディスクリプタからのデコード | [`EspUsbHostGamepad`](../examples/HID/EspUsbHostGamepad/) |
-| ALIENTEK DP100 電源 | `2e3c:af01` | ⚠️ | HIDレポートに載った独自プロトコル。読み出しは検証済み、設定値書き込みは実装済み。**ハブ経由不可、直結のみ**（下記ハブの項） | [`EspUsbHostDp100Power`](../examples/HID/EspUsbHostDp100Power/) / [dp100-spec.ja.md](dp100-spec.ja.md) |
+| ALIENTEK DP100 電源 | `2e3c:af01` | ⚠️ | HIDレポートに載った独自プロトコル。読み出しは検証済み、設定値書き込みは実装済み。マニュアルテストは**直結**が前提。ハブ経由はハブ依存で、CH335Fとの組み合わせは再起動ループ、RTD5411では問題なし（下記ハブの項） | [`EspUsbHostDp100Power`](../examples/HID/EspUsbHostDp100Power/) / [dp100-spec.ja.md](dp100-spec.ja.md) |
 | STREONOR S6 LCDマクロパッド | `1500:3006` | ⚠️ | 6キーのLCD描画・輝度・キー入力。**ESP32-P4のHSポート専用**（interrupt OUTが1024バイト） | [`EspUsbHostMacroPadN3`](../examples/HID/EspUsbHostMacroPadN3/) |
 
 マクロパッドは同一設計が多数のブランドで流通しています（Mirabox Stream Dock N3 `6602:1000` / `6602:1002` / `6603:1002` / `6603:1003`、Ajazz AKP03系 `0300:300x`、ホワイトラベル `1500:3001`）。サンプルはVID:PIDではなく**インターフェース形状**で判定します。

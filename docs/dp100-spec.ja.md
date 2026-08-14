@@ -1,5 +1,10 @@
 # EspUsbHost ALIENTEK DP100 (HID 数控電源) 対応 仕様案
 
+> **English readers:** analysis notes for the ALIENTEK DP100 (`2e3c:af01`), a bench power
+> supply that carries its own framed protocol inside 64-byte HID reports, including the
+> frame layout, field offsets, scales and the CRC-16/MODBUS. The English summary is in
+> [`examples/HID/EspUsbHostDp100Power/README.md`](../examples/HID/EspUsbHostDp100Power/README.md).
+
 ## 目的
 
 ALIENTEK (正点原子) の数控直流電源 DP100 / ATK-MDP100 (`2e3c:af01`) を EspUsbHost から制御できるようにする。

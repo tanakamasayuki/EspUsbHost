@@ -1,5 +1,11 @@
 # EspUsbHost CCID (Smart Card Reader) API 仕様
 
+> **English readers:** the design of the CCID smart card reader API plus the results that
+> came out of implementing it against a Sony RC-S300 (`054c:0dc8`) — ATR handling, card
+> type decoding, APDU exchange, escape commands and FeliCa transparent sessions. The
+> current API is documented in "CCID smart card reader" in [README.md](../README.md), with
+> runnable code in [`examples/Ccid/`](../examples/Ccid/).
+
 > 状態: 実装済み。本文は設計時点の記述を残しつつ、実装で確定した点を「実装結果」節に追記している。
 
 ## 目的

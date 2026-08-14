@@ -1,5 +1,11 @@
 # EspUsbHost USB Network API 仕様案
 
+> **English readers:** the design and findings for CDC-NCM / CDC-ECM USB Ethernet support,
+> including why adapters that hide their network function outside the default configuration
+> need `setConfigurationSelector()` and two enumeration passes. The current API is
+> documented in "USB network" in [README.md](../README.md), with runnable code in
+> [`examples/UsbNetwork/`](../examples/UsbNetwork/).
+
 > ⚠️ **現状: 実験的機能。** Arduino-ESP32 3.3.11以降では
 > `setConfigurationSelector()` により列挙時のconfiguration選択が可能。selectorにはdevice
 > descriptorだけが渡るため、configuration番号は事前調査して指定する。AX88179Aの

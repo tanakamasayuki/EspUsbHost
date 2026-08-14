@@ -1,5 +1,11 @@
 # EspUsbHost USB Printer クラス (ESC/POS レシートプリンタ) 対応 仕様
 
+> **English readers:** analysis notes for the USB Printer class (`0x07`) and ESC/POS,
+> written while implementing the receipt printer example against an Xprinter XP-C58K
+> (`0483:070b`). The usable summary in English — the three class requests, why
+> `DLE EOT n` is the status path on this model, and the print sequence — is in
+> [`examples/Vendor/EspUsbHostPrinterEscPos/README.md`](../examples/Vendor/EspUsbHostPrinterEscPos/README.md).
+
 ## 目的
 
 USB Printer クラス（interface class `0x07`）のレシートプリンタを EspUsbHost から扱えるようにする。開発対象は Xprinter XP-C58K（`0483:070b`）で、日本語フォント ROM とオートカッターを持つ 58mm サーマルプリンタ。

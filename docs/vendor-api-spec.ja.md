@@ -1,5 +1,13 @@
 # EspUsbHost Vendor Bulk/Control API 仕様案
 
+> **English readers:** this is the pre-implementation design proposal for the vendor
+> bulk/control API, kept for the reasoning behind it. It is **historical** — the shipped
+> API added `vendorOpen()` read modes, `vendorControlTransfer()` with a caller-supplied
+> `bmRequestType`, an asynchronous write queue and a configurable receive buffer. For the
+> current API see "Vendor bulk/control" in [README.md](../README.md), the
+> [`Vendor` examples](../examples/Vendor/), and
+> [chapter 9 of the advanced guide](usb-host-advanced.md#9-implementing-a-new-class-or-protocol).
+
 ## 目的
 
 `EspUsbHost` に、HID ではない vendor-specific interface (`bInterfaceClass == 0xff`) を扱うための汎用 API を追加する。
