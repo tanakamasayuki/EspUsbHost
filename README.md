@@ -6,7 +6,7 @@ Arduino library for using USB Host on ESP32-S3, ESP32-S2 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
-New to USB Host, or stuck with a device that will not work? Start with the **[USB Host Development Guide](docs/usb-host-guide.md)**: USB fundamentals, the ESP32-specific limits (power, speeds, hubs, channels), and the route from checking a board through identifying an unknown device to working out an undocumented protocol.
+New to USB Host, or stuck with a device that will not work? Start with the **[USB Host Development Guide](docs/usb-host-guide.md)**: USB fundamentals, the ESP32-specific limits (power, speeds, hubs, channels), and the route from checking a board through identifying an unknown device to working out an undocumented protocol. The [advanced guide](docs/usb-host-advanced.md) continues into descriptor byte layouts, host channels and the FIFO split, error recovery, throughput design, callback context, and writing your own class wrapper.
 
 ## Requirements
 
