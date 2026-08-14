@@ -6,6 +6,8 @@ Arduino library for using USB Host on ESP32-S3, ESP32-S2 and ESP32-P4.
 
 USB events are processed in a background FreeRTOS task, so `loop()` does not need to call any USB polling function. Register callbacks in `setup()`, call `begin()`, and the library handles the rest.
 
+New to USB Host, or stuck with a device that will not work? Start with the **[USB Host Development Guide](docs/usb-host-guide.md)**: USB fundamentals, the ESP32-specific limits (power, speeds, hubs, channels), and the route from checking a board through identifying an unknown device to working out an undocumented protocol.
+
 ## Requirements
 
 Minimum Arduino-ESP32 core (board package) version:
@@ -294,6 +296,8 @@ void loop() {
 
 | Sketch | Description |
 |--------|-------------|
+| [EspUsbHostBringUpCheck](examples/Info/EspUsbHostBringUpCheck/) | First tool on a new board: did the host start, did anything enumerate, at what speed -- with a checklist when nothing does |
+| [EspUsbHostDeviceExplorer](examples/Info/EspUsbHostDeviceExplorer/) | Identify an unknown device: per-interface "what it is and which API drives it", plus raw descriptor bytes and a block-by-block walk |
 | [EspUsbHostDeviceInfo](examples/Info/EspUsbHostDeviceInfo/) | Print device descriptors, interfaces, and endpoints for all connected devices |
 | [EspUsbHostHIDReportDescriptor](examples/Info/EspUsbHostHIDReportDescriptor/) | Print HID report descriptors and a simple item decode for HID investigation |
 | [EspUsbHostCustomDeviceCallbacks](examples/Info/EspUsbHostCustomDeviceCallbacks/) | Define custom connect/disconnect callbacks and inspect connected devices |
@@ -348,6 +352,7 @@ void loop() {
 
 | Sketch | Description |
 |--------|-------------|
+| [EspUsbHostProtocolConsole](examples/Vendor/EspUsbHostProtocolConsole/) | Interactive console for working out an undocumented protocol: type control/bulk transfers on the serial monitor and see the answers |
 | [EspUsbHostVendorBulk](examples/Vendor/EspUsbHostVendorBulk/) | Generic non-HID vendor-specific interface: bulk IN/OUT and EP0 vendor control IN/OUT |
 | [EspUsbHostAdbConnect](examples/Vendor/EspUsbHostAdbConnect/) | Authenticate Android ADB and run one shell stream over the generic vendor-bulk API |
 | [EspUsbHostDisplayDl1xx](examples/Vendor/EspUsbHostDisplayDl1xx/) | Drive a USB graphics adapter (DL-1xx bulk protocol) as a LovyanGFX panel, with LGFXVirtualCanvas for a Full HD surface |
