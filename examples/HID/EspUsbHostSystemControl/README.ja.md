@@ -22,6 +22,8 @@ USBキーボードからHIDシステムコントロールイベント（電源�
 | `ESP_USB_HOST_SYSTEM_CONTROL_STANDBY` | `0x02` | スタンバイ |
 | `ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST` | `0x03` | ウェイクアップ |
 
+`event.usage`はシステムコントロールレポートの先頭バイトを変換せずにそのまま渡した値なので、あるキーがどの値になるかはキーボードのレポートディスクリプタに依存します。論理値が1から始まる配列項目としてエンコードする機種では上表の`0x01`〜`0x03`になります。Generic Desktopのusage IDをそのまま送る機種では`0x81`（System Power Down）・`0x82`（System Sleep）・`0x83`（System Wake Up）が届き、この場合`espUsbHostSystemControlUsageName()`は空文字を返します。どちらのエンコードかは、お使いのデバイスで表示される`usage=0x..`の値で確認してください。
+
 ## 主要API
 
 - `usb.onSystemControl(callback)` — 押下・解放時に`EspUsbHostSystemControlEvent`付きで呼ばれる
