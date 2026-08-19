@@ -6,9 +6,10 @@
 the USB host, and the peer ESP32-S3 runs a matching USB Device sketch.
 
 Most tests are kept as the baseline that checks Host interoperability with the
-Arduino Core standard Device stack. `usb_vendor` intentionally pairs with the
-sibling `EspUsbDevice` library because Arduino Core does not expose the needed
-non-HID vendor-specific bulk/control device API.
+Arduino Core standard Device stack. A test pairs with the sibling
+`EspUsbDevice` library only when Arduino Core cannot express the device at all
+(`usb_vendor`, `usb_ncm`, `usb_ncm_throughput`, `hid_keyboard_composite`,
+`hid_keyboard_nkro`, `usb_audio_uac2`); see [../TEST_PLAN.md](../TEST_PLAN.md).
 
 Run from `tests`:
 
@@ -60,6 +61,7 @@ Current coverage:
 - `hid_vendor`: pairs with an Arduino Core standard vendor HID device.
 - `usb_serial`: pairs with an Arduino Core standard USB CDC device.
 - `usb_midi`: pairs with an Arduino Core standard USB MIDI device. Also covers the MIDI and device-lifecycle listener APIs; one test reboots the peer on purpose, because the device core has no USB detach API and a reboot is the only way to hand the host a real disconnect.
+- `usb_msc`: pairs with an Arduino Core standard `USBMSC` device backed by a 16-block x 512-byte RAM disk. Covers capacity queries (32- and 64-bit variants), Inquiry, Max LUN and LUN selection, Request Sense, Test Unit Ready / wait-ready, Synchronize Cache, single-block, multi-block and chunked write/read round trips verified against the peer's memory, rejection of out-of-range accesses, and a failed write being reported (the peer fails one write on request).
 - `usb_audio`: pairs with an Arduino Core standard USB Audio device via `USBAudioCard` speaker output. UAC1.
 - `usb_audio_uac2`: pairs with an `EspUsbAudioFunction` headset from the sibling `EspUsbDevice` library, selected as UAC2. `USBAudioCard` is UAC1 only, so this is the one audio configuration the Arduino Core device stack cannot produce. Covers the class revision, the Clock Source sample rates (read with a `SAM_FREQ` `RANGE` request, since UAC2 descriptors do not carry them), the 4-byte / 2-bit Feature Unit controls with the volume `RANGE` request, the feedback IN endpoint being kept out of the stream list and instead polled to pace the OUT packets (`f`: the reported rate near 48 kHz, the pacing rate following it, and updates continuing to arrive), OUT/IN streaming, and — not UAC2-specific — starting with zeroed format arguments so the library resolves the best format itself.
 - `usb_vendor`: pairs with `EspUsbDeviceVendor` from the sibling `EspUsbDevice` library.

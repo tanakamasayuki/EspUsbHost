@@ -1,5 +1,7 @@
 # EspUsbHostAudioOutputTone
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Generates simple stereo tones (different frequencies for left/right) and sends them to a USB Audio OUT device such as a USB speaker or audio interface.
 
 ## Hardware

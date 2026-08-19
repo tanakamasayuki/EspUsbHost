@@ -1,6 +1,6 @@
 # USB displays with EspUsbHost
 
-日本語: [usb-display.ja.md](usb-display.ja.md)
+> 日本語版: [usb-display.ja.md](usb-display.ja.md)
 
 USB displays do not form a device class. Each one is a different protocol over a
 different transport, so nothing display-specific lives in the library: each is an

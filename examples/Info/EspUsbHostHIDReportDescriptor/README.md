@@ -1,6 +1,6 @@
 # EspUsbHostHIDReportDescriptor
 
-> Japanese: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Prints HID report descriptors for connected HID devices.
 

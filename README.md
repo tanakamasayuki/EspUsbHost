@@ -425,7 +425,7 @@ from the application task, not from a USB event/data callback.
 
 ```cpp
 struct EspUsbHostConfig {
-  uint32_t    taskStackSize = 4096;
+  uint32_t    taskStackSize = 8192;
   UBaseType_t taskPriority  = 5;
   BaseType_t  taskCore      = tskNO_AFFINITY;
   EspUsbHostPort port       = ESP_USB_HOST_PORT_DEFAULT;
@@ -757,11 +757,16 @@ For non-HID vendor-specific interfaces (`bInterfaceClass == 0xff`) with bulk end
 void onVendorData(VendorDataCallback callback);
 
 bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
-                uint8_t interfaceNumber = 0xff);
+                uint8_t interfaceNumber = 0xff,
+                EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS);
 bool vendorWrite(const uint8_t *data, size_t length,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t vendorRead(uint8_t *buffer, size_t length,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorReadSync(uint8_t *buffer, size_t length,
+                    size_t *actualLength = nullptr,
+                    uint32_t timeoutMs = ESP_USB_HOST_VENDOR_READ_DEFAULT_TIMEOUT_MS,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;

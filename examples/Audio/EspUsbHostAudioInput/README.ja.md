@@ -1,5 +1,7 @@
 # EspUsbHostAudioInput
 
+> English: [README.md](README.md)
+
 USBマイクなどのUSB Audio isochronous INデータを受信し、1秒ごとの受信バイト数とチャンネル別のピーク振幅・dBFSを表示するサンプルです。
 
 ## ハードウェア

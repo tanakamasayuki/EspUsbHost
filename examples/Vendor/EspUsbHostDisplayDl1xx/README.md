@@ -1,6 +1,6 @@
 # EspUsbHostDisplayDl1xx
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Drive a USB graphics display adapter based on the DL-1xx chips and expose it as a
 LovyanGFX panel.

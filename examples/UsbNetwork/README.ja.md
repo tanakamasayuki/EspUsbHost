@@ -28,75 +28,75 @@ lwIP のネットワークインターフェースとして立ち上げます。
 ## 動作
 
 - USB デバイスを列挙し、CDC-NCM/ECM interface があれば `networkAttachNetif()` で
-  DHCP クライアントの lwIP netif として attach する
+  DHCP クライアントの lwIP netif として attach します
 - 接続時に、**すべての** configuration から見つかった CDC-ECM / CDC-NCM 候補と現在
-  active な configuration 値を表示する。未知のアダプタでも、selectorに書く値が
-  シリアルログからそのまま分かる
-- 取得した IP アドレスを表示する
-- 任意の `HTTP_TEST_URL` を設定した場合、`HTTPClient`でUSB経由のGETを実行する
+  active な configuration 値を表示します。未知のアダプタでも、selectorに書く値が
+  シリアルログからそのまま分かります
+- 取得した IP アドレスを表示します
+- 任意の `HTTP_TEST_URL` を設定した場合、`HTTPClient`でUSB経由のGETを実行します
 
 ## 主な API
 
 - `usb.networkAttachNetif(cfg, address)`: network interface を（必要なら）open し、
-  `esp_netif` の netif として登録する。`EspUsbHostNetworkConfig` は既定で DHCP クライアント。
-  固定アドレスにするなら `dhcpClient=false` にして `ip`/`gateway`/`subnet`（`/dns1`）を設定する。
+  `esp_netif` の netif として登録します。`EspUsbHostNetworkConfig` は既定で DHCP クライアントです。
+  固定アドレスにするなら `dhcpClient=false` にして `ip`/`gateway`/`subnet`（`/dns1`）を設定します。
 - `usb.setConfigurationSelector(callback)`: `usb.begin()`より前に登録し、device descriptorに
-  対して選択するconfiguration値を返す。`0`はdevice既定値を維持する。callbackはUSB Host
-  taskで実行されるため、ブロックしてはいけない。
-- `usb.networkLocalIP(address)`: リース取得後の IP を返す。
-- `usb.networkDetachNetif(address)`: netif を解除する（USB 切断時にも自動で行われる）。
+  対して選択するconfiguration値を返します。`0`はdevice既定値を維持します。callbackはUSB Host
+  taskで実行されるため、ブロックしてはいけません。
+- `usb.networkLocalIP(address)`: リース取得後の IP を返します。
+- `usb.networkDetachNetif(address)`: netif を解除します（USB 切断時にも自動で行われます）。
 - IP スタックを使わず生の Ethernet フレームを扱う場合は `usb.onNetworkFrame()` /
-  `usb.networkWriteFrame()` / `usb.networkReadFrame()` を使い、netif は attach しない。
+  `usb.networkWriteFrame()` / `usb.networkReadFrame()` を使い、netif は attach しません。
 
 ## 2パス必要な理由
 
-CDC-NCM/ECM 機能が既定 configuration に**無い**アダプタは、1回の列挙では接続できない。
+CDC-NCM/ECM 機能が既定 configuration に**無い**アダプタは、1回の列挙では接続できません。
 
 1. `setConfigurationSelector()` はUSB Host Libraryの `enum_filter_cb` で駆動され、
-   渡ってくるのは **device descriptorだけ**。この時点ではdevice handleが存在しないので、
+   渡ってくるのは **device descriptorだけ**です。この時点ではdevice handleが存在しないので、
    CDC-NCM/ECM interfaceが見えるconfiguration descriptorをselector内から読むことは
-   できない。selectorが値を返す時点で番号は既知でなければならない。
-2. configuration descriptorを読むには列挙済みのdeviceが必要。`usb.getNetworkInterfaces()`
+   できません。selectorが値を返す時点で番号は既知でなければなりません。
+2. configuration descriptorを読むには列挙済みのdeviceが必要です。`usb.getNetworkInterfaces()`
    が `usb_host_get_config_desc()` で config `1..bNumConfigurations` を取得し、候補ごとの
-   `configurationValue` を返す（本sketchが接続時に表示しているもの）。ただしその時点で
-   deviceは既に別のconfigurationで動作している。
+   `configurationValue` を返します（本sketchが接続時に表示しているもの）。ただしその時点で
+   deviceは既に別のconfigurationで動作しています。
 3. `networkOpen()` / `networkAttachNetif()` は `configurationValue` が **active な**
-   configuration と一致する候補しか受け付けない（active でない configuration の
-   interface は claim できない）。よって判明した値が効くのは**次回の列挙**から。
+   configuration と一致する候補しか受け付けません（active でない configuration の
+   interface は claim できません）。よって判明した値が効くのは**次回の列挙**からです。
 
 つまり、パス1で既定configurationで列挙して値を判明させ、パス2でselectorがその値を返して
-再列挙する、という2段構えになる。本sketchでは、表示されたselectorルールを追加してから
-ボードをリセットする操作がパス2に相当する。
+再列挙する、という2段構えになります。本sketchでは、表示されたselectorルールを追加してから
+ボードをリセットする操作がパス2に相当します。
 
 ### これはESP-IDF APIの制約で、USB仕様の制約ではない
 
 TinyUSBは無関係（TinyUSBはdevice側。ここでのhost側はESP-IDFのUSB Host Library）で、
-USB仕様も2パスを要求していない。`GET_DESCRIPTOR(CONFIGURATION, index)` は標準リクエストで、
+USB仕様も2パスを要求していません。`GET_DESCRIPTOR(CONFIGURATION, index)` は標準リクエストで、
 deviceはAddress stateでも**全index**について応答する義務があるため、activeでない
-configurationのdescriptorも普通に読める。実際、config 1がactiveな状態でも
-`getNetworkInterfaces()` が config 2 のCDC-NCMを報告できるのはこのため。USB仕様が
+configurationのdescriptorも普通に読めます。実際、config 1がactiveな状態でも
+`getNetworkInterfaces()` が config 2 のCDC-NCMを報告できるのはこのためです。USB仕様が
 定めているのは「activeなconfigurationは同時に1つ」「interfaceはactive configuration内の
-ものしかclaimできない」という点だけ。
+ものしかclaimできない」という点だけです。
 
-2パスになるのはESP-IDF側のAPIの都合（Arduino-ESP32 core同梱のIDFヘッダで確認）:
+2パスになるのはESP-IDF側のAPIの都合です（Arduino-ESP32 core同梱のIDFヘッダで確認）:
 
 - `enum_filter_cb` は `bool (*)(const usb_device_desc_t *dev_desc, uint8_t *bConfigurationValue)`
   （`usb/usb_types_stack.h`）で、ドキュメントに non-blocking であることと
-  **USB transferを投げてはならない**ことが明記されている。つまりselector内で
-  configuration descriptorを取りに行けない。
+  **USB transferを投げてはならない**ことが明記されています。つまりselector内で
+  configuration descriptorを取りに行けません。
 - `usb_host_get_config_desc()`（`usb/usb_host.h`）は client handle と device handle が必要、
-  すなわち列挙完了後＝configurationが確定した後にしか使えない。
-- `usb_host.h` には列挙済みdeviceのconfigurationを変える公開APIが無い
-  （`set_configuration` も再列挙も無い）。EP0へ自分でSET_CONFIGURATIONを投げると、
-  stackが把握しているclaim済みinterfaceやpipeの状態と不整合になる。
+  すなわち列挙完了後＝configurationが確定した後にしか使えません。
+- `usb_host.h` には列挙済みdeviceのconfigurationを変える公開APIがありません
+  （`set_configuration` も再列挙もありません）。EP0へ自分でSET_CONFIGURATIONを投げると、
+  stackが把握しているclaim済みinterfaceやpipeの状態と不整合になります。
 
-filter callbackにconfiguration descriptorも渡されるようになれば1パスで済む。それまでは、
-値を判明させる列挙と、その値を使う列挙は別々になる。
+filter callbackにconfiguration descriptorも渡されるようになれば1パスで済みます。それまでは、
+値を判明させる列挙と、その値を使う列挙は別々になります。
 
 ## パス2を自動化する場合
 
-USB host stack を再起動すれば全deviceが再列挙されるので、パス2をsketchから起こせる。
-`end()` はUSB Host task上では実行を拒否するので `loop()` から、かつ以下の順序で行う。
+USB host stack を再起動すれば全deviceが再列挙されるので、パス2をsketchから起こせます。
+`end()` はUSB Host task上では実行を拒否するので `loop()` から、かつ以下の順序で行います。
 
 ```cpp
 static uint16_t forcedVid = 0;
@@ -132,27 +132,27 @@ if (!forcedConfiguration && candidate.configurationValue != nicConfiguration) {
 
 この方式の注意点:
 
-- 再起動サイクルのコストは概ね1〜2秒＋再列挙。未知のアダプタの初回接続時に1回だけ発生する。
+- 再起動サイクルのコストは概ね1〜2秒＋再列挙です。未知のアダプタの初回接続時に1回だけ発生します。
 - `vid/pid → configurationValue` を `Preferences`（NVS）に保存すれば、次回起動以降は
-  パス1で正しいconfigurationを選べるので再起動は消える。
-- 再起動前に `forcedConfiguration` をラッチし、同じdeviceで2回以上再起動しないこと。
-  候補がactiveにならないアダプタや候補ゼロの場合、再起動ループになる。
-- 再起動は接続中の**全**deviceを再列挙する。アダプタがper-port power switching対応の
+  パス1で正しいconfigurationを選べるので再起動は消えます。
+- 再起動前に `forcedConfiguration` をラッチし、同じdeviceで2回以上再起動しないでください。
+  候補がactiveにならないアダプタや候補ゼロの場合、再起動ループになります。
+- 再起動は接続中の**全**deviceを再列挙します。アダプタがper-port power switching対応の
   外付けハブ配下にあるなら、`usb.setHubPortPower(hubAddress, port, false/true)` で
-  そのポートだけ再列挙する方法もある。
+  そのポートだけ再列挙する方法もあります。
 
 ## 注意
 
-- configuration選択にはArduino-ESP32 3.3.11以降が必要。
+- configuration選択にはArduino-ESP32 3.3.11以降が必要です。
 - selectorに渡されるのはdevice descriptorだけなので、selector内でconfiguration番号を
-  調べることはできない。接続時に表示される候補一覧（全configurationを走査する
+  調べることはできません。接続時に表示される候補一覧（全configurationを走査する
   `usb.getNetworkInterfaces()`による）でselectorに書く値が分かるので、ルールを追加したら
-  ボードをリセットしてそのconfigurationで再列挙させる。
-- device が両方に対応している場合は CDC-NCM を CDC-ECM より優先する。
-- interface の open は必ず `loop()` 文脈で行い、USB device コールバック内では行わない
+  ボードをリセットしてそのconfigurationで再列挙させてください。
+- device が両方に対応している場合は CDC-NCM を CDC-ECM より優先します。
+- interface の open は必ず `loop()` 文脈で行い、USB device コールバック内では行わないでください
   （enumeration descriptor へのアクセスは client task 上では不可）。
-- lwIP 統合にはビルドに `esp_netif` が必要（標準 Arduino-ESP32 core には含まれる）。
-  無い場合 `networkAttachNetif()` は `false` を返し、生フレーム API は引き続き使える。
+- lwIP 統合にはビルドに `esp_netif` が必要です（標準 Arduino-ESP32 core には含まれます）。
+  無い場合 `networkAttachNetif()` は `false` を返し、生フレーム API は引き続き使えます。
 
 ## 関連
 

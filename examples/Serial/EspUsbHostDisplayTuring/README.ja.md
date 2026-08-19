@@ -1,6 +1,6 @@
 # EspUsbHostDisplayTuring
 
-English: [README.md](README.md)
+> English: [README.md](README.md)
 
 3.5インチのUSBスマートスクリーン（Turing Smart Screen revision A、および多数ある互換機）をLovyanGFXのpanelとして駆動します。
 

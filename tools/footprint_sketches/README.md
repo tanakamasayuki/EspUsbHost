@@ -1,5 +1,7 @@
 # Footprint measurement sketches
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 These sketches are fixed probes used by `tools/footprint_matrix.py`. They are not
 user-facing examples. Keep them small and stable: changing a probe changes the
 measurement baseline for every library version.

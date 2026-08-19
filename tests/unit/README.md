@@ -1,6 +1,6 @@
 # Unit Tests
 
-[日本語](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Pure C++ / data-conversion tests that run on the host with g++. No board or
 serial port is required.
@@ -130,6 +130,17 @@ uv run --env-file .env pytest unit/
   fits the shipped buffer, kanji mode is switched off as many times as it is switched
   on, and the ASCII fallback slip stays single-byte throughout.
 
+- `midi_cable`: verifies the USB MIDI Streaming cable-count decoder in
+  `src/EspUsbHost.h` (`espUsbHostMidiEndpointCableCount()`): one embedded jack
+  on a CS_ENDPOINT / MS_GENERAL descriptor being one cable, the count coming
+  from `bNumEmbMIDIJack` rather than the jack IDs, the 4-bit cable-number limit
+  (16 accepted, 17 rejected), zero jacks yielding zero cables, rejected
+  descriptors (CS_INTERFACE instead of CS_ENDPOINT, a non-MS_GENERAL subtype, a
+  jack array shorter than `bNumEmbMIDIJack`, a header too short to hold it),
+  and the `EspUsbHostMidiPortInfo` zero defaults. The multi-cable samples match
+  what the sibling EspUsbDevice library emits, so this test and the peer test
+  describe the same layouts.
+
 - `audio_uac`: verifies the USB Audio descriptor and control decoders in
   `src/EspUsbHost.h`: the Feature Unit `bmaControls` layout for both class
   revisions (UAC1's `bControlSize` stride versus UAC2's fixed 4 bytes, including
@@ -161,7 +172,9 @@ directly and need no extraction step.
 
 `src/EspUsbHost.h` pulls in Arduino and the ESP USB host stack, so `audio_uac`
 extracts the audio constants, structs and `inline` decoders it needs into
-`output/espusbhost_audio_real.h` the same way the keymap test does.
+`output/espusbhost_audio_real.h` the same way the keymap test does, and
+`midi_cable` extracts the MIDI constants, `EspUsbHostMidiPortInfo` and the
+cable-count decoder into `output/espusbhost_midi_real.h`.
 
 `src/EspUsbHostHid.cpp` includes `Arduino.h` and the ESP USB host stack, so it
 cannot be compiled on the host directly. To test the real conversion code

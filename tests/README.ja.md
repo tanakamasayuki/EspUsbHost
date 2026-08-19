@@ -22,12 +22,15 @@ cp .env.example .env
 `.env.example` の内容：
 
 ```sh
-# ボードプロファイルごとのシリアルポート
-TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
-TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
-TEST_SERIAL_PORT_S3_HUB_HOST=/dev/ttyACM1
+# プロファイルごとのシリアルポート。
+# 変数名は sketch.yaml のプロファイル名を pytest-embedded が大文字化したものに対応します。
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyUSB0
+TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
+TEST_SERIAL_PORT_P4_LOOPBACK=/dev/ttyUSB2
+TEST_SERIAL_PORT_ESP32S3=/dev/ttyACM0
+TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 
-# オプション: HTMLレポートを生成する場合
+# HTMLレポートを生成する場合のpytestオプション
 #PYTEST_ADDOPTS="--html=report.html --self-contained-html"
 ```
 
@@ -89,9 +92,17 @@ ESP32-S3を2台使用します。1台はEspUsbHostをUSBホストとして実行
 
 ESP32-P4を1台使い、同一チップ上でUSBホストとUSBデバイスの両方を実行するテスト用の予約ディレクトリです。現在このリポジトリには実行可能な loopback テストはなく、実運用上の主な loopback 整備は `EspUsbDevice` 側で進めています。
 
+### `manual/` — 手動テスト
+
+ソフトウェアだけでは環境を完全に制御できないため、自動化できないテストです。特殊なハードウェアか、人による結果の判断が必要です。ビルド・書き込み・オペレーターへの操作案内はpytestが行います。テストのカタログと、そこに集約している既知のハードウェア問題は [manual/README.ja.md](manual/README.ja.md) を参照してください。
+
 ### `probe/` — 初期切り分け用プローブ
 
 ESP32-P4のUSBポート識別、HS/FS Host、HS Device、Hardware CDC/JTAGの確認に使うスケッチです。ボード配線やPC側認識に依存するため、正式な回帰テストではありません。詳細は [probe/README.ja.md](probe/README.ja.md) を参照してください。
+
+### `unit/` — ホスト側ユニットテスト
+
+g++でホストPC上で実行する、純粋なC++／データ変換のテストです。ボードもシリアルポートも不要です。各テストがライブラリのソースから何を抽出して何を検証するかは [unit/README.ja.md](unit/README.ja.md) を参照してください。
 
 ## pytest-embedded-arduino-cli
 

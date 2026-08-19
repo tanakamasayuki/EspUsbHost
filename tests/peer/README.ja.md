@@ -4,7 +4,7 @@
 
 `tests/peer` には2台構成のテストが含まれています。1台目のESP32-S3がEspUsbHostスケッチをUSBホストとして実行し、もう1台のESP32-S3が対応するUSB Deviceスケッチをピアとして実行します。
 
-多くの peer テストは、Host 側が Arduino Core 標準 Device 実装とも相互運用できることを確認するための基準テストとして維持します。`usb_vendor` は例外で、Arduino Core に非HID vendor-specific bulk/control device API がないため、兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` と組み合わせます。
+多くの peer テストは、Host 側が Arduino Core 標準 Device 実装とも相互運用できることを確認するための基準テストとして維持します。兄弟ライブラリ `EspUsbDevice` とペアにするのは、Arduino Core ではそのデバイスを表現できない場合だけです（`usb_vendor`、`usb_ncm`、`usb_ncm_throughput`、`hid_keyboard_composite`、`hid_keyboard_nkro`、`usb_audio_uac2`）。詳細は [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md) を参照してください。
 
 `tests/` ディレクトリから実行：
 
@@ -56,6 +56,7 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `hid_vendor`: Arduino Core標準vendor HID実装とペアで動作
 - `usb_serial`: Arduino Core標準USB CDC実装とペアで動作
 - `usb_midi`: Arduino Core標準USB MIDI実装とペアで動作。MIDIとdevice lifecycleのlistener APIもここで検証する。1つのテストは意図的にpeerを再起動する。device側のcoreにUSB detach APIがなく、hostに本物の切断を渡す手段が再起動しかないため。
+- `usb_msc`: Arduino Core標準の `USBMSC` device（16ブロック×512バイトのRAMディスク）とペアで動作。容量取得（32bit・64bit両方）、Inquiry、Max LUNとLUN選択、Request Sense、Test Unit Ready / 準備待ち、Synchronize Cache、peer側メモリと突き合わせる単一・複数ブロックおよび分割転送のwrite/read往復、範囲外アクセスの拒否、write失敗の報告（peerが要求に応じて1回のwriteを失敗させる）を検証
 - `usb_audio`: `USBAudioCard` のスピーカー出力を使い、Arduino Core標準USB Audio device相当とペアで動作。UAC1
 - `usb_audio_uac2`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbAudioFunction` をUAC2指定にしたheadsetとペアで動作。`USBAudioCard` はUAC1専用のため、Arduino Core標準device stackでは作れない唯一のaudio構成である。class revision、Clock Sourceのサンプルレート（UAC2 descriptorが持たないため `SAM_FREQ` の `RANGE` リクエストで取得）、4バイト・2ビットのFeature Unit controlとvolumeの `RANGE` リクエスト、feedback IN endpointがstream一覧に出ずポーリングされてOUTパケットのレート追従に使われること（`f`: 報告レートが48 kHz近傍、追従レートが一致、更新が継続すること）、OUT/IN streaming、およびUAC2固有ではないが引数を0にした「最良フォーマット自動選択」での起動を検証する
 - `usb_vendor`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` とペアで動作

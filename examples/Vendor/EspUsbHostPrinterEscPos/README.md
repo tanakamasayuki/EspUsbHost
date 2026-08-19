@@ -1,6 +1,6 @@
 # EspUsbHostPrinterEscPos
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Print on a USB receipt printer: ESC/POS text with a Japanese font, a barcode, a QR
 code, and the auto cutter. Verified against an Xprinter XP-C58K (`0483:070b`).

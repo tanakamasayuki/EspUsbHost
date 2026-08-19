@@ -75,6 +75,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`printer_print/`](printer_print/) | ESC/POS印字データ経路。レシート1枚を1転送で送り、プリンタのShift-JISフォントROMによる日本語、CODE128バーコード、QRコード、オートカッターまで確認する。印字前後のステータスと、転送後にステータス経路が生きていることも見る。**1回の実行で伝票1枚（約10cm）を消費し、用紙をカットする。** 用紙切れやエラーが報告されていれば印字せず、印字後に現れた場合は失敗にする。伝票の内容自体は目視判定 | `printer_escpos` と同じ。日本語には2バイトフォントROMを持つプリンタが必要 | ✅ |
 | [`device_dump/`](device_dump/) | 全列挙デバイスのdescriptor・interface・endpoint・チャネル集計をダンプし、ライブラリ本体がclaimしないinterface（USBTMC・printer・vendor-specific）についてはラッパーが使うbulk/interrupt endpointも表示する。未対応デバイスの素性調査用 | 任意のUSBデバイス | ✅ |
 | [`raw_descriptor/`](raw_descriptor/) | EP0への標準GET_DESCRIPTORでDEVICE/CONFIGURATIONディスクリプタの生バイトを読み、コンフィグレーションをブロック単位で走査して各ブロックを`bDescriptorType`付きで表示する。解析済みダンプでは見えないクラス固有ディスクリプタ（HID・CDC機能・CCID・UAC）も含む。USBPcapのキャプチャや`lsusb -v`と突き合わせるためのバイト列。コントロール転送の制限により248バイトで打ち切り | 任意のUSBデバイス | ✅ |
+| [`hid_report_descriptor/`](hid_report_descriptor/) | 接続したHIDデバイスのHID report descriptorを取得して表示すること | USB HIDキーボードまたはマウス | — |
 
 ## ESP-IDF がクラッシュするハブの組み合わせ
 
@@ -91,13 +92,13 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 
 `probe/hub_enum` で確認した内容:
 
+- DP100 を挿しても CH335F は**どのポートでも**接続を報告しない（4 ポートすべて
+  `connected=0`、`powered=1`）。ポート電源を入れ直しても変わらない。落ちていないときも
+  ハブがデバイスを認識していない
 - **ライブラリは機構の一部ではない。** ハブ追跡を OFF にした状態、つまりハブに対する
   クライアントハンドルも hub descriptor / port status の通信も無い状態でも落ちる。
   assert 直前のログは `[phase1] tracked=0 hub_tracking=0 host_addresses=0` で、ハブが
   ホストスタックのアドレスリストに載る前に ext_hub 内部で落ちている
-- DP100 を挿しても CH335F は**どのポートでも**接続を報告しない（4 ポートすべて
-  `connected=0`、`powered=1`）。ポート電源を入れ直しても変わらない。落ちていないときも
-  ハブがデバイスを認識していない
 - 間欠的で、同じファームウェアが 2 回は無事に完走してから 1 回捕まえた
 
 このループに入ったボードは書き込みが難しくなることがあります。そのため `probe/hub_enum`

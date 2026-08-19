@@ -22,12 +22,15 @@ cp .env.example .env
 `.env.example` contains:
 
 ```sh
-# Serial ports for each board profile
-TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
-TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
-TEST_SERIAL_PORT_S3_HUB_HOST=/dev/ttyACM1
+# Profile-specific serial ports.
+# These names match sketch.yaml profile names uppercased by pytest-embedded.
+TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyUSB0
+TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
+TEST_SERIAL_PORT_P4_LOOPBACK=/dev/ttyUSB2
+TEST_SERIAL_PORT_ESP32S3=/dev/ttyACM0
+TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 
-# Optional: generate an HTML report
+# pytest options to generate an HTML report
 #PYTEST_ADDOPTS="--html=report.html --self-contained-html"
 ```
 
@@ -118,9 +121,23 @@ Reserved for tests that run both USB host and USB device on one ESP32-P4. There
 are currently no runnable loopback tests in this repository; practical loopback
 coverage is currently developed mainly in EspUsbDevice.
 
+### `manual/` — Manual tests
+
+Tests that cannot be automated because the environment cannot be fully
+controlled by software: they need special hardware or a human judging the
+result. pytest still builds and flashes the sketch and prompts the operator.
+See [manual/README.md](manual/README.md) for the test catalog and the known
+hardware issues collected there.
+
 ### `probe/` — Bring-up probes
 
 Sketches for ESP32-P4 USB port identification, HS/FS Host checks, HS Device checks, and Hardware CDC/JTAG checks. They depend on board wiring and host-PC enumeration, so they are not formal regression tests. See [probe/README.md](probe/README.md) for details.
+
+### `unit/` — Host-side unit tests
+
+Pure C++ / data-conversion tests that run on the host with g++. No board or
+serial port is required. See [unit/README.md](unit/README.md) for what each
+test extracts from the library sources and covers.
 
 ## pytest-embedded-arduino-cli
 

@@ -1,4 +1,6 @@
-# Probe tests
+# Probe テスト
+
+> English: [README.md](README.md)
 
 bring-up と、デバイスのプロトコル解明用の一時的な確認スケッチです。
 正式な回帰テストではなく、ボード配線・接続先・PC 側認識、あるいはプロトコルが未解明なデバイスに依存する初期切り分け用です。
@@ -46,6 +48,15 @@ uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
   [`examples/Ccid/EspUsbHostCcidFelicaIdm`](../../examples/Ccid/EspUsbHostCcidFelicaIdm/)
   に記録しています。ログ自体が出力なので `-s` を付けて実行します。
 
+- `dp100` — ALIENTEK DP100 電源が 64 バイトの HID レポートの中で期待するフレーム構造を
+  解明します。スケッチは単なるバイトポンプで、シリアルから OpCode とデータを hex 行で
+  受け取ってフレームを組み立て、CRC の変種を選べるので、フレーム形式はホスト側だけで
+  探索できます(再フラッシュ不要)。デバイスの 1 バイト拒否応答ではなく本物の payload が
+  返る CRC がどれか、で正解が分かります。読み取り専用で、設定値の OpCode は出力 ON/OFF を
+  含むため意図的に一切送りません。解明した内容は probe の docstring と
+  [`examples/HID/EspUsbHostDp100Power`](../../examples/HID/EspUsbHostDp100Power/)
+  に記録しています。ログ自体が出力なので `-s` を付けて実行します。
+
 - `printer_class` — ESC/POS プリンタが USB Printer クラスの要求のうちどれに実際に応答
   するのかを解明します。`manual/printer_escpos` で GET_DEVICE_ID が失敗し、
   GET_PORT_STATUS が「非選択・エラー」とデコードされる値を返す一方でプリンタは明らかに
@@ -58,15 +69,6 @@ uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
   example はどちらも失敗として扱いません。用紙は消費しません。解明した内容は probe の
   docstring と
   [`examples/Vendor/EspUsbHostPrinterEscPos`](../../examples/Vendor/EspUsbHostPrinterEscPos/)
-  に記録しています。ログ自体が出力なので `-s` を付けて実行します。
-
-- `dp100` — ALIENTEK DP100 電源が 64 バイトの HID レポートの中で期待するフレーム構造を
-  解明します。スケッチは単なるバイトポンプで、シリアルから OpCode とデータを hex 行で
-  受け取ってフレームを組み立て、CRC の変種を選べるので、フレーム形式はホスト側だけで
-  探索できます(再フラッシュ不要)。デバイスの 1 バイト拒否応答ではなく本物の payload が
-  返る CRC がどれか、で正解が分かります。読み取り専用で、設定値の OpCode は出力 ON/OFF を
-  含むため意図的に一切送りません。解明した内容は probe の docstring と
-  [`examples/HID/EspUsbHostDp100Power`](../../examples/HID/EspUsbHostDp100Power/)
   に記録しています。ログ自体が出力なので `-s` を付けて実行します。
 
 `rcs300_felica` を実行する前にリーダーへ FeliCa カードを載せてください。ポートは

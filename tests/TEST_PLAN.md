@@ -51,6 +51,8 @@ tests/
   peer/       Automated — two ESP32-S3 boards, one host + one device
   loopback/   Reserved — single ESP32-P4 setup; no runnable tests in this repo now
   manual/     Manual — special hardware or human interaction required
+  probe/      Probes — throwaway bring-up and protocol-investigation sketches
+  unit/       Automated — host-side g++ tests, no board required
 ```
 
 See each subdirectory's README for hardware setup and individual test details.

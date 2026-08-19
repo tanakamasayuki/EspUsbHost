@@ -1,6 +1,6 @@
 # EspUsbHostDisplayTuring
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Drive a 3.5-inch USB smart screen — a Turing Smart Screen revision A or one of the
 many compatibles — and expose it as a LovyanGFX panel.

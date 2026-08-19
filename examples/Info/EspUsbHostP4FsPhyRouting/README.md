@@ -30,3 +30,12 @@ No eFuse is modified. Resetting the chip restores startup control to the eFuse/d
 - This example uses an ESP-IDF P4 low-level HAL API and is intentionally kept in application code rather than hidden inside the portable library API.
 
 Connect a USB device to the board connector backed by GPIO24/GPIO25, then run the sketch. The library starts the Full-speed Host peripheral with `ESP_USB_HOST_PORT_FULL_SPEED`.
+
+## Expected Serial output
+
+```
+Routing USB OTG FS to GPIO24/GPIO25 in 3 seconds.
+USB Serial/JTAG on GPIO24/GPIO25 will disconnect.
+```
+
+After these two lines the mapping switches and the USB Serial/JTAG console on GPIO24/GPIO25 disconnects, so nothing further appears there. Any later message, such as `usb.begin failed: ...`, is visible only through an external USB-to-UART bridge or another console connection.

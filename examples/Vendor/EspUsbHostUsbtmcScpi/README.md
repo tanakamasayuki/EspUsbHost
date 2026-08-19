@@ -1,6 +1,6 @@
 # EspUsbHostUsbtmcScpi
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Talk SCPI to a USBTMC instrument: read its identity, set and read back values, and
 take measurements. Verified against a KIKUSUI PMX18-5A DC power supply

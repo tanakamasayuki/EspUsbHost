@@ -1,6 +1,6 @@
 # EspUsbHostDp100Power
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Drive an ALIENTEK DP100 digital power supply (`ATK-MDP100`, `2e3c:af01`) over USB:
 read its identity, input rail, output voltage and current and temperatures, and set
@@ -225,6 +225,9 @@ Windows DLL (`ATK-DP100DLL`) and nothing else — so **this implementation's
 reference is the device itself**, captured by `tests/probe/dp100`. The public
 projects below were used to know what to look for and to cross-check the field
 order.
+
+The full protocol analysis notes live in
+[docs/dp100-spec.ja.md](../../../docs/dp100-spec.ja.md) (Japanese).
 
 | Source | License | Use |
 |---|---|---|

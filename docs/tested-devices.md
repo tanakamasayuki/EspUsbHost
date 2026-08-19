@@ -172,7 +172,7 @@ The ESP32-P4 has three USB functions (USB Serial/JTAG, OTG FS, OTG HS) and board
 
 ## Adding to this list
 
-When you verify a new device, record:
+When you verify a new device, record the following. Aim for enough detail that a later reader can reproduce it:
 
 - VID:PID and the product name (and the firmware version if you can read it)
 - Which target (ESP32-S3 / P4) and which port (FS / HS)
