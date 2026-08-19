@@ -25,7 +25,7 @@ Analysis notes for devices whose protocol had to be worked out, written while im
 | [ccid-api-spec.ja.md](ccid-api-spec.ja.md) | CCID smart card readers, ATR, FeliCa | [`Ccid`](../examples/Ccid/) |
 | [dp100-spec.ja.md](dp100-spec.ja.md) | ALIENTEK DP100: a framed protocol inside HID reports | [`EspUsbHostDp100Power`](../examples/HID/EspUsbHostDp100Power/) |
 | [usb-network-spec.ja.md](usb-network-spec.ja.md) | CDC-NCM / CDC-ECM and the lwIP netif attach | [`UsbNetwork`](../examples/UsbNetwork/) |
-| [usb-display-spec.ja.md](usb-display-spec.ja.md) — protocol findings also in English: [usb-display-spec.md](usb-display-spec.md) | DL-1xx, AX206 and the smart-screen protocols | the display examples |
+| [usb-display-spec.ja.md](usb-display-spec.ja.md) — protocol findings also in English: [usb-display-spec.md](usb-display-spec.md) | The DL-1xx bulk display protocol (the AX206 and smart-screen protocols are in their example READMEs, indexed in [usb-display.md](usb-display.md)) | [`EspUsbHostDisplayDl1xx`](../examples/Vendor/EspUsbHostDisplayDl1xx/) |
 
 ## Design proposals
 

@@ -1,5 +1,7 @@
 # Probe tests
 
+> 日本語版: [README.ja.md](README.ja.md)
+
 Temporary sketches for bring-up and for working out a device's protocol.
 These are not formal regression tests; they depend on board wiring, the connected port, host-PC enumeration behavior, or on a device whose protocol is not yet known.
 

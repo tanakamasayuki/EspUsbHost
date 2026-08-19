@@ -34,6 +34,6 @@ USBキーボードからHIDシステムコントロールイベント（電源�
 ## シリアル出力例
 
 ```
-system press usage=0x81 Power Off
-system release usage=0x81 Power Off
+system press usage=0x01 Power Off
+system release usage=0x01 Power Off
 ```

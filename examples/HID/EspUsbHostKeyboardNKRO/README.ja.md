@@ -32,6 +32,32 @@ EspUsbHost は両方のフォーマットを自動でデコードします。HID
 - `usb.keyboardUsesBitmapReport(address)`: キーボードが NKRO ビットマップ(report
   protocol)を送るか、6 キーの boot レポートかを返す。診断用(デコード自体は自動)。
 
+## シリアル出力例
+
+7 キー（`a`～`g`）を同時に押し込み、1 キーを離した場合の例です。
+
+```
+Keyboard connected: 303a:4033 nkro-bitmap=1
+press   keycode=0x04
+held=1 (max=1) modifiers=0x00
+press   keycode=0x05
+held=2 (max=2) modifiers=0x00
+press   keycode=0x06
+held=3 (max=3) modifiers=0x00
+press   keycode=0x07
+held=4 (max=4) modifiers=0x00
+press   keycode=0x08
+held=5 (max=5) modifiers=0x00
+press   keycode=0x09
+held=6 (max=6) modifiers=0x00
+press   keycode=0x0a
+held=7 (max=7) modifiers=0x00
+release keycode=0x04
+held=6 (max=7) modifiers=0x00
+```
+
+`held` が 6 を超えていれば NKRO が有効です。
+
 ## 注意
 
 - NKRO キーボードは既定で report protocol になり、ビットマップを送ります。ホストは boot

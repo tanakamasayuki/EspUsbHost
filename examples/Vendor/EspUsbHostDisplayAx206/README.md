@@ -1,6 +1,6 @@
 # EspUsbHostDisplayAx206
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Drive an AX206 USB photo-frame display (480x320, VID `0x1908` PID `0x0102`) as a
 LovyanGFX panel.

@@ -20,6 +20,21 @@ Use an ESP32-S2/S3/P4 supported by Arduino-ESP32 USB Host, an Android device wit
 
 The key is stored as `rsa-key` in the `esp-adb` NVS namespace, so later connections authenticate with the same signature key. If the dialog does not appear, revoke USB debugging authorizations in Android Developer options, toggle USB debugging off and on, then reconnect while unlocked.
 
+## Expected output
+
+On success the serial monitor shows:
+
+```text
+ADB send: AUTH SIGNATURE
+ADB send: AUTH RSAPUBLICKEY
+ADB connected: version=0x01000001 maxdata=4096
+ADB send: OPEN shell:echo ESP_USB_HOST_ADB_OK
+ADB stream data: ESP_USB_HOST_ADB_OK
+[PASS]
+```
+
+If the key is already authorized, the public-key send and the approval dialog are skipped.
+
 ## Important implementation details
 
 `vendorWrite()` waits synchronously for completion. The connection callback therefore only sets a flag; `loop()` performs all ADB writes outside the USB client task.

@@ -1,5 +1,7 @@
 # EspUsbHostAudioOutputTone
 
+> English: [README.md](README.md)
+
 左右で異なる周波数のステレオトーンを生成し、USBスピーカーなどのUSB Audio OUTデバイスへ送信するサンプルです。
 
 ## ハードウェア

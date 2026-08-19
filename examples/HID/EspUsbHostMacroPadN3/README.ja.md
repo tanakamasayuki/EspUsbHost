@@ -1,6 +1,6 @@
 # EspUsbHostMacroPadN3
 
-English: [README.md](README.md)
+> English: [README.md](README.md)
 
 Mirabox N3 / Ajazz AKP03系のLCDマクロパッドをESP32-P4から駆動します。6つのキー画面を描き、バックライトを設定し、キーとノブの入力を読みます。純正ソフトは一切使いません。
 

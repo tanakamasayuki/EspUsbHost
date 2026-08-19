@@ -34,6 +34,6 @@ Supported usage codes (defined in `EspUsbHost.h`):
 ## Expected Serial output
 
 ```
-system press usage=0x81 Power Off
-system release usage=0x81 Power Off
+system press usage=0x01 Power Off
+system release usage=0x01 Power Off
 ```

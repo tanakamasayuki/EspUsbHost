@@ -1,6 +1,6 @@
 # EspUsbHostDisplayAx206
 
-English: [README.md](README.md)
+> English: [README.md](README.md)
 
 AX206のUSBフォトフレームディスプレイ（480x320、VID `0x1908` PID `0x0102`）をLovyanGFXのpanelとして駆動します。
 

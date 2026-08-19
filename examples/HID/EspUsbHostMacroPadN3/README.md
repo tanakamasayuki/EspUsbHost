@@ -1,6 +1,6 @@
 # EspUsbHostMacroPadN3
 
-日本語: [README.ja.md](README.ja.md)
+> 日本語版: [README.ja.md](README.ja.md)
 
 Drive a Mirabox N3 / Ajazz AKP03 family LCD macro pad from an ESP32-P4: paint the
 six key screens, set the backlight, and read the keys and encoders — with no vendor

@@ -1,6 +1,6 @@
 # EspUsbHostでのUSBディスプレイ
 
-English: [usb-display.md](usb-display.md)
+> English: [usb-display.md](usb-display.md)
 
 USBディスプレイにはデバイスクラスがありません。個体ごとにトランスポートもプロトコルも異なるため、ライブラリ本体にはディスプレイ固有の処理を一切入れていません。それぞれを汎用トランスポートAPIの上に載せたexampleとして提供し、このページがその一覧です。
 
@@ -56,4 +56,5 @@ exampleは**機能別ではなくトランスポート別**に置いています
 
 ## 設計資料
 
-- [`usb-display-spec.ja.md`](usb-display-spec.ja.md) — DL-1xxの設計文書。プロトコル調査、ライセンス、Full HD実現性の数値根拠、フェーズ分割。プロトコル部の英語版は [`usb-display-spec.md`](usb-display-spec.md)。
+- [`usb-display-spec.ja.md`](usb-display-spec.ja.md) — DL-1xxの設計文書・開発記録。参照元とライセンス、実測したUSB構成、コントロール要求、`0xAF` bulkコマンド、ビデオレジスタとLFSR16エンコード、RLE形式、表示保持、Full HD実現性の数値根拠に加え、テスト計画・フェーズ分割・未解決事項を含みます。
+- [`usb-display-spec.md`](usb-display-spec.md) — 上記のうちプロトコル調査部分の英語版です。

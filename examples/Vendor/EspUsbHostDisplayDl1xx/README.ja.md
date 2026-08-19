@@ -1,6 +1,6 @@
 # EspUsbHostDisplayDl1xx
 
-English: [README.md](README.md)
+> English: [README.md](README.md)
 
 DL-1xx系チップを搭載したUSBグラフィックスディスプレイアダプタを駆動し、LovyanGFXのpanelとして提供するサンプルです。
 

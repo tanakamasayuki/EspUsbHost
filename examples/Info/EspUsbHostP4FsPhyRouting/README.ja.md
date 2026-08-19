@@ -30,3 +30,12 @@ eFuseは変更しません。チップをリセットすると、起動時のeFu
 - ESP-IDFのP4用Low-level HAL APIを使用します。移植可能なライブラリAPIへ隠さず、意図的にアプリケーション側へ記述しています。
 
 GPIO24/GPIO25へ接続された対象コネクタにUSBデバイスを接続してスケッチを実行してください。ライブラリは`ESP_USB_HOST_PORT_FULL_SPEED`を指定してFull-speed Host peripheralを開始します。
+
+## 期待されるシリアル出力
+
+```
+Routing USB OTG FS to GPIO24/GPIO25 in 3 seconds.
+USB Serial/JTAG on GPIO24/GPIO25 will disconnect.
+```
+
+この2行の表示後に割り当てが切り替わり、GPIO24/GPIO25側のUSB Serial/JTAGコンソールは切断されるため、以降はそこには何も表示されません。`usb.begin failed: ...`などのそれ以降のメッセージは、外付けUSB-UARTブリッジまたは別のconsole接続でのみ確認できます。

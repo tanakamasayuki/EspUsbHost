@@ -48,6 +48,8 @@ Standard channel key: `57 CD DC A7 1C 88 5E 15 60 FE C6 97 16 3D 47 F2`
 
 Both go through the existing API unchanged — `vendorControlOut(0x12, 0, 0, key, 16)` and `vendorControlIn(0x02, i << 8, 0xA1, buf, 2)`.
 
+The chip also carries a vendor-specific descriptor (type `0x5F`), which would report the maximum pixel count. It is **not read** by this implementation: fetching it takes a *standard* GET_DESCRIPTOR (`bmRequestType 0x80`), and none of the public sources document its layout, so the resolution is decided from the EDID instead.
+
 ## Bulk commands
 
 Every command starts with `0xAF`.
@@ -88,12 +90,18 @@ Timing values are not raw numbers: they are **16-bit LFSR counts** (taps 15, 4, 
 | `0x20`–`0x22` | 24-bit | base16 plane start address (0) |
 | `0x26`–`0x28` | 24-bit | base8 plane start address (`width * height * 2`) |
 
+On byte order: the public sources state one only for `0x0F` (raw BE) and `0x1B` (raw LE). The 16-bit LFSR values carry no note; this implementation writes them high byte first.
+
+A complete mode set for one table mode measured **130 bytes** on the wire (128 bytes of register writes plus the 2-byte flush), about 2 ms at full speed. Resending that same sequence is also the recovery path after an HPD event (see below).
+
 ## The RLE encoding
 
 `AF 6B` alternates raw runs (`raw_cnt` literal pixels) with repeat runs (how many additional copies of the previous pixel follow). Pixels are RGB565, big-endian. One command carries at most 256 pixels.
 
 - 256 pixels of one colour: 10 bytes
 - Worst case (every pixel different): 519 bytes — slightly *larger* than the 512 raw bytes
+
+The one external oracle for the format is the worked example in the public write-up: 256 pixels of one colour at address 0 encode as `AF 6B 00 00 00 00 01 F8 00 FF` (one literal pixel, then 255 additional repeats). The encoder in `tests/unit/dl1xx` reproduces it byte for byte, which pins down the raw-run / repeat-run interpretation.
 
 ## Display persistence
 
@@ -125,6 +133,10 @@ Effective full-speed bulk OUT throughput was measured at **1.098 MB/s** (ESP32-S
 | Diff transfer touching one or two tiles | 10–20 KB | 0.02 s |
 
 Compression ratio is the one variable that depends on content; [`tests/manual/usb_display_throughput`](../tests/manual/usb_display_throughput/) measures it per drawing pattern, and the results became the guidance in the example README.
+
+On an ESP32-P4 the same adapter enumerates at **high speed**. Effective HS bulk OUT throughput measured **36.4 MB/s** (queue depth 2, 8 KB transfers) — about 68 % of the 53.2 MB/s theoretical ceiling (13 × 512-byte packets per microframe), and 33× the full-speed figure. Two timing findings carry over from the sweep: queue depth 2 already reaches the ceiling at both speeds, and per-transfer overhead weighs more at HS — 512-byte transfers stop around 8 MB/s even asynchronously.
+
+The worst case has a hard arithmetic ceiling. An RLE-incompressible Full HD frame is 8,100 commands × 519 bytes = **4,203,900 bytes** (1.4 % overhead over raw), which is 0.274 fps at full speed — matched by measurement (0.27 fps at 99.8 % bus) — and a 9.08 fps ceiling at high speed, where the measured 1.55 fps shows the encoder and per-band redraw, not the bus, as the limit.
 
 ## Why tiles suit this device
 

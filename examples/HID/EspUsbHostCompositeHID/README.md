@@ -42,7 +42,7 @@ keyboard: address=1 iface=0 keycode=0x04 ascii='a'
 mouse: address=1 iface=1 pos: x=3 y=-2 delta: dx=3 dy=-2 wheel=0
 consumer: address=1 iface=2 press usage=0x00e9 Volume Up
 consumer: address=1 iface=2 release usage=0x00e9 Volume Up
-system: address=1 iface=3 press usage=0x82 Standby
+system: address=1 iface=3 press usage=0x02 Standby
 ```
 
 ## See also

@@ -100,7 +100,7 @@ Three things matter here:
 
 ### 1.6 Endpoints and transfer types
 
-An endpoint is a communication port. It has an address (`0x81`: bit 7 is the direction, the low bits are the number), a direction (IN = device to host, OUT = host to device), a transfer type, a max packet size (MPS), and a polling interval.
+An endpoint is a communication port. It has an address (`0x81`: bit 7 is the direction, the low 4 bits are the number), a direction (IN = device to host, OUT = host to device), a transfer type, a max packet size (MPS), and a polling interval.
 
 | Transfer type | Character | Used by |
 |---------------|-----------|---------|
@@ -337,11 +337,11 @@ The examples in this repository are built exactly that way: open the interface w
 
 ### Step 6. If nothing is published, capture it on a PC
 
-Capture what the vendor's own software says to the device and read it back out. See [chapter 5](#5-working-out-a-protocol).
+When nothing is published, or what you find is incomplete, capture what the vendor's own software says to the device **on a PC** and read it back out. The procedure is in [chapter 5](#5-working-out-a-protocol).
 
 ### Step 7. Reproduce it on the ESP32
 
-Replay the transfers you read out of the capture with [`examples/Vendor/EspUsbHostProtocolConsole`](../examples/Vendor/EspUsbHostProtocolConsole/). One transfer at a time, with no rebuild in between:
+Replay the transfers you read out of the capture with [`examples/Vendor/EspUsbHostProtocolConsole`](../examples/Vendor/EspUsbHostProtocolConsole/). One transfer at a time, with no rebuild in between, which keeps the analysis cycle fast:
 
 ```
 > ctl 80 06 0100 0000 12        # GET_DESCRIPTOR(DEVICE) first, to confirm the path
@@ -364,6 +364,8 @@ Things to get right:
 - **Max packet size and splitting** — large payloads may have to be split by the caller.
 
 ### Step 9. Write down what you found
+
+Once it is reproduced, record it in the following form — it helps both your future self and others.
 
 - Put a minimal working sketch under `examples/` (in this repository, with README.md, README.ja.md and sketch.yaml)
 - Add anything that needs a human to judge it as a manual test under `tests/manual/`
@@ -398,6 +400,8 @@ For descriptors alone, `lsusb -v -d <vid>:<pid>` is quicker, and `usbhid-dump` g
 **macOS**: USB Prober from Xcode's Additional Tools, or Wireshark's USB capture.
 
 ### 5.2 Reading a capture
+
+The practical order to work through a capture in Wireshark:
 
 1. **Filter down to the device** — `usb.device_address == 5`. The address is visible in the enumeration packets
 2. **Separate enumeration from operation** — the first GET_DESCRIPTOR burst is enumeration; the protocol starts after it

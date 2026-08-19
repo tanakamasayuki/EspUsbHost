@@ -33,6 +33,32 @@ key state whether the keyboard is boot (6KRO) or NKRO. No configuration is requi
   NKRO bitmap (report protocol) rather than the 6-key boot report. Diagnostic
   only; decoding is automatic.
 
+## Expected Serial Output
+
+Holding seven keys (`a`–`g`) together, then releasing one:
+
+```
+Keyboard connected: 303a:4033 nkro-bitmap=1
+press   keycode=0x04
+held=1 (max=1) modifiers=0x00
+press   keycode=0x05
+held=2 (max=2) modifiers=0x00
+press   keycode=0x06
+held=3 (max=3) modifiers=0x00
+press   keycode=0x07
+held=4 (max=4) modifiers=0x00
+press   keycode=0x08
+held=5 (max=5) modifiers=0x00
+press   keycode=0x09
+held=6 (max=6) modifiers=0x00
+press   keycode=0x0a
+held=7 (max=7) modifiers=0x00
+release keycode=0x04
+held=6 (max=7) modifiers=0x00
+```
+
+A `held` count above 6 shows NKRO is in effect.
+
 ## Notes
 
 - NKRO keyboards default to report protocol, where they send the bitmap. The host

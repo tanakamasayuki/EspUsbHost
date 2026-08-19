@@ -1,6 +1,6 @@
 # EspUsbHostPrinterEscPos
 
-English: [README.md](README.md)
+> English: [README.md](README.md)
 
 USB レシートプリンタで印字します。ESC/POS の日本語テキスト、バーコード、QR コード、
 オートカッターまで。Xprinter XP-C58K（`0483:070b`）で実機確認済みです。

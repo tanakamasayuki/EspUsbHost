@@ -25,7 +25,7 @@
 | [ccid-api-spec.ja.md](ccid-api-spec.ja.md) | CCIDスマートカードリーダ、ATR、FeliCa | [`Ccid`](../examples/Ccid/) |
 | [dp100-spec.ja.md](dp100-spec.ja.md) | ALIENTEK DP100：HIDレポートに載った独自フレーム | [`EspUsbHostDp100Power`](../examples/HID/EspUsbHostDp100Power/) |
 | [usb-network-spec.ja.md](usb-network-spec.ja.md) | CDC-NCM / CDC-ECM と lwIP netif接続 | [`UsbNetwork`](../examples/UsbNetwork/) |
-| [usb-display-spec.ja.md](usb-display-spec.ja.md)（プロトコル部の英語版: [usb-display-spec.md](usb-display-spec.md)） | DL-1xx、AX206、スマートスクリーンの各プロトコル | ディスプレイ系サンプル |
+| [usb-display-spec.ja.md](usb-display-spec.ja.md)（プロトコル部の英語版: [usb-display-spec.md](usb-display-spec.md)） | DL-1xxのbulkディスプレイプロトコル（AX206とスマートスクリーンのプロトコルは各サンプルのREADMEにあり、[usb-display.ja.md](usb-display.ja.md) が索引） | [`EspUsbHostDisplayDl1xx`](../examples/Vendor/EspUsbHostDisplayDl1xx/) |
 
 ## 設計提案
 

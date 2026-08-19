@@ -142,8 +142,8 @@ interface classが役に立たないデバイスも同じ道筋で扱います�
 | USBスマートスクリーン（CDCシリアルプロトコル） | 📄 example限りのbest effort。[`examples/Serial/EspUsbHostDisplayTuring`](examples/Serial/EspUsbHostDisplayTuring/) にCDCシリアル書き込みキュー上で実装。ライブラリ本体にディスプレイ固有の処理は入っていない。3.5インチの `USB35INCHIPSV2`（`1a86:5722`）を16 bppで扱う。他のディスプレイexampleとあわせて [docs/usb-display.ja.md](docs/usb-display.ja.md) に一覧がある |
 | USBTMC — SCPI計測器 | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostUsbtmcScpi`](examples/Vendor/EspUsbHostUsbtmcScpi/) にvendor bulk/control API上で実装。ライブラリ本体にUSBTMC固有の処理は入っていない。interface classは0xFE（Application Specific）でvendor-specificではないが、使うAPIで分類しているためexampleは `Vendor/` にある。菊水電子工業の直流電源 PMX18-5A（`0b3e:1029`）で実機確認済み（class request、bulkメッセージ層、SCPIクエリ）。USB488のinterrupt IN（service request）は使わない |
 | Printer — ESC/POSレシートプリンタ | 📄 example限りのbest effort。[`examples/Vendor/EspUsbHostPrinterEscPos`](examples/Vendor/EspUsbHostPrinterEscPos/) にvendor bulk/control API上で実装。ライブラリ本体にプリンタ固有の処理は入っていない。interface classは0x07だが、使うAPIで分類しているためexampleは `Vendor/` にある。Xprinter XP-C58K（`0483:070b`）で実機確認済み（class request 3種、ESC/POSリアルタイムステータス、日本語レシート＋バーコード＋QR＋オートカット）。この機種はclass requestが「応答はするが中身が空」だったため、頼れるステータス経路はリアルタイムステータス（`DLE EOT n`）。IPP / PWG-Raster / PCL と IEEE 1284.4 パケットモードは対象外 |
-| Mirabox N3 / Ajazz AKP03系 LCDマクロパッド | 📄 example限りのbest effort。[`examples/HID/EspUsbHostMacroPadN3`](examples/HID/EspUsbHostMacroPadN3/) にHID API上で実装。ライブラリ本体にパッド固有の処理は入っていない。vendor interfaceに独自の`CRT`プロトコルを載せたcomposite HIDデバイスなので `onHIDVendorInput()` と `sendHIDVendorOutput()` で足りる。STREONOR S6（`1500:3006`）で実機確認済み（輝度、クリア、リフレッシュ、6キー画面への64x64 JPEG表示）。パッドのinterrupt OUTがMPS 1024のため、ESP32-P4のHigh-speedポート限定。シーンキーとノブの入力レポートコードは未確定 |
 | ALIENTEK DP100 数控電源 | 📄 example限りのbest effort。[`examples/HID/EspUsbHostDp100Power`](examples/HID/EspUsbHostDp100Power/) にHID API上で実装。ライブラリ本体にDP100固有の処理は入っていない。素のHID interfaceに独自フレームを載せたデバイスなので `onHIDInput()` と `sendHIDVendorOutput()` で足りる。読み取りはESP32-S3で実機確認済み（機器情報、入力電圧、出力V/A、温度。単位も実測で確定）。設定書き込みフレームは出力ON/OFFを含むため実装のみで未検証 |
+| Mirabox N3 / Ajazz AKP03系 LCDマクロパッド | 📄 example限りのbest effort。[`examples/HID/EspUsbHostMacroPadN3`](examples/HID/EspUsbHostMacroPadN3/) にHID API上で実装。ライブラリ本体にパッド固有の処理は入っていない。vendor interfaceに独自の`CRT`プロトコルを載せたcomposite HIDデバイスなので `onHIDVendorInput()` と `sendHIDVendorOutput()` で足りる。STREONOR S6（`1500:3006`）で実機確認済み（輝度、クリア、リフレッシュ、6キー画面への64x64 JPEG表示）。パッドのinterrupt OUTがMPS 1024のため、ESP32-P4のHigh-speedポート限定。シーンキーとノブの入力レポートコードは未確定 |
 | UAC — USBオーディオ入出力 | 🔲 実験的。UAC1は標準Arduino `USBAudioCard`、UAC2は `EspUsbDevice` peerでAudio OUT/INのpeer確認済み（descriptor、Clock Sourceのサンプルレート、Feature Unitのmute/volume、OUT/IN streaming）。実USBマイク・オーディオIF確認は継続 |
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
@@ -410,7 +410,7 @@ callback内ではなくapplication taskから呼び出してください。
 
 ```cpp
 struct EspUsbHostConfig {
-  uint32_t    taskStackSize = 4096;
+  uint32_t    taskStackSize = 8192;
   UBaseType_t taskPriority  = 5;
   BaseType_t  taskCore      = tskNO_AFFINITY;
   EspUsbHostPort port       = ESP_USB_HOST_PORT_DEFAULT;
@@ -722,11 +722,16 @@ HIDではないvendor-specific interface（`bInterfaceClass == 0xff`）で、bul
 void onVendorData(VendorDataCallback callback);
 
 bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
-                uint8_t interfaceNumber = 0xff);
+                uint8_t interfaceNumber = 0xff,
+                EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS);
 bool vendorWrite(const uint8_t *data, size_t length,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t vendorRead(uint8_t *buffer, size_t length,
                   uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorReadSync(uint8_t *buffer, size_t length,
+                    size_t *actualLength = nullptr,
+                    uint32_t timeoutMs = ESP_USB_HOST_VENDOR_READ_DEFAULT_TIMEOUT_MS,
+                    uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
@@ -749,7 +754,18 @@ bool vendorControlTransfer(uint8_t requestType, uint8_t request,
                           uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
 ```
 
-`vendorOpen()` は vendor-specific interface を明示的に claim し、bulk IN 受信を開始します。bulk IN と bulk OUT の両方を持つ interface を優先しますが、bulk OUT だけを持つ interface も受け付けます。その場合 IN 転送は開始されず、`vendorRead()` / `onVendorData()` にデータは届きません。たとえばUSBグラフィックスアダプタは bulk OUT と interrupt IN の組み合わせで、このAPIは interrupt IN を使いません。
+`vendorOpen()` は interface を明示的に claim し、bulk IN 受信を開始します。`interfaceNumber` が既定値のときは最初の vendor-specific（class 0xFF）interface を選びます。interface 番号を明示した場合は class を問わずその interface を claim するため、bulk プロトコルが別の class code の裏にあるデバイス（たとえば AX206 USB ディスプレイは 0xDC/0xA0/0xB0 を名乗ります）にも使えます。ただし、ライブラリの別の機能が claim 済みの interface は明示しても拒否されます。
+
+第3引数は bulk IN endpoint の駆動方法を選びます。`ESP_USB_HOST_VENDOR_READ_CONTINUOUS`（既定値。従来の挙動）は IN 転送を常時1つ出しっぱなしにし、届いたデータを `vendorRead()` 用にバッファします。`ESP_USB_HOST_VENDOR_READ_ON_DEMAND` は転送を一切開始せず、`vendorReadSync()` が要求するまで endpoint をアイドルのままにします。リクエスト／レスポンス型のプロトコルに必要なのはこちらです。Bulk-Only Transport のデバイスはトランザクションの中でしか応答せず、その外でポーリングすると転送エラーになります。モードは open 時に固定され、別のモードで開き直そうとすると失敗します。continuous の転送が `vendorReadSync()` の待つ応答を飲み込んだまま残るより安全なためです。
+
+```cpp
+usb.vendorOpen(address, interfaceNumber, ESP_USB_HOST_VENDOR_READ_ON_DEMAND);
+usb.vendorWrite(request, sizeof(request), address);
+size_t length = 0;
+usb.vendorReadSync(response, sizeof(response), &length, 1000, address);
+```
+
+`vendorReadSync()` は bulk IN 転送を1つ submit して完了を待つため、`vendorWrite()` と同様に USB callback 内では呼べません。要求長は USB host の要求どおり max packet size の整数倍へ切り上げられ、呼び出し側へは要求した分だけコピーされます。bulk IN と bulk OUT の両方を持つ interface を優先しますが、bulk OUT だけを持つ interface も受け付けます。その場合 IN 転送は開始されず、`vendorRead()` / `onVendorData()` にデータは届きません。たとえばUSBグラフィックスアダプタは bulk OUT と interrupt IN の組み合わせで、このAPIは interrupt IN を使いません。
 
 同じ方向の bulk endpoint が複数ある interface では、descriptor 順で最初の endpoint を選びます。`vendorOutPacketSize()` / `vendorInPacketSize()` は open 済み endpoint の max packet size、`vendorOutEndpoint()` / `vendorInEndpoint()` はそのアドレスを返します（未openは0）。max packet size は転送をパケット境界で終わらせる場合、アドレスはどの endpoint が選ばれたかを確認する場合に使います。
 
@@ -1144,7 +1160,7 @@ USB Hubは検出、簡易トポロジー表示、Hub descriptor取得、port sta
 
 `setHubTrackingEnabled(false)` にすると、ライブラリは外部ハブに一切触らなくなります。ハブの追跡とはハブをクライアントデバイスとして open してハンドルを保持することで、上記 3 つの呼び出しとハブ自身の connect/disconnect イベントはこれに依存しています。OFF の場合、ハブ配下のデバイスは変わらず列挙・動作しますが、ハブが `getDevices()` に現れず上記の呼び出しは使えません。既定は ON です。
 
-これは挙動の悪いハブに対する解決策ではありません。既知の例として、CH335F（`1a86:8094`）の配下に ALIENTEK DP100 を置くと、追跡を OFF にした状態でも ESP-IDF v5.5.5 自身のハブドライバが（ハブがホストスタックのアドレスリストに載る前に）落ちます。試した組み合わせと `tests/probe/hub_enum` で確認した内容は [tests/manual/README.ja.md](tests/manual/README.ja.md) に記録しています。
+これは挙動の悪いハブに対する解決策ではありません。既知の例として、CH335F（`1a86:8094`）の配下に ALIENTEK DP100 を置くと、追跡を OFF にした状態でも ESP-IDF v5.5.5 自身のハブドライバが（ハブがホストスタックのアドレスリストに載る前に）落ちます。試した組み合わせと `tests/probe/hub_enum` で確認した内容は [tests/manual/README.ja.md](tests/manual/README.ja.md#esp-idf-がクラッシュするハブの組み合わせ) に記録しています。
 
 ポート単位で安全に電源制御するには、HubがPPPS（Per-Port Power Switching）対応として報告される必要があります。ganged powerのHubでは、指定ポートだけでなく複数ポートまたはHub全体に影響する場合があります。USB 3.x Hubや内部で多段Hubになっている製品は挙動が複雑なため、確認用途ではセルフパワーのUSB 2.0 Hubを推奨します。
 
@@ -1288,7 +1304,7 @@ usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
 - [`tests/loopback/`](tests/loopback/) — 1台でのループバックテスト。ESP32-P4向けの実用的な整備は兄弟ライブラリ`EspUsbDevice`側で進行中
 - [`tests/manual/`](tests/manual/) — 特殊ハードウェアや人による確認が必要な手動テスト
 
-セットアップ方法は[tests/README.md](tests/README.md)を参照してください。
+セットアップ方法は[tests/README.ja.md](tests/README.ja.md)を参照してください。
 
 手動実行の _Library Footprint Matrix_ workflowでは、代表exampleの`sketch.yaml`に指定されたArduinoコアへ固定し、Base、HID、Serial、Audio、Storage、MIDI、Vendor、Network、Infoの固定probeを、指定した各ライブラリリリースに対してビルドします。正規化したFlash/静的RAMは常に1組のJSONとMarkdownレポートへ上書きし、コンパイラログ、ELF、map、アプリケーションbinは保存期間を限定したworkflow artifactとして残します。Arduinoコアを切り替えてビルド互換性を調べるcore compatibility matrixとは別の用途です。
 
