@@ -45,6 +45,8 @@ consumer: address=1 iface=2 release usage=0x00e9 Volume Up
 system: address=1 iface=3 press usage=0x02 Standby
 ```
 
+The system control `usage` byte is device-dependent: some keyboards send the Generic Desktop usage IDs `0x81`–`0x83` instead of the `0x01`–`0x03` shown here. See [EspUsbHostSystemControl](../EspUsbHostSystemControl/) for the details.
+
 ## See also
 
 - [EspUsbHostKeyboard](../EspUsbHostKeyboard/) — basic keyboard text input

@@ -45,6 +45,8 @@ consumer: address=1 iface=2 release usage=0x00e9 Volume Up
 system: address=1 iface=3 press usage=0x02 Standby
 ```
 
+システムコントロールの`usage`バイトはデバイス依存で、ここに示した`0x01`〜`0x03`ではなくGeneric Desktopのusage ID `0x81`〜`0x83`を送るキーボードもあります。詳細は [EspUsbHostSystemControl](../EspUsbHostSystemControl/) を参照してください。
+
 ## 関連
 
 - [EspUsbHostKeyboard](../EspUsbHostKeyboard/) — 基本的なキーボード文字入力

@@ -26,7 +26,6 @@ cp .env.example .env
 # 変数名は sketch.yaml のプロファイル名を pytest-embedded が大文字化したものに対応します。
 TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyUSB0
 TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
-TEST_SERIAL_PORT_P4_LOOPBACK=/dev/ttyUSB2
 TEST_SERIAL_PORT_ESP32S3=/dev/ttyACM0
 TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 

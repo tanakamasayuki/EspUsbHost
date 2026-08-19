@@ -22,6 +22,8 @@ Supported usage codes (defined in `EspUsbHost.h`):
 | `ESP_USB_HOST_SYSTEM_CONTROL_STANDBY` | `0x02` | Standby |
 | `ESP_USB_HOST_SYSTEM_CONTROL_WAKE_HOST` | `0x03` | Wake Host |
 
+The value in `event.usage` is the first byte of the system control report, passed through without translation, so what a given key produces depends on the keyboard's report descriptor. A common encoding is an array item whose logical values start at 1, which yields the `0x01`–`0x03` values above. Keyboards that report the Generic Desktop usage ID itself send `0x81` (System Power Down), `0x82` (System Sleep) or `0x83` (System Wake Up) instead; those arrive unchanged, and `espUsbHostSystemControlUsageName()` returns an empty name for them. Check the `usage=0x..` value printed for your device to see which encoding it uses.
+
 ## Key APIs
 
 - `usb.onSystemControl(callback)` — fired on press/release with `EspUsbHostSystemControlEvent`

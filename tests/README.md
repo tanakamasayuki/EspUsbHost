@@ -26,7 +26,6 @@ cp .env.example .env
 # These names match sketch.yaml profile names uppercased by pytest-embedded.
 TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyUSB0
 TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
-TEST_SERIAL_PORT_P4_LOOPBACK=/dev/ttyUSB2
 TEST_SERIAL_PORT_ESP32S3=/dev/ttyACM0
 TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 
