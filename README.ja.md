@@ -1145,7 +1145,7 @@ MSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF F
 
 マウントはFatFsのドライブスロットと登録済みVFSパスを占有し、その数は`CONFIG_FATFS_VOLUME_COUNT`しかないため、USB側と同様に解放が必要です。`EspUsbHost::end()`はこのインスタンスがマウントしたままのボリュームをunmountし、切断時はそのデバイスのボリュームをunmountするので、同じ`basePath`への次の`mscMount()`が「already mounted」で拒否される状態は残りません。この経路でボリュームを外された`EspUsbHostMscFS`は`mounted()`が`false`になり、次の`begin()`で再マウントされます。
 
-一部の非準拠MSCデバイスは、FatFs同期時のSCSI `SYNCHRONIZE CACHE(10)`でSTALLまたは切断することがあります。FatFsの`CTRL_SYNC`経由でも`mscSynchronizeCache()`の直接呼び出しでも、`SYNCHRONIZE CACHE(10)`が失敗するとライブラリはbulk pipeのhaltを解除し、そのデバイスでの失敗を記憶して、以後そのmountおよび再接続までの`mscMount()`でこのコマンドを自動的にスキップします。問題が分かっているデバイスでは、`begin()`前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶか、`begin()` / `mscMount()`へ`skipSyncCache = true`を渡すと最初からスキップできます。互換性は上がりますが、明示的なメディアflushではなく通常のwrite完了に依存します。
+一部の非準拠MSCデバイスは、FatFs同期時のSCSI `SYNCHRONIZE CACHE(10)`でSTALLまたは切断することがあります。FatFsの`CTRL_SYNC`経由でも`mscSynchronizeCache()`の直接呼び出しでも、`SYNCHRONIZE CACHE(10)`が失敗するとライブラリはbulk pipeのhaltを解除し、そのデバイスでの失敗を記憶して、以後そのmountおよび再接続までの`mscMount()`でこのコマンドを自動的にスキップします。問題が分かっているデバイスでは、`begin()`前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶか、`begin()` / `mscMount()`へ`skipSyncCache = true`を渡すと最初からスキップできます。互換性は上がりますが、明示的なメディアflushではなく通常のwrite完了に依存します。`mscUnmount()`が発行するflushはbest effortです。拒否するデバイスではログを出して記憶しますが、unmount自体は成功し、`lastError()`も元の値のままにします。どちらにしてもボリュームは切り離されるためです。
 
 ### USB Hub
 

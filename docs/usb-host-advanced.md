@@ -98,7 +98,7 @@ Returning `0` keeps the device default. To find out what is in which configurati
 
 ### 1.5 Shutdown
 
-`end()` stops the client and daemon synchronously, cancels and drains in-flight transfers, deregisters the client, waits for the IDF `ALL_FREE` handshake, and uninstalls the host library. The same object can then be started again with `begin()`. **Never call it from a USB callback** — call it from the application task.
+`end()` unmounts any MSC volume this instance mounted, stops the client and daemon synchronously, cancels and drains in-flight transfers, deregisters the client, waits for the IDF `ALL_FREE` handshake, and uninstalls the host library. The uninstall is retried while library events are handled until the IDF accepts it, because it refuses while an event flag such as `NO_CLIENTS` is still unread — with an empty device list nothing else would consume it. The same object can then be started again with `begin()`. **Never call it from a USB callback** — call it from the application task.
 
 ---
 
