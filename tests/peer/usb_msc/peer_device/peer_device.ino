@@ -120,6 +120,16 @@ void loop()
             failNextWrite = true;
             Serial.println("DEVICE_FAIL_NEXT_WRITE armed=1");
         }
+        else if (command == 'z')
+        {
+            // Rebooting detaches USB and re-attaches after boot, which is the
+            // only way this board can hand the host a real disconnect. The
+            // core has no USB detach API.
+            Serial.println("DEVICE_REBOOT");
+            Serial.flush();
+            delay(50);
+            ESP.restart();
+        }
     }
     delay(1);
 }

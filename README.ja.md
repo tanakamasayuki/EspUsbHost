@@ -400,9 +400,9 @@ activeにするconfiguration値を返します（`0`はdevice既定値を維持�
 それ以前のcoreでは`ESP_ERR_NOT_SUPPORTED`で`false`を返します。主に、CDC-NCM/ECMを既定以外の
 configurationに持つUSB Ethernetアダプタで必要になります。
 
-`end()`はclient/daemon taskを同期的に停止し、実行中のendpoint transferを
-cancelしてcallback返却まで待ち、clientをderegisterし、ESP-IDFの`ALL_FREE`
-handshake完了後にUSB Host Libraryをuninstallします。復帰後は同じ
+`end()`はこのインスタンスがマウントしたMSCボリュームをunmountし、client/daemon taskを
+同期的に停止し、実行中のendpoint transferをcancelしてcallback返却まで待ち、clientを
+deregisterし、ESP-IDFの`ALL_FREE` handshake完了後にUSB Host Libraryをuninstallします。復帰後は同じ
 `EspUsbHost` objectを`begin()`で再開できます。`end()`はUSB event/data
 callback内ではなくapplication taskから呼び出してください。
 
@@ -1142,6 +1142,8 @@ MSC対応はSCSI transparent / Bulk-Only TransportのブロックI/O、ESP-IDF F
 ブロックAPIは64-bit LBAに対応しますが、現在のFatFs/VFSマウント経路はESP-IDF側のFatFs設定により32-bit sectorまでです。複数MSCデバイスや複数LUNはAPI上はaddress/LUN指定を持ちますが、ESP32-S3ではHCDチャネル数の制約が強いため、実運用では単一MSCデバイスを前提にしてください。複数MSCはESP32-P4などでの追加検証項目です。
 
 これらのMSC APIはUSB転送完了を待つため、USBコールバック内からは呼ばないでください。書き込み中やファイルを開いたままUSBメモリを抜いた場合、未反映データが失われる可能性があります。抜き差しを扱う場合は、再接続後に再度`begin()`してください。
+
+マウントはFatFsのドライブスロットと登録済みVFSパスを占有し、その数は`CONFIG_FATFS_VOLUME_COUNT`しかないため、USB側と同様に解放が必要です。`EspUsbHost::end()`はこのインスタンスがマウントしたままのボリュームをunmountし、切断時はそのデバイスのボリュームをunmountするので、同じ`basePath`への次の`mscMount()`が「already mounted」で拒否される状態は残りません。この経路でボリュームを外された`EspUsbHostMscFS`は`mounted()`が`false`になり、次の`begin()`で再マウントされます。
 
 一部の非準拠MSCデバイスは、FatFs同期時のSCSI `SYNCHRONIZE CACHE(10)`でSTALLまたは切断することがあります。FatFsの`CTRL_SYNC`経由でも`mscSynchronizeCache()`の直接呼び出しでも、`SYNCHRONIZE CACHE(10)`が失敗するとライブラリはbulk pipeのhaltを解除し、そのデバイスでの失敗を記憶して、以後そのmountおよび再接続までの`mscMount()`でこのコマンドを自動的にスキップします。問題が分かっているデバイスでは、`begin()`前に`usbMassStorage.setSkipSyncCache(true)`を呼ぶか、`begin()` / `mscMount()`へ`skipSyncCache = true`を渡すと最初からスキップできます。互換性は上がりますが、明示的なメディアflushではなく通常のwrite完了に依存します。
 

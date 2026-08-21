@@ -1720,6 +1720,14 @@ void EspUsbHost::end()
     return;
   }
 
+  // A mounted volume holds a FatFs drive slot, a registered VFS path and a
+  // mscFatMounts entry, and none of them survive the block device going away.
+  // Do it before the tasks stop so SYNCHRONIZE CACHE can still reach the
+  // device; leaving them behind makes the next mscMount() of the same basePath
+  // fail with "already mounted" and runs out of drive slots after FF_VOLUMES
+  // cycles.
+  mscUnmountAll();
+
   ESP_LOGI(TAG, "Stopping USB Host");
   ready_ = false;
   running_ = false;
@@ -6401,7 +6409,13 @@ bool EspUsbHost::mscUnmount(const char *basePath)
 
   if (!mount->skipSyncCache)
   {
+    // Best effort: the volume is going away either way, and the result is
+    // deliberately ignored, so a device that rejects SYNCHRONIZE CACHE must not
+    // leave lastError() reporting a failure for an unmount that succeeded.
+    // mscSynchronizeCache() logs it and marks the device on its own.
+    const esp_err_t errorBeforeSync = lastError_;
     mscSynchronizeCache(mount->address);
+    lastError_ = errorBeforeSync;
   }
   f_mount(nullptr, mount->fatDrive, 0);
   esp_err_t err = esp_vfs_fat_unregister_path(mount->basePath);
@@ -6492,6 +6506,20 @@ void EspUsbHostMscFS::setSkipSyncCache(bool skip)
 bool EspUsbHostMscFS::skipSyncCache() const
 {
   return skipSyncCache_;
+}
+
+void EspUsbHost::mscUnmountAll()
+{
+  for (EspUsbHostMscFatMount &mount : mscFatMounts)
+  {
+    if (!mount.inUse || mount.host != this)
+    {
+      continue;
+    }
+    // mscUnmount() clears the entry, so the reference stays valid for the rest
+    // of the loop.
+    mscUnmount(mount.basePath);
+  }
 }
 
 void EspUsbHost::mscUnmountAddress(uint8_t address)
@@ -11757,7 +11785,26 @@ bool EspUsbHost::uninstallHostLibrary(uint32_t timeoutMs)
     return false;
   }
 
-  const esp_err_t uninstallErr = usb_host_uninstall();
+  // usb_host_uninstall() refuses with ESP_ERR_INVALID_STATE while the library
+  // still holds an unread event flag or a pending process request, and the
+  // client deregister above left USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS set. Only
+  // usb_host_lib_handle_events() clears those, so pump it until uninstall is
+  // accepted. With no device attached usb_host_device_free_all() returns ESP_OK
+  // and the ALL_FREE loop never runs, which is what left the host library
+  // installed and made every later begin() fail in usb_host_install().
+  esp_err_t uninstallErr = usb_host_uninstall();
+  while (uninstallErr == ESP_ERR_INVALID_STATE && millis() - startedAtMs < timeoutMs)
+  {
+    uint32_t eventFlags = 0;
+    const esp_err_t eventErr = usb_host_lib_handle_events(pdMS_TO_TICKS(10), &eventFlags);
+    if (eventErr != ESP_OK && eventErr != ESP_ERR_TIMEOUT)
+    {
+      ESP_LOGW(TAG, "usb_host_lib_handle_events(uninstall) failed: %s", esp_err_to_name(eventErr));
+      setLastError(eventErr);
+      return false;
+    }
+    uninstallErr = usb_host_uninstall();
+  }
   if (uninstallErr != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_uninstall() failed: %s", esp_err_to_name(uninstallErr));

@@ -2740,6 +2740,7 @@ private:
   bool mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs);
   bool mscResetRecovery(DeviceState &device, uint32_t timeoutMs);
   void mscUnmountAddress(uint8_t address);
+  void mscUnmountAll();
   bool submitVendorSerialControl(uint8_t requestType,
                                  uint8_t request,
                                  uint16_t value,
