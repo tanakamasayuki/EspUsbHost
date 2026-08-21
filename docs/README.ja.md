@@ -38,12 +38,12 @@ APIを追加する前に書いた設計文書です。判断の背景を残す�
 
 ## 自動生成レポート
 
-CIが生成するもので、手書きではありません。
+CIが生成するもので、手書きではありません。どちらのワークフローもpushごとではなくリリース後に手動起動するため、再実行するまでは現行バージョンに追いついていません。
 
 | ドキュメント | 内容 |
 |-------------|------|
 | [FOOTPRINT.md](FOOTPRINT.md) | 機能ごとのFlash/RAM使用量。[`tools/footprint_sketches`](../tools/footprint_sketches/) のプローブスケッチで計測。`footprint.json` が正規化済みの元データ |
-| `COMPATIBILITY.<version>.md` | リリースごとの、arduino-esp32コアバージョン×ターゲットのビルド結果。最新は [COMPATIBILITY.2.7.8.md](COMPATIBILITY.2.7.8.md) |
+| `COMPATIBILITY.<version>.md` | リリースごとの、arduino-esp32コアバージョン×ターゲットのビルド結果。リリース後にその版のファイルが1つ追加されるので、使っている版のものをこのディレクトリから選ぶ |
 
 ## リポジトリ内の他の場所
 

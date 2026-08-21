@@ -38,12 +38,12 @@ Design documents written before an API was added, kept for the reasoning behind 
 
 ## Generated reports
 
-Produced by CI, not written by hand.
+Produced by CI, not written by hand. Both workflows are dispatched manually after a release rather than on every push, so these files trail the current version until they are re-run.
 
 | Document | Contents |
 |----------|----------|
 | [FOOTPRINT.md](FOOTPRINT.md) | Flash and RAM cost per feature, measured with the probe sketches in [`tools/footprint_sketches`](../tools/footprint_sketches/). `footprint.json` is the normalised source data |
-| `COMPATIBILITY.<version>.md` | Per-release build results across arduino-esp32 core versions and targets. The newest is [COMPATIBILITY.2.7.8.md](COMPATIBILITY.2.7.8.md) |
+| `COMPATIBILITY.<version>.md` | Per-release build results across arduino-esp32 core versions and targets. One file per released library version, added after that release, so pick the version you are on from this directory |
 
 ## Elsewhere in the repository
 
