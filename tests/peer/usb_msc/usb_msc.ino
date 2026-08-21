@@ -2,6 +2,27 @@
 
 EspUsbHost usb;
 
+static volatile bool restartWhenBusEmpty = false;
+static volatile bool deviceGone = false;
+
+static bool hostInstalled()
+{
+    usb_host_lib_info_t info = {};
+    return usb_host_lib_info(&info) == ESP_OK;
+}
+
+static int hostClientCount()
+{
+    usb_host_lib_info_t info = {};
+    return usb_host_lib_info(&info) == ESP_OK ? info.num_clients : -1;
+}
+
+static int hostDeviceCount()
+{
+    usb_host_lib_info_t info = {};
+    return usb_host_lib_info(&info) == ESP_OK ? info.num_devices : -1;
+}
+
 static void waitForMsc()
 {
     const uint32_t started = millis();
@@ -25,6 +46,10 @@ void setup()
                                           device.deviceClass,
                                           device.supported ? 1 : 0); });
 
+    usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
+                             { deviceGone = true;
+                               Serial.printf("DEVICE_DISCONNECTED addr=%u\n", device.address); });
+
     if (!usb.begin())
     {
         Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
@@ -33,6 +58,36 @@ void setup()
 
 void loop()
 {
+    if (restartWhenBusEmpty && deviceGone)
+    {
+        restartWhenBusEmpty = false;
+        deviceGone = false;
+
+        // The peer is rebooting, so the USB Host Library device list is empty:
+        // usb_host_device_free_all() returns ESP_OK and the shutdown handles no
+        // library event, which is what left the USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS
+        // flag from the client deregister blocking usb_host_uninstall(). The
+        // device-attached teardown takes the ALL_FREE path instead and hides it.
+        const uint32_t started = millis();
+        while (hostDeviceCount() != 0 && millis() - started < 200)
+        {
+            delay(1);
+        }
+        const int devicesBefore = hostDeviceCount();
+
+        usb.end();
+        Serial.printf("HOST_IDLE_STOP devices_before=%d installed=%u error=%s\n",
+                      devicesBefore,
+                      hostInstalled() ? 1 : 0,
+                      usb.lastErrorName());
+
+        const bool restarted = usb.begin();
+        Serial.printf("HOST_IDLE_RESTART ready=%u error=%s\n",
+                      restarted ? 1 : 0,
+                      usb.lastErrorName());
+        return;
+    }
+
     if (Serial.available() <= 0)
     {
         delay(1);
@@ -249,5 +304,29 @@ void loop()
         }
         const bool writeOk = usb.mscWriteBlocks(10, block, 1);
         Serial.printf("MSC_FAILED_WRITE write=%u\n", writeOk ? 1 : 0);
+    }
+    else if (command == 'X')
+    {
+        // Teardown with the device still attached, the path the vendor and CDC
+        // peer tests already cover.
+        usb.end();
+        Serial.printf("HOST_STOP installed=%u clients=%d devices=%d ready=%u\n",
+                      hostInstalled() ? 1 : 0,
+                      hostClientCount(),
+                      hostDeviceCount(),
+                      usb.ready() ? 1 : 0);
+
+        const bool restarted = usb.begin();
+        Serial.printf("HOST_RESTART ready=%u error=%s\n",
+                      restarted ? 1 : 0,
+                      usb.lastErrorName());
+    }
+    else if (command == 'x')
+    {
+        // Run the teardown from loop() once the peer has left the bus; end()
+        // must not be called from a USB callback.
+        deviceGone = false;
+        restartWhenBusEmpty = true;
+        Serial.println("HOST_RESTART_ARMED 1");
     }
 }

@@ -415,11 +415,12 @@ block. It requires Arduino-ESP32 3.3.11 or later (`enum_filter_cb`); on older
 cores it returns `false` with `ESP_ERR_NOT_SUPPORTED`. It is mainly needed by
 USB Ethernet adapters that hide CDC-NCM/ECM in a non-default configuration.
 
-`end()` synchronously stops the client and daemon tasks, cancels and drains
-in-flight endpoint transfers, deregisters the client, waits for the IDF
-`ALL_FREE` handshake, and uninstalls the USB Host Library. After it returns,
-the same `EspUsbHost` object can be started again with `begin()`. Call `end()`
-from the application task, not from a USB event/data callback.
+`end()` synchronously unmounts any MSC volume this instance mounted, stops the
+client and daemon tasks, cancels and drains in-flight endpoint transfers,
+deregisters the client, waits for the IDF `ALL_FREE` handshake, and uninstalls
+the USB Host Library. After it returns, the same `EspUsbHost` object can be
+started again with `begin()`. Call `end()` from the application task, not from a
+USB event/data callback.
 
 `EspUsbHostConfig` lets you adjust the background task stack size, priority, and core affinity:
 
@@ -1181,6 +1182,8 @@ The low-level APIs such as `mscReadBlocks64()`, `mscWriteBlocks64()`, `mscInquir
 The block APIs support 64-bit LBA, but the current FatFs/VFS mount path is limited by the ESP-IDF FatFs build to 32-bit sectors. Multiple MSC devices and multiple LUNs can be addressed by API parameters, but ESP32-S3 has tight HCD channel limits, so assume a single MSC device for practical use. Multiple MSC devices remain an ESP32-P4-oriented validation item.
 
 Do not call these MSC APIs from USB callbacks, because they wait for USB transfer completion. Removing a USB drive while files are open or writes are in progress may lose unwritten data. After reconnecting media, call `begin()` again.
+
+A mount owns a FatFs drive slot and a registered VFS path, and there are only `CONFIG_FATFS_VOLUME_COUNT` of them, so it has to be released as well as the USB side. `EspUsbHost::end()` unmounts whatever this instance still has mounted, and a disconnect unmounts that device's volumes, so neither leaves a mount behind that a later `mscMount()` of the same `basePath` would be refused for. An `EspUsbHostMscFS` whose volume was dropped that way reports `mounted() == false` and remounts on the next `begin()`.
 
 Some non-compliant MSC devices stall or disconnect when they receive SCSI `SYNCHRONIZE CACHE(10)` during FatFs sync. Whenever `SYNCHRONIZE CACHE(10)` fails — through FatFs `CTRL_SYNC` or a direct `mscSynchronizeCache()` call — the library clears the resulting bulk-pipe halt, remembers the failure for that device, and skips the command for the rest of that mount and for later `mscMount()` calls until the device is reconnected. For known-problem devices, call `usbMassStorage.setSkipSyncCache(true)` before `begin()`, or pass `skipSyncCache = true` to `begin()` / `mscMount()` to skip it from the start. This improves compatibility but relies on normal write completion instead of an explicit media flush.
 

@@ -108,3 +108,46 @@ def test_usb_msc_failed_write_is_reported(dut, peers):
     dut.write("w")
     device.expect_exact("DEVICE_WRITE lba=4 offset=0 size=512")
     dut.expect_exact("MSC_WRITE_READ write=1 read=1 b0=a5 b1=a4 b255=5a b511=5a")
+
+
+def test_usb_msc_end_rebegin_with_device_attached(dut, peers):
+    """end() uninstalls the host library while the MSC device is attached."""
+    dut.write("X")
+    dut.expect_exact("HOST_STOP installed=0 clients=-1 devices=-1 ready=0")
+    dut.expect_exact("HOST_RESTART ready=1 error=ESP_OK")
+
+    dut.write("c")
+    dut.expect_exact("MSC_CAPACITY ok=1 blocks=16 block_size=512")
+
+
+def test_usb_msc_end_rebegin_with_empty_device_list(dut, peers):
+    """end() must uninstall the host library with nothing left on the bus.
+
+    Reported as issue #42: begin() after end() fails with ESP_ERR_INVALID_STATE.
+    usb_host_device_free_all() returns ESP_OK for an empty device list, so the
+    shutdown handles no library event and the USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS
+    flag left behind by the client deregister makes usb_host_uninstall() refuse.
+    The host library stays installed, so every later begin() fails in
+    usb_host_install(). A device attached during teardown hides this, because
+    then the ALL_FREE wait handles the events that clear the flag.
+    """
+    device = peers["device"]
+
+    dut.write("x")
+    dut.expect_exact("HOST_RESTART_ARMED 1")
+
+    # Rebooting the peer is the only way this setup can empty the bus; the
+    # device core has no USB detach API. The DUT runs the cycle on its own as
+    # soon as the disconnect arrives, so the ~500 ms the peer needs to come
+    # back is not spent waiting for a serial round trip.
+    device.write("z")
+    device.expect_exact("DEVICE_REBOOT")
+
+    dut.expect_exact("DEVICE_DISCONNECTED", timeout=20)
+    dut.expect_exact("HOST_IDLE_STOP devices_before=0 installed=0 error=ESP_OK")
+    dut.expect_exact("HOST_IDLE_RESTART ready=1 error=ESP_OK")
+
+    # The peer must enumerate again on the restarted host and still work.
+    dut.expect_exact("DEVICE_CONNECTED", timeout=30)
+    dut.write("c")
+    dut.expect_exact("MSC_CAPACITY ok=1 blocks=16 block_size=512")
