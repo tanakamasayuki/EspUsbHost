@@ -10,6 +10,7 @@ bring-up と、デバイスのプロトコル解明用の一時的な確認ス�
 
 ```sh
 uv run --env-file .env pytest probe/p4_hs_host/p4_hs_host_probe.py
+uv run --env-file .env pytest probe/p4_hs_fs_hub/p4_hs_fs_hub_probe.py -v -s
 uv run --env-file .env pytest probe/p4_fs_host/p4_fs_host_probe.py
 uv run --env-file .env pytest probe/p4_hs_device/p4_hs_device_probe.py
 uv run --env-file .env pytest probe/p4_cdc/p4_cdc_probe.py
@@ -19,6 +20,9 @@ uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
 ## ESP32-P4 probes
 
 - `p4_hs_host` — HS OTG を USB Host として開始し、外部 USB デバイスの列挙を確認します。
+- `p4_hs_fs_hub` — HS OTG の物理ポートを `HCFG.FSLSSUPP` でfull-speed専用にし、
+  HS対応Hub自体がfull-speedで列挙され、その配下のFS/LSデバイスも列挙されることを確認します。
+  詳細と判定基準は [`docs/p4-hs-port-fs-only-hub.ja.md`](../../docs/p4-hs-port-fs-only-hub.ja.md) を参照してください。
 - `p4_fs_host` — FS OTG を USB Host として開始し、外部 USB デバイスの列挙を確認します。
 - `p4_hs_device` — HS device として HID keyboard + CDC composite の認識を確認します。
 - `p4_cdc` — 素の `esp32p4` 設定で、疑っているコネクタが Hardware CDC/JTAG 側として COM 認識されるか確認します。

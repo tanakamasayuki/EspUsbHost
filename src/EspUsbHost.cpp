@@ -12,6 +12,11 @@
 #include <new>
 #include <utility>
 
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#include "hal/usb_dwc_ll.h"
+#include "soc/usb_dwc_struct.h"
+#endif
+
 // Targets whose DMA-capable memory is cached (ESP32-P4 and later) need explicit
 // cache maintenance around USB DMA buffers.
 #if defined(CONFIG_CACHE_L1_CACHE_LINE_SIZE) && CONFIG_CACHE_L1_CACHE_LINE_SIZE > 0
@@ -1649,6 +1654,22 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
     ESP_LOGW(TAG, "begin() called while USB Host shutdown is incomplete");
     setLastError(ESP_ERR_INVALID_STATE);
     return false;
+  }
+
+  if (config.experimentalForceFullSpeed)
+  {
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+    if (config.port == ESP_USB_HOST_PORT_FULL_SPEED)
+    {
+      ESP_LOGE(TAG, "experimentalForceFullSpeed requires the ESP32-P4 high-speed port");
+      setLastError(ESP_ERR_INVALID_ARG);
+      return false;
+    }
+#else
+    ESP_LOGE(TAG, "experimentalForceFullSpeed is only supported on ESP32-P4");
+    setLastError(ESP_ERR_NOT_SUPPORTED);
+    return false;
+#endif
   }
 
   config_ = config;
@@ -7127,6 +7148,10 @@ void EspUsbHost::taskLoop()
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   hostConfig.peripheral_map = hostPeripheralMap(config_.port);
+  // Keep the root port stopped until HCFG.FSLSSUPP has been applied. Without
+  // this, an already attached hub can begin HS negotiation inside
+  // usb_host_install(), racing the register write below.
+  hostConfig.root_port_unpowered = config_.experimentalForceFullSpeed;
 #endif
 
   esp_err_t err = usb_host_install(&hostConfig);
@@ -7145,6 +7170,17 @@ void EspUsbHost::taskLoop()
     vTaskDelete(nullptr);
     return;
   }
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  if (config_.experimentalForceFullSpeed)
+  {
+    usb_dwc_ll_hcfg_set_fsls_supp_only(&USB_DWC_HS);
+    ESP_LOGI(TAG,
+             "Experimental P4 HS-port full-speed-only mode: HCFG=0x%08lx FSLSSUPP=%u",
+             static_cast<unsigned long>(USB_DWC_HS.hcfg_reg.val),
+             static_cast<unsigned>(USB_DWC_HS.hcfg_reg.fslssupp));
+  }
+#endif
 
   usb_host_client_config_t clientConfig = {};
   clientConfig.is_synchronous = false;
@@ -7169,6 +7205,31 @@ void EspUsbHost::taskLoop()
     vTaskDelete(nullptr);
     return;
   }
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  if (config_.experimentalForceFullSpeed)
+  {
+    err = usb_host_lib_set_root_port_power(true);
+    if (err != ESP_OK)
+    {
+      const esp_err_t powerError = err;
+      ESP_LOGE(TAG, "usb_host_lib_set_root_port_power() failed: %s", esp_err_to_name(err));
+      running_ = false;
+      releaseClientResources();
+      uninstallHostLibrary(1000);
+      setLastError(powerError);
+#if defined(CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK) && CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK
+      if (enumerationHost_ == this)
+      {
+        enumerationHost_ = nullptr;
+      }
+#endif
+      taskHandle_ = nullptr;
+      vTaskDelete(nullptr);
+      return;
+    }
+  }
+#endif
 
   BaseType_t created;
   if (config_.taskCore == tskNO_AFFINITY)

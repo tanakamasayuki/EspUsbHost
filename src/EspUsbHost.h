@@ -252,6 +252,12 @@ struct EspUsbHostConfig
   BaseType_t taskCore = tskNO_AFFINITY;
   EspUsbHostPort port = ESP_USB_HOST_PORT_DEFAULT;
   EspUsbHostFifoConfig fifo = {};
+  // Experimental, ESP32-P4 HS port only. Prevent HS negotiation so the root
+  // bus, including a high-speed-capable hub, runs at full speed. This avoids
+  // split transactions/TTs, which the P4 HS DWC and ESP-IDF hub stack do not
+  // support. Core-error recovery can reset this setting; see
+  // docs/p4-hs-port-fs-only-hub.ja.md before using it outside a probe.
+  bool experimentalForceFullSpeed = false;
 };
 
 enum EspUsbHostSerialParity : uint8_t
