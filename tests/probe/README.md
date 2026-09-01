@@ -10,6 +10,7 @@ The profile name is `esp32p4`, representing a generic P4 board used for individu
 
 ```sh
 uv run --env-file .env pytest probe/p4_hs_host/p4_hs_host_probe.py
+uv run --env-file .env pytest probe/p4_hs_fs_hub/p4_hs_fs_hub_probe.py -v -s
 uv run --env-file .env pytest probe/p4_fs_host/p4_fs_host_probe.py
 uv run --env-file .env pytest probe/p4_hs_device/p4_hs_device_probe.py
 uv run --env-file .env pytest probe/p4_cdc/p4_cdc_probe.py
@@ -19,6 +20,11 @@ uv run --env-file .env pytest probe/rcs300_felica/rcs300_felica_probe.py -v -s
 ## ESP32-P4 probes
 
 - `p4_hs_host` — starts HS OTG as USB Host and checks enumeration of an external USB device.
+- `p4_hs_fs_hub` — forces the HS OTG physical port into full-speed-only mode
+  with `HCFG.FSLSSUPP`, then checks that an HS-capable hub enumerates at full
+  speed and that an FS/LS child enumerates behind it. See
+  [`docs/p4-hs-port-fs-only-hub.ja.md`](../../docs/p4-hs-port-fs-only-hub.ja.md)
+  for the investigation and pass criteria.
 - `p4_fs_host` — starts FS OTG as USB Host and checks enumeration of an external USB device.
 - `p4_hs_device` — checks HS device enumeration as HID keyboard + CDC composite.
 - `p4_cdc` — uses the plain `esp32p4` configuration to check whether the suspected connector enumerates as Hardware CDC/JTAG COM.

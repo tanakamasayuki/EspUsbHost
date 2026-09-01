@@ -160,6 +160,9 @@ OUT/IN は UAC1が標準Arduino `USBAudioCard`、UAC2が `EspUsbDevice` peer で
 
 USB HSだとUSB HUBが実質使えない
 FS側だと使える
+HS物理ポートを `HCFG.FSLSSUPP` でFS専用にする調査、実験用config、probeは
+[`docs/p4-hs-port-fs-only-hub.ja.md`](docs/p4-hs-port-fs-only-hub.ja.md) にまとめた。
+実機matrixとcore error recovery後のbit再設定が残作業。
 ループバックテストでデバイスとHOST両方でどこまで動いているか個別確認をする
 
 # device lifecycle / MIDI の listener API
