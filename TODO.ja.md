@@ -3,9 +3,9 @@
 状態:
 現状把握APIは実装済み。`endpointChannelCount()`、`managedEndpointCount()`、`ep0ChannelCount()`、`hubEndpointChannelCount()`、`estimatedHcdChannelCount()`、`maxEndpointChannelCount()`を公開し、claim成功/失敗ログとdevice info表示にも反映済み。
 
-`maxEndpointChannelCount()`が8固定だったのを修正済み（Unreleased）。channel数はcontrollerごとの値で、`soc/usb_dwc_cfg.h`ではS2/S3が8、ESP32-P4のfull-speed controllerが8、high-speed controllerが16。選択中のポートを見るようにした。
+`maxEndpointChannelCount()`が8固定だったのを修正済み（2.8.0）。channel数はcontrollerごとの値で、`soc/usb_dwc_cfg.h`ではS2/S3が8、ESP32-P4のfull-speed controllerが8、high-speed controllerが16。選択中のポートを見るようにした。
 
-CDCについてはカウントの正確性が実機で確認できた（Unreleased、CDC multi-port対応時）。P4のfull-speed host + 3ポートCDCデバイスで、descriptor上のendpointは9本（bulk 6 + notification interrupt 3）だが、claimするのはdata interfaceだけなのでbulk 6 + EP0 1 = 8本中7本。推定カウントどおり3ポートが上がった。control interfaceも claim していた頃の3 ch/ポート換算なら10本必要で3ポート目は上がらない。
+CDCについてはカウントの正確性が実機で確認できた（2.8.0、CDC multi-port対応時）。P4のfull-speed host + 3ポートCDCデバイスで、descriptor上のendpointは9本（bulk 6 + notification interrupt 3）だが、claimするのはdata interfaceだけなのでbulk 6 + EP0 1 = 8本中7本。推定カウントどおり3ポートが上がった。control interfaceも claim していた頃の3 ch/ポート換算なら10本必要で3ポート目は上がらない。
 
 残作業:
 CDC以外でカウントの正確性を確認する
@@ -24,6 +24,19 @@ Audioのように遅延claimした方がよいものがあるか確認する
 関連コールバック未登録なら自動で開かない方向にする
 必要なら onBeforeDeviceUse() / onBeforeInterfaceClaim() を追加する
 endpoint単位 callback は、実験結果を見て必要なら追加
+
+# USB serial (CDC) マルチポート
+
+状態:
+2.8.0で1デバイス複数CDC ACMポートに対応済み。ポート単位の`SerialPortState`、CDC Union functional descriptor（`bSlaveInterface0`）によるcontrol↔data対応付け、IN endpointアドレスによる受信振り分け、シリアル系APIへの`port`引数、`EspUsbHostCdcSerial::setPort()`、`serialPortCount()` / `getSerialPortInfo()`。
+
+claimするのはdata interfaceだけで、control interfaceはEP0経由で駆動する（`SET_LINE_CODING` / `SET_CONTROL_LINE_STATE`は`wIndex`にinterfaceを入れれば届く。ESP-IDFがclaimを要求するのはendpointと通信する場合だけ）。これで1ポート2 channelになり、`ESP_USB_HOST_MAX_SERIAL_PORTS`はcontrollerの上限に合わせてP4が7、それ以外が3の固定値。設定不可にした。
+
+非同期CDC OUTキューは`serialWriteQueueBegin()`でヒープ確保する形に変更（1ポート112→32バイト）。これにより7ポート持っても静的RAMは単一ポート時代と同等以下。`tests/peer/usb_serial`に`test_usb_serial_write_queue`と`test_usb_serial_write_queue_cycles`を追加した。それまでこのキューは自動テストが一切通っておらず、実利用は手動の`usb_display_turing`だけだった。
+
+残作業:
+`configureCdcAcm()`の呼び出しを絞る。現在はcontrol interfaceのdescriptorを見た時点で無条件に`SET_LINE_CODING`を出しているが、claimしていた頃は「claim成功後」という暗黙のゲートがあった。ポートが使える状態（data interfaceとendpointが揃った）になってから送るほうが素直で、claimできなかったポートへの無駄なEP0転送も消える。列挙途中で消えるデバイスへ転送を出す窓もわずかに狭まる
+7ポートのデバイスを実機で確認する。現状の実機確認はP4 full-speed hostでの3ポートまでで、7ポートはP4 high-speed hostでしか到達できない
 
 # USB Hub
 
@@ -177,7 +190,7 @@ HS物理ポートを `HCFG.FSLSSUPP` でFS専用にする調査、実験用confi
 
 仕様案: docs/lifecycle-listener-proposal.ja.md
 
-対応済み（Unreleased）:
+対応済み（2.6.0）:
 `addDeviceConnectedListener()` / `addDeviceDisconnectedListener()` / `addMidiMessageListener()` を2.4.0と同じ契約で追加した
 listener容量は案Aを採用。lifecycle専用の `ESP_USB_HOST_MAX_LIFECYCLE_LISTENERS`（既定8、`EspUsbHost::MaxLifecycleListeners`）を分けた
 peer test項目を `tests/peer/usb_midi` に追加した。接続eventはDUTの `end()`+`begin()` による再列挙、切断→再接続はpeerの再起動で作る
@@ -188,3 +201,25 @@ peer test項目を `tests/peer/usb_midi` に追加した。接続eventはDUTの 
 UAC2対応の回帰確認と同時に実施した）
 ESP32KeyBridge側の共有ハブ `EspUsbHostHub`（約150行）と `forStack()` singleton索引の削除、examplesの `sketch.yaml` のEspUsbHostバージョン更新
 リリース時に footprint matrix を再生成する（listener slotの追加でRAMが数百バイト増える）
+
+# テスト終了時の後始末（pytest-embedded-arduino-cli）
+
+状態:
+テストが終わってもDUT/peerがUSBデバイスやBLE advertiserとして動き続ける問題への対応を、pytest-embedded-arduino-cli側で設計中（2026-09-08時点で設計合意済み・実装前）。EspUsbHost / EspUsbDevice / EspBle 横断の話で、BLEは電波がリグの外へ出るため要件が強い。
+
+設計の結論:
+START / RECOVER / STOP の3予約コマンド。コマンドごとに独立してopt-inで、iniで command+reply を設定したときだけ有効、未設定なら何も送らない。デフォルト文字列は持たない（peerスケッチは`Serial.read()`の1文字ディスパッチが多く、既定トークンを送ると実コマンドが発火する。複数文字トークンは1文字ずつ分解されるためさらに危険）。推奨値はSTART 0x01 / RECOVER 0x18 / STOP 0x04 と行終端。
+応答は「コマンドを受信した」ではなく「目的の状態に到達した」を意味する。RECOVERの目的状態は「そのスケッチ自身のboot state」なので、STARTでゲートするスケッチではidle、しないスケッチでは稼働中になる。
+STARTはフィクスチャ接続後・テスト本体前に、peers（名前順）→ primary の順で送る。この順序は保証される。
+STARTのack待ちは既定15秒でno-ackはsetup ERROR（knobなし）。RECOVER/STOPは既定2秒。
+
+このリポジトリでの採用方針:
+START = `usb.begin()`。ただし`begin()`は非同期でFreeRTOSタスクを起動して即座に返るため、返った時点でackするとテスト本体がデバイス不在で走る。`onDeviceConnected`または`serialReady()`まで ack を遅延する
+RECOVER = STOP = `usb.end()`（STARTがあるのでboot stateはidle）
+`x`（`end()`+`begin()`）はRECOVERではなくテスト動作として存続する。`test_usb_serial_end_rebegin_with_device_open`が意図的に検証している
+移行手順は、全peerテストモジュールにno-opの`arduino_cli_dut_start`を置く → iniで有効化 → モジュール単位で変換、の順。全部赤にしてから直す方式は取らない。CIとデバイス側のpeer/loopbackが常時緑である前提で回っているため、赤の期間に入る他の変更の回帰が見えなくなる
+
+残作業:
+plugin側の実装待ち。来たら`tests/peer/usb_serial`に配線して実機確認する
+`conftest.py`の`_KNOWN_SERIAL_FINDINGS`統合。`USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE`が同一理由で6件登録されており、テストが増えるたびに増える（2.8.0のリリース前テストでも7件目として`hid_keyboard_composite`に出た）。原因はホストが先に書き込まれて`usb.begin()`まで走ったあとにpeerが書き込まれ、esptoolのリセットのたびにpeerの内蔵USB-Serial/JTAG（303a:1001）が出入りするのをホストが見ること。書き込み順は他プロジェクトへの影響があり変更しない方針。STARTで`usb.begin()`をゲートすればホストはその窓でUSBホストになっていないためノイズが発生源で消えるので、統合はSTART採用後にやるほうが無駄がない
+全40テストスケッチが`Serial.read()`の未知バイトを無視することは確認済み（catch-all elseなし）。予約バイトを送っても安全
