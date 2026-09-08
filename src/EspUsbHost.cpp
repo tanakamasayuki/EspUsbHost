@@ -861,6 +861,20 @@ const char *espUsbHostNetworkProtocolName(EspUsbHostNetworkProtocol protocol)
   }
 }
 
+void espUsbHostPrint(const EspUsbHostSerialPortInfo &port, Print &out)
+{
+  out.printf("serial: address=%u port=%u control_iface=%u data_iface=%u in_ep=0x%02x out_ep=0x%02x out_max=%u kind=%s ready=%s\n",
+             port.address,
+             port.port,
+             port.controlInterfaceNumber,
+             port.dataInterfaceNumber,
+             port.inEndpointAddress,
+             port.outEndpointAddress,
+             port.outPacketSize,
+             port.vendorSerial ? "vendor" : "cdc-acm",
+             yesNo(port.ready));
+}
+
 void espUsbHostPrint(const EspUsbHostNetworkInterfaceInfo &network, Print &out)
 {
   out.printf("network: address=%u config=%u protocol=%s control_iface=%u data_iface=%u data_alt=%u mac_str=%u max_segment=%u notify_ep=0x%02x in_ep=0x%02x out_ep=0x%02x in_max=%u out_max=%u complete=%s\n",
@@ -4033,15 +4047,15 @@ constexpr uint8_t SERIAL_OUT_SLOT_ACQUIRED = 1;
 constexpr uint8_t SERIAL_OUT_SLOT_INFLIGHT = 2;
 } // namespace
 
-int EspUsbHost::serialOutSlotOf(const DeviceState &device, const uint8_t *buffer) const
+int EspUsbHost::serialOutSlotOf(const SerialPortState &port, const uint8_t *buffer) const
 {
   if (!buffer)
   {
     return -1;
   }
-  for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+  for (uint8_t i = 0; i < port.outQueueDepth; i++)
   {
-    const usb_transfer_t *transfer = device.serialOutTransfers[i];
+    const usb_transfer_t *transfer = port.outTransfers[i];
     if (transfer && transfer->data_buffer == buffer)
     {
       return i;
@@ -4050,11 +4064,11 @@ int EspUsbHost::serialOutSlotOf(const DeviceState &device, const uint8_t *buffer
   return -1;
 }
 
-int EspUsbHost::serialOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
+int EspUsbHost::serialOutSlotOfTransfer(const SerialPortState &port, const usb_transfer_t *transfer) const
 {
-  for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+  for (uint8_t i = 0; i < port.outQueueDepth; i++)
   {
-    if (device.serialOutTransfers[i] == transfer)
+    if (port.outTransfers[i] == transfer)
     {
       return i;
     }
@@ -4062,7 +4076,7 @@ int EspUsbHost::serialOutSlotOfTransfer(const DeviceState &device, const usb_tra
   return -1;
 }
 
-bool EspUsbHost::serialWriteQueueBegin(size_t depth, size_t bufferBytes, uint8_t address)
+bool EspUsbHost::serialWriteQueueBegin(size_t depth, size_t bufferBytes, uint8_t address, uint8_t portIndex)
 {
   if (depth == 0 || depth > ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH || bufferBytes == 0)
   {
@@ -4073,30 +4087,31 @@ bool EspUsbHost::serialWriteQueueBegin(size_t depth, size_t bufferBytes, uint8_t
     return false;
   }
 
-  DeviceState *device = findSerialDevice(address);
-  if (!device)
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
   {
     ESP_LOGW(TAG, "serialWriteQueueBegin() called before a CDC OUT endpoint is ready");
     return false;
   }
 
-  if (device->serialOutQueueActive)
+  if (port->outQueueActive)
   {
     // Re-begin with the same shape is a no-op; changing the shape requires an
     // explicit end so in-flight transfers are drained first.
-    if (device->serialOutQueueDepth == depth && device->serialOutBufferBytes == bufferBytes)
+    if (port->outQueueDepth == depth && port->outBufferBytes == bufferBytes)
     {
       return true;
     }
     ESP_LOGW(TAG, "serialWriteQueueBegin() already active with depth=%u bufferBytes=%u",
-             static_cast<unsigned>(device->serialOutQueueDepth),
-             static_cast<unsigned>(device->serialOutBufferBytes));
+             static_cast<unsigned>(port->outQueueDepth),
+             static_cast<unsigned>(port->outBufferBytes));
     setLastError(ESP_ERR_INVALID_STATE);
     return false;
   }
 
-  device->serialOutFreeSlots = xSemaphoreCreateCounting(depth, depth);
-  if (!device->serialOutFreeSlots)
+  port->outFreeSlots = xSemaphoreCreateCounting(depth, depth);
+  if (!port->outFreeSlots)
   {
     setLastError(ESP_ERR_NO_MEM);
     return false;
@@ -4112,52 +4127,53 @@ bool EspUsbHost::serialWriteQueueBegin(size_t depth, size_t bufferBytes, uint8_t
       setLastError(err);
       for (size_t j = 0; j < i; j++)
       {
-        usb_host_transfer_free(device->serialOutTransfers[j]);
-        device->serialOutTransfers[j] = nullptr;
+        usb_host_transfer_free(port->outTransfers[j]);
+        port->outTransfers[j] = nullptr;
       }
-      vSemaphoreDelete(device->serialOutFreeSlots);
-      device->serialOutFreeSlots = nullptr;
+      vSemaphoreDelete(port->outFreeSlots);
+      port->outFreeSlots = nullptr;
       return false;
     }
     transfer->device_handle = device->handle;
-    transfer->bEndpointAddress = device->serialOutEndpointAddress;
+    transfer->bEndpointAddress = port->outEndpointAddress;
     transfer->callback = serialOutTransferCallback;
     transfer->context = this;
-    device->serialOutTransfers[i] = transfer;
-    device->serialOutSlotState[i] = SERIAL_OUT_SLOT_FREE;
+    port->outTransfers[i] = transfer;
+    port->outSlotState[i] = SERIAL_OUT_SLOT_FREE;
   }
 
-  device->serialOutQueueDepth = static_cast<uint8_t>(depth);
-  device->serialOutBufferBytes = bufferBytes;
-  device->serialOutHalted = false;
-  device->serialWriteStats = EspUsbHostSerialWriteStats();
-  device->serialOutQueueActive = true;
+  port->outQueueDepth = static_cast<uint8_t>(depth);
+  port->outBufferBytes = bufferBytes;
+  port->outHalted = false;
+  port->writeStats = EspUsbHostSerialWriteStats();
+  port->outQueueActive = true;
 
-  ESP_LOGI(TAG, "CDC serial OUT queue ready: address=%u ep=0x%02x depth=%u buffer=%u",
+  ESP_LOGI(TAG, "CDC serial OUT queue ready: address=%u port=%u ep=0x%02x depth=%u buffer=%u",
            device->info.address,
-           device->serialOutEndpointAddress,
+           serialPortIndex(*device, *port),
+           port->outEndpointAddress,
            static_cast<unsigned>(depth),
            static_cast<unsigned>(bufferBytes));
   return true;
 }
 
-void EspUsbHost::serialWriteQueueEnd(uint8_t address)
+void EspUsbHost::serialWriteQueueEnd(uint8_t address, uint8_t portIndex)
 {
-  DeviceState *device = findSerialDevice(address);
-  if (!device || !device->serialOutQueueActive)
+  SerialPortState *port = findSerialPort(address, portIndex);
+  if (!port || !port->outQueueActive)
   {
     return;
   }
   // Stop accepting new work before draining so pending() can reach zero.
-  device->serialOutQueueActive = false;
-  serialDrainOut(*device);
+  port->outQueueActive = false;
+  serialDrainOut(*port);
 }
 
 // Wait for in-flight transfers to complete, then free the pool. Freeing a
 // transfer the HCD still owns is a use-after-free in the driver, so a wedged
 // transfer intentionally leaks its slot instead (same tradeoff as
 // vendorDrainOut()).
-void EspUsbHost::serialDrainOut(DeviceState &device)
+void EspUsbHost::serialDrainOut(SerialPortState &port)
 {
   if (xTaskGetCurrentTaskHandle() != clientTaskHandle_)
   {
@@ -4166,9 +4182,9 @@ void EspUsbHost::serialDrainOut(DeviceState &device)
     {
       bool inFlight = false;
       portENTER_CRITICAL(&serialOutMux_);
-      for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+      for (uint8_t i = 0; i < port.outQueueDepth; i++)
       {
-        if (device.serialOutSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT)
+        if (port.outSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT)
         {
           inFlight = true;
           break;
@@ -4182,60 +4198,79 @@ void EspUsbHost::serialDrainOut(DeviceState &device)
       vTaskDelay(pdMS_TO_TICKS(1));
     }
   }
-  releaseSerialOutQueue(device);
+  releaseSerialOutQueue(port);
 }
 
-void EspUsbHost::releaseSerialOutQueue(DeviceState &device)
+void EspUsbHost::serialDrainOutAll(DeviceState &device)
 {
-  device.serialOutQueueActive = false;
-  for (uint8_t i = 0; i < device.serialOutQueueDepth; i++)
+  for (SerialPortState &port : device.serialPorts)
   {
-    usb_transfer_t *transfer = device.serialOutTransfers[i];
-    const bool inFlight = device.serialOutSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT;
-    device.serialOutTransfers[i] = nullptr;
-    device.serialOutSlotState[i] = SERIAL_OUT_SLOT_FREE;
+    if (port.inUse)
+    {
+      serialDrainOut(port);
+    }
+  }
+}
+
+void EspUsbHost::releaseSerialOutQueue(SerialPortState &port)
+{
+  port.outQueueActive = false;
+  for (uint8_t i = 0; i < port.outQueueDepth; i++)
+  {
+    usb_transfer_t *transfer = port.outTransfers[i];
+    const bool inFlight = port.outSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT;
+    port.outTransfers[i] = nullptr;
+    port.outSlotState[i] = SERIAL_OUT_SLOT_FREE;
     if (!transfer)
     {
       continue;
     }
     if (inFlight)
     {
-      ESP_LOGW(TAG, "serial OUT slot %u still in flight; leaking it to avoid a use-after-free",
-               static_cast<unsigned>(i));
+      // The driver still owns it; serialOutTransferCallback() frees it once the
+      // completion arrives and finds no pool to return the slot to.
       continue;
     }
     usb_host_transfer_free(transfer);
   }
-  device.serialOutQueueDepth = 0;
-  device.serialOutBufferBytes = 0;
-  device.serialOutHalted = false;
-  if (device.serialOutFreeSlots)
+  port.outQueueDepth = 0;
+  port.outBufferBytes = 0;
+  port.outHalted = false;
+  if (port.outFreeSlots)
   {
-    vSemaphoreDelete(device.serialOutFreeSlots);
-    device.serialOutFreeSlots = nullptr;
+    vSemaphoreDelete(port.outFreeSlots);
+    port.outFreeSlots = nullptr;
   }
 }
 
-bool EspUsbHost::serialWriteQueueReady(uint8_t address) const
+void EspUsbHost::releaseSerialOutQueues(DeviceState &device)
 {
-  const DeviceState *device = findSerialDevice(address);
-  return device && device->serialOutQueueActive;
+  for (SerialPortState &port : device.serialPorts)
+  {
+    releaseSerialOutQueue(port);
+  }
 }
 
-uint8_t *EspUsbHost::serialWriteAcquire(size_t *capacity, uint32_t timeoutMs, uint8_t address)
+bool EspUsbHost::serialWriteQueueReady(uint8_t address, uint8_t portIndex) const
 {
-  DeviceState *device = findSerialDevice(address);
-  if (!device || !device->serialOutQueueActive || !device->serialOutFreeSlots)
+  const SerialPortState *port = findSerialPort(address, portIndex);
+  return port && port->outQueueActive;
+}
+
+uint8_t *EspUsbHost::serialWriteAcquire(size_t *capacity, uint32_t timeoutMs, uint8_t address, uint8_t portIndex)
+{
+  SerialPortState *port = findSerialPort(address, portIndex);
+  if (!port || !port->outQueueActive || !port->outFreeSlots)
   {
     ESP_LOGW(TAG, "serialWriteAcquire() called before serialWriteQueueBegin()");
     return nullptr;
   }
 
-  if (xSemaphoreTake(device->serialOutFreeSlots, 0) != pdTRUE)
+  if (xSemaphoreTake(port->outFreeSlots, 0) != pdTRUE)
   {
-    device->serialWriteStats.queueFullEvents++;
+    port->writeStats.queueFullEvents++;
     if (timeoutMs == 0 ||
-        xSemaphoreTake(device->serialOutFreeSlots, pdMS_TO_TICKS(timeoutMs)) != pdTRUE)
+        xSemaphoreTake(port->outFreeSlots, pdMS_TO_TICKS(timeoutMs)) != pdTRUE)
     {
       setLastError(ESP_ERR_TIMEOUT);
       return nullptr;
@@ -4244,12 +4279,12 @@ uint8_t *EspUsbHost::serialWriteAcquire(size_t *capacity, uint32_t timeoutMs, ui
 
   uint8_t *buffer = nullptr;
   portENTER_CRITICAL(&serialOutMux_);
-  for (uint8_t i = 0; i < device->serialOutQueueDepth; i++)
+  for (uint8_t i = 0; i < port->outQueueDepth; i++)
   {
-    if (device->serialOutSlotState[i] == SERIAL_OUT_SLOT_FREE && device->serialOutTransfers[i])
+    if (port->outSlotState[i] == SERIAL_OUT_SLOT_FREE && port->outTransfers[i])
     {
-      device->serialOutSlotState[i] = SERIAL_OUT_SLOT_ACQUIRED;
-      buffer = device->serialOutTransfers[i]->data_buffer;
+      port->outSlotState[i] = SERIAL_OUT_SLOT_ACQUIRED;
+      buffer = port->outTransfers[i]->data_buffer;
       break;
     }
   }
@@ -4258,26 +4293,26 @@ uint8_t *EspUsbHost::serialWriteAcquire(size_t *capacity, uint32_t timeoutMs, ui
   if (!buffer)
   {
     // The semaphore count and the slot states disagree, which should not happen.
-    xSemaphoreGive(device->serialOutFreeSlots);
+    xSemaphoreGive(port->outFreeSlots);
     setLastError(ESP_FAIL);
     return nullptr;
   }
 
   if (capacity)
   {
-    *capacity = device->serialOutBufferBytes;
+    *capacity = port->outBufferBytes;
   }
   return buffer;
 }
 
-void EspUsbHost::serialWriteRelease(uint8_t *buffer, uint8_t address)
+void EspUsbHost::serialWriteRelease(uint8_t *buffer, uint8_t address, uint8_t portIndex)
 {
-  DeviceState *device = findSerialDevice(address);
-  if (!device || !device->serialOutQueueActive)
+  SerialPortState *port = findSerialPort(address, portIndex);
+  if (!port || !port->outQueueActive)
   {
     return;
   }
-  const int slot = serialOutSlotOf(*device, buffer);
+  const int slot = serialOutSlotOf(*port, buffer);
   if (slot < 0)
   {
     return;
@@ -4285,22 +4320,22 @@ void EspUsbHost::serialWriteRelease(uint8_t *buffer, uint8_t address)
 
   bool released = false;
   portENTER_CRITICAL(&serialOutMux_);
-  if (device->serialOutSlotState[slot] == SERIAL_OUT_SLOT_ACQUIRED)
+  if (port->outSlotState[slot] == SERIAL_OUT_SLOT_ACQUIRED)
   {
-    device->serialOutSlotState[slot] = SERIAL_OUT_SLOT_FREE;
+    port->outSlotState[slot] = SERIAL_OUT_SLOT_FREE;
     released = true;
   }
   portEXIT_CRITICAL(&serialOutMux_);
 
-  if (released && device->serialOutFreeSlots)
+  if (released && port->outFreeSlots)
   {
-    xSemaphoreGive(device->serialOutFreeSlots);
+    xSemaphoreGive(port->outFreeSlots);
   }
 }
 
-bool EspUsbHost::submitSerialOutSlot(DeviceState &device, int slot, size_t length)
+bool EspUsbHost::submitSerialOutSlot(DeviceState &device, SerialPortState &port, int slot, size_t length)
 {
-  usb_transfer_t *transfer = device.serialOutTransfers[slot];
+  usb_transfer_t *transfer = port.outTransfers[slot];
   if (!transfer)
   {
     return false;
@@ -4309,7 +4344,7 @@ bool EspUsbHost::submitSerialOutSlot(DeviceState &device, int slot, size_t lengt
   // A previous transfer error halts the pipe; ESP-IDF then refuses every submit
   // until the halt is cleared. Clearing can block, so it happens here on the
   // caller task rather than in the completion callback.
-  if (device.serialOutHalted)
+  if (port.outHalted)
   {
     if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
     {
@@ -4317,70 +4352,71 @@ bool EspUsbHost::submitSerialOutSlot(DeviceState &device, int slot, size_t lengt
       setLastError(ESP_ERR_INVALID_STATE);
       return false;
     }
-    usb_host_endpoint_clear(device.handle, device.serialOutEndpointAddress);
-    device.serialOutHalted = false;
+    usb_host_endpoint_clear(device.handle, port.outEndpointAddress);
+    port.outHalted = false;
   }
 
   transfer->num_bytes = static_cast<int>(length);
 
   portENTER_CRITICAL(&serialOutMux_);
-  device.serialOutSlotState[slot] = SERIAL_OUT_SLOT_INFLIGHT;
+  port.outSlotState[slot] = SERIAL_OUT_SLOT_INFLIGHT;
   portEXIT_CRITICAL(&serialOutMux_);
 
   const esp_err_t err = usb_host_transfer_submit(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit(serial OUT ep=0x%02x len=%u) failed: %s",
-             device.serialOutEndpointAddress,
+             port.outEndpointAddress,
              static_cast<unsigned>(length),
              esp_err_to_name(err));
     setLastError(err);
     portENTER_CRITICAL(&serialOutMux_);
-    device.serialOutSlotState[slot] = SERIAL_OUT_SLOT_FREE;
+    port.outSlotState[slot] = SERIAL_OUT_SLOT_FREE;
     portEXIT_CRITICAL(&serialOutMux_);
-    if (device.serialOutFreeSlots)
+    if (port.outFreeSlots)
     {
-      xSemaphoreGive(device.serialOutFreeSlots);
+      xSemaphoreGive(port.outFreeSlots);
     }
     return false;
   }
 
-  device.serialWriteStats.submitted++;
+  port.writeStats.submitted++;
   if (length == 0)
   {
-    device.serialWriteStats.zlp++;
+    port.writeStats.zlp++;
   }
   return true;
 }
 
-bool EspUsbHost::serialWriteSubmit(uint8_t *buffer, size_t length, uint8_t address)
+bool EspUsbHost::serialWriteSubmit(uint8_t *buffer, size_t length, uint8_t address, uint8_t portIndex)
 {
-  DeviceState *device = findSerialDevice(address);
-  if (!device || !device->serialOutQueueActive)
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port || !port->outQueueActive)
   {
     ESP_LOGW(TAG, "serialWriteSubmit() called before serialWriteQueueBegin()");
     return false;
   }
-  if (length > device->serialOutBufferBytes)
+  if (length > port->outBufferBytes)
   {
     ESP_LOGW(TAG, "serialWriteSubmit() length=%u exceeds the slot buffer size %u",
              static_cast<unsigned>(length),
-             static_cast<unsigned>(device->serialOutBufferBytes));
+             static_cast<unsigned>(port->outBufferBytes));
     setLastError(ESP_ERR_INVALID_SIZE);
     return false;
   }
-  const int slot = serialOutSlotOf(*device, buffer);
-  if (slot < 0 || device->serialOutSlotState[slot] != SERIAL_OUT_SLOT_ACQUIRED)
+  const int slot = serialOutSlotOf(*port, buffer);
+  if (slot < 0 || port->outSlotState[slot] != SERIAL_OUT_SLOT_ACQUIRED)
   {
     ESP_LOGW(TAG, "serialWriteSubmit() buffer was not acquired from this queue");
     setLastError(ESP_ERR_INVALID_ARG);
     return false;
   }
 
-  return submitSerialOutSlot(*device, slot, length);
+  return submitSerialOutSlot(*device, *port, slot, length);
 }
 
-bool EspUsbHost::serialWriteAsync(const uint8_t *data, size_t length, uint32_t timeoutMs, uint8_t address)
+bool EspUsbHost::serialWriteAsync(const uint8_t *data, size_t length, uint32_t timeoutMs, uint8_t address, uint8_t portIndex)
 {
   if (length > 0 && !data)
   {
@@ -4389,8 +4425,21 @@ bool EspUsbHost::serialWriteAsync(const uint8_t *data, size_t length, uint32_t t
     return false;
   }
 
+  // Resolve ESP_USB_HOST_ANY_ADDRESS / ESP_USB_HOST_ANY_PORT once: acquire,
+  // submit and release must all land on the same port even if another device
+  // arrives between them.
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
+  {
+    ESP_LOGW(TAG, "serialWriteAsync() called before a CDC OUT endpoint is ready");
+    return false;
+  }
+  const uint8_t resolvedAddress = device->info.address;
+  const uint8_t resolvedPort = serialPortIndex(*device, *port);
+
   size_t capacity = 0;
-  uint8_t *buffer = serialWriteAcquire(&capacity, timeoutMs, address);
+  uint8_t *buffer = serialWriteAcquire(&capacity, timeoutMs, resolvedAddress, resolvedPort);
   if (!buffer)
   {
     return false;
@@ -4401,27 +4450,27 @@ bool EspUsbHost::serialWriteAsync(const uint8_t *data, size_t length, uint32_t t
              static_cast<unsigned>(length),
              static_cast<unsigned>(capacity));
     setLastError(ESP_ERR_INVALID_SIZE);
-    serialWriteRelease(buffer, address);
+    serialWriteRelease(buffer, resolvedAddress, resolvedPort);
     return false;
   }
   if (length > 0)
   {
     memcpy(buffer, data, length);
   }
-  return serialWriteSubmit(buffer, length, address);
+  return serialWriteSubmit(buffer, length, resolvedAddress, resolvedPort);
 }
 
-size_t EspUsbHost::serialWritePending(uint8_t address) const
+size_t EspUsbHost::serialWritePending(uint8_t address, uint8_t portIndex) const
 {
-  const DeviceState *device = findSerialDevice(address);
-  if (!device)
+  const SerialPortState *port = findSerialPort(address, portIndex);
+  if (!port)
   {
     return 0;
   }
   size_t pending = 0;
-  for (uint8_t i = 0; i < device->serialOutQueueDepth; i++)
+  for (uint8_t i = 0; i < port->outQueueDepth; i++)
   {
-    if (device->serialOutSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT)
+    if (port->outSlotState[i] == SERIAL_OUT_SLOT_INFLIGHT)
     {
       pending++;
     }
@@ -4429,17 +4478,17 @@ size_t EspUsbHost::serialWritePending(uint8_t address) const
   return pending;
 }
 
-size_t EspUsbHost::serialWriteQueueFree(uint8_t address) const
+size_t EspUsbHost::serialWriteQueueFree(uint8_t address, uint8_t portIndex) const
 {
-  const DeviceState *device = findSerialDevice(address);
-  if (!device)
+  const SerialPortState *port = findSerialPort(address, portIndex);
+  if (!port)
   {
     return 0;
   }
   size_t free = 0;
-  for (uint8_t i = 0; i < device->serialOutQueueDepth; i++)
+  for (uint8_t i = 0; i < port->outQueueDepth; i++)
   {
-    if (device->serialOutSlotState[i] == SERIAL_OUT_SLOT_FREE)
+    if (port->outSlotState[i] == SERIAL_OUT_SLOT_FREE)
     {
       free++;
     }
@@ -4447,10 +4496,11 @@ size_t EspUsbHost::serialWriteQueueFree(uint8_t address) const
   return free;
 }
 
-bool EspUsbHost::serialWriteFlush(uint32_t timeoutMs, uint8_t address)
+bool EspUsbHost::serialWriteFlush(uint32_t timeoutMs, uint8_t address, uint8_t portIndex)
 {
-  DeviceState *device = findSerialDevice(address);
-  if (!device)
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
   {
     return false;
   }
@@ -4460,9 +4510,11 @@ bool EspUsbHost::serialWriteFlush(uint32_t timeoutMs, uint8_t address)
     ESP_LOGW(TAG, "serialWriteFlush() cannot run from the USB client task");
     return false;
   }
+  const uint8_t resolvedAddress = device->info.address;
+  const uint8_t resolvedPort = serialPortIndex(*device, *port);
 
   const uint32_t deadline = millis() + timeoutMs;
-  while (serialWritePending(address) != 0)
+  while (serialWritePending(resolvedAddress, resolvedPort) != 0)
   {
     if (millis() >= deadline)
     {
@@ -4474,19 +4526,19 @@ bool EspUsbHost::serialWriteFlush(uint32_t timeoutMs, uint8_t address)
   return true;
 }
 
-EspUsbHostSerialWriteStats EspUsbHost::serialWriteStats(uint8_t address) const
+EspUsbHostSerialWriteStats EspUsbHost::serialWriteStats(uint8_t address, uint8_t portIndex) const
 {
-  const DeviceState *device = findSerialDevice(address);
-  if (!device)
+  const SerialPortState *port = findSerialPort(address, portIndex);
+  if (!port)
   {
     return EspUsbHostSerialWriteStats();
   }
   // The USB client task updates these counters concurrently. Re-read until two
   // consecutive snapshots agree so a 64-bit byte count cannot be torn.
-  EspUsbHostSerialWriteStats stats = device->serialWriteStats;
+  EspUsbHostSerialWriteStats stats = port->writeStats;
   for (int i = 0; i < 4; i++)
   {
-    const EspUsbHostSerialWriteStats again = device->serialWriteStats;
+    const EspUsbHostSerialWriteStats again = port->writeStats;
     if (again.bytes == stats.bytes && again.completed == stats.completed)
     {
       break;
@@ -4496,25 +4548,88 @@ EspUsbHostSerialWriteStats EspUsbHost::serialWriteStats(uint8_t address) const
   return stats;
 }
 
-void EspUsbHost::serialWriteStatsReset(uint8_t address)
+void EspUsbHost::serialWriteStatsReset(uint8_t address, uint8_t portIndex)
 {
-  DeviceState *device = findSerialDevice(address);
-  if (device)
+  SerialPortState *port = findSerialPort(address, portIndex);
+  if (port)
   {
-    device->serialWriteStats = EspUsbHostSerialWriteStats();
+    port->writeStats = EspUsbHostSerialWriteStats();
   }
 }
 
-uint16_t EspUsbHost::serialOutPacketSize(uint8_t address) const
+uint16_t EspUsbHost::serialOutPacketSize(uint8_t address, uint8_t portIndex) const
 {
-  const DeviceState *device = findSerialDevice(address);
-  return device ? device->serialOutPacketSize : 0;
+  const SerialPortState *port = findSerialPort(address, portIndex);
+  return port ? port->outPacketSize : 0;
 }
 
-bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
+uint8_t EspUsbHost::serialPortCount(uint8_t address) const
 {
-  DeviceState *device = findSerialDevice(address);
-  if (!device)
+  for (const DeviceState &device : devices_)
+  {
+    if (!device.inUse || !device.handle || device.serialPortCount == 0)
+    {
+      continue;
+    }
+    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    {
+      return device.serialPortCount;
+    }
+  }
+  return 0;
+}
+
+bool EspUsbHost::getSerialPortInfo(EspUsbHostSerialPortInfo &info, uint8_t address, uint8_t portIndex) const
+{
+  const DeviceState *device = nullptr;
+  const SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
+  {
+    // A port that was detected but could not be fully claimed still has an entry,
+    // so report it (ready = false) rather than pretending it does not exist.
+    for (const DeviceState &candidate : devices_)
+    {
+      if (!candidate.inUse || !candidate.handle || candidate.serialPortCount == 0)
+      {
+        continue;
+      }
+      if (address != ESP_USB_HOST_ANY_ADDRESS && candidate.info.address != address)
+      {
+        continue;
+      }
+      const uint8_t index = portIndex == ESP_USB_HOST_ANY_PORT ? 0 : portIndex;
+      if (index >= candidate.serialPortCount)
+      {
+        continue;
+      }
+      device = &candidate;
+      port = &candidate.serialPorts[index];
+      break;
+    }
+    if (!port)
+    {
+      return false;
+    }
+  }
+
+  info = EspUsbHostSerialPortInfo();
+  info.address = device->info.address;
+  info.port = serialPortIndex(*device, *port);
+  info.controlInterfaceNumber = port->hasControlInterface ? port->controlInterfaceNumber : 0xff;
+  info.dataInterfaceNumber = port->hasDataInterface ? port->dataInterfaceNumber : 0xff;
+  info.inEndpointAddress = port->hasInEndpoint ? port->inEndpointAddress : 0;
+  info.outEndpointAddress = port->hasOutEndpoint ? port->outEndpointAddress : 0;
+  info.outPacketSize = port->outPacketSize;
+  info.vendorSerial = port->vendorSerial;
+  info.ready = port->hasOutEndpoint;
+  return true;
+}
+
+bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address, uint8_t portIndex)
+{
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
   {
     ESP_LOGW(TAG, "sendSerial() called before a CDC OUT endpoint is ready");
     return false;
@@ -4528,15 +4643,15 @@ bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
   // With the queue active, go through it so the caller inherits its backpressure
   // rather than growing an unbounded set of one-shot transfers. Waiting for a
   // slot only works off the USB client task, where the completions run.
-  if (device->serialOutQueueActive && length <= device->serialOutBufferBytes)
+  if (port->outQueueActive && length <= port->outBufferBytes)
   {
     const uint32_t timeoutMs = xTaskGetCurrentTaskHandle() == clientTaskHandle_
                                    ? 0
                                    : ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS;
-    return serialWriteAsync(data, length, timeoutMs, device->info.address);
+    return serialWriteAsync(data, length, timeoutMs, device->info.address, serialPortIndex(*device, *port));
   }
 
-  const size_t packetSize = length > device->serialOutPacketSize ? length : device->serialOutPacketSize;
+  const size_t packetSize = length > port->outPacketSize ? length : port->outPacketSize;
   usb_transfer_t *transfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(packetSize, 0, &transfer);
   if (err != ESP_OK)
@@ -4551,7 +4666,7 @@ bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
     memcpy(transfer->data_buffer, data, length);
   }
   transfer->device_handle = device->handle;
-  transfer->bEndpointAddress = device->serialOutEndpointAddress;
+  transfer->bEndpointAddress = port->outEndpointAddress;
   transfer->callback = serialOutTransferCallback;
   transfer->context = this;
   transfer->num_bytes = length;
@@ -4567,33 +4682,33 @@ bool EspUsbHost::sendSerial(const uint8_t *data, size_t length, uint8_t address)
   return true;
 }
 
-bool EspUsbHost::sendSerial(const char *text, uint8_t address)
+bool EspUsbHost::sendSerial(const char *text, uint8_t address, uint8_t portIndex)
 {
   if (!text)
   {
     return false;
   }
-  return sendSerial(reinterpret_cast<const uint8_t *>(text), strlen(text), address);
+  return sendSerial(reinterpret_cast<const uint8_t *>(text), strlen(text), address, portIndex);
 }
 
-bool EspUsbHost::serialReady(uint8_t address) const
+bool EspUsbHost::serialReady(uint8_t address, uint8_t portIndex) const
 {
-  return findSerialDevice(address) != nullptr;
+  return findSerialPort(address, portIndex) != nullptr;
 }
 
-bool EspUsbHost::setSerialBaudRate(uint32_t baud, uint8_t address)
+bool EspUsbHost::setSerialBaudRate(uint32_t baud, uint8_t address, uint8_t portIndex)
 {
   EspUsbHostSerialConfig config = defaultSerialConfig_;
-  DeviceState *device = findSerialDevice(address);
-  if (device)
+  const SerialPortState *port = findSerialPort(address, portIndex);
+  if (port)
   {
-    config = device->serialConfig;
+    config = port->config;
   }
   config.baud = baud;
-  return setSerialConfig(config, address);
+  return setSerialConfig(config, address, portIndex);
 }
 
-bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address)
+bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address, uint8_t portIndex)
 {
   if (!isValidSerialConfig(config))
   {
@@ -4605,8 +4720,9 @@ bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t a
     return false;
   }
 
-  DeviceState *device = findSerialDevice(address);
-  if (!device)
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
   {
     if (address == ESP_USB_HOST_ANY_ADDRESS)
     {
@@ -4619,15 +4735,21 @@ bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t a
     defaultSerialConfig_ = config;
   }
 
-  device->serialConfig = config;
-  if (device->hasCdcControlInterface)
+  // The device-level config is what a port picked up at claim time, so keep it in
+  // step when the caller did not single out one port of a multi-port device.
+  if (portIndex == ESP_USB_HOST_ANY_PORT)
   {
-    device->cdcConfigured = false;
-    configureCdcAcm(*device);
+    device->serialConfig = config;
   }
-  else if (device->vendorSerialSupported)
+  port->config = config;
+  if (port->hasControlInterface && !port->vendorSerial)
   {
-    configureVendorSerial(*device);
+    port->configured = false;
+    configureCdcAcm(*device, *port);
+  }
+  else if (port->vendorSerial && device->vendorSerialSupported)
+  {
+    configureVendorSerial(*device, *port);
   }
   return true;
 }
@@ -7005,6 +7127,24 @@ void EspUsbHost::printDeviceInfo(uint8_t address, bool includeHubInfo, Print &ou
                ep.interval,
                ep.attributes);
   }
+  const uint8_t serialPorts = serialPortCount(address);
+  for (uint8_t i = 0; i < serialPorts; i++)
+  {
+    EspUsbHostSerialPortInfo serialPort;
+    if (!getSerialPortInfo(serialPort, address, i))
+    {
+      continue;
+    }
+    out.printf("  Serial port %u %s control_iface=%u data_iface=%u in_ep=0x%02x out_ep=0x%02x out_max=%u ready=%s\n",
+               serialPort.port,
+               serialPort.vendorSerial ? "vendor-vcp" : "cdc-acm",
+               serialPort.controlInterfaceNumber,
+               serialPort.dataInterfaceNumber,
+               serialPort.inEndpointAddress,
+               serialPort.outEndpointAddress,
+               serialPort.outPacketSize,
+               yesNo(serialPort.ready));
+  }
   EspUsbHostAudioFeatureUnitInfo audioUnits[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS];
   const size_t audioUnitCount = getAudioFeatureUnits(address, audioUnits, ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS);
   for (size_t i = 0; i < audioUnitCount && i < ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS; i++)
@@ -7574,7 +7714,7 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   }
   parseConfigDescriptor(*device, configDesc);
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
-  const bool hasCdc = device->hasCdcControlInterface || device->hasCdcDataInterface;
+  const bool hasCdc = device->serialPortCount > 0;
   const bool hasAudio = device->hasAudioInterface ||
                         device->hasAudioOutEndpoint ||
                         device->audioFeatureUnitCount > 0;
@@ -7632,7 +7772,7 @@ void EspUsbHost::handleDeviceGone(usb_device_handle_t goneHandle)
   device->networkLinkUp = false;
   networkDrainTx(*device); // wait out an in-flight send before tearing down
   vendorDrainOut(*device); // same for queued vendor bulk OUT transfers
-  serialDrainOut(*device); // and for queued CDC serial OUT transfers
+  serialDrainOutAll(*device); // and for queued CDC serial OUT transfers
   releaseEndpoints(*device, false);
   device->disconnectPending = true;
 
@@ -8019,6 +8159,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     currentAudioSampleRateResolution_ = 0;
     currentAudioTerminalLink_ = 0;
     currentMidiEndpointDirection_ = ESP_USB_HOST_MIDI_ENDPOINT_NONE;
+    currentSerialPortIndex_ = 0xff;
     if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
         currentInterfaceProtocol_ == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
     {
@@ -8071,11 +8212,27 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                                   currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_STREAMING &&
                                   intf->bNumEndpoints > 0 &&
                                   !interfaceAlreadyClaimed;
-    const bool isCdcAcmControlInterface = currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE &&
-                                          currentInterfaceSubClass_ == USB_CDC_SUBCLASS_ACM;
+    // Every CDC-ACM control interface starts a new serial port. A composite device
+    // can publish several ACM functions over one cable; each costs three endpoint
+    // channels, so the ports past ESP_USB_HOST_MAX_SERIAL_PORTS are deliberately
+    // left unclaimed rather than starved of channels halfway through.
+    const bool isCdcAcmFunction = currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE &&
+                                  currentInterfaceSubClass_ == USB_CDC_SUBCLASS_ACM &&
+                                  currentInterfaceAlternate_ == 0 &&
+                                  !serialPortForControlInterface(*device, currentInterfaceNumber_);
+    if (isCdcAcmFunction && device->serialPortCount >= ESP_USB_HOST_MAX_SERIAL_PORTS)
+    {
+      ESP_LOGW(TAG, "CDC control interface %u left unclaimed: %u serial ports already tracked "
+                    "(raise ESP_USB_HOST_MAX_SERIAL_PORTS)",
+               currentInterfaceNumber_,
+               static_cast<unsigned>(ESP_USB_HOST_MAX_SERIAL_PORTS));
+    }
+    const bool isCdcAcmControlInterface = isCdcAcmFunction &&
+                                          device->serialPortCount < ESP_USB_HOST_MAX_SERIAL_PORTS;
+    // Pairs with the control interface its Union functional descriptor named, or,
+    // for a device that omits the Union, with the one it follows.
     const bool isCdcAcmDataInterface = currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
-                                       device->hasCdcControlInterface &&
-                                       !device->hasCdcDataInterface;
+                                       pendingSerialPort(*device, currentInterfaceNumber_) != nullptr;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
         isCdcAcmControlInterface ||
         isCdcAcmDataInterface ||
@@ -8129,25 +8286,52 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         }
         if (isCdcAcmControlInterface)
         {
-          device->hasCdcControlInterface = true;
-          device->cdcControlInterfaceNumber = currentInterfaceNumber_;
-          ESP_LOGI(TAG, "CDC control interface ready: iface=%u", device->cdcControlInterfaceNumber);
-          configureCdcAcm(*device);
+          SerialPortState *port = allocateSerialPort(*device);
+          if (port)
+          {
+            port->hasControlInterface = true;
+            port->controlInterfaceNumber = currentInterfaceNumber_;
+            currentSerialPortIndex_ = serialPortIndex(*device, *port);
+            ESP_LOGI(TAG, "CDC control interface ready: port=%u iface=%u",
+                     currentSerialPortIndex_,
+                     port->controlInterfaceNumber);
+            configureCdcAcm(*device, *port);
+          }
         }
         else if (isCdcAcmDataInterface)
         {
-          device->hasCdcDataInterface = true;
-          device->cdcDataInterfaceNumber = currentInterfaceNumber_;
-          ESP_LOGI(TAG, "CDC data interface ready: iface=%u", device->cdcDataInterfaceNumber);
+          SerialPortState *port = pendingSerialPort(*device, currentInterfaceNumber_);
+          if (port)
+          {
+            port->hasDataInterface = true;
+            port->dataInterfaceNumber = currentInterfaceNumber_;
+            currentSerialPortIndex_ = serialPortIndex(*device, *port);
+            ESP_LOGI(TAG, "CDC data interface ready: port=%u iface=%u",
+                     currentSerialPortIndex_,
+                     port->dataInterfaceNumber);
+          }
         }
         else if (isVendorSerialInterface)
         {
           device->hasVendorSerialInterface = true;
           device->vendorSerialInterfaceNumber = currentInterfaceNumber_;
-          ESP_LOGI(TAG, "%s VCP interface ready: iface=%u",
-                   vendorSerialName(device->info.vid),
-                   device->vendorSerialInterfaceNumber);
-          configureVendorSerial(*device);
+          // A USB-serial bridge chip carries exactly one port, and its single
+          // vendor interface plays both the control and the data role.
+          SerialPortState *port = allocateSerialPort(*device);
+          if (port)
+          {
+            port->vendorSerial = true;
+            port->hasControlInterface = true;
+            port->hasDataInterface = true;
+            port->controlInterfaceNumber = currentInterfaceNumber_;
+            port->dataInterfaceNumber = currentInterfaceNumber_;
+            currentSerialPortIndex_ = serialPortIndex(*device, *port);
+            ESP_LOGI(TAG, "%s VCP interface ready: port=%u iface=%u",
+                     vendorSerialName(device->info.vid),
+                     currentSerialPortIndex_,
+                     device->vendorSerialInterfaceNumber);
+            configureVendorSerial(*device, *port);
+          }
         }
         else if (isMidiInterface)
         {
@@ -8191,6 +8375,20 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
 
   case USB_CS_INTERFACE_DESC:
   {
+    if (currentInterfaceClass_ == USB_CLASS_CDC_CONTROL_VALUE &&
+        currentSerialPortIndex_ < device->serialPortCount &&
+        data[0] >= 5 && data[2] == USB_CDC_CS_UNION)
+    {
+      // bSlaveInterface0 names the data interface of this ACM function outright,
+      // which is what keeps the pairing right on a composite device whose CDC
+      // functions are not laid out control-then-data in descriptor order.
+      SerialPortState &serialPort = device->serialPorts[currentSerialPortIndex_];
+      if (!serialPort.hasDataInterface)
+      {
+        serialPort.dataInterfaceNumber = data[4];
+      }
+      break;
+    }
     if (currentInterfaceClass_ == USB_CLASS_AUDIO_VALUE &&
         currentInterfaceSubClass_ == USB_AUDIO_SUBCLASS_AUDIO_CONTROL)
     {
@@ -8286,24 +8484,26 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       return;
     }
 
+    // currentSerialPortIndex_ was set when this interface was claimed, so a bulk
+    // endpoint of a serial function lands on the port that owns it instead of on
+    // whichever CDC function happened to be parsed first.
     const bool isSerialBulkEndpoint = currentInterfaceClaimed_ &&
-                                      ((currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
-                                        device->hasCdcDataInterface &&
-                                        currentInterfaceNumber_ == device->cdcDataInterfaceNumber) ||
+                                      currentSerialPortIndex_ < device->serialPortCount &&
+                                      (currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ||
                                        (currentInterfaceClass_ == USB_CLASS_VENDOR_VALUE &&
-                                        device->vendorSerialSupported &&
-                                        device->hasVendorSerialInterface &&
-                                        currentInterfaceNumber_ == device->vendorSerialInterfaceNumber)) &&
+                                        device->vendorSerialSupported)) &&
                                       isBulk;
     if (isSerialBulkEndpoint)
     {
+      SerialPortState &serialPort = device->serialPorts[currentSerialPortIndex_];
       if (!isIn)
       {
-        device->hasSerialOutEndpoint = true;
-        device->serialOutEndpointAddress = ep->bEndpointAddress;
-        device->serialOutPacketSize = ep->wMaxPacketSize;
-        ESP_LOGI(TAG, "%s bulk OUT endpoint ready: iface=%u ep=0x%02x size=%u",
+        serialPort.hasOutEndpoint = true;
+        serialPort.outEndpointAddress = ep->bEndpointAddress;
+        serialPort.outPacketSize = ep->wMaxPacketSize;
+        ESP_LOGI(TAG, "%s bulk OUT endpoint ready: port=%u iface=%u ep=0x%02x size=%u",
                  currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
+                 currentSerialPortIndex_,
                  currentInterfaceNumber_,
                  ep->bEndpointAddress,
                  ep->wMaxPacketSize);
@@ -8340,8 +8540,11 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       endpoint->transfer->num_bytes = ep->wMaxPacketSize;
 
       endpoint->resubmitPending = true;
-      ESP_LOGI(TAG, "%s bulk IN endpoint ready: iface=%u ep=0x%02x size=%u",
+      serialPort.hasInEndpoint = true;
+      serialPort.inEndpointAddress = ep->bEndpointAddress;
+      ESP_LOGI(TAG, "%s bulk IN endpoint ready: port=%u iface=%u ep=0x%02x size=%u",
                currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE ? "CDC" : vendorSerialName(device->info.vid),
+               currentSerialPortIndex_,
                endpoint->interfaceNumber,
                endpoint->address,
                ep->wMaxPacketSize);
@@ -9613,20 +9816,27 @@ void EspUsbHost::serialOutTransferCallback(usb_transfer_t *transfer)
   // device slot can already be reset by the time these canceled transfers are
   // dispatched. A transfer that belongs to no pool came from the one-shot
   // sendSerial() path and is freed here as before.
-  DeviceState *device = nullptr;
+  SerialPortState *port = nullptr;
   int slot = -1;
   for (DeviceState &candidate : host->devices_)
   {
-    const int found = host->serialOutSlotOfTransfer(candidate, transfer);
-    if (found >= 0)
+    for (SerialPortState &candidatePort : candidate.serialPorts)
     {
-      device = &candidate;
-      slot = found;
+      const int found = host->serialOutSlotOfTransfer(candidatePort, transfer);
+      if (found >= 0)
+      {
+        port = &candidatePort;
+        slot = found;
+        break;
+      }
+    }
+    if (port)
+    {
       break;
     }
   }
 
-  if (!device)
+  if (!port)
   {
     if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
     {
@@ -9642,7 +9852,7 @@ void EspUsbHost::serialOutTransferCallback(usb_transfer_t *transfer)
     return;
   }
 
-  EspUsbHostSerialWriteStats &stats = device->serialWriteStats;
+  EspUsbHostSerialWriteStats &stats = port->writeStats;
   stats.completed++;
   if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
   {
@@ -9655,16 +9865,16 @@ void EspUsbHost::serialOutTransferCallback(usb_transfer_t *transfer)
     host->setLastError(ESP_FAIL);
     if (transfer->status != USB_TRANSFER_STATUS_CANCELED)
     {
-      device->serialOutHalted = true;
+      port->outHalted = true;
     }
   }
 
   portENTER_CRITICAL(&host->serialOutMux_);
-  device->serialOutSlotState[slot] = SERIAL_OUT_SLOT_FREE;
+  port->outSlotState[slot] = SERIAL_OUT_SLOT_FREE;
   portEXIT_CRITICAL(&host->serialOutMux_);
-  if (device->serialOutFreeSlots)
+  if (port->outFreeSlots)
   {
-    xSemaphoreGive(device->serialOutFreeSlots);
+    xSemaphoreGive(port->outFreeSlots);
   }
 }
 
@@ -10386,9 +10596,35 @@ void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size
     length -= 2;
   }
 
+  // Which CDC port of this device the bytes arrived on. The IN endpoint address
+  // is the key: interface numbers repeat across alternate settings, endpoints do
+  // not. Without it a two-port device would push both ports' data into every
+  // bound Stream.
+  uint8_t portIndex = 0;
+  // Which port an unbound Stream follows: the same "first ready port" the write
+  // side resolves ESP_USB_HOST_ANY_PORT to, so reads and writes cannot end up on
+  // different ports of the same device.
+  uint8_t defaultPortIndex = 0;
+  if (device)
+  {
+    const SerialPortState *port = serialPortForEndpoint(*device, endpoint.address);
+    if (port)
+    {
+      portIndex = serialPortIndex(*device, *port);
+    }
+    for (uint8_t i = 0; i < device->serialPortCount; i++)
+    {
+      if (device->serialPorts[i].hasOutEndpoint)
+      {
+        defaultPortIndex = i;
+        break;
+      }
+    }
+  }
+
   for (EspUsbHostCdcSerial *serialPort : cdcSerials_)
   {
-    if (serialPort && serialPort->accepts(endpoint.deviceAddress))
+    if (serialPort && serialPort->accepts(endpoint.deviceAddress, portIndex, defaultPortIndex))
     {
       serialPort->pushData(data, length);
     }
@@ -10402,6 +10638,7 @@ void EspUsbHost::handleSerial(EndpointState &endpoint, const uint8_t *data, size
   EspUsbHostSerialData serial;
   serial.address = endpoint.deviceAddress;
   serial.interfaceNumber = endpoint.interfaceNumber;
+  serial.port = portIndex;
   serial.data = data;
   serial.length = length;
   serialDataCallback_(serial);
@@ -10827,25 +11064,166 @@ EspUsbHost::DeviceState *EspUsbHost::findDeviceByHandle(usb_device_handle_t hand
   return nullptr;
 }
 
-EspUsbHost::DeviceState *EspUsbHost::findSerialDevice(uint8_t address)
+EspUsbHost::DeviceState *EspUsbHost::findSerialDevice(uint8_t address, uint8_t port)
 {
-  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findSerialDevice(address));
+  return const_cast<DeviceState *>(static_cast<const EspUsbHost *>(this)->findSerialDevice(address, port));
 }
 
-const EspUsbHost::DeviceState *EspUsbHost::findSerialDevice(uint8_t address) const
+const EspUsbHost::DeviceState *EspUsbHost::findSerialDevice(uint8_t address, uint8_t port) const
 {
+  const DeviceState *device = nullptr;
+  return findSerialPort(address, port, &device) ? device : nullptr;
+}
+
+EspUsbHost::SerialPortState *EspUsbHost::findSerialPort(uint8_t address, uint8_t port, DeviceState **deviceOut)
+{
+  const DeviceState *constDevice = nullptr;
+  const SerialPortState *found = static_cast<const EspUsbHost *>(this)->findSerialPort(address, port, &constDevice);
+  if (deviceOut)
+  {
+    *deviceOut = const_cast<DeviceState *>(constDevice);
+  }
+  return const_cast<SerialPortState *>(found);
+}
+
+const EspUsbHost::SerialPortState *EspUsbHost::findSerialPort(uint8_t address, uint8_t port, const DeviceState **deviceOut) const
+{
+  if (deviceOut)
+  {
+    *deviceOut = nullptr;
+  }
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || !device.hasSerialOutEndpoint)
+    if (!device.inUse || !device.handle || device.serialPortCount == 0)
     {
       continue;
     }
-    if (address == ESP_USB_HOST_ANY_ADDRESS || device.info.address == address)
+    if (address != ESP_USB_HOST_ANY_ADDRESS && device.info.address != address)
     {
-      return &device;
+      continue;
+    }
+    // A port only counts as usable once its OUT endpoint is claimed, which is the
+    // same test findSerialDevice() has always applied to a device.
+    if (port == ESP_USB_HOST_ANY_PORT)
+    {
+      for (uint8_t i = 0; i < device.serialPortCount; i++)
+      {
+        if (device.serialPorts[i].hasOutEndpoint)
+        {
+          if (deviceOut)
+          {
+            *deviceOut = &device;
+          }
+          return &device.serialPorts[i];
+        }
+      }
+    }
+    else if (port < device.serialPortCount && device.serialPorts[port].hasOutEndpoint)
+    {
+      if (deviceOut)
+      {
+        *deviceOut = &device;
+      }
+      return &device.serialPorts[port];
+    }
+    if (address != ESP_USB_HOST_ANY_ADDRESS)
+    {
+      // The caller named this device; do not silently fall through to another one.
+      return nullptr;
     }
   }
   return nullptr;
+}
+
+EspUsbHost::SerialPortState *EspUsbHost::allocateSerialPort(DeviceState &device)
+{
+  if (device.serialPortCount >= ESP_USB_HOST_MAX_SERIAL_PORTS)
+  {
+    return nullptr;
+  }
+  SerialPortState &port = device.serialPorts[device.serialPortCount++];
+  port = SerialPortState();
+  port.inUse = true;
+  // Ports start from whatever line coding the sketch asked for before the device
+  // enumerated, so every port of a multi-port device opens at the same settings.
+  port.config = device.serialConfig;
+  return &port;
+}
+
+EspUsbHost::SerialPortState *EspUsbHost::serialPortForDataInterface(DeviceState &device, uint8_t interfaceNumber)
+{
+  for (uint8_t i = 0; i < device.serialPortCount; i++)
+  {
+    SerialPortState &port = device.serialPorts[i];
+    if (port.inUse && port.hasDataInterface && port.dataInterfaceNumber == interfaceNumber)
+    {
+      return &port;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::SerialPortState *EspUsbHost::serialPortForControlInterface(DeviceState &device, uint8_t interfaceNumber)
+{
+  for (uint8_t i = 0; i < device.serialPortCount; i++)
+  {
+    SerialPortState &port = device.serialPorts[i];
+    if (port.inUse && port.hasControlInterface && port.controlInterfaceNumber == interfaceNumber)
+    {
+      return &port;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::SerialPortState *EspUsbHost::pendingSerialPort(DeviceState &device, uint8_t interfaceNumber)
+{
+  // A Union functional descriptor names the data interface outright, so honour it
+  // even when the interfaces are not adjacent.
+  for (uint8_t i = 0; i < device.serialPortCount; i++)
+  {
+    SerialPortState &port = device.serialPorts[i];
+    if (port.inUse && port.hasControlInterface && !port.hasDataInterface &&
+        port.dataInterfaceNumber == interfaceNumber)
+    {
+      return &port;
+    }
+  }
+  // No Union: the data interface belongs to the control interface it follows.
+  for (uint8_t i = device.serialPortCount; i > 0; i--)
+  {
+    SerialPortState &port = device.serialPorts[i - 1];
+    if (port.inUse && port.hasControlInterface && !port.hasDataInterface &&
+        port.dataInterfaceNumber == 0xff)
+    {
+      return &port;
+    }
+  }
+  return nullptr;
+}
+
+EspUsbHost::SerialPortState *EspUsbHost::serialPortForEndpoint(DeviceState &device, uint8_t endpointAddress)
+{
+  for (uint8_t i = 0; i < device.serialPortCount; i++)
+  {
+    SerialPortState &port = device.serialPorts[i];
+    if (!port.inUse)
+    {
+      continue;
+    }
+    if ((port.hasInEndpoint && port.inEndpointAddress == endpointAddress) ||
+        (port.hasOutEndpoint && port.outEndpointAddress == endpointAddress))
+    {
+      return &port;
+    }
+  }
+  return nullptr;
+}
+
+uint8_t EspUsbHost::serialPortIndex(const DeviceState &device, const SerialPortState &port) const
+{
+  const size_t index = &port - &device.serialPorts[0];
+  return index < ESP_USB_HOST_MAX_SERIAL_PORTS ? static_cast<uint8_t>(index) : 0;
 }
 
 EspUsbHost::DeviceState *EspUsbHost::findMidiDevice(uint8_t address)
@@ -12057,7 +12435,7 @@ void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)
 {
   releaseAudioOutputTransfers(device);
   releaseVendorOutQueue(device);
-  releaseSerialOutQueue(device);
+  releaseSerialOutQueues(device);
   for (EndpointState &endpoint : endpoints_)
   {
     if (!endpoint.inUse || endpoint.deviceHandle != device.handle)
@@ -12167,10 +12545,14 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.keyboardLedReportId = 0;
   device.hasVendorInterface = false;
   device.hasVendorOutEndpoint = false;
-  device.hasCdcControlInterface = false;
-  device.hasCdcDataInterface = false;
-  device.cdcConfigured = false;
-  device.hasSerialOutEndpoint = false;
+  for (SerialPortState &port : device.serialPorts)
+  {
+    // Hand back any write-queue transfers before the slot is zeroed; the
+    // disconnect path has usually done this already, in which case it is a no-op.
+    releaseSerialOutQueue(port);
+    port = SerialPortState();
+  }
+  device.serialPortCount = 0;
   device.hasVendorSerialInterface = false;
   device.hasUsbVendorInterface = false;
   device.hasUsbVendorInEndpoint = false;
@@ -13422,15 +13804,15 @@ void EspUsbHost::networkStopNetif(DeviceState &device)
 }
 #endif // ESP_USB_HOST_HAS_ESP_NETIF
 
-void EspUsbHost::configureCdcAcm(DeviceState &device)
+void EspUsbHost::configureCdcAcm(DeviceState &device, SerialPortState &port)
 {
-  if (device.cdcConfigured || !device.hasCdcControlInterface || !device.handle || !clientHandle_)
+  if (port.configured || port.vendorSerial || !port.hasControlInterface || !device.handle || !clientHandle_)
   {
     return;
   }
 
   uint8_t lineCoding[7] = {};
-  fillCdcLineCoding(device.serialConfig, lineCoding);
+  fillCdcLineCoding(port.config, lineCoding);
 
   usb_transfer_t *lineCodingTransfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE + sizeof(lineCoding), 0, &lineCodingTransfer);
@@ -13440,7 +13822,7 @@ void EspUsbHost::configureCdcAcm(DeviceState &device)
     setup->bmRequestType = CDC_SET_REQUEST_TYPE;
     setup->bRequest = CDC_CLASS_REQUEST_SET_LINE_CODING;
     setup->wValue = 0;
-    setup->wIndex = device.cdcControlInterfaceNumber;
+    setup->wIndex = port.controlInterfaceNumber;
     setup->wLength = sizeof(lineCoding);
     memcpy(lineCodingTransfer->data_buffer + USB_SETUP_PACKET_SIZE, lineCoding, sizeof(lineCoding));
     lineCodingTransfer->device_handle = device.handle;
@@ -13463,8 +13845,8 @@ void EspUsbHost::configureCdcAcm(DeviceState &device)
     usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(lineStateTransfer->data_buffer);
     setup->bmRequestType = CDC_SET_REQUEST_TYPE;
     setup->bRequest = CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE;
-    setup->wValue = (device.serialDtr ? 0x0001 : 0) | (device.serialRts ? 0x0002 : 0);
-    setup->wIndex = device.cdcControlInterfaceNumber;
+    setup->wValue = (port.dtr ? 0x0001 : 0) | (port.rts ? 0x0002 : 0);
+    setup->wIndex = port.controlInterfaceNumber;
     setup->wLength = 0;
     lineStateTransfer->device_handle = device.handle;
     lineStateTransfer->bEndpointAddress = 0;
@@ -13479,14 +13861,16 @@ void EspUsbHost::configureCdcAcm(DeviceState &device)
     }
   }
 
-  device.cdcConfigured = true;
-  ESP_LOGI(TAG, "CDC ACM configured: baud=%lu dataBits=%u parity=%u stopBits=%u dtr=%u rts=%u",
-           static_cast<unsigned long>(device.serialConfig.baud),
-           device.serialConfig.dataBits,
-           static_cast<unsigned>(device.serialConfig.parity),
-           static_cast<unsigned>(device.serialConfig.stopBits),
-           device.serialDtr ? 1 : 0,
-           device.serialRts ? 1 : 0);
+  port.configured = true;
+  ESP_LOGI(TAG, "CDC ACM configured: port=%u iface=%u baud=%lu dataBits=%u parity=%u stopBits=%u dtr=%u rts=%u",
+           serialPortIndex(device, port),
+           port.controlInterfaceNumber,
+           static_cast<unsigned long>(port.config.baud),
+           port.config.dataBits,
+           static_cast<unsigned>(port.config.parity),
+           static_cast<unsigned>(port.config.stopBits),
+           port.dtr ? 1 : 0,
+           port.rts ? 1 : 0);
 }
 
 void EspUsbHost::attachCdcSerial(EspUsbHostCdcSerial *serial)
@@ -13524,9 +13908,9 @@ void EspUsbHost::detachCdcSerial(EspUsbHostCdcSerial *serial)
   }
 }
 
-void EspUsbHost::configureVendorSerial(DeviceState &device)
+void EspUsbHost::configureVendorSerial(DeviceState &device, SerialPortState &port)
 {
-  if (!device.vendorSerialSupported || !device.hasVendorSerialInterface || !device.handle || !clientHandle_)
+  if (!device.vendorSerialSupported || !port.vendorSerial || !device.handle || !clientHandle_)
   {
     return;
   }
@@ -13534,46 +13918,46 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
   ESP_LOGI(TAG, "Configuring %s VCP: iface=%u baud=%lu dataBits=%u parity=%u stopBits=%u dtr=%u rts=%u",
            vendorSerialName(device.info.vid),
            device.vendorSerialInterfaceNumber,
-           static_cast<unsigned long>(device.serialConfig.baud),
-           device.serialConfig.dataBits,
-           static_cast<unsigned>(device.serialConfig.parity),
-           static_cast<unsigned>(device.serialConfig.stopBits),
-           device.serialDtr ? 1 : 0,
-           device.serialRts ? 1 : 0);
+           static_cast<unsigned long>(port.config.baud),
+           port.config.dataBits,
+           static_cast<unsigned>(port.config.parity),
+           static_cast<unsigned>(port.config.stopBits),
+           port.dtr ? 1 : 0,
+           port.rts ? 1 : 0);
 
   if (device.info.vid == 0x0403)
   {
-    const uint16_t divisor = ftdiBaudDivisor(device.serialConfig.baud);
+    const uint16_t divisor = ftdiBaudDivisor(port.config.baud);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x00, 0x0000, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x03, divisor, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x04, ftdiDataCharacteristics(device.serialConfig), device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x02, device.serialDtr ? 0x0011 : 0x0010, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
-    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x02, device.serialRts ? 0x0021 : 0x0020, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x04, ftdiDataCharacteristics(port.config), device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x02, port.dtr ? 0x0011 : 0x0010, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x02, port.rts ? 0x0021 : 0x0020, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
   }
   else if (device.info.vid == 0x10c4)
   {
     const uint8_t baud[4] = {
-        static_cast<uint8_t>(device.serialConfig.baud & 0xff),
-        static_cast<uint8_t>((device.serialConfig.baud >> 8) & 0xff),
-        static_cast<uint8_t>((device.serialConfig.baud >> 16) & 0xff),
-        static_cast<uint8_t>((device.serialConfig.baud >> 24) & 0xff)};
+        static_cast<uint8_t>(port.config.baud & 0xff),
+        static_cast<uint8_t>((port.config.baud >> 8) & 0xff),
+        static_cast<uint8_t>((port.config.baud >> 16) & 0xff),
+        static_cast<uint8_t>((port.config.baud >> 24) & 0xff)};
     submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x00, 0x0001, device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x1e, 0x0000, device.vendorSerialInterfaceNumber, baud, sizeof(baud), device.info.address);
-    submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x03, cp210xLineControl(device.serialConfig), device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
+    submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x03, cp210xLineControl(port.config), device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_INTERFACE_OUT_REQUEST_TYPE, 0x07,
-                              (device.serialDtr ? 0x0001 : 0) | (device.serialRts ? 0x0002 : 0) | 0x0300,
+                              (port.dtr ? 0x0001 : 0) | (port.rts ? 0x0002 : 0) | 0x0300,
                               device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
   }
   else if (device.info.vid == 0x1a86)
   {
-    const uint16_t lineControl = ch34xLineControl(device.serialConfig);
-    const uint16_t baudReg = ch34xBaudValue(device.serialConfig.baud);
+    const uint16_t lineControl = ch34xLineControl(port.config);
+    const uint16_t baudReg = ch34xBaudValue(port.config.baud);
 
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa1, 0x0000, 0x0000, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x1312, baudReg, nullptr, 0, device.info.address);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0x9a, 0x2518, lineControl, nullptr, 0, device.info.address);
-    const uint8_t modemControl = (device.serialDtr ? 0x20 : 0) | (device.serialRts ? 0x40 : 0);
+    const uint8_t modemControl = (port.dtr ? 0x20 : 0) | (port.rts ? 0x40 : 0);
     submitVendorSerialControl(VENDOR_OUT_REQUEST_TYPE, 0xa4,
                               static_cast<uint16_t>(~modemControl),
                               device.vendorSerialInterfaceNumber, nullptr, 0, device.info.address);
@@ -13598,12 +13982,12 @@ void EspUsbHost::configureVendorSerial(DeviceState &device)
     }
 
     uint8_t lineCoding[7] = {};
-    fillCdcLineCoding(device.serialConfig, lineCoding);
+    fillCdcLineCoding(port.config, lineCoding);
     submitVendorSerialControl(CDC_SET_REQUEST_TYPE, CDC_CLASS_REQUEST_SET_LINE_CODING,
                               0x0000, 0x0000,
                               lineCoding, sizeof(lineCoding), device.info.address);
     submitVendorSerialControl(CDC_SET_REQUEST_TYPE, CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE,
-                              (device.serialDtr ? 0x0001 : 0) | (device.serialRts ? 0x0002 : 0),
+                              (port.dtr ? 0x0001 : 0) | (port.rts ? 0x0002 : 0),
                               0x0000, nullptr, 0, device.info.address);
   }
 }
@@ -14390,7 +14774,7 @@ bool EspUsbHostCdcSerial::begin(uint32_t baud)
 
   host_.attachCdcSerial(this);
   attached_ = true;
-  return host_.setSerialBaudRate(baud, address_);
+  return host_.setSerialBaudRate(baud, address_, port_);
 }
 
 void EspUsbHostCdcSerial::end()
@@ -14401,7 +14785,7 @@ void EspUsbHostCdcSerial::end()
 
 bool EspUsbHostCdcSerial::connected() const
 {
-  return host_.serialReady(address_);
+  return host_.serialReady(address_, port_);
 }
 
 int EspUsbHostCdcSerial::available()
@@ -14443,9 +14827,9 @@ void EspUsbHostCdcSerial::flush()
 {
   // Without the asynchronous queue there is nothing to wait for: each write is
   // already submitted to the driver and the completion is not tracked.
-  if (host_.serialWriteQueueReady(address_))
+  if (host_.serialWriteQueueReady(address_, port_))
   {
-    host_.serialWriteFlush(ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS, address_);
+    host_.serialWriteFlush(ESP_USB_HOST_SERIAL_WRITE_DEFAULT_TIMEOUT_MS, address_, port_);
   }
 }
 
@@ -14460,55 +14844,57 @@ size_t EspUsbHostCdcSerial::write(const uint8_t *buffer, size_t size)
   {
     return 0;
   }
-  return host_.sendSerial(buffer, size, address_) ? size : 0;
+  return host_.sendSerial(buffer, size, address_, port_) ? size : 0;
 }
 
 bool EspUsbHostCdcSerial::setBaudRate(uint32_t baud)
 {
-  return host_.setSerialBaudRate(baud, address_);
+  return host_.setSerialBaudRate(baud, address_, port_);
 }
 
 bool EspUsbHostCdcSerial::setConfig(const EspUsbHostSerialConfig &config)
 {
-  return host_.setSerialConfig(config, address_);
+  return host_.setSerialConfig(config, address_, port_);
 }
 
 bool EspUsbHostCdcSerial::setDtr(bool enable)
 {
-  EspUsbHost::DeviceState *device = host_.findSerialDevice(address_);
-  if (!device)
+  EspUsbHost::DeviceState *device = nullptr;
+  EspUsbHost::SerialPortState *port = host_.findSerialPort(address_, port_, &device);
+  if (!port)
   {
     return false;
   }
-  device->serialDtr = enable;
-  if (device->hasCdcControlInterface)
+  port->dtr = enable;
+  if (port->vendorSerial)
   {
-    device->cdcConfigured = false;
-    host_.configureCdcAcm(*device);
+    host_.configureVendorSerial(*device, *port);
   }
-  else if (device->vendorSerialSupported)
+  else if (port->hasControlInterface)
   {
-    host_.configureVendorSerial(*device);
+    port->configured = false;
+    host_.configureCdcAcm(*device, *port);
   }
   return true;
 }
 
 bool EspUsbHostCdcSerial::setRts(bool enable)
 {
-  EspUsbHost::DeviceState *device = host_.findSerialDevice(address_);
-  if (!device)
+  EspUsbHost::DeviceState *device = nullptr;
+  EspUsbHost::SerialPortState *port = host_.findSerialPort(address_, port_, &device);
+  if (!port)
   {
     return false;
   }
-  device->serialRts = enable;
-  if (device->hasCdcControlInterface)
+  port->rts = enable;
+  if (port->vendorSerial)
   {
-    device->cdcConfigured = false;
-    host_.configureCdcAcm(*device);
+    host_.configureVendorSerial(*device, *port);
   }
-  else if (device->vendorSerialSupported)
+  else if (port->hasControlInterface)
   {
-    host_.configureVendorSerial(*device);
+    port->configured = false;
+    host_.configureCdcAcm(*device, *port);
   }
   return true;
 }
@@ -14526,6 +14912,21 @@ uint8_t EspUsbHostCdcSerial::address() const
 void EspUsbHostCdcSerial::clearAddress()
 {
   address_ = ESP_USB_HOST_ANY_ADDRESS;
+}
+
+void EspUsbHostCdcSerial::setPort(uint8_t port)
+{
+  port_ = port;
+}
+
+uint8_t EspUsbHostCdcSerial::port() const
+{
+  return port_;
+}
+
+void EspUsbHostCdcSerial::clearPort()
+{
+  port_ = ESP_USB_HOST_ANY_PORT;
 }
 
 void EspUsbHostCdcSerial::pushData(const uint8_t *data, size_t length)
@@ -14548,9 +14949,16 @@ void EspUsbHostCdcSerial::pushData(const uint8_t *data, size_t length)
   portEXIT_CRITICAL(&rxMux_);
 }
 
-bool EspUsbHostCdcSerial::accepts(uint8_t address) const
+bool EspUsbHostCdcSerial::accepts(uint8_t address, uint8_t port, uint8_t defaultPort) const
 {
-  return address_ == ESP_USB_HOST_ANY_ADDRESS || address_ == address;
+  if (address_ != ESP_USB_HOST_ANY_ADDRESS && address_ != address)
+  {
+    return false;
+  }
+  // An unbound object follows the device's first ready port -- the same one the
+  // write path picks for ESP_USB_HOST_ANY_PORT, and the only one a single-port
+  // device has. A bound one only takes its own.
+  return (port_ == ESP_USB_HOST_ANY_PORT ? defaultPort : port_) == port;
 }
 
 size_t EspUsbHostCdcSerial::nextIndex(size_t index) const

@@ -4,6 +4,8 @@
 
 Uses two independent USB serial devices at the same time. For clarity, this example identifies devices by VID and assigns FTDI and CP210x devices to separate `EspUsbHostCdcSerial` streams.
 
+This is two **devices**, one port each. For a single composite device that publishes several CDC ports over one cable, bind the streams with `setPort()` instead of `setAddress()` — see [Multiple CDC ports on one device](../../../README.md#multiple-cdc-ports-on-one-device) in the main README.
+
 ## Hardware
 
 - ESP32-S3 (or another board supported by Arduino-ESP32 USB Host)

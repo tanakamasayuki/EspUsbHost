@@ -98,7 +98,7 @@ Host/Device loopback tests.
 
 - **HID input** — keyboard, mouse, consumer control (media keys), system control (power/standby), gamepad
 - **HID output** — keyboard LED control, vendor output/feature reports
-- **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible)
+- **USB serial** — CDC ACM and common VCP devices (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial` (Arduino `Stream`/`Print` compatible), including composite devices that publish several CDC ports on one cable
 - **MIDI** — USB MIDI input and output
 - **USB audio** — raw isochronous IN payloads and isochronous OUT writes for USB Audio streaming interfaces
 - **USB Mass Storage** — USB Mass Storage Bulk-Only Transport with SCSI capacity/read/write block access, FatFs/VFS mounting, and Arduino `fs::FS` / `File` compatibility
@@ -119,7 +119,7 @@ class-specific in the library. The next section lists the same ground by maturit
 |---|---|---|---|
 | Audio (UAC1 / UAC2) | `0x01` | Library API — isochronous IN payloads and OUT writes | [`examples/Audio/`](examples/Audio/) |
 | MIDI (Audio subclass 3) | `0x01`/`0x03` | Library API — MIDI in and out | [`examples/MIDI/`](examples/MIDI/) |
-| CDC Control / Data (ACM) | `0x02`/`0x0a` | Library API — `EspUsbHostCdcSerial`, Arduino `Stream`/`Print` | [`examples/Serial/`](examples/Serial/) |
+| CDC Control / Data (ACM) | `0x02`/`0x0a` | Library API — `EspUsbHostCdcSerial`, Arduino `Stream`/`Print`; multiple CDC ports per device | [`examples/Serial/`](examples/Serial/) |
 | HID | `0x03` | Library API — keyboard, mouse, gamepad, consumer/system control, vendor reports | [`examples/HID/`](examples/HID/) |
 | **Printer** | **`0x07`** | **Example — ESC/POS receipt printers over the vendor bulk/control API** | [`examples/Vendor/EspUsbHostPrinterEscPos/`](examples/Vendor/EspUsbHostPrinterEscPos/) |
 | Mass Storage (BOT/SCSI) | `0x08` | Library API — block I/O and FatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
@@ -147,7 +147,7 @@ be identified before any code is written for it.
 | Class | Status |
 |-------|--------|
 | HID — keyboard, mouse, gamepad, consumer control, system control, vendor | ✅ Done |
-| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable | ✅ Done |
+| USB serial — CDC ACM and VCP (FTDI, CP210x, CH34x) via `EspUsbHostCdcSerial`; baud, data bits, parity, and stop bits are configurable; several CDC ports on one composite device | ✅ Done |
 | USB MIDI | ✅ Done |
 | Vendor-specific bulk/control | ✅ Basic support implemented. Covers explicit interface claim, bulk IN/OUT (synchronous and an asynchronous queue), automatic ZLP, and EP0 vendor IN/OUT requests |
 | CCID — smart card readers (bulk protocol) | ✅ Basic support implemented. Covers explicit interface claim, class descriptor parsing, slot status, power on/off with ATR, card type decoding from the ATR, APDU/XfrBlock exchange, escape and raw messages, and slot-change notifications. Verified with a Sony RC-S300; ICCD variants, chained (extended APDU) responses, and PIN-pad features are out of scope |
@@ -659,39 +659,68 @@ Low-level send API on `EspUsbHost`:
 
 ```cpp
 bool sendSerial(const uint8_t *data, size_t length,
-                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool sendSerial(const char *text,
-                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t port = ESP_USB_HOST_ANY_PORT);
+bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 bool setSerialBaudRate(uint32_t baud,
-                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool setSerialConfig(const EspUsbHostSerialConfig &config,
-                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint8_t port = ESP_USB_HOST_ANY_PORT);
+uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+
+uint8_t serialPortCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getSerialPortInfo(EspUsbHostSerialPortInfo &info,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 ```
+
+Every serial call takes the device `address` first and the `port` **within** that device second — see [Multiple CDC ports on one device](#multiple-cdc-ports-on-one-device). Leaving `port` at `ESP_USB_HOST_ANY_PORT` selects the device's first ready port, which is what a single-port device has.
 
 `sendSerial()` does not wait for completion: it allocates a transfer per call and hands it to the driver. That is fine for terminal-rate traffic, but a writer that outruns the endpoint keeps growing the in-flight set until DMA memory runs out. The asynchronous CDC OUT queue is the bounded form, and it has the same shape as the vendor bulk one:
 
 ```cpp
 bool serialWriteQueueBegin(size_t depth, size_t bufferBytes,
-                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT);
+void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                         uint8_t port = ESP_USB_HOST_ANY_PORT);
+bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 
 uint8_t *serialWriteAcquire(size_t *capacity, uint32_t timeoutMs = 0,
-                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                            uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool serialWriteSubmit(uint8_t *buffer, size_t length,
-                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-void serialWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT);
+void serialWriteRelease(uint8_t *buffer,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool serialWriteAsync(const uint8_t *data, size_t length, uint32_t timeoutMs = 0,
-                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t port = ESP_USB_HOST_ANY_PORT);
 
-size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-bool serialWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                          uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                            uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+bool serialWriteFlush(uint32_t timeoutMs,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t port = ESP_USB_HOST_ANY_PORT);
+EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                                            uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT);
 ```
+
+The queue belongs to one port, not to the device: each port has its own OUT endpoint, so a two-port device that wants backpressure on both calls `serialWriteQueueBegin()` once per port and pays for two transfer pools.
 
 `serialWriteQueueBegin()` preallocates `depth` reusable transfers of `bufferBytes` each (max depth `ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH`). Submits never wait, but `serialWriteAcquire()` blocks up to `timeoutMs` once the pool is busy, and that wait is the backpressure. While the queue is active `sendSerial()` and `EspUsbHostCdcSerial::write()` route through it, so existing code inherits that pacing unchanged; writes longer than the slot size still take the one-shot path. `EspUsbHostCdcSerial::flush()` waits for the queue to drain, and does nothing without it. `serialWriteFlush()` cannot be called from the USB client task, because that is where completion callbacks run.
 
@@ -720,6 +749,9 @@ bool    setRts(bool enable);
 void    setAddress(uint8_t address);
 uint8_t address() const;
 void    clearAddress();
+void    setPort(uint8_t port);
+uint8_t port() const;
+void    clearPort();
 ```
 
 Received bytes land in a ring buffer filled from the USB client task and drained by `read()`. The ring defaults to 512 bytes, and when it overflows the oldest byte is dropped silently, so anything that keeps `read()` waiting longer than the ring holds loses data — at 921600 baud 512 bytes is about 5.5 ms of traffic, and devices that burst (a GPS emitting a second of NMEA at once, a boot-time log dump) can exceed it even at a low average rate. `setRxBufferSize()` sizes the ring per instance and must be called before `begin()` (or after `end()`), because the USB client task writes into it while attached; it returns `false` if the instance is attached, if `size` is below 2, or if the allocation fails:
@@ -749,6 +781,56 @@ Despite the `.h` name the file is not C source — it is handed to the compiler 
 `EspUsbHostSerialConfig` defaults to 115200 8N1. `dataBits` supports 5 to 8 bits. `parity` accepts `ESP_USB_HOST_SERIAL_PARITY_NONE`, `ODD`, `EVEN`, `MARK`, or `SPACE`. `stopBits` accepts `ESP_USB_HOST_SERIAL_STOP_BITS_1`, `1_5`, or `2`.
 
 Use `setAddress()` inside `onDeviceConnected` to bind a specific device when multiple USB serial devices are connected.
+
+#### Multiple CDC ports on one device
+
+A composite device can publish more than one CDC ACM function — two (or more) USB serial ports over a single cable. The host tracks each function as a **port** of that device, numbered from 0 in the order the functions appear in the configuration descriptor, which is the order the device side registered them in. Ports are paired to their data interface through the CDC Union functional descriptor when the device provides one, so interleaved functions still bind correctly.
+
+Bind one `EspUsbHostCdcSerial` per port:
+
+```cpp
+EspUsbHost usb;
+EspUsbHostCdcSerial portA(usb);
+EspUsbHostCdcSerial portB(usb);
+
+usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
+  if (usb.serialPortCount(device.address) < 2) {
+    return;
+  }
+  portA.setAddress(device.address);
+  portA.setPort(0);
+  portA.begin(115200);
+
+  portB.setAddress(device.address);
+  portB.setPort(1);
+  portB.begin(115200);
+});
+```
+
+`serialPortCount()` reports how many ports the host took a control interface for — a port whose data interface never came up is still counted, and `getSerialPortInfo().ready` is what says whether one can carry data. `getSerialPortInfo()` maps a port index onto the interface and endpoint numbers behind it, which is what lets a sketch tell two otherwise identical ACM functions apart:
+
+```cpp
+EspUsbHostSerialPortInfo info;
+if (usb.getSerialPortInfo(info, address, 1)) {
+  Serial.printf("port %u control_iface=%u data_iface=%u out_ep=0x%02x ready=%d\n",
+                info.port, info.controlInterfaceNumber,
+                info.dataInterfaceNumber, info.outEndpointAddress, info.ready);
+}
+```
+
+`printDeviceInfo()` lists the same rows as `Serial port N ...` lines.
+
+Received data is routed by the IN endpoint it arrived on, so each port's bytes reach only the `EspUsbHostCdcSerial` bound to it. `EspUsbHostSerialData::port` carries the same index to an `onSerialData()` callback. Line coding, DTR/RTS and the write queue are per port as well: `setBaudRate()` on `portB` does not disturb `portA`.
+
+An `EspUsbHostCdcSerial` that never calls `setPort()` follows the device's first ready port — port 0 on any normal device, and the same port the write side resolves `ESP_USB_HOST_ANY_PORT` to. A single-port device delivers on exactly that port, so sketches written before multi-port support behave as they did.
+
+Each port costs three endpoint channels on the host controller (notification IN, bulk IN, bulk OUT), which is the real limit on how many are usable — an ESP32-S3 has eight channels in total. `ESP_USB_HOST_MAX_SERIAL_PORTS` (default 2) caps how many ports the library tracks per device; functions beyond it are left unclaimed with a warning in the log. Raise it on a controller with more channels through the sketch's `build_opt.h`, with the same caveats as the other compile-time limits above:
+
+```
+-DESP_USB_HOST_MAX_SERIAL_PORTS=3
+```
+
+A vendor USB-serial bridge (FTDI, CP210x, CH34x, PL2303) is always a single port, reported as port 0 with `vendorSerial = true`.
 
 ### Vendor bulk/control
 

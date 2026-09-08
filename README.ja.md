@@ -93,7 +93,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 
 - **HID入力** — キーボード・マウス・コンシューマーコントロール（メディアキー）・システムコントロール（電源/スタンバイ）・ゲームパッド
 - **HID出力** — キーボードLED制御・ベンダー出力/フィーチャーレポート
-- **USBシリアル** — CDC ACMおよび主要VCPデバイス（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応（Arduino `Stream`/`Print` 互換）
+- **USBシリアル** — CDC ACMおよび主要VCPデバイス（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応（Arduino `Stream`/`Print` 互換）。1本のケーブルで複数のCDCポートを持つ複合デバイスにも対応
 - **MIDI** — USB MIDI入出力
 - **USBオーディオ** — USB Audio StreamingインターフェースのIsochronous INペイロード受信とIsochronous OUT送信
 - **USB Mass Storage** — USB Mass Storage Bulk-Only TransportのSCSI容量取得・ブロックread/write、FatFs/VFSマウント、Arduino `fs::FS` / `File`互換
@@ -111,7 +111,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 |---|---|---|---|
 | Audio（UAC1 / UAC2） | `0x01` | ライブラリAPI — Isochronous INペイロード受信とOUT送信 | [`examples/Audio/`](examples/Audio/) |
 | MIDI（Audio subclass 3） | `0x01`/`0x03` | ライブラリAPI — MIDI入出力 | [`examples/MIDI/`](examples/MIDI/) |
-| CDC Control / Data（ACM） | `0x02`/`0x0a` | ライブラリAPI — `EspUsbHostCdcSerial`、Arduino `Stream`/`Print` 互換 | [`examples/Serial/`](examples/Serial/) |
+| CDC Control / Data（ACM） | `0x02`/`0x0a` | ライブラリAPI — `EspUsbHostCdcSerial`、Arduino `Stream`/`Print` 互換。1デバイスに複数CDCポート可 | [`examples/Serial/`](examples/Serial/) |
 | HID | `0x03` | ライブラリAPI — キーボード・マウス・ゲームパッド・コンシューマー/システムコントロール・ベンダーレポート | [`examples/HID/`](examples/HID/) |
 | **Printer** | **`0x07`** | **example — ESC/POSレシートプリンタをvendor bulk/control API上で** | [`examples/Vendor/EspUsbHostPrinterEscPos/`](examples/Vendor/EspUsbHostPrinterEscPos/) |
 | Mass Storage（BOT/SCSI） | `0x08` | ライブラリAPI — ブロックI/OとFatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
@@ -133,7 +133,7 @@ interface classが役に立たないデバイスも同じ道筋で扱います�
 | クラス | 状況 |
 |--------|------|
 | HID — キーボード・マウス・ゲームパッド・コンシューマーコントロール・システムコントロール・ベンダー | ✅ 実装済み |
-| USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能 | ✅ 実装済み |
+| USBシリアル — CDC ACM・VCP（FTDI・CP210x・CH34x）を`EspUsbHostCdcSerial`で統一対応。baud、データビット、パリティ、ストップビットを設定可能。1つの複合デバイス上の複数CDCポートにも対応 | ✅ 実装済み |
 | USB MIDI | ✅ 実装済み |
 | Vendor-specific bulk/control | ✅ 基本実装済み。明示的なinterface claim、bulk IN/OUT（同期と非同期キュー）、自動ZLP、EP0 vendor IN/OUT requestに対応 |
 | CCID — スマートカードリーダー（bulkプロトコル） | ✅ 基本実装済み。interfaceの明示claim、class descriptorのparse、slot状態、power on/offとATR、ATRからのカード種別判定、APDU/XfrBlock送受信、escapeと生メッセージ、slot変化通知に対応。Sony RC-S300で確認済み。ICCD変種、チェイン応答（extended APDU）、PINパッド機能は対象外 |
@@ -623,39 +623,68 @@ false を返します。
 
 ```cpp
 bool sendSerial(const uint8_t *data, size_t length,
-                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool sendSerial(const char *text,
-                uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                uint8_t port = ESP_USB_HOST_ANY_PORT);
+bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                 uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 bool setSerialBaudRate(uint32_t baud,
-                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool setSerialConfig(const EspUsbHostSerialConfig &config,
-                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                     uint8_t port = ESP_USB_HOST_ANY_PORT);
+uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+
+uint8_t serialPortCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+bool getSerialPortInfo(EspUsbHostSerialPortInfo &info,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 ```
+
+シリアル系のAPIは、第1にデバイスの`address`、第2にそのデバイス**内**の`port`を取ります（[1デバイスに複数のCDCポート](#1デバイスに複数のcdcポート)を参照）。`port`を`ESP_USB_HOST_ANY_PORT`のままにすると、そのデバイスで最初に使用可能なポートを選びます。単一ポートのデバイスではこれがそのまま唯一のポートです。
 
 `sendSerial()` は完了を待ちません。呼び出しごとに転送を確保してドライバへ渡すだけです。ターミナル程度の流量なら問題ありませんが、endpointより速く書き続けるとin-flightが増え続けてDMAメモリを食い潰します。有限に抑える形が非同期CDC OUTキューで、vendor bulkのものと同じ形をしています。
 
 ```cpp
 bool serialWriteQueueBegin(size_t depth, size_t bufferBytes,
-                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                           uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT);
+void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                         uint8_t port = ESP_USB_HOST_ANY_PORT);
+bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 
 uint8_t *serialWriteAcquire(size_t *capacity, uint32_t timeoutMs = 0,
-                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                            uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool serialWriteSubmit(uint8_t *buffer, size_t length,
-                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-void serialWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT);
+void serialWriteRelease(uint8_t *buffer,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint8_t port = ESP_USB_HOST_ANY_PORT);
 bool serialWriteAsync(const uint8_t *data, size_t length, uint32_t timeoutMs = 0,
-                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t port = ESP_USB_HOST_ANY_PORT);
 
-size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-bool serialWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                          uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                            uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+bool serialWriteFlush(uint32_t timeoutMs,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                      uint8_t port = ESP_USB_HOST_ANY_PORT);
+EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                                            uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT);
 ```
+
+キューはデバイス単位ではなくポート単位です。各ポートが自分のOUT endpointを持つため、2ポートのデバイスで両方に押し戻しをかけたい場合は、`serialWriteQueueBegin()`をポートごとに1回ずつ呼び、transferプールを2つ分持つことになります。
 
 `serialWriteQueueBegin()` は `bufferBytes` サイズの再利用可能な transfer を `depth` 個だけ事前確保します（depthの上限は `ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH`）。submitは待ちませんが、プールが埋まると `serialWriteAcquire()` が `timeoutMs` までブロックします。この待ちが押し戻しです。キューが有効な間は `sendSerial()` と `EspUsbHostCdcSerial::write()` もこのキューを通るので、既存コードもそのままこのペース制御を受けます（スロットサイズを超える書き込みは従来の単発経路のままです）。`EspUsbHostCdcSerial::flush()` はキューが有効なときだけドレインを待ちます。`serialWriteFlush()` は完了コールバックが動く場所であるUSB client taskからは呼べません。
 
@@ -684,6 +713,9 @@ bool    setRts(bool enable);
 void    setAddress(uint8_t address);
 uint8_t address() const;
 void    clearAddress();
+void    setPort(uint8_t port);
+uint8_t port() const;
+void    clearPort();
 ```
 
 受信バイトは、USB client taskが書き込み`read()`が読み出すリングバッファに入ります。既定は512バイトで、溢れると最も古いバイトを黙って捨てるため、`read()`が呼ばれない時間がリングの容量を超えるとデータを失います。921600 baudでは512バイトは約5.5ms分でしかなく、バースト的なデバイス（1秒分のNMEAをまとめて出すGPS、起動時のログダンプなど）は平均レートが低くても超えることがあります。`setRxBufferSize()`はインスタンス毎にリングサイズを指定します。attach中はUSB client taskが書き込んでいるため、`begin()`の前（または`end()`の後）に呼ぶ必要があります。attach中・`size`が2未満・確保失敗のいずれかで`false`を返します：
@@ -713,6 +745,56 @@ void setup() {
 `EspUsbHostSerialConfig`のデフォルトは115200 8N1です。`dataBits`は5〜8ビット、`parity`は`ESP_USB_HOST_SERIAL_PARITY_NONE`、`ODD`、`EVEN`、`MARK`、`SPACE`、`stopBits`は`ESP_USB_HOST_SERIAL_STOP_BITS_1`、`1_5`、`2`を指定できます。
 
 複数のUSBシリアルデバイスが接続されている場合は、`onDeviceConnected`内で`setAddress()`を呼び特定デバイスにバインドします。
+
+#### 1デバイスに複数のCDCポート
+
+複合デバイスは、CDC ACM functionを複数持つことができます。ケーブル1本で2つ以上のUSBシリアルポートを見せる形です。ホスト側はこの各functionをそのデバイスの**ポート**として扱い、configuration descriptorに現れる順（＝デバイス側が登録した順）に0から番号を振ります。CDC Union functional descriptorを持つデバイスではそれを使ってdata interfaceと対応付けるため、functionが descriptor 上で入り組んでいても正しくペアリングされます。
+
+ポートごとに`EspUsbHostCdcSerial`を1つバインドします：
+
+```cpp
+EspUsbHost usb;
+EspUsbHostCdcSerial portA(usb);
+EspUsbHostCdcSerial portB(usb);
+
+usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device) {
+  if (usb.serialPortCount(device.address) < 2) {
+    return;
+  }
+  portA.setAddress(device.address);
+  portA.setPort(0);
+  portA.begin(115200);
+
+  portB.setAddress(device.address);
+  portB.setPort(1);
+  portB.begin(115200);
+});
+```
+
+`serialPortCount()`は、ホストがcontrol interfaceをclaimできたポート数を返します。data interfaceが立ち上がらなかったポートもここには数えられるので、実際にデータを流せるかどうかは`getSerialPortInfo().ready`で判定します。`getSerialPortInfo()`はポート番号をinterface番号・endpoint番号に対応付けます。見た目が同じACM functionを見分ける手掛かりになります：
+
+```cpp
+EspUsbHostSerialPortInfo info;
+if (usb.getSerialPortInfo(info, address, 1)) {
+  Serial.printf("port %u control_iface=%u data_iface=%u out_ep=0x%02x ready=%d\n",
+                info.port, info.controlInterfaceNumber,
+                info.dataInterfaceNumber, info.outEndpointAddress, info.ready);
+}
+```
+
+`printDeviceInfo()`も同じ内容を`Serial port N ...`の行として出力します。
+
+受信データは到着したIN endpointで振り分けるため、各ポートのバイト列はそのポートにバインドされた`EspUsbHostCdcSerial`にだけ届きます。`onSerialData()`コールバックには`EspUsbHostSerialData::port`として同じ番号が渡ります。line coding・DTR/RTS・書き込みキューもポート単位です。`portB`に対する`setBaudRate()`は`portA`に影響しません。
+
+`setPort()`を呼ばない`EspUsbHostCdcSerial`は、そのデバイスで最初に使用可能なポートに追従します。通常のデバイスではポート0で、送信側が`ESP_USB_HOST_ANY_PORT`を解決する先と同じポートです。単一ポートのデバイスが流してくるのはまさにそのポートなので、マルチポート対応前に書かれたスケッチの挙動は変わりません。
+
+1ポートあたりhost controllerのendpoint channelを3本（notification IN、bulk IN、bulk OUT）消費します。実際に使えるポート数を決めているのはこの本数で、ESP32-S3は全部で8本です。`ESP_USB_HOST_MAX_SERIAL_PORTS`（既定2）はライブラリがデバイスごとに追跡するポート数の上限で、これを超えたfunctionはログに警告を出したうえでclaimしません。channel数に余裕のあるcontrollerで増やす場合は、上の他のコンパイル時定数と同じ注意点のもと、スケッチの`build_opt.h`で指定します：
+
+```
+-DESP_USB_HOST_MAX_SERIAL_PORTS=3
+```
+
+vendor系のUSBシリアル変換（FTDI・CP210x・CH34x・PL2303）は常に単一ポートで、`vendorSerial = true`のポート0として報告されます。
 
 ### Vendor bulk/control
 
