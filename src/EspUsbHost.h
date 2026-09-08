@@ -101,6 +101,11 @@ static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_MUTE = 0x00e2;
 static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_UP = 0x00e9;
 static constexpr uint16_t ESP_USB_HOST_CONSUMER_CONTROL_VOLUME_DOWN = 0x00ea;
 static constexpr uint8_t ESP_USB_HOST_ANY_ADDRESS = 0xff;
+// Serial-port selector for the CDC APIs: the first ready port of the selected
+// device. Ports are numbered from 0 in the order their CDC functions appear in
+// the configuration descriptor, which is the same order the device side
+// registered them in.
+static constexpr uint8_t ESP_USB_HOST_ANY_PORT = 0xff;
 using EspUsbHostListenerId = uint32_t;
 static constexpr EspUsbHostListenerId ESP_USB_HOST_INVALID_LISTENER_ID = 0;
 #ifndef ESP_USB_HOST_MAX_LISTENERS_PER_EVENT
@@ -143,6 +148,18 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_TERMINALS = 8;
 static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
+// CDC-ACM serial ports tracked per device. A composite device can publish
+// several ACM functions -- a control + data interface pair each -- and the host
+// spends three endpoint channels on every one of them (notification IN, bulk IN,
+// bulk OUT), so two ports already take most of an ESP32-S3's eight-channel HCD.
+// Ports past this count are left unclaimed with a warning. Raise it on a
+// controller with more channels the same way as the constants above, from the
+// sketch's build_opt.h as -DESP_USB_HOST_MAX_SERIAL_PORTS=...
+#ifndef ESP_USB_HOST_MAX_SERIAL_PORTS
+#define ESP_USB_HOST_MAX_SERIAL_PORTS 2
+#endif
+static_assert(ESP_USB_HOST_MAX_SERIAL_PORTS >= 1 && ESP_USB_HOST_MAX_SERIAL_PORTS <= 8,
+              "ESP_USB_HOST_MAX_SERIAL_PORTS must be between 1 and 8");
 static constexpr size_t ESP_USB_HOST_MAX_NETWORK_INTERFACES = 4;
 // Preferred bulk-IN NTB receive buffer. Matches TinyUSB's default
 // CFG_TUD_NCM_IN_NTB_MAX_SIZE (3200) so a whole device->host NTB fits in one
@@ -727,8 +744,32 @@ struct EspUsbHostSerialData
 {
   uint8_t address = 0;
   uint8_t interfaceNumber = 0;
+  // Which CDC port of the device this data came from, numbered from 0 in
+  // descriptor order. Always 0 for a single-port device or a vendor VCP.
+  uint8_t port = 0;
   const uint8_t *data = nullptr;
   size_t length = 0;
+};
+
+// One CDC-ACM (or vendor VCP) serial port of one device. Read with
+// EspUsbHost::getSerialPortInfo() to map a port index onto the interface and
+// endpoint numbers a device published, which is what lets a sketch tell two
+// otherwise identical ACM functions apart.
+struct EspUsbHostSerialPortInfo
+{
+  uint8_t address = 0;
+  uint8_t port = 0;
+  uint8_t controlInterfaceNumber = 0xff;
+  uint8_t dataInterfaceNumber = 0xff;
+  uint8_t inEndpointAddress = 0;
+  uint8_t outEndpointAddress = 0;
+  uint16_t outPacketSize = 0;
+  // A CH340 / CP210x / FTDI / PL2303 bridge driven through its vendor protocol
+  // rather than a standard CDC-ACM function. Such a bridge is always port 0 and
+  // is the only port of its device.
+  bool vendorSerial = false;
+  // Both directions are claimed and the port can carry data.
+  bool ready = false;
 };
 
 struct EspUsbHostMidiMessage
@@ -1517,6 +1558,7 @@ void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostNetworkInterfaceInfo &network, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostSerialPortInfo &port, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
@@ -1752,14 +1794,43 @@ public:
                              size_t *actualLength = nullptr,
                              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                              uint32_t timeoutMs = ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS);
-  bool sendSerial(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool sendSerial(const char *text, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-  bool setSerialBaudRate(uint32_t baud, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Every serial call takes the device address first and the port within that
+  // device second. A composite device can publish more than one CDC-ACM function
+  // (two USB-serial ports over one cable); ports are numbered from 0 in the order
+  // their functions appear in the configuration descriptor. Leaving port at
+  // ESP_USB_HOST_ANY_PORT picks the device's first ready port, which is what a
+  // single-port device -- and every sketch written before multi-port support --
+  // gets.
+  bool sendSerial(const uint8_t *data,
+                  size_t length,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint8_t port = ESP_USB_HOST_ANY_PORT);
+  bool sendSerial(const char *text,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                  uint8_t port = ESP_USB_HOST_ANY_PORT);
+  bool serialReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                   uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+  // How many CDC-ACM (or vendor VCP) ports the host took a control interface for.
+  // 0 when the device has no serial function, or when they all fell past
+  // ESP_USB_HOST_MAX_SERIAL_PORTS. A port whose data interface or endpoints did
+  // not come up is still counted here; getSerialPortInfo().ready is what says
+  // whether a port can carry data.
+  uint8_t serialPortCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Interface and endpoint numbers behind one port index, so a sketch can match a
+  // port against the descriptor (or against an iInterface name it read itself).
+  bool getSerialPortInfo(EspUsbHostSerialPortInfo &info,
+                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                         uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+  bool setSerialBaudRate(uint32_t baud,
+                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                         uint8_t port = ESP_USB_HOST_ANY_PORT);
+  bool setSerialConfig(const EspUsbHostSerialConfig &config,
+                       uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                       uint8_t port = ESP_USB_HOST_ANY_PORT);
   // Max packet size of the CDC data OUT endpoint, or 0 when no serial device is
   // ready. Needed by callers that must terminate a transfer on a packet boundary.
-  uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                               uint8_t port = ESP_USB_HOST_ANY_PORT) const;
 
   // Asynchronous CDC OUT queue. Without it, sendSerial() allocates a transfer per
   // call and never applies backpressure, so a writer that outruns the bus grows
@@ -1776,27 +1847,47 @@ public:
   //   size_t capacity = 0;
   //   uint8_t *buffer = usb.serialWriteAcquire(&capacity, 100);
   //   if (buffer) { size_t n = encode(buffer, capacity); usb.serialWriteSubmit(buffer, n); }
+  //
+  // The queue belongs to one port, not to the device: each port has its own OUT
+  // endpoint, so a two-port device that wants backpressure on both calls
+  // serialWriteQueueBegin() once per port and pays for two transfer pools.
   bool serialWriteQueueBegin(size_t depth,
                              size_t bufferBytes,
-                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t port = ESP_USB_HOST_ANY_PORT);
+  void serialWriteQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                           uint8_t port = ESP_USB_HOST_ANY_PORT);
+  bool serialWriteQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t port = ESP_USB_HOST_ANY_PORT) const;
   uint8_t *serialWriteAcquire(size_t *capacity,
                               uint32_t timeoutMs = 0,
-                              uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  bool serialWriteSubmit(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  void serialWriteRelease(uint8_t *buffer, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                              uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                              uint8_t port = ESP_USB_HOST_ANY_PORT);
+  bool serialWriteSubmit(uint8_t *buffer,
+                         size_t length,
+                         uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                         uint8_t port = ESP_USB_HOST_ANY_PORT);
+  void serialWriteRelease(uint8_t *buffer,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                          uint8_t port = ESP_USB_HOST_ANY_PORT);
   // Copies into a pooled buffer and submits it. Fails when length exceeds the
   // per-slot buffer size; the caller decides how to split.
   bool serialWriteAsync(const uint8_t *data,
                         size_t length,
                         uint32_t timeoutMs = 0,
-                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-  size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-  bool serialWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
-  EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
-  void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint8_t port = ESP_USB_HOST_ANY_PORT);
+  size_t serialWritePending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                            uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+  size_t serialWriteQueueFree(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                              uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+  bool serialWriteFlush(uint32_t timeoutMs,
+                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                        uint8_t port = ESP_USB_HOST_ANY_PORT);
+  EspUsbHostSerialWriteStats serialWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                                              uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+  void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t port = ESP_USB_HOST_ANY_PORT);
 
   bool midiReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
@@ -2248,6 +2339,44 @@ private:
     uint8_t clockSourceId = 0;
   };
 
+  // One CDC-ACM function (control + data interface pair), or the single VCP of a
+  // vendor USB-serial bridge. Everything a serial port owns lives here rather
+  // than on DeviceState, so a composite device with two ACM functions keeps two
+  // independent line codings, OUT endpoints and write queues instead of the
+  // second function overwriting the first.
+  struct SerialPortState
+  {
+    bool inUse = false;
+    bool hasControlInterface = false;
+    bool hasDataInterface = false;
+    // SET_LINE_CODING / SET_CONTROL_LINE_STATE have been sent for this port.
+    bool configured = false;
+    // Driven through a vendor protocol (CH340 / CP210x / FTDI / PL2303) rather
+    // than CDC-ACM class requests.
+    bool vendorSerial = false;
+    uint8_t controlInterfaceNumber = 0xff;
+    // Learned from the CDC Union functional descriptor when the device provides
+    // one, otherwise from the next CDC-DATA interface after the control one.
+    uint8_t dataInterfaceNumber = 0xff;
+    bool hasInEndpoint = false;
+    uint8_t inEndpointAddress = 0;
+    bool hasOutEndpoint = false;
+    uint8_t outEndpointAddress = 0;
+    uint16_t outPacketSize = 0;
+    EspUsbHostSerialConfig config;
+    bool dtr = true;
+    bool rts = true;
+    // Asynchronous CDC OUT queue, same shape as the vendor bulk OUT queue.
+    bool outQueueActive = false;
+    uint8_t outQueueDepth = 0;
+    size_t outBufferBytes = 0;
+    usb_transfer_t *outTransfers[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
+    uint8_t outSlotState[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
+    SemaphoreHandle_t outFreeSlots = nullptr;
+    bool outHalted = false;
+    EspUsbHostSerialWriteStats writeStats;
+  };
+
   struct DeviceState
   {
     bool inUse = false;
@@ -2296,26 +2425,14 @@ private:
     bool hasVendorOutEndpoint = false;
     uint8_t vendorOutEndpointAddress = 0;
     uint16_t vendorOutPacketSize = 0;
-    bool hasCdcControlInterface = false;
-    bool hasCdcDataInterface = false;
-    bool cdcConfigured = false;
-    uint8_t cdcControlInterfaceNumber = 0;
-    uint8_t cdcDataInterfaceNumber = 0;
-    bool hasSerialOutEndpoint = false;
-    uint8_t serialOutEndpointAddress = 0;
-    uint16_t serialOutPacketSize = 0;
+    // CDC-ACM / VCP ports, filled in descriptor order. serialPortCount counts the
+    // slots actually populated; ports the device published beyond
+    // ESP_USB_HOST_MAX_SERIAL_PORTS are left unclaimed.
+    SerialPortState serialPorts[ESP_USB_HOST_MAX_SERIAL_PORTS];
+    uint8_t serialPortCount = 0;
+    // Line coding a sketch chose before the device enumerated, applied to every
+    // port of this device as its control interface is claimed.
     EspUsbHostSerialConfig serialConfig;
-    // Asynchronous CDC OUT queue, same shape as the vendor bulk OUT queue below.
-    bool serialOutQueueActive = false;
-    uint8_t serialOutQueueDepth = 0;
-    size_t serialOutBufferBytes = 0;
-    usb_transfer_t *serialOutTransfers[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
-    uint8_t serialOutSlotState[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
-    SemaphoreHandle_t serialOutFreeSlots = nullptr;
-    bool serialOutHalted = false;
-    EspUsbHostSerialWriteStats serialWriteStats;
-    bool serialDtr = true;
-    bool serialRts = true;
     bool hasVendorSerialInterface = false;
     bool vendorSerialSupported = false;
     uint8_t vendorSerialInterfaceNumber = 0;
@@ -2584,8 +2701,28 @@ private:
   DeviceState *findDevice(uint8_t address);
   const DeviceState *findDevice(uint8_t address) const;
   DeviceState *findDeviceByHandle(usb_device_handle_t handle);
-  DeviceState *findSerialDevice(uint8_t address);
-  const DeviceState *findSerialDevice(uint8_t address) const;
+  DeviceState *findSerialDevice(uint8_t address, uint8_t port = ESP_USB_HOST_ANY_PORT);
+  const DeviceState *findSerialDevice(uint8_t address, uint8_t port = ESP_USB_HOST_ANY_PORT) const;
+  // Resolves (address, port) to one port's state, optionally handing back the
+  // device that owns it. ESP_USB_HOST_ANY_PORT picks the device's first ready
+  // port; a device with no ready port is skipped when the address is
+  // ESP_USB_HOST_ANY_ADDRESS, exactly as findSerialDevice() always behaved.
+  SerialPortState *findSerialPort(uint8_t address, uint8_t port, DeviceState **deviceOut = nullptr);
+  const SerialPortState *findSerialPort(uint8_t address, uint8_t port, const DeviceState **deviceOut = nullptr) const;
+  // Port slot for a newly seen CDC control interface, or nullptr once
+  // ESP_USB_HOST_MAX_SERIAL_PORTS slots are taken.
+  SerialPortState *allocateSerialPort(DeviceState &device);
+  // Port that owns an interface number as its data (or vendor VCP) interface.
+  SerialPortState *serialPortForDataInterface(DeviceState &device, uint8_t interfaceNumber);
+  SerialPortState *serialPortForControlInterface(DeviceState &device, uint8_t interfaceNumber);
+  // The port still waiting for its data interface: the one whose Union functional
+  // descriptor named this interface, else the most recent claimed control
+  // interface that has no data interface yet (devices that omit the Union pair
+  // their interfaces by descriptor order).
+  SerialPortState *pendingSerialPort(DeviceState &device, uint8_t interfaceNumber);
+  // Port that owns a claimed IN or OUT endpoint address.
+  SerialPortState *serialPortForEndpoint(DeviceState &device, uint8_t endpointAddress);
+  uint8_t serialPortIndex(const DeviceState &device, const SerialPortState &port) const;
   DeviceState *findMidiDevice(uint8_t address);
   const DeviceState *findMidiDevice(uint8_t address) const;
   DeviceState *findAudioOutputDevice(uint8_t address);
@@ -2640,11 +2777,13 @@ private:
   bool vendorInterfaceEligible(const DeviceState &device,
                                const EspUsbHostInterfaceInfo &intf,
                                uint8_t interfaceNumber) const;
-  int serialOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
-  int serialOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
-  bool submitSerialOutSlot(DeviceState &device, int slot, size_t length);
-  void releaseSerialOutQueue(DeviceState &device);
-  void serialDrainOut(DeviceState &device);
+  int serialOutSlotOf(const SerialPortState &port, const uint8_t *buffer) const;
+  int serialOutSlotOfTransfer(const SerialPortState &port, const usb_transfer_t *transfer) const;
+  bool submitSerialOutSlot(DeviceState &device, SerialPortState &port, int slot, size_t length);
+  void releaseSerialOutQueue(SerialPortState &port);
+  void releaseSerialOutQueues(DeviceState &device);
+  void serialDrainOut(SerialPortState &port);
+  void serialDrainOutAll(DeviceState &device);
   int vendorOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
   int vendorOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   bool submitVendorOutSlot(DeviceState &device, int slot, size_t length);
@@ -2660,8 +2799,8 @@ private:
   bool drainClientTransfers(uint32_t timeoutMs);
   bool releaseClientResources();
   bool uninstallHostLibrary(uint32_t timeoutMs);
-  void configureCdcAcm(DeviceState &device);
-  void configureVendorSerial(DeviceState &device);
+  void configureCdcAcm(DeviceState &device, SerialPortState &port);
+  void configureVendorSerial(DeviceState &device, SerialPortState &port);
   bool submitInputTransfer(EndpointState &endpoint);
   bool submitHIDReportDescriptorRequest(const HIDReportDescriptorState &descriptor);
   void submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_t interfaceNumber);
@@ -2844,6 +2983,10 @@ private:
   static constexpr uint8_t ESP_USB_HOST_MIDI_ENDPOINT_IN = 1;
   static constexpr uint8_t ESP_USB_HOST_MIDI_ENDPOINT_OUT = 2;
   uint8_t currentMidiEndpointDirection_ = ESP_USB_HOST_MIDI_ENDPOINT_NONE;
+  // Index into DeviceState::serialPorts for the CDC function whose descriptors
+  // are being walked, so the Union functional descriptor and the endpoints that
+  // follow land on the right port. 0xff outside a serial function.
+  uint8_t currentSerialPortIndex_ = 0xff;
 
   EspUsbHostKeyboardLayout keyboardLayout_ = ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US;
 
@@ -2937,16 +3080,28 @@ public:
   void setAddress(uint8_t address);
   uint8_t address() const;
   void clearAddress();
+  // Which CDC port of the selected device this Stream is bound to, numbered from
+  // 0 in descriptor order. Left at ESP_USB_HOST_ANY_PORT the object follows the
+  // device's first ready port, which is what a single-port device gives. Bind one
+  // object per port to drive a composite device that publishes several:
+  //
+  //   EspUsbHostCdcSerial portA(usb), portB(usb);
+  //   portA.setAddress(address); portA.setPort(0); portA.begin(115200);
+  //   portB.setAddress(address); portB.setPort(1); portB.begin(115200);
+  void setPort(uint8_t port);
+  uint8_t port() const;
+  void clearPort();
 
 private:
   void pushData(const uint8_t *data, size_t length);
-  bool accepts(uint8_t address) const;
+  bool accepts(uint8_t address, uint8_t port, uint8_t defaultPort) const;
   size_t nextIndex(size_t index) const;
   bool allocateRxBuffer();
   friend class EspUsbHost;
 
   EspUsbHost &host_;
   uint8_t address_ = ESP_USB_HOST_ANY_ADDRESS;
+  uint8_t port_ = ESP_USB_HOST_ANY_PORT;
   // Allocated by begin() (or early by setRxBufferSize()) rather than embedded,
   // so the size can be chosen from the sketch without changing sizeof(*this).
   uint8_t *rxBuffer_ = nullptr;
