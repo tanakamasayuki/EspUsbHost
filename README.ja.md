@@ -684,7 +684,7 @@ void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                            uint8_t port = ESP_USB_HOST_ANY_PORT);
 ```
 
-キューはデバイス単位ではなくポート単位です。各ポートが自分のOUT endpointを持つため、2ポートのデバイスで両方に押し戻しをかけたい場合は、`serialWriteQueueBegin()`をポートごとに1回ずつ呼び、transferプールを2つ分持つことになります。
+キューはデバイス単位ではなくポート単位です。各ポートが自分のOUT endpointを持つため、2ポートのデバイスで両方に押し戻しをかけたい場合は、`serialWriteQueueBegin()`をポートごとに1回ずつ呼び、transferプールを2つ分持つことになります。キューの状態はこの呼び出しで確保し、`serialWriteQueueEnd()`（またはデバイスの切断）で解放するので、キューを開かないポートにコストはかかりません。
 
 `serialWriteQueueBegin()` は `bufferBytes` サイズの再利用可能な transfer を `depth` 個だけ事前確保します（depthの上限は `ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH`）。submitは待ちませんが、プールが埋まると `serialWriteAcquire()` が `timeoutMs` までブロックします。この待ちが押し戻しです。キューが有効な間は `sendSerial()` と `EspUsbHostCdcSerial::write()` もこのキューを通るので、既存コードもそのままこのペース制御を受けます（スロットサイズを超える書き込みは従来の単発経路のままです）。`EspUsbHostCdcSerial::flush()` はキューが有効なときだけドレインを待ちます。`serialWriteFlush()` は完了コールバックが動く場所であるUSB client taskからは呼べません。
 
@@ -788,11 +788,16 @@ if (usb.getSerialPortInfo(info, address, 1)) {
 
 `setPort()`を呼ばない`EspUsbHostCdcSerial`は、そのデバイスで最初に使用可能なポートに追従します。通常のデバイスではポート0で、送信側が`ESP_USB_HOST_ANY_PORT`を解決する先と同じポートです。単一ポートのデバイスが流してくるのはまさにそのポートなので、マルチポート対応前に書かれたスケッチの挙動は変わりません。
 
-1ポートあたりhost controllerのendpoint channelを3本（notification IN、bulk IN、bulk OUT）消費します。実際に使えるポート数を決めているのはこの本数で、ESP32-S3は全部で8本です。`ESP_USB_HOST_MAX_SERIAL_PORTS`（既定2）はライブラリがデバイスごとに追跡するポート数の上限で、これを超えたfunctionはログに警告を出したうえでclaimしません。channel数に余裕のあるcontrollerで増やす場合は、上の他のコンパイル時定数と同じ注意点のもと、スケッチの`build_opt.h`で指定します：
+設定は必要ありません。使えるポート数を決めているのはhost controllerのchannel数で、`ESP_USB_HOST_MAX_SERIAL_PORTS`はその上限に合わせてあります。
 
-```
--DESP_USB_HOST_MAX_SERIAL_PORTS=3
-```
+| コントローラ | host channel | CDCポート数 |
+|---|---:|---:|
+| ESP32-S2・ESP32-S3・ESP32-P4のfull-speedポート | 8 | 3 |
+| ESP32-P4のhigh-speedポート | 16 | 7 |
+
+1ポートが使うのはbulk INとbulk OUTの2本で、これに加えてデバイスごとにEP0が1本使います。ライブラリがclaimするのはCDC functionのdata interfaceだけです。control interfaceは`wIndex`にそのinterfaceを入れたEP0経由で駆動し、`SET_LINE_CODING`と`SET_CONTROL_LINE_STATE`にはそれで足ります。そのため`printDeviceInfo()`ではACM control interfaceが`claimed=no`と表示されます。このinterfaceが持つendpointはnotificationのinterrupt INだけで、ライブラリはそこを使っていないため、claimすると誰も読まないpipeにchannelを1本払うことになるからです。
+
+ポート数を超えたfunctionはログに警告を出したうえでclaimしません。実際にこれが起きるのは、そもそもcontrollerが抱えきれない数のポートを提示するデバイスの場合だけです。
 
 vendor系のUSBシリアル変換（FTDI・CP210x・CH34x・PL2303）は常に単一ポートで、`vendorSerial = true`のポート0として報告されます。
 

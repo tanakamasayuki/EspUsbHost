@@ -147,19 +147,25 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 // Clock Source carries a streaming interface's sample rate.
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_TERMINALS = 8;
-static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 4;
-// CDC-ACM serial ports tracked per device. A composite device can publish
-// several ACM functions -- a control + data interface pair each -- and the host
-// spends three endpoint channels on every one of them (notification IN, bulk IN,
-// bulk OUT), so two ports already take most of an ESP32-S3's eight-channel HCD.
-// Ports past this count are left unclaimed with a warning. Raise it on a
-// controller with more channels the same way as the constants above, from the
-// sketch's build_opt.h as -DESP_USB_HOST_MAX_SERIAL_PORTS=...
-#ifndef ESP_USB_HOST_MAX_SERIAL_PORTS
-#define ESP_USB_HOST_MAX_SERIAL_PORTS 2
+// EspUsbHostCdcSerial objects that can be attached to one host at a time. Eight
+// because a single device can now publish up to seven CDC ports and a sketch may
+// want a Stream on each of them, with room left for a second device. Each slot is
+// one pointer, so the array costs 32 bytes for the whole host.
+static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 8;
+// CDC-ACM serial ports tracked per device. What actually caps this is the host
+// controller's channel count, not the array: the library claims only the data
+// interface of a CDC function and drives the control interface over EP0, so a
+// port costs two channels (bulk IN + bulk OUT) and one more goes to the device's
+// EP0. soc/usb_dwc_cfg.h gives eight channels on the S2, the S3 and the P4's
+// full-speed controller, and sixteen on the P4's high-speed one, which works out
+// to three ports and seven ports. The array is sized to those maxima so there is
+// nothing to configure: a port is 32 bytes, so even the seven-port array costs
+// less static RAM than the old single-port implementation did.
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#define ESP_USB_HOST_MAX_SERIAL_PORTS 7
+#else
+#define ESP_USB_HOST_MAX_SERIAL_PORTS 3
 #endif
-static_assert(ESP_USB_HOST_MAX_SERIAL_PORTS >= 1 && ESP_USB_HOST_MAX_SERIAL_PORTS <= 8,
-              "ESP_USB_HOST_MAX_SERIAL_PORTS must be between 1 and 8");
 static constexpr size_t ESP_USB_HOST_MAX_NETWORK_INTERFACES = 4;
 // Preferred bulk-IN NTB receive buffer. Matches TinyUSB's default
 // CFG_TUD_NCM_IN_NTB_MAX_SIZE (3200) so a whole device->host NTB fits in one
@@ -2348,6 +2354,27 @@ private:
   // than on DeviceState, so a composite device with two ACM functions keeps two
   // independent line codings, OUT endpoints and write queues instead of the
   // second function overwriting the first.
+  // Asynchronous CDC OUT queue for one port, allocated by serialWriteQueueBegin()
+  // and released when the queue ends or the device goes away. It is roughly three
+  // times the size of the rest of a port, and most ports never open one, so
+  // keeping it off SerialPortState is what lets a device carry as many ports as
+  // the controller has channels for without paying for queues nobody asked for.
+  // serialWriteQueueBegin() already allocates a transfer pool and a semaphore, so
+  // this rides along with allocations that were there.
+  struct SerialOutQueue
+  {
+    // Cleared by serialWriteQueueEnd() before draining, so pending() can reach
+    // zero while the pool is still being handed back.
+    bool active = false;
+    uint8_t depth = 0;
+    size_t bufferBytes = 0;
+    usb_transfer_t *transfers[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
+    uint8_t slotState[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
+    SemaphoreHandle_t freeSlots = nullptr;
+    bool halted = false;
+    EspUsbHostSerialWriteStats stats;
+  };
+
   struct SerialPortState
   {
     bool inUse = false;
@@ -2370,15 +2397,8 @@ private:
     EspUsbHostSerialConfig config;
     bool dtr = true;
     bool rts = true;
-    // Asynchronous CDC OUT queue, same shape as the vendor bulk OUT queue.
-    bool outQueueActive = false;
-    uint8_t outQueueDepth = 0;
-    size_t outBufferBytes = 0;
-    usb_transfer_t *outTransfers[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
-    uint8_t outSlotState[ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH] = {};
-    SemaphoreHandle_t outFreeSlots = nullptr;
-    bool outHalted = false;
-    EspUsbHostSerialWriteStats writeStats;
+    // nullptr until serialWriteQueueBegin() opens a queue on this port.
+    SerialOutQueue *outQueue = nullptr;
   };
 
   struct DeviceState
@@ -2781,8 +2801,8 @@ private:
   bool vendorInterfaceEligible(const DeviceState &device,
                                const EspUsbHostInterfaceInfo &intf,
                                uint8_t interfaceNumber) const;
-  int serialOutSlotOf(const SerialPortState &port, const uint8_t *buffer) const;
-  int serialOutSlotOfTransfer(const SerialPortState &port, const usb_transfer_t *transfer) const;
+  int serialOutSlotOf(const SerialOutQueue &queue, const uint8_t *buffer) const;
+  int serialOutSlotOfTransfer(const SerialOutQueue &queue, const usb_transfer_t *transfer) const;
   bool submitSerialOutSlot(DeviceState &device, SerialPortState &port, int slot, size_t length);
   void releaseSerialOutQueue(SerialPortState &port);
   void releaseSerialOutQueues(DeviceState &device);
