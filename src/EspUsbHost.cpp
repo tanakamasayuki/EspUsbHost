@@ -8229,12 +8229,34 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
     }
     const bool isCdcAcmControlInterface = isCdcAcmFunction &&
                                           device->serialPortCount < ESP_USB_HOST_MAX_SERIAL_PORTS;
+    if (isCdcAcmControlInterface)
+    {
+      // The control interface is recorded but deliberately NOT claimed. Claiming
+      // is what allocates host channels for an interface's endpoints, and the
+      // only endpoint here is the notification interrupt IN, which this library
+      // never transfers on. ESP-IDF requires a claim only "before attempting to
+      // communicate with any of its endpoints"; a control transfer needs the
+      // device opened, not the interface claimed, so SET_LINE_CODING and
+      // SET_CONTROL_LINE_STATE still reach it over EP0 with wIndex set below.
+      // Skipping the claim takes a port from three channels to two, which is what
+      // lets an eight-channel controller carry three ports instead of two.
+      SerialPortState *port = allocateSerialPort(*device);
+      if (port)
+      {
+        port->hasControlInterface = true;
+        port->controlInterfaceNumber = currentInterfaceNumber_;
+        currentSerialPortIndex_ = serialPortIndex(*device, *port);
+        ESP_LOGI(TAG, "CDC control interface ready: port=%u iface=%u (not claimed; EP0 only)",
+                 currentSerialPortIndex_,
+                 port->controlInterfaceNumber);
+        configureCdcAcm(*device, *port);
+      }
+    }
     // Pairs with the control interface its Union functional descriptor named, or,
     // for a device that omits the Union, with the one it follows.
     const bool isCdcAcmDataInterface = currentInterfaceClass_ == USB_CLASS_CDC_DATA_VALUE &&
                                        pendingSerialPort(*device, currentInterfaceNumber_) != nullptr;
     if (currentInterfaceClass_ == USB_CLASS_HID_VALUE ||
-        isCdcAcmControlInterface ||
         isCdcAcmDataInterface ||
         isAudioControlInterface ||
         isAudioInterface ||
@@ -8284,21 +8306,7 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
           device->keyboardInterfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "Keyboard interface ready: iface=%u", device->keyboardInterfaceNumber);
         }
-        if (isCdcAcmControlInterface)
-        {
-          SerialPortState *port = allocateSerialPort(*device);
-          if (port)
-          {
-            port->hasControlInterface = true;
-            port->controlInterfaceNumber = currentInterfaceNumber_;
-            currentSerialPortIndex_ = serialPortIndex(*device, *port);
-            ESP_LOGI(TAG, "CDC control interface ready: port=%u iface=%u",
-                     currentSerialPortIndex_,
-                     port->controlInterfaceNumber);
-            configureCdcAcm(*device, *port);
-          }
-        }
-        else if (isCdcAcmDataInterface)
+        if (isCdcAcmDataInterface)
         {
           SerialPortState *port = pendingSerialPort(*device, currentInterfaceNumber_);
           if (port)
@@ -11971,7 +11979,20 @@ size_t EspUsbHost::estimatedHcdChannelCount(uint8_t address) const
 
 size_t EspUsbHost::maxEndpointChannelCount() const
 {
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  // The P4 has two host controllers with different channel counts, so this is a
+  // property of the port the sketch selected, not of the SoC: soc/usb_dwc_cfg.h
+  // gives OTG20_NUM_HOST_CHAN 16 for the high-speed controller and
+  // OTG11_NUM_HOST_CHAN 8 for the full-speed one. ESP_USB_HOST_PORT_DEFAULT maps
+  // to the high-speed controller here, the same way hostFifoCapacityLines() reads
+  // it. The experimental full-speed-only mode only changes how the high-speed
+  // port negotiates -- it is still OTG2.0 hardware with 16 channels -- so it
+  // deliberately does not enter into this.
+  return config_.port == ESP_USB_HOST_PORT_FULL_SPEED ? 8 : 16;
+#else
+  // S2 and S3 both define OTG_NUM_HOST_CHAN as 8.
   return 8;
+#endif
 }
 
 bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
