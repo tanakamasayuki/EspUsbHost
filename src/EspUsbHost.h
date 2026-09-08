@@ -2238,6 +2238,10 @@ public:
   size_t ep0ChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t hubEndpointChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   size_t estimatedHcdChannelCount(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Host channels the selected controller has. 8 on the ESP32-S2/S3 and on the
+  // ESP32-P4's full-speed port, 16 on the P4's high-speed port. One channel goes
+  // to each device's EP0, and usb_host_interface_claim() takes one per endpoint
+  // of the interface it claims, which is what estimatedHcdChannelCount() adds up.
   size_t maxEndpointChannelCount() const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
 
