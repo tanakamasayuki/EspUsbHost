@@ -132,6 +132,13 @@ def _serial_error_lines(
     return unexpected, known
 
 
+# Deliberately does NOT request `dut` (directly or transitively), and no other
+# autouse fixture here may either. Finalizers run in reverse setup order, and an
+# autouse fixture that pulls `dut` into its own setup drags dut's finalizer ahead
+# of this one -- so the audit would read *.log before the serial listener has
+# finished writing it, and silently lose the tail of every log. Autouse fixtures
+# within one conftest are set up in alphabetical order, so a future fixture named
+# earlier than this one is the likely way to break it by accident.
 @pytest.fixture(autouse=True)
 def serial_log_audit(request, test_case_tempdir):
     """Collect suspicious DUT and peer serial output without failing the test."""
