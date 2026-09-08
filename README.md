@@ -720,7 +720,7 @@ void serialWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                            uint8_t port = ESP_USB_HOST_ANY_PORT);
 ```
 
-The queue belongs to one port, not to the device: each port has its own OUT endpoint, so a two-port device that wants backpressure on both calls `serialWriteQueueBegin()` once per port and pays for two transfer pools.
+The queue belongs to one port, not to the device: each port has its own OUT endpoint, so a two-port device that wants backpressure on both calls `serialWriteQueueBegin()` once per port and pays for two transfer pools. The queue state is allocated by that call and released by `serialWriteQueueEnd()` (or by the device going away), so ports that never open one cost nothing.
 
 `serialWriteQueueBegin()` preallocates `depth` reusable transfers of `bufferBytes` each (max depth `ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH`). Submits never wait, but `serialWriteAcquire()` blocks up to `timeoutMs` once the pool is busy, and that wait is the backpressure. While the queue is active `sendSerial()` and `EspUsbHostCdcSerial::write()` route through it, so existing code inherits that pacing unchanged; writes longer than the slot size still take the one-shot path. `EspUsbHostCdcSerial::flush()` waits for the queue to drain, and does nothing without it. `serialWriteFlush()` cannot be called from the USB client task, because that is where completion callbacks run.
 
@@ -824,11 +824,16 @@ Received data is routed by the IN endpoint it arrived on, so each port's bytes r
 
 An `EspUsbHostCdcSerial` that never calls `setPort()` follows the device's first ready port — port 0 on any normal device, and the same port the write side resolves `ESP_USB_HOST_ANY_PORT` to. A single-port device delivers on exactly that port, so sketches written before multi-port support behave as they did.
 
-Each port costs three endpoint channels on the host controller (notification IN, bulk IN, bulk OUT), which is the real limit on how many are usable — an ESP32-S3 has eight channels in total. `ESP_USB_HOST_MAX_SERIAL_PORTS` (default 2) caps how many ports the library tracks per device; functions beyond it are left unclaimed with a warning in the log. Raise it on a controller with more channels through the sketch's `build_opt.h`, with the same caveats as the other compile-time limits above:
+There is nothing to configure. How many ports are usable is set by the host controller's channel budget, and `ESP_USB_HOST_MAX_SERIAL_PORTS` is simply sized to it:
 
-```
--DESP_USB_HOST_MAX_SERIAL_PORTS=3
-```
+| Controller | Host channels | CDC ports |
+|---|---:|---:|
+| ESP32-S2, ESP32-S3, ESP32-P4 full-speed port | 8 | 3 |
+| ESP32-P4 high-speed port | 16 | 7 |
+
+A port costs two channels — its bulk IN and bulk OUT — and each device's EP0 takes one more. The library claims only the data interface of a CDC function; the control interface is driven over EP0 with `wIndex` set to it, which is all `SET_LINE_CODING` and `SET_CONTROL_LINE_STATE` need. That is why an ACM control interface shows as `claimed=no` in `printDeviceInfo()`: its only endpoint is the notification interrupt IN, which this library does not use, so claiming it would spend a channel on a pipe nothing reads.
+
+Functions beyond the port count are left unclaimed with a warning in the log, which in practice only happens on a device that publishes more ports than the controller could carry anyway.
 
 A vendor USB-serial bridge (FTDI, CP210x, CH34x, PL2303) is always a single port, reported as port 0 with `vendorSerial = true`.
 

@@ -3,11 +3,15 @@
 状態:
 現状把握APIは実装済み。`endpointChannelCount()`、`managedEndpointCount()`、`ep0ChannelCount()`、`hubEndpointChannelCount()`、`estimatedHcdChannelCount()`、`maxEndpointChannelCount()`を公開し、claim成功/失敗ログとdevice info表示にも反映済み。
 
+`maxEndpointChannelCount()`が8固定だったのを修正済み（Unreleased）。channel数はcontrollerごとの値で、`soc/usb_dwc_cfg.h`ではS2/S3が8、ESP32-P4のfull-speed controllerが8、high-speed controllerが16。選択中のポートを見るようにした。
+
+CDCについてはカウントの正確性が実機で確認できた（Unreleased、CDC multi-port対応時）。P4のfull-speed host + 3ポートCDCデバイスで、descriptor上のendpointは9本（bulk 6 + notification interrupt 3）だが、claimするのはdata interfaceだけなのでbulk 6 + EP0 1 = 8本中7本。推定カウントどおり3ポートが上がった。control interfaceも claim していた頃の3 ch/ポート換算なら10本必要で3ポート目は上がらない。
+
 残作業:
-実験してカウントの正確性を確認する
-Hubのみ、HID、CDC、MSC、MIDI、Audioなどを順に追加
+CDC以外でカウントの正確性を確認する
+Hubのみ、HID、MSC、MIDI、Audioを順に追加
 推定カウントとESP-IDFの失敗ログを比較
-8 に近いところで失敗するのか、もっと早いのかを見る
+上限近くで失敗するのか、もっと早いのかを見る（S2/S3/P4-FSは8、P4-HSは16）
 
 どのタイミングで制御すべきか検討する
 interface_claim 前で止めるべきか
