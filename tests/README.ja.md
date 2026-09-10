@@ -42,7 +42,7 @@ TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 `tests/` ディレクトリから実行：
 
 ```sh
-# 既定の実行。testpaths の宣言どおり unit/ と peer/
+# 既定の実行。ファイル名が test_*.py のものすべて、つまり harness/ と unit/ と peer/
 uv run --env-file .env pytest
 
 # 層を指定して実行

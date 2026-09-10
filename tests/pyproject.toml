@@ -15,9 +15,10 @@ filterwarnings = [
     "ignore:record_xml_attribute is an experimental feature:pytest.PytestExperimentalApiWarning",
 ]
 addopts = "--save-state"
-# The default run is the automated layers. manual/ and probe/ are excluded by
-# naming as well -- manual test files do not start with test_, and probe/ has no
-# test files at all -- but saying so here means the default run does not depend
-# on that staying true. Naming a path explicitly still overrides this, which is
-# how a manual test is run: pytest manual/<name>/<name>.py
-testpaths = ["harness", "unit", "peer"]
+# No testpaths on purpose. What keeps manual/ and probe/ out of the default run
+# is that their test files do not start with test_, and that is the whole rule.
+# Declaring the paths as well would say the same thing a second way and add a
+# failure the naming rule does not have: a layer added later would be left out
+# silently, with the total unchanged so nothing looks different. It would also
+# hide the mistake it is meant to guard -- a file wrongly named test_*.py under
+# manual/ should join the run and be noticed, not be quietly skipped.

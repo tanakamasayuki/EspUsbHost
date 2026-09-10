@@ -47,7 +47,8 @@ this repository.
 From the `tests/` directory:
 
 ```sh
-# The default run: unit/ and peer/, as declared by testpaths
+# The default run: everything whose files are named test_*.py, which is
+# harness/, unit/ and peer/
 uv run --env-file .env pytest
 
 # Run only one layer
