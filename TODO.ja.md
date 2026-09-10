@@ -373,6 +373,26 @@ EspUsbDevice の指摘: **宣言すると後から足した層が黙って収集
 実測: 宣言なしの素の `pytest` は harness/unit/peer の40件ちょうどを集める（宣言時と同一）。
 `pytest manual/` は0件収集で exit 5、ファイル名指定なら収集される。
 
+クリーンフルテスト（終了条件、2026-09-10）:
+1回目 `pytest -q --clean` = **1 failed, 39 passed / 37分06秒**、逆順 22 passed。
+2回目 `pytest -q --clean` = **40 passed / 33分29秒**。**再現せず。**
+
+落ちたのは `peer/hid_keyboard/test_hid_keyboard.py::test_hid_keyboard` の
+チェック `shift_boot_reports` で、`device.expect_exact("SEND @ 1")` が30秒タイムアウト。
+単独実行は3/3 PASS。切り分けで分かったこと:
+**peer は `@` を受信して HID レポートを送っている**（DUT が `KEY @` を受信）ので RX 方向は動いていた。
+一方 **peer のシリアルログが0バイト**で TX 方向が1行も捕れていない。書き込み完了からテスト実行まで2秒。
+機序は特定できず。1回のみの発生で再現しないため、環境の一過性として記録する。
+
+**別件で見つかった構造上の弱点: 20モジュール中13が peer との準備確認を持っていない。**
+書き込み直後にいきなり peer へ書いている。準備待ちがあるのは
+`hid_keyboard_composite` / `hid_keyboard_nkro` / `usb_audio` / `usb_audio_uac2` /
+`usb_ncm` / `usb_ncm_throughput` / `usb_vendor` の7つだけ。
+ハンドシェイクの価値は「peer が生きている」ことではなく、**テストが依存する前に読み取り経路が動くことを証明する**点。
+これが無いと、モジュール最初の peer 待ちが失敗したとき
+「peer が言わなかった」のか「こちらが聞いていなかった」のか区別できない。今回まさにその状態だった。
+今回の失敗の原因と断定はできない（peer は受信できていた）ので、独立した改善として保留。
+
 作業事故:
 `git checkout <file>` で**未コミットのゲート化作業を消した**（`hid_mouse`）。HEAD にはゲート化前の版しか無く、
 checkout はそれで上書きする。会話の記録から復元できたが、以後は `git diff > patch` で退避してから触ること。
