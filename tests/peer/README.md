@@ -11,10 +11,19 @@ Arduino Core standard Device stack. A test pairs with the sibling
 (`usb_vendor`, `usb_ncm`, `usb_ncm_throughput`, `hid_keyboard_composite`,
 `hid_keyboard_nkro`, `usb_audio_uac2`); see [../TEST_PLAN.md](../TEST_PLAN.md).
 
+Each directory here is one module and holds **one test**, whose parts are written
+as named checks. Adding coverage means adding a check to the existing test, not a
+new test. The reasoning, the two exceptions and the reversed-checks audit are in
+[../TEST_PLAN.md](../TEST_PLAN.md), *How the tests are structured*.
+
 Run from `tests`:
 
 ```sh
 uv run --env-file .env pytest peer/
+
+# Same run with every module's checks back to front. A check that passes in only
+# one order is a design error; this costs no extra upload, so run it often.
+ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
 ```
 
 ## Hardware wiring

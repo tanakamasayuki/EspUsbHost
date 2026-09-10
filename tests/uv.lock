@@ -12,7 +12,7 @@ wheels = [
 ]
 
 [[package]]
-name = "demo-add-library-tests"
+name = "espusbhost-tests"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -19,7 +19,6 @@ Covered:
   decoding with an invalid layout
 """
 
-import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -27,29 +26,5 @@ REPO = HERE.parents[2]
 SRC = REPO / "src"
 
 
-def test_mouse_layout():
-    output = HERE / "output"
-    output.mkdir(exist_ok=True)
-
-    binary = output / "mouse_layout_test"
-    compile_result = subprocess.run(
-        [
-            "g++",
-            "-std=c++17",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-I",
-            str(SRC),
-            str(HERE / "mouse_layout_test.cpp"),
-            "-o",
-            str(binary),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert compile_result.returncode == 0, compile_result.stderr
-
-    run_result = subprocess.run([str(binary)], capture_output=True, text=True)
-    assert run_result.returncode == 0, run_result.stdout + run_result.stderr
-    print(run_result.stdout)
+def test_mouse_layout(build_and_run):
+    print(build_and_run("mouse_layout_test.cpp", includes=[SRC]))

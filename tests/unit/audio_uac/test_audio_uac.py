@@ -20,7 +20,6 @@ These are concatenated into ``output/espusbhost_audio_real.h`` and compiled with
 """
 
 import re
-import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -110,26 +109,12 @@ def _generate_real_header(dest: Path) -> None:
     dest.write_text("\n".join(parts))
 
 
-def test_audio_uac_decoding():
+def test_audio_uac_decoding(build_and_run):
     output = HERE / "output"
     output.mkdir(exist_ok=True)
     _generate_real_header(output / "espusbhost_audio_real.h")
 
-    binary = output / "audio_uac_test"
-    compile_result = subprocess.run(
-        [
-            "g++",
-            "-std=c++17",
-            "-Wall",
-            "-Wextra",
-            "-I", str(output),  # espusbhost_audio_real.h
-            str(HERE / "audio_uac_test.cpp"),
-            "-o", str(binary),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert compile_result.returncode == 0, compile_result.stderr
-
-    run_result = subprocess.run([str(binary)], capture_output=True, text=True)
-    assert run_result.returncode == 0, run_result.stdout + run_result.stderr
+    print(build_and_run(
+        "audio_uac_test.cpp",
+        includes=[output],  # espusbhost_audio_real.h
+    ))

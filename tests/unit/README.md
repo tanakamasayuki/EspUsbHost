@@ -9,6 +9,16 @@ serial port is required.
 uv run --env-file .env pytest unit/
 ```
 
+Each directory is one module holding one test, a `<name>_test.cpp`, and nothing
+else. The compile-and-run step is the `build_and_run` fixture in `conftest.py`,
+so a test file carries only what is specific to it: which directories to include
+and, where it matters, an extra flag. `keymap` passes `-funsigned-char` because
+plain `char` is unsigned on the Xtensa toolchain and signed on the host, and the
+tables are indexed by it.
+
+Compilation uses `-Wall -Wextra -Werror`: these tests compile the production
+headers directly, so a new warning in them fails here before it reaches a board.
+
 ## Tests
 
 - `keymap`: verifies the HID usage -> character conversion in

@@ -17,7 +17,6 @@ Covered:
   representable in 5 kHz units) and the full Full HD mode-set register stream
 """
 
-import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -25,29 +24,5 @@ REPO = HERE.parents[2]
 EXAMPLE = REPO / "examples" / "Vendor" / "EspUsbHostDisplayDl1xx"
 
 
-def test_dl1xx_protocol():
-    output = HERE / "output"
-    output.mkdir(exist_ok=True)
-
-    binary = output / "dl1xx_test"
-    compile_result = subprocess.run(
-        [
-            "g++",
-            "-std=c++17",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-I",
-            str(EXAMPLE),
-            str(HERE / "dl1xx_test.cpp"),
-            "-o",
-            str(binary),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert compile_result.returncode == 0, compile_result.stderr
-
-    run_result = subprocess.run([str(binary)], capture_output=True, text=True)
-    assert run_result.returncode == 0, run_result.stdout + run_result.stderr
-    print(run_result.stdout)
+def test_dl1xx_protocol(build_and_run):
+    print(build_and_run("dl1xx_test.cpp", includes=[EXAMPLE]))

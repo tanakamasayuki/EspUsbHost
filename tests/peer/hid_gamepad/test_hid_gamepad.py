@@ -1,29 +1,81 @@
-def test_hid_gamepad_axes(dut, peers):
-    device = peers["device"]
-
-    device.write("a")
-    dut.expect("GAMEPAD report=0a f6 14 ec 1e e2 03 05 00 00 00 fields=[1-9][0-9]*")
-    dut.expect("GAMEPAD_LISTENER length=11 fields=[1-9][0-9]*")
-
-    device.write("0")
-    dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*")
+import pytest
 
 
-def test_hid_gamepad_hat(dut, peers):
-    device = peers["device"]
+def _poll_state(dut, pattern, attempts=100):
+    """Wait for a state the sketch answers on demand.
 
-    for cmd, hat in [("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8)]:
-        device.write(cmd)
-        dut.expect(f"GAMEPAD report=00 00 00 00 00 00 {hat:02x} 00 00 00 00 fields=[1-9][0-9]*")
+    Polling a query rather than waiting for a connect line matters because a
+    connect line is printed once, when the device enumerates, so waiting for it
+    only works while the test doing so happens to run first.
+    """
+    for _ in range(attempts):
+        dut.write("Q")
+        try:
+            dut.expect(pattern, timeout=2)
+            return
+        except Exception:
+            continue
+    raise AssertionError(f"the host never reported {pattern!r}")
+
+
+@pytest.fixture(autouse=True)
+def usb_host(dut, peers):
+    """Start the USB host for this test, and stop it however the test ends.
+
+    The sketch does not start it in setup(): the peer board is flashed after this
+    board has booted, and a host that is already running observes those resets
+    and records the enumerations they cause as errors.
+
+    `peers` is requested for its ordering, not its value. This fixture is autouse
+    and would otherwise be set up before it, which starts the host before the peer
+    upload -- putting the host back inside exactly the window the gating exists to
+    avoid. Requesting `peers` moves the upload ahead of the start.
+
+    Stopping in the teardown rather than at the end of the test body means it
+    runs when the test fails or is interrupted too, so the board is not left
+    hosting USB after the run.
+    """
+    _poll_state(dut, r"HOST_STATE (?:idle|running) devices=\d+")
+    dut.write("G")
+    # Wait for enumeration. This module's tests do not read the connect-time
+    # output, so polling here consumes nothing they need.
+    _poll_state(dut, r"HOST_STATE running devices=[1-9]")
+    yield
+    dut.write("H")
+    dut.expect_exact("HOST_STATE idle devices=0")
+
+
+def test_hid_gamepad(dut, peers, run_checks):
+    def axes():
+        device = peers["device"]
+
+        device.write("a")
+        dut.expect("GAMEPAD report=0a f6 14 ec 1e e2 03 05 00 00 00 fields=[1-9][0-9]*\\r?\\n")
+        dut.expect("GAMEPAD_LISTENER length=11 fields=[1-9][0-9]*\\r?\\n")
+
         device.write("0")
-        dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*")
+        dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*\\r?\\n")
 
+    def hat():
+        device = peers["device"]
 
-def test_hid_gamepad_buttons(dut, peers):
-    device = peers["device"]
+        for cmd, hat in [("1", 1), ("2", 2), ("3", 3), ("4", 4), ("5", 5), ("6", 6), ("7", 7), ("8", 8)]:
+            device.write(cmd)
+            dut.expect(f"GAMEPAD report=00 00 00 00 00 00 {hat:02x} 00 00 00 00 fields=[1-9][0-9]*")
+            device.write("0")
+            dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*\\r?\\n")
 
-    device.write("b")
-    dut.expect("GAMEPAD report=00 00 00 00 00 00 00 ff 7f 00 00 fields=[1-9][0-9]*")
+    def buttons():
+        device = peers["device"]
 
-    device.write("0")
-    dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*")
+        device.write("b")
+        dut.expect("GAMEPAD report=00 00 00 00 00 00 00 ff 7f 00 00 fields=[1-9][0-9]*\\r?\\n")
+
+        device.write("0")
+        dut.expect("GAMEPAD report=00 00 00 00 00 00 00 00 00 00 00 fields=[1-9][0-9]*\\r?\\n")
+
+    run_checks([
+        axes,
+        hat,
+        buttons,
+    ])

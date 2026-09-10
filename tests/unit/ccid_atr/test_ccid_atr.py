@@ -16,7 +16,6 @@ Covered:
   missing TD1, a wrong RID, and a TLV longer than the historical bytes
 """
 
-import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -24,29 +23,5 @@ REPO = HERE.parents[2]
 SRC = REPO / "src"
 
 
-def test_ccid_atr():
-    output = HERE / "output"
-    output.mkdir(exist_ok=True)
-
-    binary = output / "ccid_atr_test"
-    compile_result = subprocess.run(
-        [
-            "g++",
-            "-std=c++17",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-I",
-            str(SRC),
-            str(HERE / "ccid_atr_test.cpp"),
-            "-o",
-            str(binary),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert compile_result.returncode == 0, compile_result.stderr
-
-    run_result = subprocess.run([str(binary)], capture_output=True, text=True)
-    assert run_result.returncode == 0, run_result.stdout + run_result.stderr
-    print(run_result.stdout)
+def test_ccid_atr(build_and_run):
+    print(build_and_run("ccid_atr_test.cpp", includes=[SRC]))

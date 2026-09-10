@@ -1,9 +1,61 @@
 import time
 
+import pytest
+
+
+def _poll_state(dut, pattern, attempts=100):
+    """Wait for a state the sketch answers on demand.
+
+    Polling a query rather than waiting for a connect line matters because a
+    connect line is printed once, when the device enumerates, so waiting for it
+    only works while the test doing so happens to run first.
+    """
+    for _ in range(attempts):
+        dut.write("Q")
+        try:
+            dut.expect(pattern, timeout=2)
+            return
+        except Exception:
+            continue
+    raise AssertionError(f"the host never reported {pattern!r}")
+
+
+@pytest.fixture(autouse=True)
+def usb_host(dut, peers):
+    """Start the USB host for this test, and stop it however the test ends.
+
+    The sketch does not start it in setup(): the peer board is flashed after this
+    board has booted, and a host that is already running observes those resets
+    and records the enumerations they cause as errors.
+
+    `peers` is requested for its ordering, not its value. This fixture is autouse
+    and would otherwise be set up before it, which starts the host before the peer
+    upload -- putting the host back inside exactly the window the gating exists to
+    avoid. Requesting `peers` moves the upload ahead of the start.
+
+    Stopping in the teardown rather than at the end of the test body means it
+    runs when the test fails or is interrupted too, so the board is not left
+    hosting USB after the run.
+    """
+    _poll_state(dut, r"HOST_STATE (?:idle|running) devices=\d+")
+    dut.write("G")
+    # Deliberately no wait here: this module's tests read the connect-time output
+    # themselves, and an expect() in this fixture would advance the reader past
+    # it. Each test now gets a fresh begin(), so that output is printed per test
+    # instead of only once at boot.
+    yield
+    dut.write("H")
+    dut.expect_exact("HOST_STATE idle devices=0")
+
+
+
 
 STATS = (
     r"{tag} ready=(\d) link=(\d) netif=(\d) rxNtb=(\d+) rxFrames=(\d+) "
-    r"tx=(\d+) txFail=(\d+) oversized=(\d+) ntbIn=(\d+) heap=(\d+) block=(\d+)"
+    # Anchored to the newline: expect() returns as soon as the buffer allows a
+    # match, so a pattern ending in (\d+) is satisfied by the first digit of the
+    # last field and captures a truncated value.
+    r"tx=(\d+) txFail=(\d+) oversized=(\d+) ntbIn=(\d+) heap=(\d+) block=(\d+)\r?\n"
 )
 
 # Field indices into the STATS groups.
@@ -15,7 +67,7 @@ def _wait_device_link(device, timeout=15):
     while True:
         device.write("?")
         match = device.expect(
-            r"DEVICE_READY ip=192\.168\.7\.1 link=(\d) ntbIn=(\d+)",
+            r"DEVICE_READY ip=192\.168\.7\.1 link=(\d) ntbIn=(\d+)\r?\n",
             timeout=min(2, max(0.1, deadline - time.monotonic())),
         )
         if int(match.group(1)) == 1:
@@ -61,19 +113,21 @@ def test_usb_ncm_throughput(dut, peers):
     # host -> device (bulk OUT).
     dut.write("t")
     tx = dut.expect(
-        r"TX_SOAK connect=1 bytes=(\d+) ms=(\d+) kbps=(\d+) writeFails=(\d+)", timeout=30
+        r"TX_SOAK connect=1 bytes=(\d+) ms=(\d+) kbps=(\d+) writeFails=(\d+)\r?\n",
+        timeout=30,
     )
     tx_stats = _stats(dut, "TX_SOAK_STATS")
 
     # device -> host (bulk IN), where the batched NTBs arrive.
     dut.write("r")
     rx = dut.expect(
-        r"RX_SOAK connect=1 bytes=(\d+) ms=(\d+) kbps=(\d+) maxIdleMs=(\d+)", timeout=30
+        r"RX_SOAK connect=1 bytes=(\d+) ms=(\d+) kbps=(\d+) maxIdleMs=(\d+)\r?\n",
+        timeout=30,
     )
     rx_stats = _stats(dut, "RX_SOAK_STATS")
 
     device.write("c")
-    counts = device.expect(r"DEVICE_COUNTS sink=(\d+) source=(\d+)", timeout=10)
+    counts = device.expect(r"DEVICE_COUNTS sink=(\d+) source=(\d+)\r?\n", timeout=10)
 
     print(f"device dwNtbInMaxSize={device_ntb_in}")
     print("TX:", tx.group(0))

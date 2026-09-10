@@ -47,16 +47,31 @@ this repository.
 From the `tests/` directory:
 
 ```sh
-# Run all tests
+# The default run: unit/ and peer/, as declared by testpaths
 uv run --env-file .env pytest
 
-# Run only the peer tests
+# Run only one layer
+uv run --env-file .env pytest unit/     # no board needed
 uv run --env-file .env pytest peer/
 
-# Run a specific test
-uv run --env-file .env pytest peer/hid_logic
+# Run one module
 uv run --env-file .env pytest peer/hid_keyboard
+
+# A manual test is named by its file, which is why those files are not called
+# test_*.py -- naming a path collects it whatever it is called.
+uv run --env-file .env pytest manual/ccid_card/ccid_card.py
 ```
+
+Each peer module holds one test whose parts are named checks, so the audit for
+order dependence runs the checks back to front rather than the tests:
+
+```sh
+ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
+```
+
+A check that passes in only one order is a design error. This costs no extra
+upload, so it is an everyday check rather than a release-time one. See
+[TEST_PLAN.md](TEST_PLAN.md), *How the tests are structured*.
 
 Builds are cached per sketch directory, and that cache is not invalidated by
 everything that should invalidate it. Pass `--clean` (it forwards `--clean` to
@@ -131,6 +146,15 @@ hardware issues collected there.
 ### `probe/` — Bring-up probes
 
 Sketches for ESP32-P4 USB port identification, HS/FS Host checks, HS Device checks, and Hardware CDC/JTAG checks. They depend on board wiring and host-PC enumeration, so they are not formal regression tests. See [probe/README.md](probe/README.md) for details.
+
+### `harness/` — Tests for the test harness
+
+Checks the `run_checks` fixture in `conftest.py`, which every peer module uses.
+The reverse audit is only worth running if it really reverses: were that to
+break, `ESPUSBHOST_REVERSE_CHECKS=1` would quietly become a second forward run
+and every module would keep passing while nothing was checked. So the order is
+asserted directly rather than inferred from a reversed run passing. No board and
+no sketch, so nothing is built for it.
 
 ### `unit/` — Host-side unit tests
 

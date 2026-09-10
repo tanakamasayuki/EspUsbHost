@@ -48,6 +48,7 @@ present the Clock Source entity, the 4-byte Feature Unit controls, or the
 
 ```
 tests/
+  harness/    Automated — tests for the test harness itself; no board
   peer/       Automated — two ESP32-S3 boards, one host + one device
   loopback/   Reserved — single ESP32-P4 setup; no runnable tests in this repo now
   manual/     Manual — special hardware or human interaction required
@@ -58,6 +59,76 @@ tests/
 See each subdirectory's README for hardware setup and individual test details.
 
 ---
+
+## How the tests are structured
+
+**One test per module.** A module is one sketch directory, and running it costs a
+compile and an upload; a test inside it costs almost nothing. Measured on this
+bench: a module's fixed cost is about 29 s, a test inside one about 0.6 s. The
+granularity worth paying for is therefore the module, and what would otherwise be
+several tests is written as **checks** inside one test.
+
+A check is a plain nested function, and `run_checks` (a fixture in
+`tests/conftest.py`) calls them in order. A failure propagates as it normally
+would, so pytest's traceback names the frame it happened in -- the check's own
+name -- and shows the line that failed.
+
+```python
+def test_usb_msc(dut, peers, run_checks):
+    def capacity():
+        dut.write("c")
+        dut.expect_exact("MSC_CAPACITY ok=1 blocks=16 block_size=512")
+
+    def inquiry():
+        dut.write("i")
+        dut.expect_exact("MSC_INQUIRY ok=1 removable=1 vendor='ESP32' ...")
+
+    run_checks([capacity, inquiry])
+```
+
+This is not a compromise for the sake of a rule. `usb_msc` took 46.8 s as twenty
+tests and 31.0 s as one, because pytest's per-test cost is paid once rather than
+twenty times.
+
+**Two exceptions, both because something has to be attached per case.**
+
+- `usb_midi` keeps `test_usb_midi_lifecycle_listeners_on_peer_reboot` as its own
+  test, because `tests/conftest.py` permits one serial line for that node id
+  alone. Merged, the permission would widen to the whole module, and the same
+  line would go unnoticed where it should not be allowed.
+- A destructive check would get its own module rather than a fixed position among
+  tests: a second test file in the same sketch directory is a second module, and
+  its upload restores the board. Nothing needs this today.
+
+**The order of checks is not allowed to matter.** Merging tests into one moves
+order dependence inside the test rather than removing it, so the audit moves with
+it:
+
+```bash
+ESPUSBHOST_REVERSE_CHECKS=1 pytest peer/
+```
+
+Every module's checks then run back to front. A check that passes in only one
+order is a design error: build the state it needs instead of relying on an
+earlier check to have left it behind. Reversing costs no extra upload, so it
+stays an everyday check rather than a release-time one.
+
+**The host is not started at boot.** The peer board is flashed after the DUT has
+booted, and a host that is already running sees those resets and records the
+enumerations they cause as errors. So `setup()` only prints `HOST_STATE idle
+devices=0`, and an autouse fixture sends `G` to start the host and `H` to stop it.
+
+Two details in that fixture are load-bearing. It requests `peers` **for the
+ordering alone** -- without it the autouse fixture is set up before the peer
+upload, which puts the host back inside the window the gating exists to close.
+And `G` is idempotent in the sketch, so a module pays the start once: paying it
+per test stretched the suite from 12 m 33 s to 21 m 49 s, while paying it once per
+module costs 47 s over not gating at all.
+
+**Readiness is queried, never awaited.** `HOST_CONNECTED` and friends are printed
+once, when the device enumerates, so a check that waits for one only works while
+it happens to run first. Every gated sketch answers `Q` with its current state,
+and the checks poll that.
 
 ## Test coverage matrix
 

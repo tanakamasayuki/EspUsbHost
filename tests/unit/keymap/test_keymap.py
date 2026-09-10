@@ -17,7 +17,6 @@ production tables and conversion code.
 """
 
 import re
-import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -84,30 +83,20 @@ def _generate_real_header(dest: Path) -> None:
     dest.write_text("\n".join(parts))
 
 
-def test_keymap_conversion():
+def test_keymap_conversion(build_and_run):
     output = HERE / "output"
     output.mkdir(exist_ok=True)
     _generate_real_header(output / "espusbhost_keymap_real.h")
 
-    binary = output / "keymap_test"
-    compile_result = subprocess.run(
-        [
-            "g++",
-            "-std=c++17",
-            # Match the Xtensa toolchain where plain char is unsigned.
-            "-funsigned-char",
-            "-Wall",
-            "-Wextra",
-            "-I", str(output),          # espusbhost_keymap_real.h
-            "-I", str(SRC),             # keymap/*.h tables
-            "-I", str(HERE / "stub"),   # class/hid/hid.h stub
-            str(HERE / "keymap_test.cpp"),
-            "-o", str(binary),
+    print(build_and_run(
+        "keymap_test.cpp",
+        includes=[
+            output,         # espusbhost_keymap_real.h
+            SRC,            # keymap/*.h tables
+            HERE / "stub",  # class/hid/hid.h stub
         ],
-        capture_output=True,
-        text=True,
-    )
-    assert compile_result.returncode == 0, compile_result.stderr
-
-    run_result = subprocess.run([str(binary)], capture_output=True, text=True)
-    assert run_result.returncode == 0, run_result.stdout + run_result.stderr
+        # Match the Xtensa toolchain, where plain char is unsigned. The host's is
+        # signed, so without this the tables would be indexed differently here
+        # than on the board.
+        extra_flags=["-funsigned-char"],
+    ))

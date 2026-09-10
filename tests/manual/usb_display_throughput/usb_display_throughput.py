@@ -90,7 +90,7 @@ def test_usb_display_throughput(dut, request):
 
     ceiling_bps, ceiling_name = _ceiling_bps(request.config)
 
-    ready = dut.expect(r"DISPLAY_TUNE_READY (\d+)x(\d+)", timeout=90)
+    ready = dut.expect(r"DISPLAY_TUNE_READY (\d+)x(\d+) mode=", timeout=90)
     width, height = (int(g) for g in ready.groups())
     print(f"\npanel: {width}x{height}")
     print(f"bus share is against {ceiling_bps / 1024 / 1024:.1f} MB/s ({ceiling_name})")
