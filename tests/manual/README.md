@@ -9,7 +9,13 @@ See [../TEST_PLAN.md](../TEST_PLAN.md) for the overall test strategy and the rat
 
 ## Running a manual test
 
-Manual test files do **not** use the `test_` prefix, so pytest does not collect them automatically.
+**A file in this directory must not be named `test_*.py`.** That naming is the
+only thing keeping these out of the default run, and it is a rule rather than an
+observation: a manual test needs hardware that is not always attached, or a
+person watching, so `pytest` and `pytest manual/` must never fire one. Name the
+file after its directory instead -- the function inside still needs the `test_`
+prefix, and naming the path on the command line collects it whatever the file is
+called.
 Run explicitly after preparing the required hardware:
 
 ```sh

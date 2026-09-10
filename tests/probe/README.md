@@ -5,6 +5,10 @@
 Temporary sketches for bring-up and for working out a device's protocol.
 These are not formal regression tests; they depend on board wiring, the connected port, host-PC enumeration behavior, or on a device whose protocol is not yet known.
 
+**A file here must not be named `test_*.py`, for the same reason as `manual/`.**
+A probe depends on wiring, on which port is connected, or on a device whose
+protocol is not yet known, so it must only run when someone asks for it by name.
+
 Run them individually from the `tests/` directory:
 The profile name is `esp32p4`, representing a generic P4 board used for individual runs.
 
