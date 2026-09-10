@@ -56,6 +56,14 @@ tests/
   unit/       Automated — host-side g++ tests, no board required
 ```
 
+**Files under `manual/` and `probe/` must not be named `test_*.py`.** That is
+what keeps them out of the default run, and there is no second mechanism: no
+`testpaths`, no marker. Declaring the paths as well would say the same thing
+twice and would hide the mistake -- a file wrongly named `test_*.py` under
+`manual/` should join the run and be noticed rather than be quietly skipped.
+Naming a path on the command line still collects it, which is how a manual test
+is run.
+
 See each subdirectory's README for hardware setup and individual test details.
 
 ---
