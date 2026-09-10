@@ -42,16 +42,28 @@ TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 `tests/` ディレクトリから実行：
 
 ```sh
-# すべてのテストを実行
+# 既定の実行。testpaths の宣言どおり unit/ と peer/
 uv run --env-file .env pytest
 
-# peerテストのみ実行
+# 層を指定して実行
+uv run --env-file .env pytest unit/     # 実機不要
 uv run --env-file .env pytest peer/
 
-# 特定のテストを実行
-uv run --env-file .env pytest peer/hid_logic
+# モジュールを指定して実行
 uv run --env-file .env pytest peer/hid_keyboard
+
+# 手動テストはファイル名で指定する。それらのファイルが test_*.py という名前で
+# ないのはそのためで、パスを名指しすれば名前に関わらず収集される。
+uv run --env-file .env pytest manual/ccid_card/ccid_card.py
 ```
+
+peer の各モジュールはテスト1件で、その中身は名前付きのチェックです。そのため順序依存の監査はテストではなくチェックを逆順に流します。
+
+```sh
+ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
+```
+
+片方の順序でしか通らないチェックは設計の誤りです。アップロードの追加が無いので、リリース前ではなく日常の検査として回せます。[TEST_PLAN.ja.md](TEST_PLAN.ja.md) の「テストの構成」を参照してください。
 
 ビルドはsketchディレクトリ毎にキャッシュされますが、無効化されるべき変更すべてでは無効化されません。ソースではなく**ビルド入力**が変わったときは `--clean` を付けます（`arduino-cli compile` に `--clean` を渡し、事前に古い生成物を削除します）：
 
@@ -98,6 +110,10 @@ ESP32-P4を1台使い、同一チップ上でUSBホストとUSBデバイスの�
 ### `probe/` — 初期切り分け用プローブ
 
 ESP32-P4のUSBポート識別、HS/FS Host、HS Device、Hardware CDC/JTAGの確認に使うスケッチです。ボード配線やPC側認識に依存するため、正式な回帰テストではありません。詳細は [probe/README.ja.md](probe/README.ja.md) を参照してください。
+
+### `harness/` — テスト機構自体のテスト
+
+すべての peer モジュールが使う `conftest.py` の `run_checks` フィクスチャを検査します。逆順監査は本当に反転していなければ回す意味がありません。反転が壊れると `ESPUSBHOST_REVERSE_CHECKS=1` は静かに2回目の順方向実行になり、何も検査しないまま全モジュールが通り続けます。そのため「逆順実行が通ること」から推測するのではなく、順序そのものを直接アサートしています。実機もスケッチも不要なので、ここでは何もビルドされません。
 
 ### `unit/` — ホスト側ユニットテスト
 

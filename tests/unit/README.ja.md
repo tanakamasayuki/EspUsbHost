@@ -8,6 +8,10 @@ host上で実行する純粋C++/データ変換のテストです。実機とシ
 uv run --env-file .env pytest unit/
 ```
 
+各ディレクトリが1モジュールで、テスト1件と `<name>_test.cpp` だけを持ちます。コンパイルと実行は `conftest.py` の `build_and_run` フィクスチャにまとめてあるので、テストファイルにはそのテスト固有のものだけが残ります。インクルードするディレクトリと、必要な場合の追加フラグです。`keymap` が `-funsigned-char` を渡しているのは、素の `char` が Xtensa ツールチェインでは unsigned、host では signed で、テーブルがそれで添字付けされるためです。
+
+コンパイルは `-Wall -Wextra -Werror` を使います。これらのテストは製品のヘッダを直接コンパイルするので、そこに新しい警告が入ると実機に届く前にここで落ちます。
+
 ## テスト
 
 - `keymap`: `src/EspUsbHostHid.cpp`のHID usage→文字変換を、各layoutの国家標準

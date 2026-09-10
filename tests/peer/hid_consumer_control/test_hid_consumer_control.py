@@ -1,35 +1,87 @@
-def test_hid_consumer_control_volume(dut, peers):
-    device = peers["device"]
-
-    device.write("u")
-    dut.expect_exact("CONSUMER usage=0x00e9 pressed=1 released=0")
-    dut.expect_exact("CONSUMER_LISTENER usage=0x00e9 pressed=1")
-    dut.expect_exact("CONSUMER usage=0x00e9 pressed=0 released=1")
-
-    device.write("d")
-    dut.expect_exact("CONSUMER usage=0x00ea pressed=1 released=0")
-    dut.expect_exact("CONSUMER usage=0x00ea pressed=0 released=1")
+import pytest
 
 
-def test_hid_consumer_control_playback(dut, peers):
-    device = peers["device"]
+def _poll_state(dut, pattern, attempts=100):
+    """Wait for a state the sketch answers on demand.
 
-    device.write("p")
-    dut.expect_exact("CONSUMER usage=0x00cd pressed=1 released=0")
-    dut.expect_exact("CONSUMER usage=0x00cd pressed=0 released=1")
+    Polling a query rather than waiting for a connect line matters because a
+    connect line is printed once, when the device enumerates, so waiting for it
+    only works while the test doing so happens to run first.
+    """
+    for _ in range(attempts):
+        dut.write("Q")
+        try:
+            dut.expect(pattern, timeout=2)
+            return
+        except Exception:
+            continue
+    raise AssertionError(f"the host never reported {pattern!r}")
 
-    device.write("n")
-    dut.expect_exact("CONSUMER usage=0x00b5 pressed=1 released=0")
-    dut.expect_exact("CONSUMER usage=0x00b5 pressed=0 released=1")
 
-    device.write("s")
-    dut.expect_exact("CONSUMER usage=0x00b6 pressed=1 released=0")
-    dut.expect_exact("CONSUMER usage=0x00b6 pressed=0 released=1")
+@pytest.fixture(autouse=True)
+def usb_host(dut, peers):
+    """Start the USB host for this test, and stop it however the test ends.
+
+    The sketch does not start it in setup(): the peer board is flashed after this
+    board has booted, and a host that is already running observes those resets
+    and records the enumerations they cause as errors.
+
+    `peers` is requested for its ordering, not its value. This fixture is autouse
+    and would otherwise be set up before it, which starts the host before the peer
+    upload -- putting the host back inside exactly the window the gating exists to
+    avoid. Requesting `peers` moves the upload ahead of the start.
+
+    Stopping in the teardown rather than at the end of the test body means it
+    runs when the test fails or is interrupted too, so the board is not left
+    hosting USB after the run.
+    """
+    _poll_state(dut, r"HOST_STATE (?:idle|running) devices=\d+")
+    dut.write("G")
+    # Wait for enumeration. This module's tests do not read the connect-time
+    # output, so polling here consumes nothing they need.
+    _poll_state(dut, r"HOST_STATE running devices=[1-9]")
+    yield
+    dut.write("H")
+    dut.expect_exact("HOST_STATE idle devices=0")
 
 
-def test_hid_consumer_control_mute(dut, peers):
-    device = peers["device"]
+def test_hid_consumer_control(dut, peers, run_checks):
+    def volume():
+        device = peers["device"]
 
-    device.write("m")
-    dut.expect_exact("CONSUMER usage=0x00e2 pressed=1 released=0")
-    dut.expect_exact("CONSUMER usage=0x00e2 pressed=0 released=1")
+        device.write("u")
+        dut.expect_exact("CONSUMER usage=0x00e9 pressed=1 released=0")
+        dut.expect_exact("CONSUMER_LISTENER usage=0x00e9 pressed=1")
+        dut.expect_exact("CONSUMER usage=0x00e9 pressed=0 released=1")
+
+        device.write("d")
+        dut.expect_exact("CONSUMER usage=0x00ea pressed=1 released=0")
+        dut.expect_exact("CONSUMER usage=0x00ea pressed=0 released=1")
+
+    def playback():
+        device = peers["device"]
+
+        device.write("p")
+        dut.expect_exact("CONSUMER usage=0x00cd pressed=1 released=0")
+        dut.expect_exact("CONSUMER usage=0x00cd pressed=0 released=1")
+
+        device.write("n")
+        dut.expect_exact("CONSUMER usage=0x00b5 pressed=1 released=0")
+        dut.expect_exact("CONSUMER usage=0x00b5 pressed=0 released=1")
+
+        device.write("s")
+        dut.expect_exact("CONSUMER usage=0x00b6 pressed=1 released=0")
+        dut.expect_exact("CONSUMER usage=0x00b6 pressed=0 released=1")
+
+    def mute():
+        device = peers["device"]
+
+        device.write("m")
+        dut.expect_exact("CONSUMER usage=0x00e2 pressed=1 released=0")
+        dut.expect_exact("CONSUMER usage=0x00e2 pressed=0 released=1")
+
+    run_checks([
+        volume,
+        playback,
+        mute,
+    ])

@@ -6,10 +6,16 @@
 
 多くの peer テストは、Host 側が Arduino Core 標準 Device 実装とも相互運用できることを確認するための基準テストとして維持します。兄弟ライブラリ `EspUsbDevice` とペアにするのは、Arduino Core ではそのデバイスを表現できない場合だけです（`usb_vendor`、`usb_ncm`、`usb_ncm_throughput`、`hid_keyboard_composite`、`hid_keyboard_nkro`、`usb_audio_uac2`）。詳細は [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md) を参照してください。
 
+ここの各ディレクトリが1モジュールで、**テストは1件**です。その中身は名前付きのチェックとして書きます。カバレッジを増やすときは新しいテストではなく既存テストにチェックを足します。理由と2つの例外、逆順チェック監査については [../TEST_PLAN.ja.md](../TEST_PLAN.ja.md) の「テストの構成」を参照してください。
+
 `tests/` ディレクトリから実行：
 
 ```sh
 uv run --env-file .env pytest peer/
+
+# 全モジュールのチェックを逆順で実行する。片方の順序でしか通らないチェックは
+# 設計の誤り。アップロードの追加が無いので日常的に回せる。
+ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
 ```
 
 ## ハードウェア接続

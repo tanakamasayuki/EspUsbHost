@@ -129,7 +129,7 @@ def test_usb_display_turing(dut):
         f"split rates diverge ({rates}); rectangles are being dropped, not drawn"
     )
 
-    final = dut.expect(r"DISPLAY_GENERATION (\d+) underfilled=(\d+) dropped=(\d+)", timeout=30)
+    final = dut.expect(r"DISPLAY_GENERATION (\d+) underfilled=(\d+) dropped=(\d+)\r?\n", timeout=30)
     _generation, underfilled, dropped = (g.decode() for g in final.groups())
     assert underfilled == "0", f"{underfilled} rectangle(s) were left short and had to be padded"
     assert dropped == "0", f"{dropped} write(s) never reached USB"

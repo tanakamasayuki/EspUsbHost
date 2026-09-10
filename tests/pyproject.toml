@@ -1,5 +1,5 @@
 [project]
-name = "demo-add-library-tests"
+name = "espusbhost-tests"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
@@ -15,3 +15,9 @@ filterwarnings = [
     "ignore:record_xml_attribute is an experimental feature:pytest.PytestExperimentalApiWarning",
 ]
 addopts = "--save-state"
+# The default run is the automated layers. manual/ and probe/ are excluded by
+# naming as well -- manual test files do not start with test_, and probe/ has no
+# test files at all -- but saying so here means the default run does not depend
+# on that staying true. Naming a path explicitly still overrides this, which is
+# how a manual test is run: pytest manual/<name>/<name>.py
+testpaths = ["harness", "unit", "peer"]
