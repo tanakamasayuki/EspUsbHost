@@ -1,0 +1,13 @@
+profiles:
+  # Verbose logging includes the DWC HCFG readback the probe checks.
+  # USBMode=hwcdc keeps Serial on the USB-Serial-JTAG port so the OTG HS port is
+  # free for the host stack and the harness can read this board over its console.
+  p4_fs_direct:
+    fqbn: esp32:esp32:esp32p4:USBMode=hwcdc,CDCOnBoot=cdc,DebugLevel=verbose
+    platforms:
+      - platform: esp32:esp32 (3.3.11)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../../
+
+default_profile: p4_fs_direct
