@@ -94,6 +94,8 @@ Getting this wrong shows up as timeouts, or a stream of transfer errors in the l
 
 `vendorReadStats()` says which of the two is binding: `starved` counts the completions that found nothing else in flight, and `bytes / completed` is how much the device actually managed to put in each transfer. A stream that returns short transfers is supply-limited at the device; one that fills every transfer but starves is limited by this side.
 
+A short transfer is not an error. A device ends one whenever it stops sending mid-transfer, and a TinyUSB device does that every time its transmit FIFO drains — so a stream from one shows `shortTransfers` on nearly every completion, with `bytes / completed` pinned to that device's FIFO size rather than to the size asked for. Seen at both full and high speed, on different chips, so read it as the device's transfer boundary rather than as a fault.
+
 ### 1.4 Intervening in enumeration
 
 `setConfigurationSelector()` uses ESP-IDF's `enum_filter_cb` to **choose which configuration is activated during enumeration**. It is needed by USB Ethernet adapters and similar devices that hide the interesting function outside the default configuration.
