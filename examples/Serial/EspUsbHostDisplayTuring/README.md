@@ -102,11 +102,11 @@ through it too, so ordinary serial code inherits the backpressure unchanged.
 ## Making it faster
 
 Numbers below are from `tests/manual/usb_display_turing` on an ESP32-S3
-(full-speed USB). The same host reaches 1.098 MB/s on vendor bulk, so the ceiling
+(full-speed USB). The same host reaches 1.151 MB/s on vendor bulk, so the ceiling
 here is the panel, not the bus.
 
 **Send fewer pixels.** With no compression this is the only lever that changes
-anything. The panel renders at a fixed ~0.155 MB/s, so time on screen is just
+anything. The panel renders at a fixed ~0.163 MB/s, so time on screen is just
 bytes divided by that rate, and the byte count is two per pixel. Leave
 `setDiffMode(LGFXVirtualDiffMode::Tile)` on, and redraw only what moves.
 
@@ -115,10 +115,10 @@ time whether they go out as one rectangle or as ninety-six:
 
 | Rectangles | Rows each | Time | Rate |
 |---|---|---|---|
-| 1 | 480 | 1.883 s | 0.156 MB/s |
-| 3 | 160 | 1.884 s | 0.156 MB/s |
-| 8 | 60 | 1.884 s | 0.156 MB/s |
-| 24 | 20 | 1.894 s | 0.155 MB/s |
+| 1 | 480 | 1.883 s | 0.164 MB/s |
+| 3 | 160 | 1.884 s | 0.164 MB/s |
+| 8 | 60 | 1.884 s | 0.164 MB/s |
+| 24 | 20 | 1.894 s | 0.163 MB/s |
 | 48 | 10 | 1.911 s | 0.153 MB/s |
 | 96 | 5 | 1.920 s | 0.153 MB/s |
 

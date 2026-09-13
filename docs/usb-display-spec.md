@@ -123,7 +123,7 @@ Yes for 1920x1080 at 16 bpp. Every protocol-level ceiling was checked:
 | DL-165 maximum resolution | Family ceiling 2048x1152; products implement 1920x1080 or 1600x1200 | OK, confirmed with a DL-165 on a Full HD monitor |
 | DL-120 / DL-160 maximum | 1600x1200 / 1680x1050 | No Full HD — useful for lower-resolution testing |
 
-Effective full-speed bulk OUT throughput was measured at **1.098 MB/s** (ESP32-S3 with a DL-165, [`tests/manual/vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)) — about 90 % of the 1.216 MB/s theoretical ceiling. Against that:
+Effective full-speed bulk OUT throughput was measured at **1.151 MB/s** (ESP32-S3 with a DL-165, [`tests/manual/vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)) — about 95 % of the 1.216 MB/s theoretical ceiling. (Decimal MB/s throughout: 10^6 bytes per second.) Against that:
 
 | Case | Bytes | Time |
 |------|-------|------|
@@ -134,7 +134,7 @@ Effective full-speed bulk OUT throughput was measured at **1.098 MB/s** (ESP32-S
 
 Compression ratio is the one variable that depends on content; [`tests/manual/usb_display_throughput`](../tests/manual/usb_display_throughput/) measures it per drawing pattern, and the results became the guidance in the example README.
 
-On an ESP32-P4 the same adapter enumerates at **high speed**. Effective HS bulk OUT throughput measured **36.4 MB/s** (queue depth 2, 8 KB transfers) — about 68 % of the 53.2 MB/s theoretical ceiling (13 × 512-byte packets per microframe), and 33× the full-speed figure. Two timing findings carry over from the sweep: queue depth 2 already reaches the ceiling at both speeds, and per-transfer overhead weighs more at HS — 512-byte transfers stop around 8 MB/s even asynchronously.
+On an ESP32-P4 the same adapter enumerates at **high speed**. Effective HS bulk OUT throughput measured **38.2 MB/s** (queue depth 2, 8 KB transfers) — about 72 % of the 53.2 MB/s theoretical ceiling (13 × 512-byte packets per microframe), and 33× the full-speed figure. Two timing findings carry over from the sweep: queue depth 2 already reaches the ceiling at both speeds, and per-transfer overhead weighs more at HS — 512-byte transfers stop around 8.4 MB/s even asynchronously.
 
 The worst case has a hard arithmetic ceiling. An RLE-incompressible Full HD frame is 8,100 commands × 519 bytes = **4,203,900 bytes** (1.4 % overhead over raw), which is 0.274 fps at full speed — matched by measurement (0.27 fps at 99.8 % bus) — and a 9.08 fps ceiling at high speed, where the measured 1.55 fps shows the encoder and per-band redraw, not the bus, as the limit.
 

@@ -32,13 +32,13 @@ Setup:
 Notes:
     Each step holds for two seconds so the images can be seen. The protocol has no
     compression, so every full-screen paint is 320 * 480 * 2 = 307,200 bytes, and
-    the panel renders at about 0.155 MB/s regardless of how that is split up.
+    the panel renders at about 0.163 MB/s regardless of how that is split up.
 
     The band sweep is a regression guard, not a tuning measurement. A command that
     arrives before the previous rectangle's pixels have landed is discarded by the
     panel, which keeps consuming the bytes either way -- so the failure is
     invisible in the error counters and shows up only as the sweep getting
-    *faster* with more rectangles (0.156 MB/s at one rectangle against 0.403 MB/s
+    *faster* with more rectangles (0.164 MB/s at one rectangle against 0.423 MB/s
     at 24 when the extra 23 are being thrown away).
 """
 

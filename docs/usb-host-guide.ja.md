@@ -213,7 +213,7 @@ P4のFSポートはピン配置が固定ではなく、USB Serial/JTAGとPHYを�
 
 **HSポートを選んだ場合**
 
-- HS機器を本来の速度で使えます。バルク転送のスループットは実測でFSの約1.1MB/sに対し約36MB/s（[`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)）。
+- HS機器を本来の速度で使えます。バルク転送のスループットは実測でFSの約1.15MB/sに対し約38MB/s（[`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)）。
 - **ハブは実質的に使えません。** USB 2.0の規格上は、HSハブがTransaction Translatorを持つことでHSポートの下にFS/LS機器をぶら下げられますが、現状のESP-IDF環境ではこの経路が使えず、HSポートでのハブ利用は事実上できません。
 - 結果として、**HSのデバイスとFSのキーボードを同時に使う、といった構成は取れません。** HSポートには機器を1台直結する、と考えてください。
 

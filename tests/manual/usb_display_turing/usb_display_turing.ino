@@ -35,7 +35,7 @@ static void reportStats(const char *what, int64_t startedAt)
     const int64_t elapsed = esp_timer_get_time() - startedAt;
     const EspUsbHostSerialWriteStats stats = display.stats();
     const double seconds = static_cast<double>(elapsed) / 1000000.0;
-    const double mbps = seconds > 0.0 ? (static_cast<double>(stats.bytes) / seconds) / 1048576.0 : 0.0;
+    const double mbps = seconds > 0.0 ? (static_cast<double>(stats.bytes) / seconds) / 1000000.0 : 0.0;
     Serial.printf("DISPLAY_PAINT what=%s elapsed_us=%lld tx_bytes=%llu mbps=%.3f errors=%u "
                   "queue_full=%u\n",
                   what,
@@ -311,7 +311,7 @@ void loop()
                           bands,
                           static_cast<long long>(elapsed),
                           static_cast<unsigned long long>(stats.bytes),
-                          seconds > 0.0 ? (static_cast<double>(stats.bytes) / seconds) / 1048576.0
+                          seconds > 0.0 ? (static_cast<double>(stats.bytes) / seconds) / 1000000.0
                                         : 0.0);
         }
         break;

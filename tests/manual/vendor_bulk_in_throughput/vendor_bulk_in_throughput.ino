@@ -52,7 +52,9 @@ struct Result
 static void printResult(const Result &r)
 {
     const double seconds = static_cast<double>(r.elapsedUs) / 1000000.0;
-    const double mbps = seconds > 0.0 ? (static_cast<double>(r.bytes) / seconds) / 1048576.0 : 0.0;
+    // Decimal MB/s (10^6), as in vendor_bulk_throughput: the same unit as the
+    // bus ceilings these numbers are read against.
+    const double mbps = seconds > 0.0 ? (static_cast<double>(r.bytes) / seconds) / 1000000.0 : 0.0;
     // Mean bytes per completed transfer: what the device actually managed to put
     // into each one, as opposed to the size that was asked for.
     const double perTransfer = r.stats.completed ? static_cast<double>(r.stats.bytes) / r.stats.completed : 0.0;

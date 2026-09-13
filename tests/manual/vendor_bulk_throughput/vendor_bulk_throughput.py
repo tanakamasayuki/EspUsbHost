@@ -9,8 +9,9 @@ Purpose:
 
     The number this run establishes -- the practical bulk OUT ceiling of the
     board -- is what later display work is normalized against, so record the
-    table. Measured peaks: 1.098 MB/s on an ESP32-S3 (full speed, from a queue
-    depth of 2 at every transfer size) and 36.4 MB/s on an ESP32-P4 (high speed,
+    table, in decimal MB/s (10^6 B/s). Measured peaks: 1.151 MB/s on an
+    ESP32-S3 (full speed, from a queue
+    depth of 2 at every transfer size) and 38.2 MB/s on an ESP32-P4 (high speed,
     async depth 2 with 8 KB transfers).
 
 Why manual:

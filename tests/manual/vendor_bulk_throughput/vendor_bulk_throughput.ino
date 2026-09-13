@@ -45,7 +45,9 @@ struct Result
 static void printResult(const Result &r)
 {
     const double seconds = static_cast<double>(r.elapsedUs) / 1000000.0;
-    const double mbps = seconds > 0.0 ? (static_cast<double>(r.bytes) / seconds) / 1048576.0 : 0.0;
+    // Decimal MB/s (10^6), the unit USB itself is specified in, so this can be
+    // compared against the 1.216 / 53 MB/s bus ceilings without converting.
+    const double mbps = seconds > 0.0 ? (static_cast<double>(r.bytes) / seconds) / 1000000.0 : 0.0;
     const unsigned emptyPct = r.samples ? (r.queueEmptySamples * 100u) / r.samples : 0u;
     Serial.printf("VENDOR_BULK_THROUGHPUT mode=%s depth=%u xfer=%u bytes=%u elapsed_us=%llu "
                   "mbps=%.3f submit_fail=%u errors=%u queue_full=%u queue_empty_pct=%u\n",
