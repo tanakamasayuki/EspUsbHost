@@ -47,14 +47,20 @@ def _info(dut, timeout=2):
 
 
 def _wait_ready(dut, device, timeout=20):
-    """Wait until the peer has enumerated and its bulk IN endpoint is known."""
+    """Wait until the peer has enumerated.
+
+    Only `connected` can be polled here. `in_ep` and `mps` come from
+    vendorInEndpoint() / vendorInPacketSize(), which report the endpoint the
+    interface was opened on -- so they stay 0 until a check calls vendorOpen(),
+    and waiting for them here would wait forever.
+    """
     device.write("?")
     device.expect_exact("DEVICE_READY")
 
     deadline = time.monotonic() + timeout
     while True:
         info = _info(dut, timeout=min(2, max(0.1, deadline - time.monotonic())))
-        if info["connected"] == 1 and info["in_ep"] != 0:
+        if info["connected"] == 1:
             return info
         if time.monotonic() >= deadline:
             raise AssertionError(f"the vendor peer did not become ready within {timeout}s")
@@ -108,6 +114,12 @@ def test_usb_vendor_read(dut, peers, run_checks):
         dut.write("o")
         match = dut.expect(r"VENDOR_OPEN ok=1 xfer=(\d+) mps=(\d+)")
         assert match.group(1) == match.group(2), "the default transfer should be one max-size packet"
+
+        # Opening is what makes the endpoint observable, so check it here rather
+        # than while waiting for the device to enumerate.
+        info = _info(dut)
+        assert info["in_ep"] != 0, "vendorOpen() should report the bulk IN endpoint it took"
+        assert info["mps"] == int(match.group(2))
 
     def large_transfer_size():
         """vendorOpen() sizes the continuous transfer, and will not resize it."""

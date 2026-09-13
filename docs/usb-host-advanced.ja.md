@@ -94,6 +94,8 @@ interrupt IN（キーボード、マウス、CCID通知など）は、ライブ�
 
 どちらが効いているかは `vendorReadStats()` が示します。`starved` は完了時に他に1本も飛んでいなかった回数、`bytes / completed` は device が実際に1転送へ詰められた量です。short transfer が多ければ device 側の供給限界、毎回埋まっているのに starve しているならこちら側が律速です。
 
+**short transfer 自体は異常ではありません。** device が転送の途中で送るのをやめれば転送はそこで終端し、TinyUSB の device は送信 FIFO が空になるたびにそうします。したがって TinyUSB device からのストリームでは、ほぼ毎回 `shortTransfers` が立ち、`bytes / completed` は要求サイズではなくその device の FIFO サイズに張り付きます。full speed と high speed の両方、別のチップで同じ形が出ているので、故障ではなく device の転送境界として読んでください。
+
 ### 1.4 列挙への介入
 
 `setConfigurationSelector()` はESP-IDFの `enum_filter_cb` を使い、**列挙の途中で有効化するコンフィグレーションを選びます**。既定のコンフィグにお目当ての機能がないUSB Ethernetアダプタなどで必要です。

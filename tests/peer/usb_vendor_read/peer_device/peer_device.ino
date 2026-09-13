@@ -11,13 +11,20 @@
 EspUsbDevice device;
 EspUsbDeviceVendor Vendor(device);
 
-static constexpr size_t CHUNK = 512;
+// How much is handed to write() at a time. Taken from writeCapacity() in setup()
+// rather than fixed here: a constant smaller than the transmit FIFO caps the
+// transfer size no matter how deep the FIFO is built, which makes this sketch --
+// not the host under test -- the thing that limits throughput. Measured against
+// an ESP32-P4 host, a fixed 512 held the link to 8.5 MB/s where the FIFO-sized
+// chunk reaches 24.45 MB/s.
+static constexpr size_t CHUNK_MAX = 8192;
+static size_t chunkSize = 512;
 
 static volatile uint32_t rxCount = 0;
 static volatile uint32_t streamRequests = 0;
 static size_t streamRemaining = 0;
 static uint8_t streamNext = 0;
-static uint8_t chunkBuffer[CHUNK];
+static uint8_t chunkBuffer[CHUNK_MAX];
 
 // 'S' + 4 bytes little-endian length. Anything else is echoed, so the same peer
 // still answers the plain loopback checks.
@@ -63,7 +70,7 @@ static void processStream()
 {
   while (streamRemaining > 0)
   {
-    const size_t want = streamRemaining < CHUNK ? streamRemaining : CHUNK;
+    const size_t want = streamRemaining < chunkSize ? streamRemaining : chunkSize;
     if (!Vendor.waitWritable(want, 100))
     {
       return;
@@ -73,7 +80,10 @@ static void processStream()
       chunkBuffer[i] = streamNext++;
     }
     const size_t written = Vendor.write(chunkBuffer, want);
-    Vendor.flush();
+    // No flush per chunk: flushing forces whatever is in the FIFO out as its own
+    // transfer, so flushing every write produces one transfer per chunk and the
+    // host sees a short packet each time. The stream is flushed once, below,
+    // when the whole requested length has been handed over.
     streamRemaining -= written;
     if (written < want)
     {
@@ -83,6 +93,7 @@ static void processStream()
       return;
     }
   }
+  Vendor.flush(); // once, when the requested length has been handed over
 }
 
 void setup()
@@ -92,6 +103,13 @@ void setup()
 
   Vendor.onRx([](size_t)
               { processVendorRx(); });
+
+  chunkSize = EspUsbDeviceVendor::writeCapacity();
+  if (chunkSize > CHUNK_MAX)
+  {
+    chunkSize = CHUNK_MAX;
+  }
+  Serial.printf("DEVICE_CHUNK %u\n", static_cast<unsigned>(chunkSize));
 
   EspUsbDeviceConfig config;
   config.vid = 0x303a;
