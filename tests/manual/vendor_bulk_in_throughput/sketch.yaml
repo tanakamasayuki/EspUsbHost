@@ -8,7 +8,10 @@ profiles:
       - dir: ../../../
 
   esp32p4:
-    fqbn: esp32:esp32:esp32p4
+    # Keep the test console on USB-Serial/JTAG while the OTG HS port is used by
+    # EspUsbHost.  The P4 defaults leave CDC disabled and route Serial to UART0,
+    # so pytest would see an empty console after flashing.
+    fqbn: esp32:esp32:esp32p4:USBMode=hwcdc,CDCOnBoot=cdc
     platforms:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
