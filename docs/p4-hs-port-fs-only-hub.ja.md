@@ -8,9 +8,42 @@ Hubのupstream側がfull-speedなら、配下のFS/LSデバイスはsplit transa
 Transaction Translator (TT) を使わず通常のFS/LS transactionで通信する。そのため、
 ESP32-P4 HS Hostで「HS HubとFS/LSデバイスを組み合わせられない」という制限を回避できる。
 
-このリポジトリには仮説を実機確認できる起動経路とprobeを追加した。ただし、現時点では
-実機結果がなく、DWC core error後の再設定も未対応なので、APIは
-`experimentalForceFullSpeed` としている。通常の設定では従来動作から変化しない。
+このリポジトリには仮説を実機確認できる起動経路とprobeを追加した。**root portについては実機で
+確認済みである**(下記「実機結果」)。Hubを介した構成はまだ未確認で、DWC core error後の再設定も
+未対応なので、APIは `experimentalForceFullSpeed` のままにしている。通常の設定では従来動作から
+変化しない。
+
+## 実機結果 (2026-09-13)
+
+**`HCFG.FSLSSUPP` はroot portで期待どおりに効く。** ESP32-P4同士をOTG HSポートで直結し、
+hubを介さずに測定した([`tests/probe/p4_hs_fs_direct`](../tests/probe/p4_hs_fs_direct/))。
+同じケーブル・同じdeviceで、bus modeだけを変えた2条件である。
+
+| bus mode | 列挙速度 | bulk endpoint | 実測 |
+|---|---|---|---|
+| 既定 | high | 512 B | 16.4 MB/s |
+| `experimentalForceFullSpeed` | **full** | **64 B** | **1.196 MB/s** |
+
+起動ログに `HCFG=0x00000204 FSLSSUPP=1` が出た上で、deviceは **full speedとして列挙され、
+endpointは64 B**で交渉された。**速度の報告だけでなくバスの実体がfull speedである**ことは帯域が
+示している。1.196 MB/sはfull-speed bulkの理論上限1.216 MB/sの98%で、同じリンクをhigh speedで
+測ったときの1/14である。64 KiBのramp転送はどちらの速度でも `bad=0` で通った。
+
+**hubを外した構成を選んだ理由**は切り分けである。hubを入れると「hubがfull-speedのupstreamを
+受け入れるか」という別の変数が混ざる。root portが本当にfull-speedで上がることをまず確定させれば、
+hub側に残る問いはその1点だけになる。
+
+なお **deviceのFS側descriptorが正しいことの確認**にもなっている。full-speed busでbulk endpointは
+64 Bでなければならず、512 Bを宣言するdeviceはそもそもこの経路を通れない。
+
+### 併せて見つかった注意点
+
+- **`DebugLevel=verbose` でこのprobeを走らせてはいけない。** USB hostを動かしながら大量のログを
+  出すと、Arduinoコア自身のconsoleドライバ (`hw_cdc_isr_handler()`, HWCDC.cpp) がstore faultで
+  落ち、USB-Serial-JTAG consoleごと巻き込んで物理的な挿し直しが必要になる。probeのprofileは
+  `DebugLevel=info` にしてある
+- **deviceを繋いだままの `end()` がP4で落ちる不具合**をこの調査中に見つけ、修正した(CHANGELOG参照)。
+  `experimentalForceFullSpeed` とは無関係で、既定のbus modeでも起きていた
 
 ## 背景と根拠
 

@@ -148,6 +148,7 @@ static usb_speed_t runCondition(const char *mode, bool forceFullSpeed)
                 static_cast<unsigned>(usb.vendorInTransferBytes(deviceAddress)));
   Serial.flush();
 
+  double mbps = 0.0;
   if (opened && usb.vendorReadQueueBegin(2, READ_TRANSFER_BYTES, deviceAddress))
   {
     mbps = measure();
