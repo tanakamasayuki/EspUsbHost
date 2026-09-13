@@ -1765,6 +1765,7 @@ void EspUsbHost::end()
 
   ESP_LOGI(TAG, "Stopping USB Host");
 
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
   // Cut power to the root port first, while the whole stack is still running.
   // A device left attached keeps the controller raising port interrupts, and one
   // that arrives after the host library's own object has been freed faults inside
@@ -1780,6 +1781,12 @@ void EspUsbHost::end()
   // panicked on every attempt without this and on none with it. It needed no
   // class API -- begin() followed by end() was enough -- and it reproduced
   // against the released 2.8.0, so it is an old fault rather than a new one.
+  //
+  // Deliberately P4-only. The same sequence on an ESP32-S3 breaks the *next*
+  // begin(), which fails to allocate its pipe and aborts inside the hub driver --
+  // and the S3 teardown has never shown the fault this repairs, across a peer
+  // suite that stops and restarts the host in almost every module. This changes
+  // the controller where the fault was observed and leaves the other alone.
   const esp_err_t powerErr = usb_host_lib_set_root_port_power(false);
   if (powerErr != ESP_OK && powerErr != ESP_ERR_INVALID_STATE)
   {
@@ -1787,9 +1794,15 @@ void EspUsbHost::end()
   }
   else if (powerErr == ESP_OK)
   {
-    // Let the disconnect reach the tasks before they are asked to stop.
-    delay(50);
+    // Wait for the disconnect to be processed rather than for a fixed time: the
+    // tasks have to retire the device before they are asked to stop.
+    const uint32_t unpoweredAtMs = millis();
+    while (deviceCount() != 0 && millis() - unpoweredAtMs < 1000)
+    {
+      delay(5);
+    }
   }
+#endif
 
   ready_ = false;
   running_ = false;
