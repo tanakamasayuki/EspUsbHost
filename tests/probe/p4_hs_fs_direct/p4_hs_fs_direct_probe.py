@@ -42,11 +42,19 @@ RESULT = re.compile(
 def test_p4_hs_fs_direct_probe(dut):
     dut.expect_exact("TEST_BEGIN p4_hs_fs_direct_probe")
 
+    ENUM = re.compile(r"ENUM mode=(\w+) speed=(\w+) in_mps=(\d+) out_mps=(\d+) xfer=(\d+)")
+
     dut.expect_exact("HOST_READY port=hs bus_mode=default", timeout=30)
+    default_enum = dut.expect(ENUM, timeout=60)
     default = dut.expect(RESULT, timeout=60)
 
     dut.expect_exact("HOST_READY port=hs bus_mode=full_speed_only", timeout=30)
+    forced_enum = dut.expect(ENUM, timeout=60)
     forced = dut.expect(RESULT, timeout=60)
+
+    for match in (default_enum, forced_enum):
+        mode, speed, in_mps, out_mps, xfer = (g.decode() for g in match.groups())
+        print(f"\nENUM {mode:8} speed={speed:5} in_mps={in_mps} out_mps={out_mps} xfer={xfer}")
 
     rows = []
     for match in (default, forced):

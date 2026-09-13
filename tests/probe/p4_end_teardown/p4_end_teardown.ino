@@ -1,5 +1,7 @@
 #include "EspUsbHost.h"
 
+#include <Preferences.h>
+
 // Which part of a session makes end() fault on an ESP32-P4 high-speed port?
 //
 // An earlier probe found that end() panics inside the host library's own
@@ -8,9 +10,12 @@
 // mode is not the variable. This walks a ladder of increasingly complete
 // sessions and reports which one's end() is the first to fault.
 //
-// The step index lives in RTC memory that a panic reboot does not clear, and is
+// The step index is kept in NVS, which a panic reboot does not clear, and is
 // advanced *before* the step runs, so a step that faults is not retried: one
 // flash walks the whole ladder even though each fault reboots the board.
+// (RTC_NOINIT was tried first and left the board producing no output at all on
+// this chip -- whatever it faulted on happened before USB CDC was up, so there
+// was nothing to read.)
 //
 // Peer: the board wired to this one's OTG HS port, running
 // tests/peer/usb_vendor_read/peer_device (or the same protocol).
@@ -23,9 +28,11 @@ static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
 static constexpr size_t STREAM_BYTES = 64 * 1024;
 static constexpr uint32_t STREAM_TIMEOUT_MS = 10000;
 
-static constexpr uint32_t LADDER_MAGIC = 0x50344544; // "P4ED"
-RTC_NOINIT_ATTR static uint32_t ladderMagic;
-RTC_NOINIT_ATTR static uint32_t ladderStep;
+// Bump to restart the ladder after a reflash: the stored index is ignored when
+// it was written by a different build of this sketch.
+static constexpr uint32_t LADDER_BUILD = 5;
+static Preferences ladderStore;
+static uint32_t ladderStep = 0;
 
 static volatile bool connected = false;
 static uint8_t deviceAddress = 0;
@@ -148,14 +155,17 @@ void setup()
   Serial.begin(115200);
   delay(2500);
 
-  if (ladderMagic != LADDER_MAGIC)
+  ladderStore.begin("p4ladder", false);
+  if (ladderStore.getUInt("build", 0) != LADDER_BUILD)
   {
-    ladderMagic = LADDER_MAGIC;
+    ladderStore.putUInt("build", LADDER_BUILD);
+    ladderStore.putUInt("step", 0);
     ladderStep = 0;
     Serial.println("TEST_BEGIN p4_end_teardown_probe");
   }
   else
   {
+    ladderStep = ladderStore.getUInt("step", 0);
     Serial.println("TEST_RESUME p4_end_teardown_probe");
   }
 
@@ -179,6 +189,7 @@ void setup()
   {
     const size_t index = ladderStep;
     ladderStep = index + 1; // advance first: a step that faults is not retried
+    ladderStore.putUInt("step", ladderStep);
     Serial.printf("STEP_BEGIN index=%u name=%s\n",
                   static_cast<unsigned>(index), STEPS[index].name);
     Serial.flush();

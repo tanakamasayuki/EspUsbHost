@@ -25,7 +25,7 @@ EspUsbHost usb;
 static constexpr uint16_t PEER_VID = 0x303a;
 static constexpr uint16_t PEER_PID = 0x4019;
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
-static constexpr size_t STREAM_BYTES = 256 * 1024;
+static constexpr size_t STREAM_BYTES = 64 * 1024;
 static constexpr uint32_t STREAM_TIMEOUT_MS = 20000;
 static constexpr size_t READ_TRANSFER_BYTES = 8192;
 
@@ -138,9 +138,17 @@ static usb_speed_t runCondition(const char *mode, bool forceFullSpeed)
 
   const usb_speed_t speed = peerSpeed();
 
-  double mbps = 0.0;
-  if (usb.vendorOpen(deviceAddress, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, READ_TRANSFER_BYTES) &&
-      usb.vendorReadQueueBegin(2, READ_TRANSFER_BYTES, deviceAddress))
+  const bool opened = usb.vendorOpen(deviceAddress, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS,
+                                     READ_TRANSFER_BYTES);
+  Serial.printf("ENUM mode=%s speed=%s in_mps=%u out_mps=%u xfer=%u\n",
+                mode,
+                speedName(speed),
+                usb.vendorInPacketSize(deviceAddress),
+                usb.vendorOutPacketSize(deviceAddress),
+                static_cast<unsigned>(usb.vendorInTransferBytes(deviceAddress)));
+  Serial.flush();
+
+  if (opened && usb.vendorReadQueueBegin(2, READ_TRANSFER_BYTES, deviceAddress))
   {
     mbps = measure();
   }
