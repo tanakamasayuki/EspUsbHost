@@ -25,6 +25,8 @@ The `tests/peer/usb_vendor` peer echoes a bulk OUT `"ping"` back as `"echo:ping"
 | `r` | Non-blocking bulk read from the per-device receive buffer |
 | `c` | EP0 vendor control IN, `bRequest=0x01` |
 | `o` | EP0 vendor control OUT, `bRequest=0x02` |
+| `q` | Start the asynchronous read queue: two 8 KB IN transfers in flight |
+| `e` | Stop the read queue and print its counters |
 
 ## Key APIs
 
@@ -34,6 +36,7 @@ The `tests/peer/usb_vendor` peer echoes a bulk OUT `"ping"` back as `"echo:ping"
 - `usb.vendorRead(buffer, length, address)` — non-blocking read from a 512-byte per-device receive buffer
 - `usb.vendorControlIn(request, value, index, data, length, &actual, address)` — EP0 vendor control IN (`bmRequestType = 0xc0`)
 - `usb.vendorControlOut(request, value, index, data, length, address)` — EP0 vendor control OUT (`bmRequestType = 0x40`)
+- `usb.vendorReadQueueBegin(depth, bufferBytes, address)` — keeps several bulk IN transfers outstanding instead of one packet at a time, for a device that streams. `usb.vendorReadStats(address)` says whether the endpoint is being kept busy; `usb.vendorReadQueueEnd(address)` stops it. A transfer size alone, without the queue, is `usb.vendorOpen(address, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, bytes)`
 
 ## Expected Serial output
 

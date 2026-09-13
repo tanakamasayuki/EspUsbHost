@@ -223,6 +223,10 @@ static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 // preallocated transfer, so the practical depth is limited by DMA memory rather
 // than by this constant.
 static constexpr size_t ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH = 8;
+// Upper bound for vendorReadQueueBegin(depth, ...). Each slot holds one
+// preallocated IN transfer, so the practical depth is limited by DMA memory
+// rather than by this constant.
+static constexpr size_t ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH = 8;
 // Same bound for serialWriteQueueBegin(depth, ...). The CDC data OUT endpoint is
 // bulk as well, so the queue has the same shape as the vendor one.
 static constexpr size_t ESP_USB_HOST_SERIAL_WRITE_QUEUE_MAX_DEPTH = 8;
@@ -606,6 +610,11 @@ enum EspUsbHostVendorReadMode : uint8_t
 // Default timeout for vendorReadSync().
 static constexpr uint32_t ESP_USB_HOST_VENDOR_READ_DEFAULT_TIMEOUT_MS = 1000;
 
+// Largest single continuous bulk IN transfer vendorOpen() will set up. One DMA
+// buffer of this size is allocated per device, so the practical limit is memory
+// rather than this constant.
+static constexpr size_t ESP_USB_HOST_VENDOR_READ_MAX_TRANSFER_BYTES = 65536;
+
 // Diagnostic snapshot of an asynchronous bulk OUT queue. Counters are updated
 // from the caller task (submitted, queueFullEvents) and from the USB client task
 // (completed, errors, bytes, zlp), so the snapshot is consistent per field but
@@ -623,6 +632,26 @@ struct EspUsbHostWriteQueueStats
 // The vendor bulk OUT queue and the CDC serial OUT queue report the same shape.
 using EspUsbHostVendorWriteStats = EspUsbHostWriteQueueStats;
 using EspUsbHostSerialWriteStats = EspUsbHostWriteQueueStats;
+
+// Diagnostic snapshot of the asynchronous bulk IN queue. Every field but
+// `submitted` is written only from the USB client task, and `submitted` also
+// counts the transfers vendorReadQueueBegin() hands over from the caller task,
+// so the snapshot is consistent per field rather than taken at one instant.
+//
+// bytes / completed is the mean transfer the device actually filled, which is
+// what says whether a stream is packet-bound or transfer-bound: a stream that
+// keeps filling whole slots is limited by the bus, while one that returns short
+// transfers is limited by the device.
+struct EspUsbHostVendorReadStats
+{
+  uint32_t submitted = 0;        // transfers handed to the USB driver
+  uint32_t completed = 0;        // completion callbacks received
+  uint32_t errors = 0;           // completions with a status other than COMPLETED
+  uint32_t shortTransfers = 0;   // completions that ended before filling the slot
+  uint32_t resubmitFailures = 0; // slots that went idle because a resubmit failed
+  uint32_t starved = 0;          // completions that found no other transfer in flight
+  uint64_t bytes = 0;            // bytes delivered by completed transfers
+};
 
 struct EspUsbHostHIDReportDescriptor
 {
@@ -1701,9 +1730,20 @@ public:
   // Naming an interface explicitly claims it whatever its class, for devices
   // whose bulk protocol sits behind some other class code; an interface already
   // claimed by another part of this library is still refused.
+  //
+  // readTransferBytes sizes one continuous IN transfer. The default 0 keeps the
+  // historical behaviour of one endpoint-sized packet per transfer, which keeps
+  // every short message its own onVendorData() callback but leaves the endpoint
+  // idle between transfers: a streaming device is then limited by the
+  // per-transfer turnaround rather than by the bus. A larger size is rounded up
+  // to a whole number of max-size packets and capped at
+  // ESP_USB_HOST_VENDOR_READ_MAX_TRANSFER_BYTES. A short packet still ends the
+  // transfer early, so message boundaries survive; back-to-back full packets are
+  // delivered as one callback instead of many.
   bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                   uint8_t interfaceNumber = 0xff,
-                  EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS);
+                  EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS,
+                  size_t readTransferBytes = 0);
   bool vendorWrite(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   size_t vendorRead(uint8_t *buffer, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   // One bulk IN transfer, submitted now and waited for. This is the read a
@@ -1721,6 +1761,9 @@ public:
   // packet boundary need this value.
   uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Bytes one continuous bulk IN transfer asks for, as vendorOpen() rounded the
+  // requested size. 0 when no vendor interface is open or reads are on-demand.
+  size_t vendorInTransferBytes(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   // Address of the endpoints vendorOpen() selected, or 0 when none is open. An
   // interface can expose several bulk endpoints per direction, so a caller that
   // requires a specific one needs to check which was chosen.
@@ -1756,6 +1799,34 @@ public:
   bool vendorWriteFlush(uint32_t timeoutMs, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   EspUsbHostVendorWriteStats vendorWriteStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   void vendorWriteStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+
+  // Asynchronous bulk IN queue, the receive side of the queue above. The
+  // continuous read vendorOpen() sets up keeps one transfer outstanding and only
+  // submits the next one after the completion has been handled, so the endpoint
+  // is idle for the turnaround of every transfer. The queue keeps `depth`
+  // transfers of `bufferBytes` outstanding instead and resubmits each from its
+  // own completion, which leaves the device with a token to answer at all times.
+  //
+  // Data still arrives through onVendorData() and vendorRead(); only the shape of
+  // the transfers underneath changes. bufferBytes is rounded up to a whole number
+  // of max-size packets and capped at ESP_USB_HOST_VENDOR_READ_MAX_TRANSFER_BYTES.
+  //
+  // Beginning the queue takes the endpoint over from the continuous read, which
+  // means waiting for the outstanding transfer to be canceled: call it from a
+  // normal task, not from a USB callback. It is refused on an interface opened
+  // with ESP_USB_HOST_VENDOR_READ_ON_DEMAND, where vendorReadSync() owns the
+  // endpoint instead.
+  bool vendorReadQueueBegin(size_t depth,
+                            size_t bufferBytes,
+                            uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Stops the queue and restores nothing: the endpoint is left idle, so reads
+  // continue with vendorReadSync() or with another vendorReadQueueBegin().
+  void vendorReadQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool vendorReadQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Transfers currently outstanding on the endpoint, 0..depth.
+  size_t vendorReadPending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  EspUsbHostVendorReadStats vendorReadStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  void vendorReadStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 
   // Bulk OUT packet boundaries. A transfer whose length is a multiple of the
   // endpoint max packet size does not terminate the USB transfer by itself; some
@@ -2288,6 +2359,9 @@ private:
     uint8_t audioBitsPerSample = 0;
     usb_transfer_t *transfer = nullptr;
     bool transferSubmitted = false;
+    // Set while an endpoint is being taken over or torn down: no path may submit
+    // a new transfer on it, so the outstanding one can be canceled and freed.
+    bool stopping = false;
     bool recoveryPending = false;
     bool resubmitPending = false;
     bool resubmitAfterLed = false;
@@ -2466,6 +2540,9 @@ private:
     bool hasUsbVendorInEndpoint = false;
     uint8_t usbVendorInEndpointAddress = 0;
     uint16_t usbVendorInPacketSize = 0;
+    // Bytes per continuous IN transfer, rounded up to a whole number of packets
+    // by vendorOpen(). 0 until a continuous transfer is set up.
+    size_t usbVendorInTransferBytes = 0;
     bool hasUsbVendorOutEndpoint = false;
     uint8_t usbVendorOutEndpointAddress = 0;
     uint16_t usbVendorOutPacketSize = 0;
@@ -2485,6 +2562,19 @@ private:
     bool usbVendorOutHalted = false;
     bool usbVendorAutoZlp = false;
     EspUsbHostVendorWriteStats usbVendorWriteStats;
+    // Asynchronous bulk IN queue. Slots are preallocated by
+    // vendorReadQueueBegin() and resubmitted from their own completion callback,
+    // so the endpoint keeps several transfers outstanding.
+    bool usbVendorInQueueActive = false;
+    uint8_t usbVendorInQueueDepth = 0;
+    size_t usbVendorInBufferBytes = 0;
+    usb_transfer_t *usbVendorInTransfers[ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH] = {};
+    bool usbVendorInSlotInFlight[ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH] = {};
+    // A stalled pipe and a failed resubmit are both repaired from the client
+    // task, which owns endpoint recovery; the callback only records them.
+    bool usbVendorInHalted = false;
+    bool usbVendorInRefillPending = false;
+    EspUsbHostVendorReadStats usbVendorReadStats;
     bool hasMidiInterface = false;
     uint8_t midiInterfaceNumber = 0;
     bool hasMidiOutEndpoint = false;
@@ -2661,6 +2751,7 @@ private:
   static void outputTransferCallback(usb_transfer_t *transfer);
   static void serialOutTransferCallback(usb_transfer_t *transfer);
   static void vendorOutTransferCallback(usb_transfer_t *transfer);
+  static void vendorInTransferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
   void clientTaskLoop();
@@ -2801,6 +2892,8 @@ private:
   bool vendorInterfaceEligible(const DeviceState &device,
                                const EspUsbHostInterfaceInfo &intf,
                                uint8_t interfaceNumber) const;
+  static size_t vendorReadTransferBytes(uint16_t packetSize, size_t requested);
+  void vendorRxPush(DeviceState &device, const uint8_t *data, size_t length);
   int serialOutSlotOf(const SerialOutQueue &queue, const uint8_t *buffer) const;
   int serialOutSlotOfTransfer(const SerialOutQueue &queue, const usb_transfer_t *transfer) const;
   bool submitSerialOutSlot(DeviceState &device, SerialPortState &port, int slot, size_t length);
@@ -2808,6 +2901,18 @@ private:
   void releaseSerialOutQueues(DeviceState &device);
   void serialDrainOut(SerialPortState &port);
   void serialDrainOutAll(DeviceState &device);
+  int vendorInSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
+  bool submitVendorInSlot(DeviceState &device, uint8_t slot);
+  bool stopVendorContinuousIn(DeviceState &device);
+  void serviceVendorInQueue(DeviceState &device);
+  void releaseVendorInQueue(DeviceState &device);
+  void vendorDrainIn(DeviceState &device);
+  size_t vendorInInFlight(const DeviceState &device) const;
+  void dispatchVendorData(DeviceState &device,
+                          uint8_t interfaceNumber,
+                          uint8_t endpointAddress,
+                          const uint8_t *data,
+                          size_t length);
   int vendorOutSlotOf(const DeviceState &device, const uint8_t *buffer) const;
   int vendorOutSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   bool submitVendorOutSlot(DeviceState &device, int slot, size_t length);

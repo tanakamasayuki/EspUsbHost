@@ -810,7 +810,8 @@ void onVendorData(VendorDataCallback callback);
 
 bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                 uint8_t interfaceNumber = 0xff,
-                EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS);
+                EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS,
+                size_t readTransferBytes = 0);
 bool vendorWrite(const uint8_t *data, size_t length,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t vendorRead(uint8_t *buffer, size_t length,
@@ -821,6 +822,7 @@ bool vendorReadSync(uint8_t *buffer, size_t length,
                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t vendorInTransferBytes(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint8_t vendorInEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
@@ -851,6 +853,15 @@ usb.vendorWrite(request, sizeof(request), address);
 size_t length = 0;
 usb.vendorReadSync(response, sizeof(response), &length, 1000, address);
 ```
+
+第4引数は continuous IN の1転送あたりのバイト数です。既定値の `0` は従来どおり「1転送 = endpoint の max packet size 1パケット」で、短いメッセージが1つずつ `onVendorData()` に届く代わりに、1転送ごとの折り返し時間だけ endpoint がアイドルになります。ストリームを流すデバイスでは、バスではなくこの折り返しが上限を決めてしまいます。大きい値を渡すと max packet size の整数倍へ切り上げられ、`ESP_USB_HOST_VENDOR_READ_MAX_TRANSFER_BYTES`（64 KB）で頭打ちになります。実際に設定された値は `vendorInTransferBytes()` で読めます。short packet は従来どおり転送をその場で終端するのでメッセージ境界は保たれますが、full packet が連続する区間は複数パケットが1回の callback にまとまります。
+
+```cpp
+// 512 byte × 16 回ではなく 8 KB × 1 回で受ける
+usb.vendorOpen(address, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, 8192);
+```
+
+転送は open 時に1回だけ確保するため、サイズも read mode と同じく open 時に固定されます。別のサイズを明示して開き直すと失敗し、`0` で開き直した場合は設定済みのサイズを維持します。
 
 `vendorReadSync()` は bulk IN 転送を1つ submit して完了を待つため、`vendorWrite()` と同様に USB callback 内では呼べません。要求長は USB host の要求どおり max packet size の整数倍へ切り上げられ、呼び出し側へは要求した分だけコピーされます。bulk IN と bulk OUT の両方を持つ interface を優先しますが、bulk OUT だけを持つ interface も受け付けます。その場合 IN 転送は開始されず、`vendorRead()` / `onVendorData()` にデータは届きません。たとえばUSBグラフィックスアダプタは bulk OUT と interrupt IN の組み合わせで、このAPIは interrupt IN を使いません。
 
@@ -894,6 +905,29 @@ bool vendorAutoZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 ESP32-S3（full-speed OTG）での `tests/manual/vendor_bulk_throughput` 実測値: キューは1.098 MB/sに達し、これはfull-speed bulkの上限1.216 MB/sの約90%です。depth 2あれば転送サイズに関係なくこの上限に張り付きます。同期の `vendorWrite()` が同じ値に届くのは大きな転送のときだけで、転送ごとのレイテンシが支配的になる512 byteでは0.88 MB/sまで落ちます。full-speedではdepthを2より増やしても改善しませんでした。
 
 bulk OUTの転送長がendpointのmax packet sizeの倍数になった場合、その転送だけではUSB転送が終端されません。`vendorSetAutoZlp(true)` にするとライブラリが必要なzero-length packetを付加し、`vendorWriteZlp()` は明示的に1つ送ります。auto ZLPは既定で無効で、有効時はキューのスロットをもう1つ消費するためdepthは2以上にしてください。
+
+非同期 bulk IN キューは、同じ考え方の受信側です。continuous read は client task が完了を処理し終えてから次の転送を submit するため、その折り返しの間 endpoint は応答するものを持ちません。キューは `depth` 個の転送を出しっぱなしにし、各転送を自分の完了 callback から再 submit します。
+
+```cpp
+bool vendorReadQueueBegin(size_t depth, size_t bufferBytes,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorReadQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorReadQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t vendorReadPending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+EspUsbHostVendorReadStats vendorReadStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void vendorReadStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+```
+
+```cpp
+usb.vendorOpen(address);
+usb.vendorReadQueueBegin(2, 8192, address);  // 8 KB 転送を2本同時に飛ばす
+```
+
+データは従来どおり `onVendorData()` と `vendorRead()` に届きます。変わるのはその下の転送の形だけです。`bufferBytes` は上記 `readTransferBytes` と同じく切り上げと上限がかかり、`depth` の上限は `ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH` です。deviceごとの受信リングは `ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE`（既定512 byte）のままなので、KB単位で受けるストリームは `vendorRead()` ではなく `onVendorData()` で消費してください。`vendorRead()` には最後のリング1杯分しか残りません。
+
+`vendorReadQueueBegin()` は continuous read から endpoint を引き継ぎます。出しっぱなしの転送をキャンセルして待つ処理が入るため、USB callback からではなく通常の task から呼んでください。`ESP_USB_HOST_VENDOR_READ_ON_DEMAND` で開いた interface では拒否されます（そちらは `vendorReadSync()` が endpoint を持つため）。逆にキューが動作中は `vendorReadSync()` が拒否されます。`vendorReadQueueEnd()` は endpoint をアイドルにするだけなので、continuous read に戻すには `vendorOpen()` を呼び直します。
+
+`vendorReadStats()` は `submitted` / `completed` / `errors` / `bytes` に加えて、ストリームがどこで詰まっているかを示す3つを返します。`shortTransfers` はスロットを埋めきる前に終わった完了の数、`starved` は完了した時点で他に1本も飛んでいなかった回数（depth が浅いか転送が小さすぎて折り返しを覆えていない）、`resubmitFailures` は driver に再 submit を拒否されてスロットが空いたままになった数です。`bytes / completed` は device が実際に1転送へ詰めた平均バイト数で、「device がそれ以上出せない」のか「host が十分な頻度で訊けていない」のかを分けるのはこの値です。[`tests/manual/vendor_bulk_in_throughput`](tests/manual/vendor_bulk_in_throughput/) は両方の軸を振って表を出します。
 
 ### CCIDスマートカードリーダー
 

@@ -85,6 +85,15 @@ Bulk IN has two modes instead (`vendorOpen()`'s `readMode`):
 
 Getting this wrong shows up as timeouts, or a stream of transfer errors in the log.
 
+**Continuous does not mean uninterrupted.** The next transfer is submitted by the client task after it has handled the completion, so the endpoint carries nothing for that turnaround, and by default each transfer only asks for one max-size packet. A device that streams is then limited by how often the host asks rather than by the bus. Two independent knobs move it:
+
+| Knob | Call | Effect |
+|------|------|--------|
+| Bytes per transfer | `vendorOpen(address, iface, readMode, bytes)` | One transfer covers many packets, so the same turnaround is paid once per `bytes` instead of once per packet |
+| Transfers in flight | `vendorReadQueueBegin(depth, bytes)` | Each transfer is resubmitted from its own completion and `depth-1` others stay outstanding, so the turnaround is covered rather than paid |
+
+`vendorReadStats()` says which of the two is binding: `starved` counts the completions that found nothing else in flight, and `bytes / completed` is how much the device actually managed to put in each transfer. A stream that returns short transfers is supply-limited at the device; one that fills every transfer but starves is limited by this side.
+
 ### 1.4 Intervening in enumeration
 
 `setConfigurationSelector()` uses ESP-IDF's `enum_filter_cb` to **choose which configuration is activated during enumeration**. It is needed by USB Ethernet adapters and similar devices that hide the interesting function outside the default configuration.
@@ -284,6 +293,8 @@ A 1024-byte interrupt OUT cannot be opened on a full-speed port because full spe
 
 The measurements come from [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/). The gap is host-side URB handling, the gaps between transfers, and what the device can absorb. **Budget against the measured number, not the theoretical one.** Pushing a 320×240 16 bpp screen over full speed means 153,600 bytes per frame, so 1.098 MB/s caps you at roughly 7 fps.
 
+Bulk IN has the same two dimensions and its own sweep, [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/): the continuous read at one packet per transfer, then the read queue over transfer sizes and depths. Do not assume the OUT numbers transfer to IN. On OUT the host decides when to put a packet on the bus; on IN it decides only how often to ask, and the device decides what comes back — which is why `per_transfer` in that table is read alongside the MB/s rather than after it.
+
 ---
 
 ## 5. Endpoint resources: channels and FIFO
@@ -357,6 +368,8 @@ FIFO lines rx=260 nptx=128 ptx=280 (total=668) -> max MPS in=1032 bulk_out=512 p
 ```
 
 A full-speed port only has 256 lines in total, so **no split makes a 1024-byte endpoint openable there.**
+
+The IN direction rarely needs any of this: the high-speed default leaves `(640 - 2) * 4 = 2552` bytes for IN, and even `ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT` keeps 1032. **A 1024-byte interrupt or bulk IN endpoint opens on a high-speed port without repartitioning** — every IN endpoint shares the one rx FIFO, so there is no separate periodic-IN budget to run out of. If a large periodic IN enumerates and claims but then does not stream, look at the submit rate rather than the FIFO: a 1024-byte interrupt IN at `bInterval=1` wants a transfer every 125 µs, and the client task's turnaround ([1.3](#13-in-transfers-stay-submitted)) is what has to keep up with that.
 
 ---
 
@@ -559,7 +572,7 @@ With Core Debug Level at `Verbose`, the ESP-IDF host stack reports enumeration a
 | Compare against raw descriptors | [`raw_descriptor`](../tests/manual/raw_descriptor/) plus `lsusb -v` on a PC |
 | Try an arbitrary transfer | [`EspUsbHostProtocolConsole`](../examples/Vendor/EspUsbHostProtocolConsole/) |
 | Channel usage | `estimatedHcdChannelCount()` / `printAllDeviceInfo()` |
-| Effective bulk speed | [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/) |
+| Effective bulk speed | [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/) (OUT) / [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/) (IN) |
 | Hot-plug robustness | [`hotplug`](../tests/manual/hotplug/) |
 | Whether a hub is the cause | [`tests/probe/hub_enum`](../tests/probe/) |
 | Identifying P4 ports | `p4_hs_host` / `p4_fs_host` / `p4_cdc` in [`tests/probe/`](../tests/probe/) |

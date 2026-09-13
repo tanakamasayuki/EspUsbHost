@@ -85,6 +85,15 @@ interrupt IN（キーボード、マウス、CCID通知など）は、ライブ�
 
 ここを間違えると「タイムアウトする」「エラーログが出続ける」という症状になります。
 
+**continuous は「途切れない」という意味ではありません。** 次の転送を submit するのは完了を処理し終えた client task で、その折り返しの間 endpoint は何も持ちません。しかも既定では1転送が max packet size 1パケット分しか要求しません。ストリームを流す機器では、バスではなく「host がどれだけ頻繁に訊くか」が上限になります。動かせるつまみは独立に2つあります。
+
+| つまみ | 呼び方 | 効き方 |
+|--------|--------|--------|
+| 1転送のバイト数 | `vendorOpen(address, iface, readMode, bytes)` | 1転送が多数のパケットを覆うので、同じ折り返しを1パケットごとではなく `bytes` ごとに1回払う |
+| 同時に飛ばす転送数 | `vendorReadQueueBegin(depth, bytes)` | 各転送を自分の完了 callback から再 submit し、残り `depth-1` 本が飛び続けるので、折り返しを払うのではなく覆う |
+
+どちらが効いているかは `vendorReadStats()` が示します。`starved` は完了時に他に1本も飛んでいなかった回数、`bytes / completed` は device が実際に1転送へ詰められた量です。short transfer が多ければ device 側の供給限界、毎回埋まっているのに starve しているならこちら側が律速です。
+
 ### 1.4 列挙への介入
 
 `setConfigurationSelector()` はESP-IDFの `enum_filter_cb` を使い、**列挙の途中で有効化するコンフィグレーションを選びます**。既定のコンフィグにお目当ての機能がないUSB Ethernetアダプタなどで必要です。
@@ -284,6 +293,8 @@ HSの1024バイトinterrupt OUTがFSポートで開けないのは、そもそ�
 
 測定は [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/) です。理論値との差は、ホスト側のURB処理、転送間の隙間、デバイス側の受信能力から来ます。**設計では実測値を上限として見積もってください。** 例えばFSで320×240×16bppの画面を送るなら1フレーム153,600バイト、1.098MB/sなら約7fpsが上限です。
 
+bulk IN にも同じ2軸があり、掃引は [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/) です。1パケット/転送の continuous read から始め、read queue の転送サイズと depth を振ります。**OUT の数字をそのまま IN に当てはめないでください。** OUT はいつバスにパケットを出すかを host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」だけで、返ってくる中身は device が決めます。あの表で MB/s と `per_transfer` を並べて読むのはそのためです。
+
 ---
 
 ## 5. エンドポイント資源：チャネルとFIFO
@@ -357,6 +368,8 @@ FIFO lines rx=260 nptx=128 ptx=280 (total=668) -> max MPS in=1032 bulk_out=512 p
 ```
 
 FSポートは総量が256ラインしかないため、**そもそも1024バイトのエンドポイントは分割をどう変えても開けません。**
+
+IN方向でこの調整が要ることはほとんどありません。HSの既定でも IN は `(640 - 2) * 4 = 2552` バイトまで取れ、`ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT` にしても1032バイト残ります。**1024バイトの interrupt / bulk IN エンドポイントは、HSポートなら分割を変えずに開きます。** IN は全エンドポイントが1つの rx FIFO を共有するので、周期IN専用の枠が尽きるということ自体がありません。大きい周期INが列挙もclaimも通るのにストリームが流れない場合は、FIFOではなく submit の頻度を見てください。`bInterval=1` の1024バイト interrupt IN は125 µsごとに1転送を要求するので、追いつく必要があるのは client task の折り返し（[1.3](#13-in転送は常時サブミットされている)）です。
 
 ---
 
@@ -559,7 +572,7 @@ Core Debug Level を `Verbose` にすると、ESP-IDFのホストスタックが
 | 生ディスクリプタとの突き合わせ | [`raw_descriptor`](../tests/manual/raw_descriptor/) と PC側の `lsusb -v` |
 | 任意の転送を試す | [`EspUsbHostProtocolConsole`](../examples/Vendor/EspUsbHostProtocolConsole/) |
 | チャネル使用量 | `estimatedHcdChannelCount()` / `printAllDeviceInfo()` |
-| バルクの実効速度 | [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/) |
+| バルクの実効速度 | [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)（OUT） / [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/)（IN） |
 | 抜き挿し耐性 | [`hotplug`](../tests/manual/hotplug/) |
 | ハブが原因かの切り分け | [`tests/probe/hub_enum`](../tests/probe/) |
 | P4のポート特定 | [`tests/probe/`](../tests/probe/) の `p4_hs_host` / `p4_fs_host` / `p4_cdc` |
