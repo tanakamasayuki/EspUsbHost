@@ -1,0 +1,194 @@
+#include "EspUsbHost.h"
+
+// Which part of a session makes end() fault on an ESP32-P4 high-speed port?
+//
+// An earlier probe found that end() panics inside the host library's own
+// interrupt path (proc_req_callback <- intr_hdlr_main) after a vendor bulk IN
+// session, in both the default and the forced-full-speed bus mode -- so the bus
+// mode is not the variable. This walks a ladder of increasingly complete
+// sessions and reports which one's end() is the first to fault.
+//
+// The step index lives in RTC memory that a panic reboot does not clear, and is
+// advanced *before* the step runs, so a step that faults is not retried: one
+// flash walks the whole ladder even though each fault reboots the board.
+//
+// Peer: the board wired to this one's OTG HS port, running
+// tests/peer/usb_vendor_read/peer_device (or the same protocol).
+
+EspUsbHost usb;
+
+static constexpr uint16_t PEER_VID = 0x303a;
+static constexpr uint16_t PEER_PID = 0x4019;
+static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
+static constexpr size_t STREAM_BYTES = 64 * 1024;
+static constexpr uint32_t STREAM_TIMEOUT_MS = 10000;
+
+static constexpr uint32_t LADDER_MAGIC = 0x50344544; // "P4ED"
+RTC_NOINIT_ATTR static uint32_t ladderMagic;
+RTC_NOINIT_ATTR static uint32_t ladderStep;
+
+static volatile bool connected = false;
+static uint8_t deviceAddress = 0;
+static volatile size_t streamBytes = 0;
+static volatile bool streamArmed = false;
+
+struct Step
+{
+  const char *name;
+  bool openVendor;      // vendorOpen()
+  size_t readTransfer;  // 0 = endpoint packet size
+  bool useQueue;        // vendorReadQueueBegin()
+  bool stream;          // pull data before tearing down
+  bool endQueueFirst;   // vendorReadQueueEnd() before end()
+};
+
+static const Step STEPS[] = {
+    {"begin_end", false, 0, false, false, false},
+    {"open_default", true, 0, false, false, false},
+    {"open_large", true, 8192, false, false, false},
+    {"open_large_stream", true, 8192, false, true, false},
+    {"queue_stream_endqueue", true, 8192, true, true, true},
+    {"queue_stream_no_endqueue", true, 8192, true, true, false},
+};
+static constexpr size_t STEP_COUNT = sizeof(STEPS) / sizeof(STEPS[0]);
+
+static bool waitConnected()
+{
+  const uint32_t deadline = millis() + CONNECT_TIMEOUT_MS;
+  while (!connected && millis() < deadline)
+  {
+    delay(10);
+  }
+  return connected;
+}
+
+static bool pullStream()
+{
+  streamArmed = false;
+  delay(100);
+  streamBytes = 0;
+  streamArmed = true;
+
+  const size_t bytes = STREAM_BYTES;
+  const uint8_t request[5] = {'S',
+                              static_cast<uint8_t>(bytes & 0xff),
+                              static_cast<uint8_t>((bytes >> 8) & 0xff),
+                              static_cast<uint8_t>((bytes >> 16) & 0xff),
+                              static_cast<uint8_t>((bytes >> 24) & 0xff)};
+  if (!usb.vendorWrite(request, sizeof(request), deviceAddress))
+  {
+    streamArmed = false;
+    return false;
+  }
+  const uint32_t deadline = millis() + STREAM_TIMEOUT_MS;
+  while (streamBytes < bytes && millis() < deadline)
+  {
+    delay(1);
+  }
+  streamArmed = false;
+  return streamBytes >= bytes;
+}
+
+static void runStep(const Step &step)
+{
+  EspUsbHostConfig config;
+  config.port = ESP_USB_HOST_PORT_HIGH_SPEED;
+
+  connected = false;
+  deviceAddress = 0;
+
+  if (!usb.begin(config))
+  {
+    Serial.printf("STEP_FAIL name=%s reason=begin error=%s\n", step.name, usb.lastErrorName());
+    return;
+  }
+  if (!waitConnected())
+  {
+    Serial.printf("STEP_FAIL name=%s reason=no_device\n", step.name);
+    usb.end();
+    return;
+  }
+
+  bool opened = false;
+  bool queued = false;
+  bool streamed = false;
+  if (step.openVendor)
+  {
+    opened = usb.vendorOpen(deviceAddress, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, step.readTransfer);
+  }
+  if (opened && step.useQueue)
+  {
+    queued = usb.vendorReadQueueBegin(2, step.readTransfer, deviceAddress);
+  }
+  if (opened && step.stream)
+  {
+    streamed = pullStream();
+  }
+  if (queued && step.endQueueFirst)
+  {
+    usb.vendorReadQueueEnd(deviceAddress);
+  }
+
+  Serial.printf("STEP_STATE name=%s opened=%u queued=%u streamed=%u\n",
+                step.name, opened ? 1 : 0, queued ? 1 : 0, streamed ? 1 : 0);
+  Serial.flush();
+  delay(50);
+
+  // Everything above is setup. This is the call under test.
+  Serial.printf("STEP_END_ENTER name=%s\n", step.name);
+  Serial.flush();
+  usb.end();
+  Serial.printf("STEP_END_OK name=%s\n", step.name);
+  Serial.flush();
+  delay(500);
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  delay(2500);
+
+  if (ladderMagic != LADDER_MAGIC)
+  {
+    ladderMagic = LADDER_MAGIC;
+    ladderStep = 0;
+    Serial.println("TEST_BEGIN p4_end_teardown_probe");
+  }
+  else
+  {
+    Serial.println("TEST_RESUME p4_end_teardown_probe");
+  }
+
+  usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
+                        {
+                          if (device.vid == PEER_VID && device.pid == PEER_PID)
+                          {
+                            deviceAddress = device.address;
+                            connected = true;
+                          }
+                        });
+  usb.onVendorData([](const EspUsbHostVendorData &data)
+                   {
+                     if (streamArmed)
+                     {
+                       streamBytes += data.length;
+                     }
+                   });
+
+  while (ladderStep < STEP_COUNT)
+  {
+    const size_t index = ladderStep;
+    ladderStep = index + 1; // advance first: a step that faults is not retried
+    Serial.printf("STEP_BEGIN index=%u name=%s\n",
+                  static_cast<unsigned>(index), STEPS[index].name);
+    Serial.flush();
+    runStep(STEPS[index]);
+  }
+
+  Serial.println("LADDER_DONE");
+}
+
+void loop()
+{
+  delay(1000);
+}
