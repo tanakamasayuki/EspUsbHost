@@ -39,9 +39,9 @@ baseline here remains released EspUsbHost plus the Arduino Core standard Device
 implementation.
 
 A `peer/` test uses an `EspUsbDevice` peer only when the Arduino Core device
-stack cannot express the device at all: `usb_vendor`, `usb_ncm`,
-`usb_ncm_throughput`, `hid_keyboard_composite`, `hid_keyboard_nkro`, and
-`usb_audio_uac2`. UAC2 is such
+stack cannot express the device at all: `usb_vendor`, `usb_vendor_read`,
+`usb_ncm`, `usb_ncm_throughput`, `hid_keyboard_composite`, `hid_keyboard_nkro`,
+and `usb_audio_uac2`. UAC2 is such
 a case because `USBAudioCard` is UAC1 only, so nothing in Arduino Core can
 present the Clock Source entity, the 4-byte Feature Unit controls, or the
 `RANGE` requests that the host's UAC2 path exists to handle.
@@ -158,6 +158,7 @@ and the checks poll that.
 | MIDI multi-listener dispatch | ✅ peer (single-callback coexistence, listener-only delivery, ordering, capacity, removal, callback-time mutation) | | |
 | Device lifecycle multi-listener dispatch | ✅ peer (connect event from `end()` + re-begin, disconnect then reconnect from a peer reboot, single-callback coexistence, ordering, dedicated capacity of 8, removal) | | |
 | Vendor-specific bulk/control | ✅ peer (usb_vendor, including `end()`/restart) | ✅ manual (Android ADB auth + shell stream) | |
+| Vendor bulk IN transfer shape | 🆕 peer (usb_vendor_read, written but not yet run — the peer boards were not connected when it was added: default one-packet reads, `vendorOpen()` read transfer size and its re-open conflict, read queue begin/end, `vendorReadSync()` refused while queued, a 128 KB ramp verified byte for byte through both paths) | 🆕 manual (`vendor_bulk_in_throughput`: continuous read against queue depths 1/2/4 over 512 B..32 KB transfers; not yet run) | ⬜ high-speed (P4-to-P4) numbers, which need both boards on their OTG HS ports |
 | USB audio input/output — UAC1 | ✅ peer (bidirectional with standard `USBAudioCard`) | | ⬜ real USB microphones/audio interfaces |
 | USB audio input/output — UAC2 | ✅ peer (`usb_audio_uac2`: class revision, Clock Source sample rates, 4-byte/2-bit Feature Unit controls, volume `RANGE`, explicit feedback endpoint polling and OUT pacing, bidirectional streaming), ✅ host unit (`unit/audio_uac`: descriptor and RANGE decoding) | | ⬜ real UAC2 devices, which are usually high-speed designs the full-speed host cannot enumerate; Clock Selector / Clock Multiplier; long asynchronous playback against a real DAC (the peer computes feedback from its FIFO level, not from a hardware clock) |
 | USB Mass Storage — block I/O / FatFs mount | ✅ peer (capacity, Inquiry/Sense, read/write, out-of-range rejection, write failure reporting, `end()`/restart with the device attached and with an empty device list; usb_msc_fat: mount/read/unmount of a peer-formatted FAT12 volume, mount-unmount-`end()`-`begin()`-remount, `end()` releasing a still-mounted volume) | ✅ manual (real USB flash capacity, LBA0 read, FatFs/VFS mount, `fs::FS` wrapper, file write/read/delete, mounted disconnect/remount) | ⬜ full BOT recovery after failed data phase, multiple LUNs, >32-bit-sector FatFs mount |

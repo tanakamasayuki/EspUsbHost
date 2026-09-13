@@ -85,6 +85,30 @@ void loop()
       bool ok = usb.vendorControlOut(0x02, 0, 0, nullptr, 0, deviceAddress);
       Serial.printf("control out: %s\n", ok ? "ok" : "failed");
     }
+    else if (command == 'q')
+    {
+      // en: For a device that streams: keep two 8 KB IN transfers in flight instead
+      //     of one packet at a time. Data still arrives through onVendorData().
+      // ja: 流しっぱなしのデバイス向け。1パケットずつではなく8 KBのIN転送を2本
+      //     同時に飛ばし続けます。データは従来どおりonVendorData()に届きます。
+      bool ok = usb.vendorReadQueueBegin(2, 8192, deviceAddress);
+      Serial.printf("read queue: %s transfer=%u\n",
+                    ok ? "ok" : "failed",
+                    (unsigned)usb.vendorInTransferBytes(deviceAddress));
+    }
+    else if (command == 'e')
+    {
+      // en: Stop the queue. The endpoint goes idle; vendorOpen() starts the
+      //     continuous read again.
+      // ja: キューを止めます。endpointはアイドルになり、vendorOpen()で継続受信に戻ります。
+      usb.vendorReadQueueEnd(deviceAddress);
+      const EspUsbHostVendorReadStats stats = usb.vendorReadStats(deviceAddress);
+      Serial.printf("read queue ended: completed=%lu bytes=%llu errors=%lu starved=%lu\n",
+                    (unsigned long)stats.completed,
+                    (unsigned long long)stats.bytes,
+                    (unsigned long)stats.errors,
+                    (unsigned long)stats.starved);
+    }
   }
   delay(1);
 }

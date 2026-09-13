@@ -846,7 +846,8 @@ void onVendorData(VendorDataCallback callback);
 
 bool vendorOpen(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                 uint8_t interfaceNumber = 0xff,
-                EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS);
+                EspUsbHostVendorReadMode readMode = ESP_USB_HOST_VENDOR_READ_CONTINUOUS,
+                size_t readTransferBytes = 0);
 bool vendorWrite(const uint8_t *data, size_t length,
                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 size_t vendorRead(uint8_t *buffer, size_t length,
@@ -857,6 +858,7 @@ bool vendorReadSync(uint8_t *buffer, size_t length,
                     uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
 uint16_t vendorOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint16_t vendorInPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t vendorInTransferBytes(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint8_t vendorOutEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 uint8_t vendorInEndpoint(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
@@ -887,6 +889,15 @@ usb.vendorWrite(request, sizeof(request), address);
 size_t length = 0;
 usb.vendorReadSync(response, sizeof(response), &length, 1000, address);
 ```
+
+The fourth argument sizes one continuous IN transfer. The default `0` keeps the historical behaviour of one endpoint-sized packet per transfer, which gives every short message its own `onVendorData()` callback but leaves the endpoint idle for the turnaround after each one — a device that streams is then limited by that turnaround rather than by the bus. A larger size is rounded up to a whole number of max-size packets and capped at `ESP_USB_HOST_VENDOR_READ_MAX_TRANSFER_BYTES` (64 KB); `vendorInTransferBytes()` reports what was set up. A short packet still ends a transfer early, so message boundaries survive, but back-to-back full packets arrive as one callback instead of many:
+
+```cpp
+// One 8 KB transfer instead of sixteen 512-byte ones.
+usb.vendorOpen(address, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, 8192);
+```
+
+The size is fixed when the interface is opened, for the same reason the read mode is: the transfer is allocated once. Reopening with a different explicit size fails; reopening with `0` keeps the size already set up.
 
 `vendorReadSync()` submits one bulk IN transfer and waits for it, so like `vendorWrite()` it cannot be called from a USB callback. The request is rounded up to a whole number of max-size packets, as the USB host requires, and only what the caller asked for is copied back. An interface with both a bulk IN and a bulk OUT endpoint is preferred; an interface that only exposes a bulk OUT endpoint is also accepted, in which case no IN transfer is started and `vendorRead()` / `onVendorData()` never produce data. USB graphics adapters, for example, pair their bulk OUT with an interrupt IN that this API does not use.
 
@@ -930,6 +941,29 @@ None of these wait for completion, so unlike `vendorWrite()` they may be called 
 Measured on an ESP32-S3 (full-speed OTG) with `tests/manual/vendor_bulk_throughput`: the queue reaches 1.098 MB/s, about 90% of the 1.216 MB/s full-speed bulk ceiling, and a depth of 2 is enough to stay there at any transfer size. Synchronous `vendorWrite()` reaches the same figure only with large transfers and drops to 0.88 MB/s at 512 bytes, where per-transfer latency dominates. Depths beyond 2 did not help on full speed.
 
 A bulk OUT transfer whose length is a multiple of the endpoint max packet size does not terminate the USB transfer by itself. `vendorSetAutoZlp(true)` makes the library append the required zero-length packet; `vendorWriteZlp()` sends one explicitly. Auto ZLP is off by default and consumes a second queue slot, so use a depth of at least 2 with it.
+
+The asynchronous bulk IN queue is the receive side of the same idea. The continuous read submits the next transfer only after the client task has handled the previous completion, so the endpoint has nothing to answer with during that turnaround; the queue keeps `depth` transfers outstanding and resubmits each one from its own completion:
+
+```cpp
+bool vendorReadQueueBegin(size_t depth, size_t bufferBytes,
+                          uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+void vendorReadQueueEnd(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+bool vendorReadQueueReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+size_t vendorReadPending(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+EspUsbHostVendorReadStats vendorReadStats(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+void vendorReadStatsReset(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+```
+
+```cpp
+usb.vendorOpen(address);
+usb.vendorReadQueueBegin(2, 8192, address);  // two 8 KB transfers in flight
+```
+
+Data still arrives through `onVendorData()` and `vendorRead()`; only the shape of the transfers underneath changes. `bufferBytes` is rounded and capped like `readTransferBytes` above, and `depth` is limited by `ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH`. Because the per-device receive ring stays `ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE` bytes (512 by default), a stream read in kilobyte transfers should be consumed from `onVendorData()` rather than from `vendorRead()`, which only keeps the newest ring-full.
+
+`vendorReadQueueBegin()` takes the endpoint over from the continuous read, which means cancelling the outstanding transfer and waiting for it, so it must be called from a normal task rather than from a USB callback. It is refused on an interface opened with `ESP_USB_HOST_VENDOR_READ_ON_DEMAND`, where `vendorReadSync()` owns the endpoint instead, and `vendorReadSync()` is in turn refused while the queue is active. `vendorReadQueueEnd()` leaves the endpoint idle; calling `vendorOpen()` again brings the continuous read back.
+
+`vendorReadStats()` reports `submitted` / `completed` / `errors` / `bytes` plus three numbers that say where a stream is being held up: `shortTransfers` counts completions that ended before filling their slot, `starved` counts completions that found no other transfer in flight (the queue is too shallow or the transfers too small to cover the turnaround), and `resubmitFailures` counts slots that went idle because the driver refused a resubmit. `bytes / completed` is the mean transfer the device actually filled, which is what separates a device that cannot supply more from a host that is not asking often enough. [`tests/manual/vendor_bulk_in_throughput`](tests/manual/vendor_bulk_in_throughput/) sweeps both dimensions and prints the table.
 
 ### CCID smart card reader
 

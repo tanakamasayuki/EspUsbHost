@@ -25,6 +25,8 @@
 | `r` | デバイスごとの受信バッファからノンブロッキング読み出し |
 | `c` | EP0 vendor control IN、`bRequest=0x01` |
 | `o` | EP0 vendor control OUT、`bRequest=0x02` |
+| `q` | 非同期read queueを開始（8 KBのIN転送を2本同時に飛ばす） |
+| `e` | read queueを停止し、カウンタを表示 |
 
 ## 主要API
 
@@ -34,6 +36,7 @@
 - `usb.vendorRead(buffer, length, address)` — 512バイトのデバイスごと受信バッファからのノンブロッキング読み出し
 - `usb.vendorControlIn(request, value, index, data, length, &actual, address)` — EP0 vendor control IN（`bmRequestType = 0xc0`）
 - `usb.vendorControlOut(request, value, index, data, length, address)` — EP0 vendor control OUT（`bmRequestType = 0x40`）
+- `usb.vendorReadQueueBegin(depth, bufferBytes, address)` — 1パケットずつではなく、bulk IN転送を複数本出しっぱなしにする。流しっぱなしのデバイス向け。endpointを遊ばせていないかは `usb.vendorReadStats(address)` で分かり、停止は `usb.vendorReadQueueEnd(address)`。キューを使わず転送サイズだけ変えるなら `usb.vendorOpen(address, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, bytes)`
 
 ## シリアル出力例
 

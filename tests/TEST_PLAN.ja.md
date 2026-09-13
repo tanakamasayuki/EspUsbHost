@@ -34,8 +34,8 @@ Host 側の未リリース修正を `EspUsbDevice` で先行確認する場合�
 組み合わせを基準にします。
 
 `peer/` で `EspUsbDevice` peer を使うのは、Arduino Core 標準 device stack ではそのデバイスを
-表現できない場合だけです（`usb_vendor`、`usb_ncm`、`usb_ncm_throughput`、`hid_keyboard_composite`、
-`hid_keyboard_nkro`、`usb_audio_uac2`）。UAC2 はまさにこのケースで、`USBAudioCard` が UAC1 専用の
+表現できない場合だけです（`usb_vendor`、`usb_vendor_read`、`usb_ncm`、`usb_ncm_throughput`、
+`hid_keyboard_composite`、`hid_keyboard_nkro`、`usb_audio_uac2`）。UAC2 はまさにこのケースで、`USBAudioCard` が UAC1 専用の
 ため、Host 側の UAC2 実装が扱う Clock Source entity・4 バイトの Feature Unit control・`RANGE`
 リクエストを Arduino Core からは提示できません。
 
@@ -139,6 +139,7 @@ autouse フィクスチャが `G` で開始し `H` で停止する。
 | MIDI複数listener配送 | ✅ peer（単一callbackとの共存、listener単独配送、順序、上限、解除、callback内変更） | | |
 | device lifecycle複数listener配送 | ✅ peer（`end()`/再開による接続event、peer再起動による切断→再接続、単一callbackとの共存、順序、専用上限8、解除） | | |
 | Vendor-specific bulk/control | ✅ peer（usb_vendor、`end()`/再開を含む） | ✅ manual（Android ADB認証＋shell stream） | |
+| Vendor bulk INの転送の形 | 🆕 peer（usb_vendor_read。作成済みだが未実行。追加時点でpeerボードが接続されていなかった: 既定の1パケット読み、`vendorOpen()` の転送サイズ指定と再open時の競合、read queueのbegin/end、queue動作中の `vendorReadSync()` 拒否、128 KBのrampを両経路でバイト単位検証） | 🆕 manual（`vendor_bulk_in_throughput`: continuous readとdepth 1/2/4 × 512 B〜32 KB転送の比較。未実行） | ⬜ high-speed（P4同士）の実測。両ボードのOTG HSポート直結が要る |
 | USBオーディオ入出力 — UAC1 | ✅ peer（標準`USBAudioCard`で双方向） | | ⬜ 実USBマイク・オーディオIF |
 | USBオーディオ入出力 — UAC2 | ✅ peer（`usb_audio_uac2`: class revision、Clock Sourceのサンプルレート、4バイト・2ビットのFeature Unit control、volumeの`RANGE`、explicit feedback endpointのポーリングとOUTのレート追従、双方向streaming）、✅ ホスト単体（`unit/audio_uac`: descriptorと`RANGE`のデコード） | | ⬜ 実UAC2機器（high-speed設計が多く、full-speedホストでは列挙できない）、Clock Selector / Clock Multiplier、実DACでの長時間の非同期playback（peerのfeedbackはFIFO残量からの計算でハードウェアクロック由来ではない） |
 | USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否、write失敗検出、デバイス接続中とdevice listが空の状態での`end()`/再開。usb_msc_fat: peerが整形したFAT12ボリュームのmount/read/unmount、mount→unmount→`end()`→`begin()`→再mount、マウント中`end()`でのボリューム解放） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、`fs::FS` wrapper、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ data phase失敗後の完全なBOT復旧、複数LUN、32-bit sector超のFatFs mount |
