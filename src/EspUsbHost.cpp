@@ -1764,6 +1764,33 @@ void EspUsbHost::end()
   mscUnmountAll();
 
   ESP_LOGI(TAG, "Stopping USB Host");
+
+  // Cut power to the root port first, while the whole stack is still running.
+  // A device left attached keeps the controller raising port interrupts, and one
+  // that arrives after the host library's own object has been freed faults inside
+  // its interrupt path (proc_req_callback <- intr_hdlr_main). Unpowering makes
+  // the device an ordinary disconnect, which the tasks below are still alive to
+  // process, so the teardown that follows runs on an empty bus.
+  //
+  // The timing matters as much as the call: doing this later, once the client is
+  // deregistered and devices are being freed, makes the hub driver process a port
+  // event for a device it can no longer find and abort in hub_process() instead.
+  //
+  // Measured on an ESP32-P4 high-speed port with a device attached: end()
+  // panicked on every attempt without this and on none with it. It needed no
+  // class API -- begin() followed by end() was enough -- and it reproduced
+  // against the released 2.8.0, so it is an old fault rather than a new one.
+  const esp_err_t powerErr = usb_host_lib_set_root_port_power(false);
+  if (powerErr != ESP_OK && powerErr != ESP_ERR_INVALID_STATE)
+  {
+    ESP_LOGD(TAG, "usb_host_lib_set_root_port_power(false) failed: %s", esp_err_to_name(powerErr));
+  }
+  else if (powerErr == ESP_OK)
+  {
+    // Let the disconnect reach the tasks before they are asked to stop.
+    delay(50);
+  }
+
   ready_ = false;
   running_ = false;
   const esp_err_t unblockErr = usb_host_lib_unblock();
