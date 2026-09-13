@@ -35,7 +35,7 @@ Setup:
 Notes:
     The whole sweep takes about 70 seconds. usb_bps is reported as a share of the
     bulk OUT ceiling measured by manual/vendor_bulk_throughput on the same board,
-    selected from --profile: 1.098 MB/s for full speed (ESP32-S3) and 36.4 MB/s
+    selected from --profile: 1.151 MB/s for full speed (ESP32-S3) and 38.2 MB/s
     for high speed (ESP32-P4).
 
     The ESP32-P4 run needs a self-powered hub -- the host port did not supply
@@ -51,8 +51,8 @@ import re
 # Bulk OUT ceilings measured by manual/vendor_bulk_throughput on the same boards.
 # The "bus" share is meaningless against the wrong one: an ESP32-P4 runs the
 # adapter at high speed and exceeds the full-speed ceiling several times over.
-CEILING_BPS_FULL_SPEED = 1151434  # 1.098 MB/s, ESP32-S3
-CEILING_BPS_HIGH_SPEED = 38191924  # 36.4 MB/s, ESP32-P4
+CEILING_BPS_FULL_SPEED = 1151434  # 1.151 MB/s, ESP32-S3
+CEILING_BPS_HIGH_SPEED = 38191924  # 38.2 MB/s, ESP32-P4
 
 
 def _ceiling_bps(config) -> tuple[int, str]:

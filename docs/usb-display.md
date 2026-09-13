@@ -79,7 +79,7 @@ an `EspUsbHostWriteQueueStats` snapshot.
 That last row is the practical one, and it flips the tuning advice. On the DL-1xx
 adapter the bus sits at a few percent while the draw callback is the cost, so
 fewer and larger bands wins. On the smart screen every pixel costs 2 bytes on the
-wire and the panel paces the link at a flat 0.155 MB/s, so sending fewer pixels is
+wire and the panel paces the link at a flat 0.163 MB/s, so sending fewer pixels is
 the only thing that helps at all; how an update is split into rectangles does not
 change its cost. On the AX206 not even that helps, because the number of pixels
 sent is not yours to choose. Each example's README has the measured sweep.

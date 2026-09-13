@@ -286,14 +286,29 @@ HSの1024バイトinterrupt OUTがFSポートで開けないのは、そもそ�
 
 ### 4.4 理論帯域と実測
 
+以下の数値はすべて10進の MB/s（10^6 バイト毎秒）です。USB 規格自身がこの単位なので、実測値と理論上限をそのまま比べられます。
+
 | | 理論上限 | このライブラリの実測（bulk OUT） |
 |---|---------|-------------------------------|
-| FS | 19パケット×64B/フレーム ≈ 1.216 MB/s | **1.098 MB/s**（ESP32-S3、非同期キューdepth 2） |
-| HS | 13トランザクション×512B/マイクロフレーム ≈ 53 MB/s | **36.4 MB/s**（ESP32-P4、非同期キューdepth 2、8KB転送） |
+| FS | 19パケット×64B/フレーム ≈ 1.216 MB/s | **1.151 MB/s**（ESP32-S3、非同期キューdepth 2） |
+| HS | 13トランザクション×512B/マイクロフレーム ≈ 53 MB/s | **38.2 MB/s**（ESP32-P4、非同期キューdepth 2、8KB転送） |
 
-測定は [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/) です。理論値との差は、ホスト側のURB処理、転送間の隙間、デバイス側の受信能力から来ます。**設計では実測値を上限として見積もってください。** 例えばFSで320×240×16bppの画面を送るなら1フレーム153,600バイト、1.098MB/sなら約7fpsが上限です。
+測定は [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/) です。理論値との差は、ホスト側のURB処理、転送間の隙間、デバイス側の受信能力から来ます。**設計では実測値を上限として見積もってください。** 例えばFSで320×240×16bppの画面を送るなら1フレーム153,600バイト、1.151MB/sなら約7.5fpsが上限です。
 
-bulk IN にも同じ2軸があり、掃引は [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/) です。1パケット/転送の continuous read から始め、read queue の転送サイズと depth を振ります。**OUT の数字をそのまま IN に当てはめないでください。** OUT はいつバスにパケットを出すかを host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」だけで、返ってくる中身は device が決めます。あの表で MB/s と `per_transfer` を並べて読むのはそのためです。
+bulk IN にも同じ2軸があり、掃引は [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/) です。1パケット/転送の continuous read から始め、read queue の転送サイズと depth を振ります。
+
+| 受け方 | 実測（bulk IN、HS） |
+|---|---|
+| continuous、512 B 1パケット/転送 | **6.10 MB/s** |
+| queue、depth 1 × 32 KB | 14.77 MB/s |
+| queue、depth 2 × 2 KB | 18.74 MB/s |
+| **queue、depth 4 × 32 KB** | **24.45 MB/s** |
+
+ESP32-P4 の host が ESP32-P4 の device を読んだ値（device 側は EspUsbDevice 2.3.0、`CFG_TUD_VENDOR_TX_BUFSIZE` / `_TX_EPSIZE` を 8192、送出は `writeCapacity()` ぶんずつ渡して `flush()` は stream の最後だけ）。wch-protocols 実験 E089、2026-09-13。**IN では2軸とも要ります** — 転送サイズだけで2.4倍、その上に queue を重ねて4.0倍です。OUT では「いつバスにパケットを出すか」を host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」だけなので、転送間の折り返しはそのまま device が使えない時間になります。
+
+この 24.45 MB/s は **device 側が飽和する点**でもあります。同じ device を PC の xHCI が読むと 23.88 MB/s（E088）で、**無関係な host controller 2 つが同じ値で止まる**ことが、律速をどちらかの host のスケジューリングではなく device 自身の供給能力だと同定します。
+
+**OUT の数字をそのまま IN に当てはめないでください。** OUT はいつバスにパケットを出すかを host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」だけで、返ってくる中身は device が決めます。あの表で MB/s と `per_transfer` を並べて読むのはそのためです。
 
 ---
 

@@ -65,7 +65,7 @@ the two are independent implementations of the same published protocol notes.
 ## Making it faster
 
 Numbers below are from `tests/manual/usb_display_throughput` on an ESP32-S3
-(full-speed USB) with a DL-165 at 1920x1080. "bus" is the share of the 1.098 MB/s
+(full-speed USB) with a DL-165 at 1920x1080. "bus" is the share of the 1.151 MB/s
 full-speed ceiling measured by `tests/manual/vendor_bulk_throughput`.
 
 **Find out what is limiting you first.** With this adapter the answer flips
@@ -150,7 +150,7 @@ with its own `fillScreen`, and it is unsafe when it does not.
 ### On an ESP32-P4 the bus stops mattering
 
 The same sweep on an ESP32-P4 runs the adapter at high speed, where
-`vendor_bulk_throughput` measures 36.4 MB/s instead of 1.098 MB/s:
+`vendor_bulk_throughput` measures 38.2 MB/s instead of 1.151 MB/s:
 
 | Condition | fps (S3) | fps (P4) | P4 USB | P4 bus |
 |---|---|---|---|---|
@@ -180,8 +180,8 @@ Against that frame size the bus alone allows:
 
 | | Ceiling | Worst-case frame | Measured |
 |---|---|---|---|
-| ESP32-S3, full speed | 1.098 MB/s | **0.27 fps** | 0.27 fps, 99.8% of the bus |
-| ESP32-P4, high speed | 36.4 MB/s | **9.08 fps** | 1.55 fps, 17.1% of the bus |
+| ESP32-S3, full speed | 1.151 MB/s | **0.27 fps** | 0.27 fps, 99.8% of the bus |
+| ESP32-P4, high speed | 38.2 MB/s | **9.08 fps** | 1.55 fps, 17.1% of the bus |
 
 So full speed is exactly transfer-bound in the worst case — the measurement lands
 on the arithmetic — while high speed is not: at 1.55 fps the encoder and the

@@ -902,7 +902,7 @@ bool vendorAutoZlp(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
 いずれも転送完了を待たないため、`vendorWrite()` と違ってUSB callback内からも呼び出せます。完了状況は `vendorWritePending()` / `vendorWriteFlush()` / `vendorWriteStats()` で観測します。`vendorWriteFlush()` は完了callbackが動くtaskそのものであるUSB client taskからは呼び出せません。
 
-ESP32-S3（full-speed OTG）での `tests/manual/vendor_bulk_throughput` 実測値: キューは1.098 MB/sに達し、これはfull-speed bulkの上限1.216 MB/sの約90%です。depth 2あれば転送サイズに関係なくこの上限に張り付きます。同期の `vendorWrite()` が同じ値に届くのは大きな転送のときだけで、転送ごとのレイテンシが支配的になる512 byteでは0.88 MB/sまで落ちます。full-speedではdepthを2より増やしても改善しませんでした。
+ESP32-S3（full-speed OTG）での `tests/manual/vendor_bulk_throughput` 実測値: キューは1.151 MB/sに達し、これはfull-speed bulkの上限1.216 MB/sの約95%です。depth 2あれば転送サイズに関係なくこの上限に張り付きます。同期の `vendorWrite()` が同じ値に届くのは大きな転送のときだけで、転送ごとのレイテンシが支配的になる512 byteでは0.92 MB/sまで落ちます。full-speedではdepthを2より増やしても改善しませんでした。（数値はすべて10進の MB/s = 10^6 バイト毎秒です。）
 
 bulk OUTの転送長がendpointのmax packet sizeの倍数になった場合、その転送だけではUSB転送が終端されません。`vendorSetAutoZlp(true)` にするとライブラリが必要なzero-length packetを付加し、`vendorWriteZlp()` は明示的に1つ送ります。auto ZLPは既定で無効で、有効時はキューのスロットをもう1つ消費するためdepthは2以上にしてください。
 
@@ -926,6 +926,8 @@ usb.vendorReadQueueBegin(2, 8192, address);  // 8 KB 転送を2本同時に飛�
 データは従来どおり `onVendorData()` と `vendorRead()` に届きます。変わるのはその下の転送の形だけです。`bufferBytes` は上記 `readTransferBytes` と同じく切り上げと上限がかかり、`depth` の上限は `ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH` です。deviceごとの受信リングは `ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE`（既定512 byte）のままなので、KB単位で受けるストリームは `vendorRead()` ではなく `onVendorData()` で消費してください。`vendorRead()` には最後のリング1杯分しか残りません。
 
 `vendorReadQueueBegin()` は continuous read から endpoint を引き継ぎます。出しっぱなしの転送をキャンセルして待つ処理が入るため、USB callback からではなく通常の task から呼んでください。`ESP_USB_HOST_VENDOR_READ_ON_DEMAND` で開いた interface では拒否されます（そちらは `vendorReadSync()` が endpoint を持つため）。逆にキューが動作中は `vendorReadSync()` が拒否されます。`vendorReadQueueEnd()` は endpoint をアイドルにするだけなので、continuous read に戻すには `vendorOpen()` を呼び直します。
+
+ESP32-P4 の high-speed ポートで ESP32-P4 の device を読んだ実測: 1パケットずつの continuous read が 6.10 MB/s、32 KB 転送1本で 14.77 MB/s、depth 4 × 32 KB で 24.45 MB/s（その device が飽和する点）。OUT 側は depth 2 だけで上限に張り付きましたが、**IN 側は転送サイズと depth の両方が要ります**。
 
 `vendorReadStats()` は `submitted` / `completed` / `errors` / `bytes` に加えて、ストリームがどこで詰まっているかを示す3つを返します。`shortTransfers` はスロットを埋めきる前に終わった完了の数、`starved` は完了した時点で他に1本も飛んでいなかった回数（depth が浅いか転送が小さすぎて折り返しを覆えていない）、`resubmitFailures` は driver に再 submit を拒否されてスロットが空いたままになった数です。`bytes / completed` は device が実際に1転送へ詰めた平均バイト数で、「device がそれ以上出せない」のか「host が十分な頻度で訊けていない」のかを分けるのはこの値です。[`tests/manual/vendor_bulk_in_throughput`](tests/manual/vendor_bulk_in_throughput/) は両方の軸を振って表を出します。
 

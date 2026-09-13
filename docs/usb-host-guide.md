@@ -213,7 +213,7 @@ This is the choice that decides what you can actually plug in.
 
 **With the HS port**
 
-- HS devices run at their real speed. Measured bulk OUT throughput is about 36 MB/s against about 1.1 MB/s at full speed ([`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)).
+- HS devices run at their real speed. Measured bulk OUT throughput is about 38 MB/s against about 1.15 MB/s at full speed ([`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/)).
 - **Hubs are effectively unusable.** The USB 2.0 specification allows FS/LS devices below a high-speed hub through its Transaction Translator, but that path is not usable in the current ESP-IDF environment, so a hub on the HS port does not work in practice.
 - Consequently **an HS device and an FS keyboard cannot be used at the same time**. Treat the HS port as one directly attached device.
 

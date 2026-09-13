@@ -35,7 +35,7 @@ LGFXVirtualCanvasは画面を横帯（バンド）に分割し、1枚の小さ�
 
 ## 速くするには
 
-以下の数値は `tests/manual/usb_display_throughput` をESP32-S3（full-speed USB）+ DL-165・1920x1080で実行した実測値です。「bus」は `tests/manual/vendor_bulk_throughput` で実測したfull-speed上限 1.098 MB/s に対する使用率です。
+以下の数値は `tests/manual/usb_display_throughput` をESP32-S3（full-speed USB）+ DL-165・1920x1080で実行した実測値です。「bus」は `tests/manual/vendor_bulk_throughput` で実測したfull-speed上限 1.151 MB/s に対する使用率です。
 
 **まず何が律速かを見極めてください。** このアダプタでは、描く内容によって答えが入れ替わります。
 
@@ -96,7 +96,7 @@ Full HDでは、ESP32-S3の内蔵RAMに載るシングルタイルバッファ�
 
 ### ESP32-P4ではバスが問題にならなくなります
 
-同じ計測をESP32-P4で行うと、アダプタはhigh speedで動作し、`vendor_bulk_throughput` の実測上限は 1.098 MB/s ではなく **36.4 MB/s** になります。
+同じ計測をESP32-P4で行うと、アダプタはhigh speedで動作し、`vendor_bulk_throughput` の実測上限は 1.151 MB/s ではなく **38.2 MB/s** になります。
 
 | 条件 | fps (S3) | fps (P4) | P4 USB | P4 bus |
 |---|---|---|---|---|
@@ -120,8 +120,8 @@ Full HDでは、ESP32-S3の内蔵RAMに載るシングルタイルバッファ�
 
 | | 実効上限 | 最悪ケースの上限 | 実測 |
 |---|---|---|---|
-| ESP32-S3・full speed | 1.098 MB/s | **0.27 fps** | 0.27 fps、バス99.8% |
-| ESP32-P4・high speed | 36.4 MB/s | **9.08 fps** | 1.55 fps、バス17.1% |
+| ESP32-S3・full speed | 1.151 MB/s | **0.27 fps** | 0.27 fps、バス99.8% |
+| ESP32-P4・high speed | 38.2 MB/s | **9.08 fps** | 1.55 fps、バス17.1% |
 
 つまりfull-speedは最悪ケースでちょうど転送律速です（実測が計算値に一致）。一方high speedはそうではなく、1.55 fpsの時点でエンコーダとバンドごとの再描画が先に限界に達し、バスは83%空いています。バスを33倍にして得られたのは、最も重い絵で5.7倍、圧縮の効く絵ではゼロ（そちらはもともと描画が律速）でした。
 

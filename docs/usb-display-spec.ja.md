@@ -120,7 +120,7 @@ bulk コマンド（すべて `0xAF` 始まり）:
 | DL-165 の最大解像度 | ファミリ上限 2048x1152、製品実装は 1920x1080 / 1600x1200 | OK（手元の DL-165 + Full HD モニタで解像度的に問題ないことを確認済み） |
 | DL-120 / DL-160 の最大解像度 | 1600x1200 / 1680x1050 | Full HD 不可。低解像度の検証用に使う |
 
-Full-speed bulk OUT の実効は **1.098 MB/s** と確定した（Phase 2 の `tests/manual/vendor_bulk_throughput`、ESP32-S3 + DL-165 実機。Full-speed bulk の理論上限 1.216 MB/s の約 90%）。これを基準にした転送量の見積り:
+Full-speed bulk OUT の実効は **1.151 MB/s** と確定した（Phase 2 の `tests/manual/vendor_bulk_throughput`、ESP32-S3 + DL-165 実機。Full-speed bulk の理論上限 1.216 MB/s の約 95%）。以下、帯域はすべて10進の MB/s（10^6 バイト毎秒）。これを基準にした転送量の見積り:
 
 | ケース | 転送量 | 時間 |
 |---|---|---|
@@ -462,14 +462,14 @@ python 側は出力をパースして表形式で表示し、結果を README �
 - 転送プール、acquire / submit / release、`vendorWriteAsync()`
 - 統計（`vendorWriteStats()`）、`vendorWriteFlush()`、`vendorWritePending()` / `vendorWriteQueueFree()`
 - auto-ZLP（`vendorSetAutoZlp()`）と `vendorWriteZlp()`
-- `tests/manual/vendor_bulk_throughput` で実効スループットを確定 → **1.098 MB/s（FS 上限の約 90%）、depth 2 で全転送サイズが上限に張り付く**
+- `tests/manual/vendor_bulk_throughput` で実効スループットを確定 → **1.151 MB/s（FS 上限の約 95%）、depth 2 で全転送サイズが上限に張り付く**
 - `EspUsbHostAdbConnect` と `tests/manual/adb_connect` の ZLP 処理を auto ZLP に移行（Android 実機での確認は未実施）
 - `tests/peer/usb_vendor` への非同期経路の追加は未実施（既存 3 件の回帰は確認済み）
 
 実測から得られた設計上の指針:
 
 - **depth 2 で十分**。depth 4 / 8 は Full-speed では改善しない。メモリはバッファサイズに回すべき
-- **転送サイズを小さくしても帯域が落ちない**のがキューの本質的な利点。同期版は 512 byte で 0.88 MB/s（上限の 80%）まで落ちるが、キューは 512 byte でも 1.098 MB/s を維持する。DL-1xx の RLE コマンド列はチャンクが小さくなりがちなので、この性質が直接効く
+- **転送サイズを小さくしても帯域が落ちない**のがキューの本質的な利点。同期版は 512 byte で 0.92 MB/s（上限の 80%）まで落ちるが、キューは 512 byte でも 1.151 MB/s を維持する。DL-1xx の RLE コマンド列はチャンクが小さくなりがちなので、この性質が直接効く
 - 計測時の `queue_empty_pct` は 0〜6%、`queue_full` は多数。producer（CPU）ではなくバスが律速という理想的な状態にある
 
 ### Phase 3: DL-1xx プロトコル層 — 完了
@@ -534,7 +534,7 @@ ESP32-S3 + DL-165 実機での実測（`EspUsbHostDisplayDl1xx` を 35 秒連続
 | フレームレート | 1920x1080 で **3 fps** |
 | 差分転送 | 2,073,600 px 中 **215,040 px（10.4%）** のみ送出 |
 | USB 転送量 | 約 42 KB/s（1 フレームあたり約 14 KB） |
-| 帯域使用率 | 実効上限 1.098 MB/s の **約 4%** |
+| 帯域使用率 | 実効上限 1.151 MB/s の **約 4%** |
 
 **律速は USB ではなく描画 CPU。** LGFXVirtualCanvas は描画コールバックをバンドごとに再実行するため（README にも明記されている性質）、`fillScreen` 以下の描画一式がバンド数だけ繰り返される。USB に 96% の余裕があるので、フレームレートを上げたい場合の打ち手は転送側ではなく描画側（バンドを大きくする、`LGFXVirtualSprite` で変化部分だけ更新する、描画内容を軽くする）になる。
 
@@ -595,15 +595,15 @@ ESP32-S3（FS）+ DL-165・1920x1080 の結果:
 
 | mode | 512 B | 2 KB | 8 KB | 16 KB |
 |---|---|---|---|---|
-| sync | 3.88 | 12.50 | 24.01 | 28.33 |
-| async depth 1 | 6.46 | 14.55 | 28.22 | 28.73 |
-| async depth 2 | 8.02 | 24.55 | **36.43** | 32.94 |
-| async depth 4 | 7.99 | 27.35 | 30.97 | 36.34 |
-| async depth 8 | 7.91 | 27.63 | 31.34 | 36.24 |
+| sync | 4.07 | 13.11 | 25.18 | 29.71 |
+| async depth 1 | 6.77 | 15.26 | 29.59 | 30.13 |
+| async depth 2 | 8.41 | 25.74 | **38.19** | 34.54 |
+| async depth 4 | 8.38 | 28.68 | 32.47 | 38.10 |
+| async depth 8 | 8.29 | 28.97 | 32.86 | 38.00 |
 
-（MB/s、`errors=0`。HS bulk の理論上限は 8000 microframe/s × 13 × 512 byte = 53.2 MB/s なのでその約 68%）
+（10進 MB/s、`errors=0`。HS bulk の理論上限は 8000 microframe/s × 13 × 512 byte = 53.2 MB/s なのでその約 72%）
 
-FS の 1.098 MB/s に対して **33 倍**。512 byte 転送では非同期でも 8 MB/s 程度で止まり、HS では転送ごとのオーバーヘッドが FS より相対的に大きく効くことが分かる。depth 2 で上限に届く点は FS と同じ。
+FS の 1.151 MB/s に対して **33 倍**。512 byte 転送では非同期でも 8.4 MB/s 程度で止まり、HS では転送ごとのオーバーヘッドが FS より相対的に大きく効くことが分かる。depth 2 で上限に届く点は FS と同じ。
 
 これを基準にした P4 の描画計測（1920x1080）:
 
@@ -621,8 +621,8 @@ FS の 1.098 MB/s に対して **33 倍**。512 byte 転送では非同期でも
 
 | | 実効上限 | 最悪ケース上限 | 実測 |
 |---|---|---|---|
-| S3 / FS | 1.098 MB/s | **0.274 fps** | 0.27 fps、バス 99.8% |
-| P4 / HS | 36.4 MB/s | **9.08 fps** | 1.55 fps、バス 17.1% |
+| S3 / FS | 1.151 MB/s | **0.274 fps** | 0.27 fps、バス 99.8% |
+| P4 / HS | 38.2 MB/s | **9.08 fps** | 1.55 fps、バス 17.1% |
 
 知見:
 
@@ -688,7 +688,7 @@ example:
 4. **interrupt IN を開かないことによる副作用**。udl / udlfb も未使用なので問題ないと見ているが実機確認事項
 5. **モニタ側が 1920x1080 を EDID で申告しない場合**。テーブルからの強制設定も用意する
 6. **DL-120/160 世代での挙動差**。同一プロトコルとされているが、レジスタの一部やパディング要件に差がある可能性がある
-7. ~~**Full-speed の実効スループット**~~ → 1.098 MB/s と実測確定（Phase 2）
+7. ~~**Full-speed の実効スループット**~~ → 1.151 MB/s と実測確定（Phase 2）
 8. **2 本目の bulk OUT（`0x0a`）の用途**。本実装では使わないが、`0x01` だけで足りることを Phase 4 で確認する
 9. **HCD チャネル**。DL アダプタ単体なら 1 チャネルで足りる（実測 0→1）。ただしハブ経由で他デバイスを足すと ESP32-S3 の 8 チャネルはすぐ枯渇する（hub + DL + hub + touchscreen の構成で `No more HCD channels available` を実測）。ディスプレイ検証時は経路を最短にする。P4 は電源の都合でハブが必須なので、そのハブにはアダプタだけをつなぐ（Phase 6b の EXT_PORT assert も同じ構成が原因）
 

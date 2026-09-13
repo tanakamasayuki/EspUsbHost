@@ -286,14 +286,30 @@ A 1024-byte interrupt OUT cannot be opened on a full-speed port because full spe
 
 ### 4.4 Theory versus measurement
 
+Every figure below is in decimal MB/s (10^6 bytes per second), the unit USB
+itself is specified in, so measurements and ceilings can be compared directly.
+
 | | Theoretical ceiling | Measured here (bulk OUT) |
 |---|---------------------|--------------------------|
-| FS | 19 packets × 64 B per frame ≈ 1.216 MB/s | **1.098 MB/s** (ESP32-S3, async queue depth 2) |
-| HS | 13 transactions × 512 B per microframe ≈ 53 MB/s | **36.4 MB/s** (ESP32-P4, async queue depth 2, 8 KB transfers) |
+| FS | 19 packets × 64 B per frame ≈ 1.216 MB/s | **1.151 MB/s** (ESP32-S3, async queue depth 2) |
+| HS | 13 transactions × 512 B per microframe ≈ 53 MB/s | **38.2 MB/s** (ESP32-P4, async queue depth 2, 8 KB transfers) |
 
-The measurements come from [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/). The gap is host-side URB handling, the gaps between transfers, and what the device can absorb. **Budget against the measured number, not the theoretical one.** Pushing a 320×240 16 bpp screen over full speed means 153,600 bytes per frame, so 1.098 MB/s caps you at roughly 7 fps.
+The measurements come from [`vendor_bulk_throughput`](../tests/manual/vendor_bulk_throughput/). The gap is host-side URB handling, the gaps between transfers, and what the device can absorb. **Budget against the measured number, not the theoretical one.** Pushing a 320×240 16 bpp screen over full speed means 153,600 bytes per frame, so 1.151 MB/s caps you at roughly 7.5 fps.
 
-Bulk IN has the same two dimensions and its own sweep, [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/): the continuous read at one packet per transfer, then the read queue over transfer sizes and depths. Do not assume the OUT numbers transfer to IN. On OUT the host decides when to put a packet on the bus; on IN it decides only how often to ask, and the device decides what comes back — which is why `per_transfer` in that table is read alongside the MB/s rather than after it.
+Bulk IN has the same two dimensions and its own sweep, [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/): the continuous read at one packet per transfer, then the read queue over transfer sizes and depths.
+
+| Read shape | Measured (bulk IN, HS) |
+|---|---|
+| Continuous, one 512 B packet per transfer | **6.10 MB/s** |
+| Queue, depth 1 × 32 KB | 14.77 MB/s |
+| Queue, depth 2 × 2 KB | 18.74 MB/s |
+| **Queue, depth 4 × 32 KB** | **24.45 MB/s** |
+
+ESP32-P4 host reading an ESP32-P4 device (EspUsbDevice 2.3.0, `CFG_TUD_VENDOR_TX_BUFSIZE` / `_TX_EPSIZE` 8192, handing over `writeCapacity()` per write and flushing once per stream); wch-protocols experiment E089, 2026-09-13. **Both dimensions are needed here**: transfer size alone is 2.4x, and the queue on top of it 4.0x. Unlike the OUT side, where the host decides when to put a packet on the bus, on IN it only decides how often to ask — so the turnaround between transfers is time the device cannot use.
+
+That 24.45 MB/s is also where the *device* saturates: the same device read by a PC's xHCI reaches 23.88 MB/s (E088). Two unrelated host controllers stopping at the same figure is what identifies the limit as the device's own supply rather than either host's scheduling.
+
+Do not assume the OUT numbers transfer to IN. On OUT the host decides when to put a packet on the bus; on IN it decides only how often to ask, and the device decides what comes back — which is why `per_transfer` in that table is read alongside the MB/s rather than after it.
 
 ---
 
