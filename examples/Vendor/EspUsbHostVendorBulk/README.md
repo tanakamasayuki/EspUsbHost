@@ -47,16 +47,7 @@ The `tests/peer/usb_vendor` peer echoes a bulk OUT `"ping"` back as `"echo:ping"
 
 **The device usually sets the ceiling, not this side.** Once the endpoint is being kept busy, the host cannot read faster than the device supplies, and further tuning of these two numbers changes nothing. `vendorReadStats()` is what separates the two cases: `starved` counts completions that found nothing else in flight, which is this side not asking often enough, while `bytes / completed` is what the device actually put into each transfer, which is the device not supplying more.
 
-Measured with an ESP32-P4 host reading an ESP32-P4 peer running EspUsbDevice at high speed, 1 MiB per condition:
-
-| Shape | MB/s |
-|---|---:|
-| One packet per transfer, no queue | 8.1 |
-| `depth` 1, 512 B — starved on every completion | 8.1 |
-| `depth` 2, 2 KB | 28.5 |
-| `depth` 2–4, 16–32 KB | 28.5 |
-
-On that rig the host stopped being the limit well before the top of the table: `starved` was already 0 at `depth` 2, and going from 2 KB to 32 KB per transfer bought nothing. What did move the result was the **device**: with the host code unchanged, enlarging how much the peer handed to its own `write()` per call took the same sweep from 21.4 to 25.6 to 28.5 MB/s. So when a stream is slower than expected and `starved` is already 0, the next change belongs on the device, not here.
+On an ESP32-P4 pair at high speed, the queue was worth several times the one-packet-per-transfer default; `depth` 1 starved on every completion while `depth` 2 starved on none; and past a few kilobytes per transfer the result stopped moving. Where it stopped was set by the peer rather than by this side — with the host code untouched, enlarging how much the peer handed to its own `write()` per call raised the whole sweep. So when a stream is slower than expected and `starved` is already 0, the next change belongs on the device, not here.
 
 **Keep `onVendorData()` short.** Each slot is resubmitted from its own completion, and the callback runs before that resubmit, so the slot stays out of flight until the callback returns. Copy into a ring buffer and do the work elsewhere — see [Callback context](../../../docs/usb-host-advanced.md#8-callback-context).
 
