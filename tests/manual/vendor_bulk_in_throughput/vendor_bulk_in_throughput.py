@@ -34,6 +34,18 @@ Setup:
     3. Set TEST_SERIAL_PORT_ESP32P4 in .env to the host board's serial port.
     4. Run: uv run --env-file .env pytest manual/vendor_bulk_in_throughput/vendor_bulk_in_throughput.py -v -s
 
+    On the two-board ESP32-P4 rig wired OTG HS to OTG HS, use the p4_hs_direct
+    profile instead. It reads TEST_SERIAL_PORT_P4_HS_DIRECT, so the rig -- whose
+    cabling is temporary -- never takes over TEST_SERIAL_PORT_ESP32P4:
+        uv run --env-file .env pytest manual/vendor_bulk_in_throughput/vendor_bulk_in_throughput.py -v -s --profile p4_hs_direct
+    Flash the device board first, from tests/peer/usb_vendor_read/peer_device:
+        arduino-cli compile --clean --profile p4_peer_device --upload -p <device port>
+    That profile builds EspUsbDevice from the working tree, and on a P4 the sketch
+    prints DEVICE_BULK_IN_DOUBLE_BUFFERED. Check it before reading any number: a
+    zero means the two-packet bulk IN transmit FIFO did not apply and the sweep is
+    measuring the device, not this host. The released library and the working tree
+    both report version 2.3.0, so that line is the only thing separating them.
+
 Notes:
     bad=0 in every row is the integrity check: the ramp is continuous across the
     whole stream, so a dropped or reordered transfer shows up as a step.
