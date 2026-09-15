@@ -96,6 +96,8 @@ interrupt IN（キーボード、マウス、CCID通知など）は、ライブ�
 
 **short transfer 自体は異常ではありません。** device が転送の途中で送るのをやめれば転送はそこで終端し、TinyUSB の device は送信 FIFO が空になるたびにそうします。したがって TinyUSB device からのストリームでは、ほぼ毎回 `shortTransfers` が立ち、`bytes / completed` は要求サイズではなくその device の FIFO サイズに張り付きます。full speed と high speed の両方、別のチップで同じ形が出ているので、故障ではなく device の転送境界として読んでください。
 
+**データ callback は再 submit の経路上にあります。** 各スロットは自身の完了から再 submit されますが、その前に `onVendorData()` が呼ばれるため、callback が返るまでそのスロットは飛んでいない状態のままです。callback の中の仕事を覆えるのは残り `depth-1` 本が続く間だけで、それを超えると endpoint はまた空になり、`starved` がそれを数えます。解析・比較・保存は callback の外に出し、ring buffer へ複製して別の task にやらせてください。理由は [8. コールバックのコンテキスト](#8-コールバックのコンテキスト) にあります。
+
 ### 1.4 列挙への介入
 
 `setConfigurationSelector()` はESP-IDFの `enum_filter_cb` を使い、**列挙の途中で有効化するコンフィグレーションを選びます**。既定のコンフィグにお目当ての機能がないUSB Ethernetアダプタなどで必要です。

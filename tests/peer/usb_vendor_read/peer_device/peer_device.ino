@@ -118,6 +118,18 @@ void setup()
   config.product = "EspUsbDevice USB Vendor";
   config.serialNumber = "espusb-usb-vendor-read";
   Serial.printf("DEVICE_BEGIN %u\n", device.begin(config) ? 1 : 0);
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  // Which bulk IN endpoints actually came up with a two-packet transmit FIFO.
+  // Read back after begin(), because EspUsbBulkInBuffering::Auto decides it from
+  // the DFIFO budget and quietly leaves one packet when it does not fit. That
+  // matters for the throughput sweep: a one-packet device holds this link near
+  // 24 MB/s, which is easy to misread as the host's own ceiling. The released
+  // library and the working tree both report version "2.3.0", so this value --
+  // not the version -- is what says which one is on the board. P4 only: the
+  // accessor does not exist in the release the S3 profile pins.
+  Serial.printf("DEVICE_BULK_IN_DOUBLE_BUFFERED 0x%04x\n",
+                static_cast<unsigned>(device.bulkInDoubleBuffered()));
+#endif
 }
 
 void loop()
