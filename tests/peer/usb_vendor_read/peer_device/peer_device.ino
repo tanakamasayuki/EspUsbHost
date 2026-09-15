@@ -17,7 +17,7 @@ EspUsbDeviceVendor Vendor(device);
 // not the host under test -- the thing that limits throughput. Measured against
 // an ESP32-P4 host, a fixed 512 held the link to 8.5 MB/s where the FIFO-sized
 // chunk reaches 24.45 MB/s.
-static constexpr size_t CHUNK_MAX = 8192;
+static constexpr size_t CHUNK_MAX = 32768;
 static size_t chunkSize = 512;
 
 static volatile uint32_t rxCount = 0;
