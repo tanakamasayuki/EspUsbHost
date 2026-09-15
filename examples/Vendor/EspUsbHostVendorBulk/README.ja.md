@@ -38,6 +38,28 @@
 - `usb.vendorControlOut(request, value, index, data, length, address)` — EP0 vendor control OUT（`bmRequestType = 0x40`）
 - `usb.vendorReadQueueBegin(depth, bufferBytes, address)` — 1パケットずつではなく、bulk IN転送を複数本出しっぱなしにする。流しっぱなしのデバイス向け。endpointを遊ばせていないかは `usb.vendorReadStats(address)` で分かり、停止は `usb.vendorReadQueueEnd(address)`。キューを使わず転送サイズだけ変えるなら `usb.vendorOpen(address, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, bytes)`
 
+## ストリームの調整
+
+`q` は `vendorReadQueueBegin(2, 8192)` でキューを開始します。8 KB の転送を 2 本同時に飛ばす形です。2 つの数字は役割が違います。
+
+- **同時に飛ばす転送数（`depth`）** は完了から次の submit までの折り返しを覆います。`depth` 1 では、完了した転送を再 submit する間 endpoint が応答できる転送を持たず、`vendorReadStats().starved` が完了のたびに 1 増えます。2 にすればそれが止まります。
+- **1 転送のバイト数（`bufferBytes`）** は、その折り返しを何回払うかを決めます。既定の「1 転送＝最大サイズの 1 パケット」は、この API で最も遅い形です。
+
+**多くの場合、天井を決めるのは device 側であって、こちら側ではありません。** endpoint を遊ばせていない状態まで来ると、host は device が供給する以上には読めず、この 2 つの数字をさらに動かしても何も変わりません。どちらなのかは `vendorReadStats()` で分かれます。`starved` は完了時に他に 1 本も飛んでいなかった回数で、これはこちらが十分訊けていない場合です。`bytes / completed` は device が実際に 1 転送へ詰められた量で、これは device がそれ以上出せない場合です。
+
+ESP32-P4 の host が、EspUsbDevice を載せた ESP32-P4 を high speed で読んだときの実測です（1 条件あたり 1 MiB）。
+
+| 形 | MB/s |
+|---|---:|
+| 1 転送＝1 パケット、キューなし | 8.1 |
+| `depth` 1、512 B — 完了のたびに starve | 8.1 |
+| `depth` 2、2 KB | 28.5 |
+| `depth` 2〜4、16〜32 KB | 28.5 |
+
+このリグでは、表の上限に達するよりかなり手前で host は律速でなくなっていました。`depth` 2 の時点で `starved` は 0 で、1 転送を 2 KB から 32 KB に増やしても何も得られていません。結果を動かしたのは **device 側**でした。host 側のコードを変えないまま、peer が自身の `write()` に 1 回で渡す量を大きくしただけで、同じ掃引が 21.4 → 25.6 → 28.5 MB/s と変化しました。ストリームが思ったより遅く、しかも `starved` がすでに 0 なら、次に変えるべきはここではなく device 側です。
+
+**`onVendorData()` は短く保ってください。** 各スロットは自身の完了から再 submit されますが、callback はその前に呼ばれるため、callback が返るまでそのスロットは飛んでいない状態のままです。ring buffer へ複製して、処理は別の場所で行ってください。[コールバックのコンテキスト](../../../docs/usb-host-advanced.ja.md#8-コールバックのコンテキスト) を参照してください。
+
 ## シリアル出力例
 
 ```

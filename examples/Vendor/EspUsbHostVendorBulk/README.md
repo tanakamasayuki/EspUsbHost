@@ -38,6 +38,28 @@ The `tests/peer/usb_vendor` peer echoes a bulk OUT `"ping"` back as `"echo:ping"
 - `usb.vendorControlOut(request, value, index, data, length, address)` — EP0 vendor control OUT (`bmRequestType = 0x40`)
 - `usb.vendorReadQueueBegin(depth, bufferBytes, address)` — keeps several bulk IN transfers outstanding instead of one packet at a time, for a device that streams. `usb.vendorReadStats(address)` says whether the endpoint is being kept busy; `usb.vendorReadQueueEnd(address)` stops it. A transfer size alone, without the queue, is `usb.vendorOpen(address, 0xff, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, bytes)`
 
+## Tuning the stream
+
+`q` starts the queue as `vendorReadQueueBegin(2, 8192)` — two transfers in flight, 8 KB each. The two numbers do different jobs:
+
+- **Transfers in flight (`depth`)** covers the turnaround between completions. At `depth` 1 the endpoint has nothing to answer with while the completed transfer is resubmitted, and `vendorReadStats().starved` counts one on every completion. Two is enough for that to stop.
+- **Bytes per transfer (`bufferBytes`)** decides how often the turnaround is paid at all. The default of one max-size packet per transfer is the slowest shape this API has.
+
+**The device usually sets the ceiling, not this side.** Once the endpoint is being kept busy, the host cannot read faster than the device supplies, and further tuning of these two numbers changes nothing. `vendorReadStats()` is what separates the two cases: `starved` counts completions that found nothing else in flight, which is this side not asking often enough, while `bytes / completed` is what the device actually put into each transfer, which is the device not supplying more.
+
+Measured with an ESP32-P4 host reading an ESP32-P4 peer running EspUsbDevice at high speed, 1 MiB per condition:
+
+| Shape | MB/s |
+|---|---:|
+| One packet per transfer, no queue | 8.1 |
+| `depth` 1, 512 B — starved on every completion | 8.1 |
+| `depth` 2, 2 KB | 28.5 |
+| `depth` 2–4, 16–32 KB | 28.5 |
+
+On that rig the host stopped being the limit well before the top of the table: `starved` was already 0 at `depth` 2, and going from 2 KB to 32 KB per transfer bought nothing. What did move the result was the **device**: with the host code unchanged, enlarging how much the peer handed to its own `write()` per call took the same sweep from 21.4 to 25.6 to 28.5 MB/s. So when a stream is slower than expected and `starved` is already 0, the next change belongs on the device, not here.
+
+**Keep `onVendorData()` short.** Each slot is resubmitted from its own completion, and the callback runs before that resubmit, so the slot stays out of flight until the callback returns. Copy into a ring buffer and do the work elsewhere — see [Callback context](../../../docs/usb-host-advanced.md#8-callback-context).
+
 ## Expected Serial output
 
 ```
