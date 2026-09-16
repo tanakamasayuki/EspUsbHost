@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.9.2
 - (EN) Fix a data race in the vendor receive ring that could splice unrelated bytes into the middle of a `vendorRead()`. The ring is filled from the USB client task and drained by the caller, which is safe while each side writes only its own index -- but on overflow the producer advances the *consumer's* tail to discard the oldest bytes, and neither side took a lock. A read in progress could have the tail moved out from under it and return a window joined from two places, splitting a message in half. Both sides now take a per-device `portMUX_TYPE`, the same guard `EspUsbHostCdcSerial` has always had on its own receive ring. Found by the sibling library's `usb_vendor_direct` test, which saw it about once in fifteen runs. `peer/usb_vendor_read` gained `read_windows_are_contiguous`, which reports about 42 seams in 3,286 windows without the fix and exactly zero with it.
 - (JA) vendor 受信リングのデータ競合を修正した。`vendorRead()` が返す窓の途中に、無関係なバイトが繋ぎ込まれることがあった。このリングは USB client task が埋め、呼び出し側が抜き取る。各自が自分の index だけを書く限り安全だが、**溢れたときに生産者が消費者側の tail を動かして古いバイトを捨てる**ため前提が崩れており、しかも双方ともロックを取っていなかった。読み出しの最中に tail を動かされると、2 箇所から繋ぎ合わされた窓が返り、メッセージが途中で割れる。両側で per-device の `portMUX_TYPE` を取るようにした。`EspUsbHostCdcSerial` が自身の受信リングに元から持っていたものと同じ守り方である。兄弟ライブラリの `usb_vendor_direct` テストが約 15 回に 1 回の頻度で踏んで見つかった。`peer/usb_vendor_read` に `read_windows_are_contiguous` を追加した。修正前は 3,286 窓中およそ 42 箇所の継ぎ目を報告し、修正後はちょうど 0 になる。
 
