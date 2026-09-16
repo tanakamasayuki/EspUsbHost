@@ -34,13 +34,17 @@ BEGIN = re.compile(r"STEP_BEGIN index=(\d+) name=(\w+)")
 ENTER = re.compile(r"STEP_END_ENTER name=(\w+)")
 OK = re.compile(r"STEP_END_OK name=(\w+)")
 
+# (name, restarts the host after end())
 STEPS = [
-    "begin_end",
-    "open_default",
-    "open_large",
-    "open_large_stream",
-    "queue_stream_endqueue",
-    "queue_stream_no_endqueue",
+    ("begin_end", False),
+    ("open_default", False),
+    ("open_large", False),
+    ("open_large_stream", False),
+    ("queue_stream_endqueue", False),
+    ("queue_stream_no_endqueue", False),
+    ("begin_end_begin", True),
+    ("open_stream_end_begin", True),
+    ("queue_stream_end_begin", True),
 ]
 
 
@@ -48,7 +52,8 @@ def test_p4_end_teardown_probe(dut):
     dut.expect(r"TEST_(?:BEGIN|RESUME) p4_end_teardown_probe", timeout=30)
 
     survived = {}
-    for name in STEPS:
+    reopened = {}
+    for name, reopen in STEPS:
         dut.expect_exact(f"STEP_END_ENTER name={name}", timeout=60)
         try:
             dut.expect_exact(f"STEP_END_OK name={name}", timeout=25)
@@ -58,10 +63,30 @@ def test_p4_end_teardown_probe(dut):
             survived[name] = False
             print(f"\n{name:26} end() DID NOT RETURN (fault)")
             # The board reboots and resumes at the next step, so keep reading.
+            continue
+
+        if not reopen:
+            continue
+        try:
+            dut.expect_exact(f"STEP_REOPEN_OK name={name}", timeout=60)
+            reopened[name] = True
+            print(f"{name:26} begin() after end() returned")
+        except Exception:
+            reopened[name] = False
+            print(f"{name:26} begin() AFTER end() DID NOT RETURN (fault)")
 
     print("\n--- ladder ---")
-    for name in STEPS:
-        print(f"{name:26} {'ok' if survived.get(name) else 'FAULT'}")
+    for name, reopen in STEPS:
+        end_state = "ok" if survived.get(name) else "FAULT"
+        if not reopen:
+            print(f"{name:26} end={end_state}")
+        else:
+            again = "ok" if reopened.get(name) else "FAULT"
+            print(f"{name:26} end={end_state} begin_again={again}")
 
-    faulted = [name for name in STEPS if not survived.get(name)]
+    faulted = [name for name, _ in STEPS if not survived.get(name)]
+    restart_faulted = [
+        name for name, reopen in STEPS if reopen and survived.get(name) and not reopened.get(name)
+    ]
     assert not faulted, f"end() faulted after: {', '.join(faulted)}"
+    assert not restart_faulted, f"begin() after end() faulted: {', '.join(restart_faulted)}"

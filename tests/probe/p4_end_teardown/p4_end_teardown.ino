@@ -30,7 +30,7 @@ static constexpr uint32_t STREAM_TIMEOUT_MS = 10000;
 
 // Bump to restart the ladder after a reflash: the stored index is ignored when
 // it was written by a different build of this sketch.
-static constexpr uint32_t LADDER_BUILD = 6;
+static constexpr uint32_t LADDER_BUILD = 7;
 static Preferences ladderStore;
 static uint32_t ladderStep = 0;
 
@@ -47,15 +47,22 @@ struct Step
   bool useQueue;        // vendorReadQueueBegin()
   bool stream;          // pull data before tearing down
   bool endQueueFirst;   // vendorReadQueueEnd() before end()
+  bool reopen;          // begin() again after end(), on the same port
 };
 
 static const Step STEPS[] = {
-    {"begin_end", false, 0, false, false, false},
-    {"open_default", true, 0, false, false, false},
-    {"open_large", true, 8192, false, false, false},
-    {"open_large_stream", true, 8192, false, true, false},
-    {"queue_stream_endqueue", true, 8192, true, true, true},
-    {"queue_stream_no_endqueue", true, 8192, true, true, false},
+    {"begin_end", false, 0, false, false, false, false},
+    {"open_default", true, 0, false, false, false, false},
+    {"open_large", true, 8192, false, false, false, false},
+    {"open_large_stream", true, 8192, false, true, false, false},
+    {"queue_stream_endqueue", true, 8192, true, true, true, false},
+    {"queue_stream_no_endqueue", true, 8192, true, true, false, false},
+    // Restarting the host after end() is what the EspUsbDevice P4 loopback role
+    // reversal does, and what it aborts on. Kept as separate rungs so the plain
+    // end() rungs above keep meaning what they meant.
+    {"begin_end_begin", false, 0, false, false, false, true},
+    {"open_stream_end_begin", true, 8192, false, true, false, true},
+    {"queue_stream_end_begin", true, 8192, true, true, true, true},
 };
 static constexpr size_t STEP_COUNT = sizeof(STEPS) / sizeof(STEPS[0]);
 
@@ -146,6 +153,34 @@ static void runStep(const Step &step)
   Serial.flush();
   usb.end();
   Serial.printf("STEP_END_OK name=%s\n", step.name);
+  Serial.flush();
+  delay(500);
+
+  if (!step.reopen)
+  {
+    return;
+  }
+
+  // The second begin() on the same port. On the ESP32-P4 end() cuts root port
+  // power, so this is where a port left unpowered, or state the teardown did not
+  // reset, shows up.
+  Serial.printf("STEP_REOPEN_ENTER name=%s\n", step.name);
+  Serial.flush();
+  const bool reopened = usb.begin(config);
+  Serial.printf("STEP_REOPEN name=%s ok=%u error=%s\n",
+                step.name, reopened ? 1 : 0, usb.lastErrorName());
+  Serial.flush();
+  if (reopened)
+  {
+    // Say whether the restarted host can still see the device, not just that
+    // begin() returned true: an unpowered root port enumerates nothing.
+    connected = false;
+    const bool sawDevice = waitConnected();
+    Serial.printf("STEP_REOPEN_DEVICE name=%s connected=%u\n", step.name, sawDevice ? 1 : 0);
+    Serial.flush();
+    usb.end();
+  }
+  Serial.printf("STEP_REOPEN_OK name=%s\n", step.name);
   Serial.flush();
   delay(500);
 }
