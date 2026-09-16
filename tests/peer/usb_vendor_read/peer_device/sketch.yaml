@@ -16,12 +16,9 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      # Working tree rather than the released 2.3.0, because the two-packet bulk
-      # IN transmit FIFO is not in a release yet and both report version
-      # "2.3.0" -- a pin by version silently builds the one-packet library and
-      # the sweep then measures the device, not this host. The sketch prints
-      # DEVICE_BULK_IN_DOUBLE_BUFFERED so a run shows which one it got. The S3
-      # profile above stays on the release: it checks correctness, not rate.
-      - dir: ../../../../../EspUsbDevice
+      # 2.4.0 rather than the 2.3.0 the S3 profile uses: the two-packet bulk IN
+      # transmit FIFO landed in 2.4.0, and so did bulkInDoubleBuffered(), which
+      # this sketch prints on the P4 so a run says whether it actually applied.
+      - EspUsbDevice (2.4.0)
 
 default_profile: s3_peer_device
