@@ -65,6 +65,16 @@ static constexpr size_t STREAM_BYTES = 128 * 1024;
 static constexpr size_t BIG_TRANSFER_BYTES = 8192;
 static constexpr uint32_t STREAM_TIMEOUT_MS = 30000;
 
+// Window-continuity check. The stream is far larger than the receive ring, so
+// the ring overflows continuously while vendorRead() drains it in small
+// windows. Bytes lost between one read and the next are expected -- the ring
+// only keeps the newest ring-full. What must never happen is a seam inside a
+// single window, because the overflow path advances the tail the reader is
+// walking. Run for a fixed time rather than to a byte count: most of the stream
+// is dropped by design, so a byte target would never be reached.
+static constexpr size_t WINDOW_STREAM_BYTES = 4 * 1024 * 1024;
+static constexpr uint32_t WINDOW_RUN_MS = 8000;
+
 static volatile bool connected = false;
 static uint8_t deviceAddress = 0;
 
@@ -286,6 +296,72 @@ void loop()
       const uint64_t elapsed = runStream(STREAM_BYTES);
       reportStream(usb.vendorReadQueueReady(deviceAddress) ? "queue" : "continuous",
                    STREAM_BYTES, elapsed);
+    }
+    else if (command == 'W')
+    {
+      resetStream();
+      const uint8_t request[5] = {'S',
+                                  static_cast<uint8_t>(WINDOW_STREAM_BYTES & 0xff),
+                                  static_cast<uint8_t>((WINDOW_STREAM_BYTES >> 8) & 0xff),
+                                  static_cast<uint8_t>((WINDOW_STREAM_BYTES >> 16) & 0xff),
+                                  static_cast<uint8_t>((WINDOW_STREAM_BYTES >> 24) & 0xff)};
+      uint32_t windows = 0;
+      uint32_t seams = 0;
+      uint32_t bytes = 0;
+      usb.vendorReadStatsReset(deviceAddress);
+      if (usb.vendorWrite(request, sizeof(request), deviceAddress))
+      {
+        // A small window, and a pause between reads. Both halves matter, and
+        // getting either wrong hides the fault:
+        //
+        //   Reading in a tight loop keeps the ring near empty, and the overflow
+        //   path only runs when it is full, so the code under test never runs.
+        //
+        //   Reading a whole ring at once empties it as the copy proceeds, so a
+        //   push arriving midway finds free space, takes no drop, and moves no
+        //   tail -- the seam cannot form however long the copy is.
+        //
+        // A short read from a ring the pause keeps full is the case that bites:
+        // the ring stays full for the whole copy, so any push landing inside it
+        // must discard, and discarding walks the tail this loop is reading.
+        uint8_t window[63] = {};
+        const uint32_t deadline = millis() + WINDOW_RUN_MS;
+        while (millis() < deadline)
+        {
+          delay(2);
+          const size_t got = usb.vendorRead(window, sizeof(window), deviceAddress);
+          if (got < 2)
+          {
+            continue;
+          }
+          windows++;
+          bytes += got;
+          // The peer sends an unbroken 0..255 ramp, so every byte inside one
+          // window must be one more than the byte before it.
+          for (size_t i = 1; i < got; i++)
+          {
+            if (window[i] != static_cast<uint8_t>(window[i - 1] + 1))
+            {
+              seams++;
+            }
+          }
+        }
+      }
+      streamArmed = false;
+      // Report the push size the ring actually saw. onVendorData() fires once
+      // per push, so streamChunks is the push count and streamBytes/streamChunks
+      // is their average size -- which is the variable this check depends on,
+      // and the one the block-mode request is trying to move. (vendorReadStats()
+      // is no use here: it counts the asynchronous read queue, not this path.)
+      Serial.printf("VENDOR_WINDOW_PUSH pushes=%lu bytes=%lu max=%lu bad=%lu\n",
+                    static_cast<unsigned long>(streamChunks),
+                    static_cast<unsigned long>(streamBytes),
+                    static_cast<unsigned long>(streamMaxChunk),
+                    static_cast<unsigned long>(streamBad));
+      Serial.printf("VENDOR_WINDOW windows=%lu bytes=%lu seams=%lu\n",
+                    static_cast<unsigned long>(windows),
+                    static_cast<unsigned long>(bytes),
+                    static_cast<unsigned long>(seams));
     }
     else if (command == 'x')
     {

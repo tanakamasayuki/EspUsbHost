@@ -2550,6 +2550,14 @@ private:
     size_t usbVendorRxHead = 0;
     size_t usbVendorRxTail = 0;
     size_t usbVendorRxCount = 0;
+    // The ring is filled from the USB client task and drained by whichever task
+    // calls vendorRead(), and it is not a plain single-producer/single-consumer
+    // ring: when it overflows the producer advances the *consumer's* tail to
+    // discard the oldest bytes. That breaks the rule that makes a lock-free ring
+    // safe -- each index written by one side only -- so both sides take this.
+    // Without it a vendorRead() in progress can have the tail moved out from
+    // under it and return a window with a seam in the middle of a message.
+    portMUX_TYPE usbVendorRxMux = portMUX_INITIALIZER_UNLOCKED;
     // Asynchronous bulk OUT queue. Slots are preallocated by
     // vendorWriteQueueBegin() and reused; usbVendorOutFreeSlots counts the slots
     // that are neither acquired nor in flight.
