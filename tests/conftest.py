@@ -59,6 +59,13 @@ _KNOWN_SERIAL_FINDINGS = (
         reason="transient disconnect while peer firmware is replaced",
     ),
     _KnownSerialFinding(
+        nodeid_pattern="*loopback/p4_role_reversal/*",
+        log_name="dut.log",
+        line_pattern=re.compile(r"USB HOST: Enqueue URB error: ESP_ERR_INVALID_STATE$"),
+        max_count=1,
+        reason="device.end() takes the device away while the host still has an interrupt IN armed; that race is what the test exists to exercise",
+    ),
+    _KnownSerialFinding(
         nodeid_pattern="*printer*",
         log_name="dut.log",
         line_pattern=re.compile(r"ENUM: Device returned less bytes than requested$"),

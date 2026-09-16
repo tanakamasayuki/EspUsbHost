@@ -1787,7 +1787,28 @@ void EspUsbHost::end()
   // and the S3 teardown has never shown the fault this repairs, across a peer
   // suite that stops and restarts the host in almost every module. This changes
   // the controller where the fault was observed and leaves the other alone.
-  const esp_err_t powerErr = usb_host_lib_set_root_port_power(false);
+  // A device that is already on its way out has to be allowed to finish leaving
+  // before the port goes dark. Closing it makes the hub driver recycle the root
+  // port, and root_port_recycle() switches on the port state with only ENABLED
+  // and RECOVERY handled -- an unpowered port reaches its "should never occur"
+  // default and calls abort(). The ESP32-P4 role reversal opens exactly that
+  // window: device.end() immediately followed by usb.end(), with no pause in
+  // between for the disconnect to retire. Waiting for the device count to fall
+  // closes it. A device that is staying attached never makes the count fall, so
+  // the unpower below still runs for the case it was added for, and this wait
+  // costs a teardown with no device attached nothing.
+  const uint32_t settleUntilMs = millis() + 250;
+  while (deviceCount() != 0 && millis() < settleUntilMs)
+  {
+    delay(5);
+  }
+  if (deviceCount() == 0)
+  {
+    ESP_LOGD(TAG, "Root port left powered: no device to disconnect");
+  }
+  const esp_err_t powerErr = deviceCount() == 0
+                                 ? ESP_ERR_INVALID_STATE
+                                 : usb_host_lib_set_root_port_power(false);
   if (powerErr != ESP_OK && powerErr != ESP_ERR_INVALID_STATE)
   {
     ESP_LOGD(TAG, "usb_host_lib_set_root_port_power(false) failed: %s", esp_err_to_name(powerErr));
