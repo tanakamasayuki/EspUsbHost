@@ -4103,10 +4103,34 @@ size_t EspUsbHost::vendorInInFlight(const DeviceState &device) const
 bool EspUsbHost::submitVendorInSlot(DeviceState &device, uint8_t slot)
 {
   usb_transfer_t *transfer = device.usbVendorInTransfers[slot];
-  if (!transfer || device.usbVendorInSlotInFlight[slot] || !device.handle)
+  if (!transfer || !device.handle)
   {
     return false;
   }
+
+  // Claim the slot before touching the transfer, for the reason in
+  // submitInputTransfer(): vendorReadQueueBegin() submits from the caller's task
+  // while the client task refills from serviceVendorInQueue() and resubmits from
+  // the completion callback, so both can read the flag false and go on. What the
+  // loser then does is worse than a wasted call -- it rewrites a transfer the
+  // driver already owns and writes the cache back over the buffer that transfer
+  // is being DMA-filled into, which on the ESP32-P4 can drop stale cache lines
+  // on top of freshly received bytes. usb_host_transfer_submit() rejecting it
+  // with ESP_ERR_NOT_FINISHED afterwards is the least of it.
+  //
+  // The ownership rule the cache sync depends on: the data buffer belongs to the
+  // driver from the moment the submit is accepted until the completion callback
+  // runs, and nothing on the CPU side may read, write or sync it in between. The
+  // C2M sync below is legal only because the claim above guarantees no transfer
+  // is outstanding for this slot yet.
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  if (device.usbVendorInSlotInFlight[slot])
+  {
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    return false;
+  }
+  device.usbVendorInSlotInFlight[slot] = true;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
 
   transfer->device_handle = device.handle;
   transfer->bEndpointAddress = device.usbVendorInEndpointAddress;
@@ -4118,6 +4142,10 @@ bool EspUsbHost::submitVendorInSlot(DeviceState &device, uint8_t slot)
   const esp_err_t err = usb_host_transfer_submit(transfer);
   if (err != ESP_OK)
   {
+    // Hand the claim back so a later pass can retry the slot.
+    portENTER_CRITICAL(&endpointSubmitMux_);
+    device.usbVendorInSlotInFlight[slot] = false;
+    portEXIT_CRITICAL(&endpointSubmitMux_);
     ESP_LOGW(TAG, "usb_host_transfer_submit(vendor bulk IN queue ep=0x%02x) failed: %s",
              device.usbVendorInEndpointAddress,
              esp_err_to_name(err));
@@ -4125,7 +4153,6 @@ bool EspUsbHost::submitVendorInSlot(DeviceState &device, uint8_t slot)
     return false;
   }
 
-  device.usbVendorInSlotInFlight[slot] = true;
   device.usbVendorReadStats.submitted++;
   return true;
 }
@@ -4441,7 +4468,9 @@ void EspUsbHost::vendorInTransferCallback(usb_transfer_t *transfer)
     return;
   }
 
+  portENTER_CRITICAL(&host->endpointSubmitMux_);
   device->usbVendorInSlotInFlight[slot] = false;
+  portEXIT_CRITICAL(&host->endpointSubmitMux_);
   EspUsbHostVendorReadStats &stats = device->usbVendorReadStats;
   stats.completed++;
   // Nothing else outstanding means the endpoint has just gone idle: the queue is
