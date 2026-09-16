@@ -9845,16 +9845,33 @@ void EspUsbHost::transferCallback(usb_transfer_t *transfer)
 
 bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
 {
-  if (!endpoint.transfer || endpoint.transferSubmitted)
+  if (!endpoint.transfer)
   {
     return endpoint.transferSubmitted;
+  }
+
+  // Claim the endpoint before submitting, not after. This runs on the USB client
+  // task (its loop resubmits endpoints) and on whatever task called a public API
+  // that starts one -- startNetworkEndpoints() from networkOpen(), for instance.
+  // With the flag merely read here and written after the submit, both could read
+  // it false and both submit the same transfer; usb_host_transfer_submit() fails
+  // the second with ESP_ERR_NOT_FINISHED, which is the only thing it returns that
+  // for. Taking the claim under the lock makes the loser skip instead.
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  if (endpoint.transferSubmitted)
+  {
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    return true;
   }
   if (endpoint.stopping)
   {
     // The endpoint is being taken over or torn down: its transfer has to reach
     // its callback and stay there, so no path may hand the driver a new one.
+    portEXIT_CRITICAL(&endpointSubmitMux_);
     return false;
   }
+  endpoint.transferSubmitted = true;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
 
   if (endpoint.transfer->num_isoc_packets > 0)
   {
@@ -9872,6 +9889,10 @@ bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
   esp_err_t err = usb_host_transfer_submit(endpoint.transfer);
   if (err != ESP_OK)
   {
+    // Hand the claim back so the next pass can try again.
+    portENTER_CRITICAL(&endpointSubmitMux_);
+    endpoint.transferSubmitted = false;
+    portEXIT_CRITICAL(&endpointSubmitMux_);
     ESP_LOGW(TAG, "usb_host_transfer_submit(ep=0x%02x) failed: %s",
              endpoint.address,
              esp_err_to_name(err));
@@ -9879,7 +9900,6 @@ bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
     return false;
   }
 
-  endpoint.transferSubmitted = true;
   return true;
 }
 
@@ -10545,7 +10565,9 @@ void EspUsbHost::handleTransfer(usb_transfer_t *transfer)
   {
     return;
   }
+  portENTER_CRITICAL(&endpointSubmitMux_);
   endpoint->transferSubmitted = false;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
   DeviceState *device = findDeviceByHandle(endpoint->deviceHandle);
 
   const bool isAudioStreaming = endpoint->interfaceClass == USB_CLASS_AUDIO_VALUE &&

@@ -134,6 +134,22 @@ def test_usb_ncm_dhcp_and_http_then_discovery_does_not_claim(dut, peers):
     assert re.search(r"claim_attempts=[1-9]", attached), attached
     assert "claim_attempts=0 claimed=0 managed=0" not in attached, attached
 
+    # Attaching must also leave no error behind. error= is lastErrorName(), which
+    # is sticky, so anything the attach recorded on its way through shows up here
+    # even when every step it reports succeeded.
+    #
+    # ESP_ERR_NOT_FINISHED in particular means a transfer was submitted while the
+    # same transfer was already in flight -- that is the only thing
+    # usb_host_transfer_submit() returns it for. startNetworkEndpoints() submits
+    # the IN and notification transfers from the caller's task while the USB
+    # client task resubmits the same endpoints from its own loop, and the two
+    # arbitrate only through endpoint.transferSubmitted, a plain bool. Both sides
+    # can read it false and both submit. The notification endpoint ignores the
+    # failure by design, so the attach still reports ok=1 and only this field
+    # shows it happened -- but the same window on the data IN endpoint makes
+    # networkOpen() return false with the endpoint actually armed.
+    assert attached.endswith("error=ESP_OK"), attached
+
     # Put the host back to where nothing has been attached. The flags live on the
     # device object begin() creates, so end() discards them with the device, and
     # onDeviceDisconnected() clears the attach as well. Costs one re-enumeration.
