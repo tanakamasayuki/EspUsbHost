@@ -3281,13 +3281,20 @@ size_t EspUsbHost::vendorRead(uint8_t *buffer, size_t length, uint8_t address)
     return 0;
   }
 
+  // Held across the whole drain, not per byte: the point is that the window
+  // handed back is contiguous. A push that overflows midway would otherwise
+  // advance the tail and splice unrelated bytes into the middle of it. The
+  // section is bounded by what the ring holds, so at most
+  // ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE bytes are copied with interrupts off.
   size_t copied = 0;
+  portENTER_CRITICAL(&device->usbVendorRxMux);
   while (copied < length && device->usbVendorRxCount > 0)
   {
     buffer[copied++] = device->usbVendorRxBuffer[device->usbVendorRxTail];
     device->usbVendorRxTail = (device->usbVendorRxTail + 1) % ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE;
     device->usbVendorRxCount--;
   }
+  portEXIT_CRITICAL(&device->usbVendorRxMux);
   return copied;
 }
 
@@ -11534,6 +11541,7 @@ void EspUsbHost::vendorRxPush(DeviceState &device, const uint8_t *data, size_t l
   {
     return;
   }
+  portENTER_CRITICAL(&device.usbVendorRxMux);
   // Anything older than the last full ring is dropped before it could be read.
   if (length >= capacity)
   {
@@ -11561,6 +11569,7 @@ void EspUsbHost::vendorRxPush(DeviceState &device, const uint8_t *data, size_t l
   }
   device.usbVendorRxHead = (device.usbVendorRxHead + length) % capacity;
   device.usbVendorRxCount += length;
+  portEXIT_CRITICAL(&device.usbVendorRxMux);
 }
 
 void EspUsbHost::handleUsbVendorData(EndpointState &endpoint, const uint8_t *data, size_t length)

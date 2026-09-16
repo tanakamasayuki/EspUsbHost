@@ -180,10 +180,60 @@ def test_usb_vendor_read(dut, peers, run_checks):
         dut.write("Z")
         dut.expect_exact("VENDOR_RQ_REJECT depth0=0 deep=0 bytes0=0")
 
+    def read_windows_are_contiguous():
+        """One vendorRead() never returns a window spliced from two places.
+
+        The stream is far larger than the receive ring, so the ring overflows the
+        whole time and bytes are lost between reads -- that is what the ring
+        documents. The overflow path discards the oldest bytes by advancing the
+        tail, which is the index vendorRead() is walking, so without mutual
+        exclusion a read in progress can have unrelated bytes spliced into the
+        middle of the window it returns. The peer sends an unbroken 0..255 ramp,
+        so a seam inside one window is a byte that is not one more than the byte
+        before it.
+
+        Measured both ways on the full-speed S3 pair: without the locking it
+        reports about 42 seams in 3,286 windows, with it exactly zero, on an
+        identical workload (65,536 pushes either way). The asymmetry is what
+        makes it usable as a regression test -- a seam is only possible while the
+        producer can move the consumer's tail, so a fixed build cannot produce
+        one, while an unfixed build produces dozens.
+
+        Three things had to line up before it reproduced at all, and getting any
+        of them wrong hides the fault completely:
+
+        * The read has to be short. Draining the whole ring frees space as the
+          copy proceeds, so a push arriving midway takes no drop and moves no
+          tail.
+        * The reader has to pause. Reading in a tight loop keeps the ring from
+          filling, and the overflow path only runs when it is full.
+        * There have to be enough windows. At roughly 1.3% per window, the
+          1,500 ms run this started as produced one seam or none.
+        """
+        _restart(dut, device)
+        # Deliberately the default one-packet transfer, not the 8 KB one. A push
+        # at least as large as the ring takes the other overflow branch, which
+        # resets the ring wholesale instead of advancing the tail, and that
+        # branch cannot splice a window. Only pushes smaller than the ring reach
+        # the partial-drop path this check is about.
+        dut.write("o")
+        dut.expect(r"VENDOR_OPEN ok=1 xfer=(\d+) mps=(\d+)")
+
+        dut.write("W")
+        match = dut.expect(r"VENDOR_WINDOW windows=(\d+) bytes=(\d+) seams=(\d+)", timeout=30)
+        windows = int(match.group(1))
+        seams = int(match.group(3))
+        assert windows > 0, "no windows were read; the peer did not stream"
+        assert seams == 0, (
+            f"{seams} seam(s) inside {windows} window(s): vendorRead() returned bytes "
+            "spliced from two places in the ring"
+        )
+
     run_checks([
         default_reads_one_packet,
         large_transfer_size,
         stream_over_large_transfers,
         read_queue_carries_the_stream,
         queue_rejects_invalid_shapes,
+        read_windows_are_contiguous,
     ])
