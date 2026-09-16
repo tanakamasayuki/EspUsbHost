@@ -3074,6 +3074,11 @@ private:
   TaskHandle_t clientTaskHandle_ = nullptr;
   volatile bool running_ = false;
   volatile bool ready_ = false;
+  // Guards the check-and-claim of EndpointState::transferSubmitted. One lock for
+  // every endpoint rather than one each: it is held for a compare and a store,
+  // never across the driver call, so contention is not a consideration and a
+  // portMUX_TYPE per endpoint would cost more than it saves.
+  portMUX_TYPE endpointSubmitMux_ = portMUX_INITIALIZER_UNLOCKED;
   esp_err_t lastError_ = ESP_OK;
 
   usb_host_client_handle_t clientHandle_ = nullptr;
