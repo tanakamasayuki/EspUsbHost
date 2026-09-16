@@ -30,7 +30,7 @@ static constexpr uint32_t STREAM_TIMEOUT_MS = 10000;
 
 // Bump to restart the ladder after a reflash: the stored index is ignored when
 // it was written by a different build of this sketch.
-static constexpr uint32_t LADDER_BUILD = 7;
+static constexpr uint32_t LADDER_BUILD = 10;
 static Preferences ladderStore;
 static uint32_t ladderStep = 0;
 

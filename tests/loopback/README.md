@@ -5,9 +5,28 @@
 This directory is kept as the location for ESP32-P4 single-board loopback tests
 that run USB Host and USB Device on the same chip.
 
-There are currently no runnable loopback tests in this repository. The
-Arduino-ESP32 standard USB Device implementation has ESP32-P4 device-side
-control limits that make these tests unsuitable as stable Host regression tests.
+## Tests here
+
+| Test | Covers | Requires |
+|------|--------|----------|
+| [`p4_role_reversal/`](p4_role_reversal/) | `usb.end()` during an ESP32-P4 role reversal: the host starts on the full-speed controller with the device on the high-speed one, then `device.end()` and `usb.end()` run back to back and the roles are swapped. 2.9.0 aborted inside the teardown; this is its regression test | One ESP32-P4 with its two USB controllers wired for loopback (`TEST_SERIAL_PORT_P4_LOOPBACK`). No second board. The device side is `EspUsbDevice`, pinned to a release |
+
+It exists here rather than in EspUsbDevice because the fault is in this library's
+`end()`, and a fix cannot be verified from a repository whose tests are not run
+as part of this one's. It uses `EspUsbDevice` only as a pinned dependency, so
+nothing in the sibling repository has to be checked out or edited to run it.
+
+Two conditions have to hold together or the fault does not appear, which is why
+the two-board [`probe/p4_end_teardown`](../probe/p4_end_teardown/) ladder does
+not cover it: the host must be on the **full-speed** port when `end()` runs, and
+the device must already be leaving because `device.end()` ran immediately before,
+with no pause in between for the disconnect to retire.
+
+## Why most loopback testing is not here
+
+The Arduino-ESP32 standard USB Device implementation has ESP32-P4 device-side
+control limits that make general loopback coverage unsuitable as a stable Host
+regression suite.
 
 Specifically, on ESP32-P4 the Arduino-ESP32 standard USB Device implementation
 only runs on the HS side. In a single-P4 loopback setup, that means the device
