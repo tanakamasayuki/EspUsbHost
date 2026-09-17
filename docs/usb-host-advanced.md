@@ -449,7 +449,19 @@ Both ends can therefore look correctly configured while no video crosses the cab
 
 On **arduino-esp32 3.3.11 this cannot be repartitioned**: `usb_host_config_t::fifo_settings_custom` arrived in ESP-IDF 5.5 and that core is built on 5.4, so `EspUsbHostConfig::fifo` is ignored there and the Kconfig bias in the precompiled libraries is the only split available. A core built on ESP-IDF 5.5 or later can raise `rxFifoLines` instead.
 
-A **high-speed** port should not be in this situation: 1024 lines in total and a default that leaves 2552 bytes for IN, which is more than any UVC alternate setting asks for. That follows from the FIFO arithmetic above rather than from a measurement — the figures in this section were taken on a full-speed ESP32-S3 pair, and UVC has not yet been run on the ESP32-P4 high-speed port.
+A **high-speed** port is not in this situation, and that has been measured rather than only derived. The port has 1024 lines in total and the same default leaves 2552 bytes for IN, which is more than any UVC alternate setting asks for. On two ESP32-P4 boards wired OTG HS to OTG HS (`manual/uvc_hs_stream`), the camera committed to **1023-byte payloads** — eight times the full-speed ceiling — and streamed:
+
+| Frame length | Throughput | Frames/s |
+|-------------:|-----------:|---------:|
+| 8 KB | 6.56 MB/s | 800 |
+| 32 KB | 6.91 MB/s | 211 |
+| 128 KB | 7.06 MB/s | 53.7 |
+
+Every frame matched its expected length and contents, with one failed isochronous packet in 80,861 payloads — the one at stream start, where the camera's endpoint becomes active a microframe after it acknowledges `SET_INTERFACE`. 7.06 MB/s is 86% of the 8.18 MB/s a single 1023-byte isochronous endpoint can carry at one packet per 125 µs microframe.
+
+The larger frames being *faster* is worth noticing: per-frame overhead is small, and the limit is the packet rate rather than anything per-frame.
+
+**What is slow in the frame callback comes straight off that figure.** The callback runs on the USB client task, which is also the task that resubmits the streaming transfers, and four transfers of eight packets is only 4 ms of queue. An earlier version of this measurement verified all 128 KB of each frame inside the callback: the 128 KB row then came out at 3.47 MB/s — half the 32 KB row — with frames arriving about 6 KB short, because the microframes that landed while the callback ran had nowhere to go. Nothing reported an error; the frames simply had less in them. Copy the frame and return.
 
 ---
 
