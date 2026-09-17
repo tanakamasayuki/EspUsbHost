@@ -147,6 +147,24 @@ void loop()
             framesSent = 0;
             Serial.println("DEVICE_VIDEO_RESET");
         }
+        else if (command == 'X')
+        {
+            // Detach from the bus. The host sees an ordinary disconnect, which is
+            // the only way a test can take the camera away mid-stream.
+            device.end();
+            streamingReported = false;
+            Serial.println("DEVICE_VIDEO_DETACHED");
+        }
+        else if (command == 'Y')
+        {
+            EspUsbDeviceConfig config;
+            config.vid = 0x303a;
+            config.pid = 0x4028;
+            config.manufacturer = "EspUsb";
+            config.product = "EspUsbDevice UVC Camera";
+            config.serialNumber = "espusb-uvc";
+            Serial.printf("DEVICE_VIDEO_ATTACHED %u\n", device.begin(config) ? 1 : 0);
+        }
     }
     // The host selecting a streaming alternate is what starts the stream. Prime
     // the first frame here: after that each one is armed from the completion of

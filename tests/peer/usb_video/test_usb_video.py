@@ -331,3 +331,48 @@ def test_streaming_stops_cleanly(dut, peers, camera):
 
     dut.write("T")
     dut.expect_exact("VIDEO_STOP stopped=1 streaming=0")
+
+
+def test_camera_can_be_replugged_while_streaming(dut, peers, camera):
+    """A camera taken away mid-stream is enumerated again when it comes back.
+
+    The disconnect path has to release the streaming interface it claimed, and
+    releasing it is not optional just because the device is gone: the client's own
+    claim outlives the device, ``usb_host_device_close()`` refuses while one is
+    held, and the host then retries that close forever with the address still in
+    use. The camera comes back and nothing happens -- no error, no callback, and
+    the only way out is restarting the host.
+    """
+    device = peers["device"]
+
+    dut.write("S")
+    dut.expect(r"VIDEO_START started=1 .*\r?\n")
+    device.expect_exact("DEVICE_VIDEO_STREAMING 1")
+    time.sleep(0.5)
+
+    # Take the camera away without stopping the stream first.
+    device.write("X")
+    device.expect_exact("DEVICE_VIDEO_DETACHED")
+    dut.expect(r"DEVICE_DISCONNECTED addr=\d+\r?\n", timeout=10)
+
+    device.write("Y")
+    device.expect_exact("DEVICE_VIDEO_ATTACHED 1")
+
+    # The host must find it again. Polling rather than waiting on the connect
+    # line, because that line is printed once.
+    _poll_state(dut, r"VIDEO_DEVICE addr=[1-9]\d* streams=[1-9]\d*", command="v", attempts=60)
+
+    # And it must be startable again, not merely visible.
+    dut.write("S")
+    start = dut.expect(r"VIDEO_START started=(\d) .*error=(\S+)\r?\n")
+    assert start.group(1) == b"1", (
+        f"the camera enumerated again but would not start: {start.group(2).decode()}")
+    device.expect_exact("DEVICE_VIDEO_STREAMING 1")
+    time.sleep(1)
+
+    dut.write("F")
+    frames = dut.expect(r"VIDEO_FRAMES have=1 streaming=1 seen=(\d+) good=(\d+) .*\r?\n")
+    assert int(frames.group(2)) >= 3, "no good frames after the camera was plugged back in"
+
+    dut.write("T")
+    dut.expect_exact("VIDEO_STOP stopped=1 streaming=0")
