@@ -1837,7 +1837,7 @@ void EspUsbHost::end()
   // cancellations.
   for (DeviceState &device : devices_)
   {
-    if (device.inUse && device.videoStreamingActive)
+    if (device.inUse && device.video && device.video->streamingActive)
     {
       releaseVideoStreaming(device, true);
     }
@@ -9957,6 +9957,37 @@ void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep,
   }
 }
 
+EspUsbHost::VideoState *EspUsbHost::videoStateFor(DeviceState &device, bool create)
+{
+  if (device.video || !create)
+  {
+    return device.video;
+  }
+  device.video = new (std::nothrow) VideoState();
+  if (!device.video)
+  {
+    // Deliberately not fatal. A device that cannot have its video state allocated
+    // still enumerates and still works as whatever else it is; it simply reports
+    // no video formats.
+    ESP_LOGW(TAG, "USB Video state allocation failed (%u bytes); the device will report no formats",
+             static_cast<unsigned>(sizeof(VideoState)));
+    setLastError(ESP_ERR_NO_MEM);
+  }
+  return device.video;
+}
+
+const EspUsbHost::VideoState *EspUsbHost::videoStateFor(const DeviceState &device) const
+{
+  return device.video;
+}
+
+void EspUsbHost::releaseVideoState(DeviceState &device)
+{
+  VideoState *video = device.video;
+  device.video = nullptr;
+  delete video;
+}
+
 void EspUsbHost::parseVideoControlDescriptor(DeviceState &device, const uint8_t *data)
 {
   if (!data || data[0] < 3)
@@ -9967,20 +9998,29 @@ void EspUsbHost::parseVideoControlDescriptor(DeviceState &device, const uint8_t 
   {
     return;
   }
+  VideoState *video = videoStateFor(device, true);
+  if (!video)
+  {
+    return;
+  }
 
   // bcdUVC decides the Probe/Commit control length. A UVC 1.0 camera stalls a
   // 34-byte SET_CUR, so this has to be carried rather than assumed.
-  device.videoVersion = espUsbHostVideoReadU16(data + 3);
-  device.hasVideoInterface = true;
-  device.videoControlInterface = currentInterfaceNumber_;
+  video->version = espUsbHostVideoReadU16(data + 3);
+  video->controlInterface = currentInterfaceNumber_;
   ESP_LOGI(TAG, "USB Video control interface %u: bcdUVC=0x%04x",
            currentInterfaceNumber_,
-           device.videoVersion);
+           video->version);
 }
 
 void EspUsbHost::parseVideoStreamingDescriptor(DeviceState &device, const uint8_t *data)
 {
   if (!data || data[0] < 3)
+  {
+    return;
+  }
+  VideoState *video = videoStateFor(device, true);
+  if (!video)
   {
     return;
   }
@@ -9995,9 +10035,8 @@ void EspUsbHost::parseVideoStreamingDescriptor(DeviceState &device, const uint8_
     {
       return;
     }
-    device.hasVideoInterface = true;
-    device.videoStreamingInterface = currentInterfaceNumber_;
-    device.videoStreamingEndpoint = data[6];
+      video->streamingInterface = currentInterfaceNumber_;
+    video->streamingEndpoint = data[6];
     ESP_LOGI(TAG, "USB Video streaming interface %u: formats=%u ep=0x%02x",
              currentInterfaceNumber_,
              data[3],
@@ -10065,7 +10104,12 @@ void EspUsbHost::parseVideoStreamingDescriptor(DeviceState &device, const uint8_
 
 void EspUsbHost::recordVideoStream(DeviceState &device, const EspUsbHostVideoStreamInfo &stream)
 {
-  if (device.videoStreamInfoCount >= ESP_USB_HOST_MAX_VIDEO_STREAMS)
+  VideoState *video = videoStateFor(device, true);
+  if (!video)
+  {
+    return;
+  }
+  if (video->streamInfoCount >= ESP_USB_HOST_MAX_VIDEO_STREAMS)
   {
     ESP_LOGW(TAG, "USB Video format dropped: already tracking %u streams "
                   "(raise ESP_USB_HOST_MAX_VIDEO_STREAMS)",
@@ -10073,15 +10117,14 @@ void EspUsbHost::recordVideoStream(DeviceState &device, const EspUsbHostVideoStr
     return;
   }
 
-  EspUsbHostVideoStreamInfo &info = device.videoStreamInfos[device.videoStreamInfoCount++];
+  EspUsbHostVideoStreamInfo &info = video->streamInfos[video->streamInfoCount++];
   info = stream;
   info.address = device.info.address;
   info.interfaceNumber = currentInterfaceNumber_;
   // Formats are declared on alternate 0; the alternate that actually carries them
   // is chosen at start time, so it is deliberately left at zero here.
   info.alternate = 0;
-  info.endpointAddress = device.videoStreamingEndpoint;
-  device.hasVideoInterface = true;
+  info.endpointAddress = video->streamingEndpoint;
 
   ESP_LOGI(TAG, "USB Video stream: iface=%u %s %ux%u format=%u frame=%u default=%lu (%lu fps) max=%lu",
            currentInterfaceNumber_,
@@ -10101,7 +10144,12 @@ void EspUsbHost::recordVideoAlternate(DeviceState &device, const usb_ep_desc_t *
   {
     return;
   }
-  if (device.videoAlternateCount >= ESP_USB_HOST_MAX_VIDEO_ALTERNATES)
+  VideoState *video = videoStateFor(device, true);
+  if (!video)
+  {
+    return;
+  }
+  if (video->alternateCount >= ESP_USB_HOST_MAX_VIDEO_ALTERNATES)
   {
     ESP_LOGW(TAG, "USB Video alternate dropped: already tracking %u "
                   "(raise ESP_USB_HOST_MAX_VIDEO_ALTERNATES)",
@@ -10109,7 +10157,7 @@ void EspUsbHost::recordVideoAlternate(DeviceState &device, const usb_ep_desc_t *
     return;
   }
 
-  VideoAlternateState &alternate = device.videoAlternates[device.videoAlternateCount++];
+  VideoAlternateState &alternate = video->alternates[video->alternateCount++];
   alternate.interfaceNumber = currentInterfaceNumber_;
   alternate.alternate = currentInterfaceAlternate_;
   alternate.endpointAddress = ep->bEndpointAddress;
@@ -10146,7 +10194,12 @@ void EspUsbHost::recordVideoAlternate(DeviceState &device, const usb_ep_desc_t *
 
 void EspUsbHost::finalizeVideoStreams(DeviceState &device)
 {
-  if (device.videoStreamInfoCount == 0)
+  VideoState *video = videoStateFor(device);
+  if (!video)
+  {
+    return;
+  }
+  if (video->streamInfoCount == 0)
   {
     return;
   }
@@ -10155,9 +10208,9 @@ void EspUsbHost::finalizeVideoStreams(DeviceState &device)
   // VideoStreaming interface carries; it reserves no bandwidth and cannot stream.
   uint32_t bestPayload = 0;
   bool isochronous = true;
-  for (uint8_t i = 0; i < device.videoAlternateCount; i++)
+  for (uint8_t i = 0; i < video->alternateCount; i++)
   {
-    const VideoAlternateState &alternate = device.videoAlternates[i];
+    const VideoAlternateState &alternate = video->alternates[i];
     if (alternate.usablePayload > bestPayload)
     {
       bestPayload = alternate.usablePayload;
@@ -10165,9 +10218,9 @@ void EspUsbHost::finalizeVideoStreams(DeviceState &device)
     }
   }
 
-  for (uint8_t i = 0; i < device.videoStreamInfoCount; i++)
+  for (uint8_t i = 0; i < video->streamInfoCount; i++)
   {
-    EspUsbHostVideoStreamInfo &stream = device.videoStreamInfos[i];
+    EspUsbHostVideoStreamInfo &stream = video->streamInfos[i];
     stream.maxPayloadSize = bestPayload;
     stream.isochronous = isochronous;
     stream.startable = bestPayload > 0;
@@ -10176,13 +10229,13 @@ void EspUsbHost::finalizeVideoStreams(DeviceState &device)
   if (bestPayload == 0)
   {
     ESP_LOGW(TAG, "USB Video: %u format(s) found but no streaming alternate offers bandwidth",
-             device.videoStreamInfoCount);
+             video->streamInfoCount);
   }
   else
   {
     ESP_LOGI(TAG, "USB Video ready: %u format(s), %u alternate(s), best payload=%lu bytes",
-             device.videoStreamInfoCount,
-             device.videoAlternateCount,
+             video->streamInfoCount,
+             video->alternateCount,
              static_cast<unsigned long>(bestPayload));
   }
 }
@@ -10260,8 +10313,9 @@ bool EspUsbHost::videoStreamingControl(DeviceState &device,
                                        bool dataIn,
                                        uint32_t timeoutMs)
 {
-  if (!clientHandle_ || !device.handle || !data || length == 0 ||
-      device.videoStreamingInterface == 0xff)
+  VideoState *video = videoStateFor(device);
+  if (!clientHandle_ || !device.handle || !data || length == 0 || !video ||
+      video->streamingInterface == 0xff)
   {
     return false;
   }
@@ -10296,7 +10350,7 @@ bool EspUsbHost::videoStreamingControl(DeviceState &device,
   // VideoStreaming interface controls. wIndex is the interface alone -- unlike
   // the VideoControl unit requests, there is no entity id here.
   setup->wValue = static_cast<uint16_t>(control) << 8;
-  setup->wIndex = device.videoStreamingInterface;
+  setup->wIndex = video->streamingInterface;
   setup->wLength = length;
   if (!dataIn)
   {
@@ -10376,12 +10430,17 @@ bool EspUsbHost::videoNegotiate(DeviceState &device,
                                 uint32_t frameInterval,
                                 EspUsbHostVideoProbeControl &committed)
 {
+  VideoState *video = videoStateFor(device);
+  if (!video)
+  {
+    return false;
+  }
   // The control length is discovered by reading, not by trusting bcdUVC. A
   // camera that reports 1.0 but accepts the 34-byte form, or the other way
   // round, is common enough that guessing from the revision alone loses cameras
   // that would otherwise work. bcdUVC only decides which length to try first.
   size_t lengths[2] = {ESP_USB_HOST_VIDEO_PROBE_LENGTH_11, ESP_USB_HOST_VIDEO_PROBE_LENGTH_10};
-  if (device.videoVersion != 0 && device.videoVersion < 0x0110)
+  if (video->version != 0 && video->version < 0x0110)
   {
     lengths[0] = ESP_USB_HOST_VIDEO_PROBE_LENGTH_10;
     lengths[1] = ESP_USB_HOST_VIDEO_PROBE_LENGTH_11;
@@ -10483,7 +10542,7 @@ bool EspUsbHost::videoNegotiate(DeviceState &device,
   }
 
   ESP_LOGW(TAG, "USB Video Probe/Commit failed at both control lengths (bcdUVC=0x%04x)",
-           device.videoVersion);
+           video->version);
   setLastError(ESP_FAIL);
   return false;
 }
@@ -10492,11 +10551,16 @@ const EspUsbHost::VideoAlternateState *EspUsbHost::selectVideoAlternate(const De
                                                                        uint8_t interfaceNumber,
                                                                        uint32_t payloadBytes) const
 {
+  const VideoState *video = videoStateFor(device);
+  if (!video)
+  {
+    return nullptr;
+  }
   const VideoAlternateState *best = nullptr;
   const VideoAlternateState *largest = nullptr;
-  for (uint8_t i = 0; i < device.videoAlternateCount; i++)
+  for (uint8_t i = 0; i < video->alternateCount; i++)
   {
-    const VideoAlternateState &alternate = device.videoAlternates[i];
+    const VideoAlternateState &alternate = video->alternates[i];
     if (alternate.interfaceNumber != interfaceNumber || alternate.usablePayload == 0)
     {
       continue;
@@ -10558,9 +10622,14 @@ bool EspUsbHost::videoStart(uint8_t format,
     return false;
   }
 
+  VideoState *video = videoStateFor(*device);
+  if (!video)
+  {
+    return false;
+  }
   const EspUsbHostVideoStreamSelection selection =
-      espUsbHostSelectVideoStream(device->videoStreamInfos,
-                                  device->videoStreamInfoCount,
+      espUsbHostSelectVideoStream(video->streamInfos,
+                                  video->streamInfoCount,
                                   format,
                                   width,
                                   height,
@@ -10574,7 +10643,7 @@ bool EspUsbHost::videoStart(uint8_t format,
              static_cast<unsigned long>(fps));
     return false;
   }
-  return videoStart(device->videoStreamInfos[selection.index],
+  return videoStart(video->streamInfos[selection.index],
                     espUsbHostVideoFrameIntervalToFps(selection.frameInterval),
                     device->info.address);
 }
@@ -10592,6 +10661,12 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     ESP_LOGW(TAG, "videoStart() cannot run from the USB client task");
     return false;
   }
+  VideoState *video = videoStateFor(*device);
+  if (!video)
+  {
+    ESP_LOGW(TAG, "videoStart(): the device has no video state");
+    return false;
+  }
   if (!stream.startable)
   {
     ESP_LOGW(TAG, "videoStart() called with a stream this host cannot start: %s %ux%u",
@@ -10600,12 +10675,12 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
              stream.height);
     return false;
   }
-  if (device->videoStreamingActive)
+  if (video->streamingActive)
   {
     ESP_LOGW(TAG, "videoStart() called while already streaming; call videoStop() first");
     return false;
   }
-  if (device->videoStreamingInterface == 0xff)
+  if (video->streamingInterface == 0xff)
   {
     ESP_LOGW(TAG, "videoStart(): no VideoStreaming interface");
     return false;
@@ -10631,11 +10706,11 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   // Alternate 0 reserves no isochronous bandwidth, so this costs nothing and is
   // undone by videoStop() selecting it again. A camera that refuses it is not
   // failed on: some devices have no alternate settings at all.
-  if (!setInterfaceSync(*device, device->videoStreamingInterface, 0,
+  if (!setInterfaceSync(*device, video->streamingInterface, 0,
                         ESP_USB_HOST_VIDEO_CONTROL_DEFAULT_TIMEOUT_MS))
   {
     ESP_LOGD(TAG, "USB Video: SET_INTERFACE(iface=%u alt=0) refused; probing anyway",
-             device->videoStreamingInterface);
+             video->streamingInterface);
   }
 
   EspUsbHostVideoProbeControl committed;
@@ -10645,7 +10720,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   }
 
   const VideoAlternateState *alternate =
-      selectVideoAlternate(*device, device->videoStreamingInterface, committed.maxPayloadTransferSize);
+      selectVideoAlternate(*device, video->streamingInterface, committed.maxPayloadTransferSize);
   if (!alternate)
   {
     ESP_LOGW(TAG, "videoStart(): no streaming alternate with any bandwidth");
@@ -10709,7 +10784,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   }
 
   const uint32_t packetBytes = alternate->usablePayload;
-  device->videoTransferCount = 0;
+  video->transferCount = 0;
   for (size_t slot = 0; slot < ESP_USB_HOST_MAX_VIDEO_TRANSFERS; slot++)
   {
     usb_transfer_t *transfer = nullptr;
@@ -10729,12 +10804,12 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     transfer->bEndpointAddress = alternate->endpointAddress;
     transfer->callback = videoTransferCallback;
     transfer->context = this;
-    device->videoTransfers[slot] = transfer;
-    device->videoTransferInFlight[slot] = false;
-    device->videoTransferCount++;
+    video->transfers[slot] = transfer;
+    video->transferInFlight[slot] = false;
+    video->transferCount++;
   }
 
-  if (device->videoTransferCount == 0)
+  if (video->transferCount == 0)
   {
     ESP_LOGW(TAG, "videoStart(): no streaming transfers could be allocated");
     setLastError(ESP_ERR_NO_MEM);
@@ -10743,20 +10818,20 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     return false;
   }
 
-  device->videoFrameBuffer = frameBuffer;
-  device->videoFrameCapacity = capacity;
-  device->videoActiveStream = stream;
-  device->videoActiveStream.alternate = alternate->alternate;
-  device->videoActiveStream.endpointAddress = alternate->endpointAddress;
-  device->videoActiveStream.frameInterval = committed.frameInterval;
-  device->videoActiveAlternate = alternate->alternate;
-  device->videoActiveEndpoint = alternate->endpointAddress;
-  device->videoActivePacketBytes = packetBytes;
-  device->videoCommit = committed;
-  device->videoStatsState = EspUsbHostVideoStats();
+  video->frameBuffer = frameBuffer;
+  video->frameCapacity = capacity;
+  video->activeStream = stream;
+  video->activeStream.alternate = alternate->alternate;
+  video->activeStream.endpointAddress = alternate->endpointAddress;
+  video->activeStream.frameInterval = committed.frameInterval;
+  video->activeAlternate = alternate->alternate;
+  video->activeEndpoint = alternate->endpointAddress;
+  video->activePacketBytes = packetBytes;
+  video->commit = committed;
+  video->stats = EspUsbHostVideoStats();
   videoResetAssembly(*device);
-  device->videoStopping = false;
-  device->videoStreamingActive = true;
+  video->stopping = false;
+  video->streamingActive = true;
 
   if (device->interfaceCount < sizeof(device->interfaces))
   {
@@ -10780,7 +10855,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   }
 
   size_t armed = 0;
-  for (uint8_t slot = 0; slot < device->videoTransferCount; slot++)
+  for (uint8_t slot = 0; slot < video->transferCount; slot++)
   {
     if (submitVideoTransfer(*device, slot))
     {
@@ -10796,7 +10871,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
            static_cast<unsigned long>(packetBytes),
            ESP_USB_HOST_VIDEO_ISOC_PACKETS,
            static_cast<unsigned>(armed),
-           static_cast<unsigned>(device->videoTransferCount),
+           static_cast<unsigned>(video->transferCount),
            static_cast<unsigned>(capacity));
 
   if (armed == 0)
@@ -10809,9 +10884,14 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
 
 int EspUsbHost::videoSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
 {
-  for (uint8_t slot = 0; slot < device.videoTransferCount; slot++)
+  const VideoState *video = videoStateFor(device);
+  if (!video)
   {
-    if (device.videoTransfers[slot] == transfer)
+    return -1;
+  }
+  for (uint8_t slot = 0; slot < video->transferCount; slot++)
+  {
+    if (video->transfers[slot] == transfer)
     {
       return slot;
     }
@@ -10821,7 +10901,8 @@ int EspUsbHost::videoSlotOfTransfer(const DeviceState &device, const usb_transfe
 
 bool EspUsbHost::submitVideoTransfer(DeviceState &device, uint8_t slot)
 {
-  if (slot >= device.videoTransferCount)
+  VideoState *video = videoStateFor(device);
+  if (!video || slot >= video->transferCount)
   {
     return false;
   }
@@ -10833,17 +10914,17 @@ bool EspUsbHost::submitVideoTransfer(DeviceState &device, uint8_t slot)
   // flight and free the transfer before usb_host_transfer_submit() ran. Taking
   // the claim under the same lock makes the teardown either wait for this
   // transfer or leak it, but never free it underneath the driver.
-  usb_transfer_t *transfer = device.videoTransfers[slot];
+  usb_transfer_t *transfer = video->transfers[slot];
   portENTER_CRITICAL(&endpointSubmitMux_);
-  if (!transfer || device.videoStopping || !device.videoStreamingActive)
+  if (!transfer || video->stopping || !video->streamingActive)
   {
     portEXIT_CRITICAL(&endpointSubmitMux_);
     return false;
   }
-  device.videoTransferInFlight[slot] = true;
+  video->transferInFlight[slot] = true;
   portEXIT_CRITICAL(&endpointSubmitMux_);
 
-  const uint32_t packetBytes = device.videoActivePacketBytes;
+  const uint32_t packetBytes = video->activePacketBytes;
   transfer->num_bytes = 0;
   for (int i = 0; i < transfer->num_isoc_packets; i++)
   {
@@ -10859,7 +10940,7 @@ bool EspUsbHost::submitVideoTransfer(DeviceState &device, uint8_t slot)
   {
     // Hand the claim back so the teardown can free this slot.
     portENTER_CRITICAL(&endpointSubmitMux_);
-    device.videoTransferInFlight[slot] = false;
+    video->transferInFlight[slot] = false;
     portEXIT_CRITICAL(&endpointSubmitMux_);
     ESP_LOGW(TAG, "usb_host_transfer_submit(video slot %u) failed: %s",
              static_cast<unsigned>(slot),
@@ -10902,7 +10983,8 @@ void EspUsbHost::videoTransferCallback(usb_transfer_t *transfer)
     return;
   }
 
-  device->videoTransferInFlight[slot] = false;
+  VideoState *video = device->video;
+  video->transferInFlight[slot] = false;
   if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
   {
     host->handleVideo(*device, transfer);
@@ -10918,85 +11000,100 @@ void EspUsbHost::videoTransferCallback(usb_transfer_t *transfer)
 
 void EspUsbHost::releaseVideoTransfers(DeviceState &device, bool devicePresent)
 {
+  VideoState *video = videoStateFor(device);
+  if (!video)
+  {
+    return;
+  }
   // Under the lock so that a resubmit which has already claimed a slot is
   // visible to the in-flight scan below, and one which has not yet claimed is
   // refused.
   portENTER_CRITICAL(&endpointSubmitMux_);
-  device.videoStopping = true;
+  video->stopping = true;
   portEXIT_CRITICAL(&endpointSubmitMux_);
 
-  if (devicePresent && device.handle && device.videoActiveEndpoint != 0)
+  if (devicePresent && device.handle && video->activeEndpoint != 0)
   {
     bool anyInFlight = false;
-    for (uint8_t slot = 0; slot < device.videoTransferCount; slot++)
+    for (uint8_t slot = 0; slot < video->transferCount; slot++)
     {
-      anyInFlight = anyInFlight || device.videoTransferInFlight[slot];
+      anyInFlight = anyInFlight || video->transferInFlight[slot];
     }
     if (anyInFlight)
     {
-      usb_host_endpoint_halt(device.handle, device.videoActiveEndpoint);
-      usb_host_endpoint_flush(device.handle, device.videoActiveEndpoint);
+      usb_host_endpoint_halt(device.handle, video->activeEndpoint);
+      usb_host_endpoint_flush(device.handle, video->activeEndpoint);
       const uint32_t deadline = millis() + 1000;
       bool pending = true;
       while (pending && millis() < deadline)
       {
         vTaskDelay(pdMS_TO_TICKS(1));
         pending = false;
-        for (uint8_t slot = 0; slot < device.videoTransferCount; slot++)
+        for (uint8_t slot = 0; slot < video->transferCount; slot++)
         {
-          pending = pending || device.videoTransferInFlight[slot];
+          pending = pending || video->transferInFlight[slot];
         }
       }
     }
-    usb_host_endpoint_clear(device.handle, device.videoActiveEndpoint);
+    usb_host_endpoint_clear(device.handle, video->activeEndpoint);
   }
 
-  for (uint8_t slot = 0; slot < device.videoTransferCount; slot++)
+  for (uint8_t slot = 0; slot < video->transferCount; slot++)
   {
-    usb_transfer_t *transfer = device.videoTransfers[slot];
-    device.videoTransfers[slot] = nullptr;
+    usb_transfer_t *transfer = video->transfers[slot];
+    video->transfers[slot] = nullptr;
     if (!transfer)
     {
       continue;
     }
     portENTER_CRITICAL(&endpointSubmitMux_);
-    const bool inFlight = device.videoTransferInFlight[slot];
+    const bool inFlight = video->transferInFlight[slot];
     portEXIT_CRITICAL(&endpointSubmitMux_);
     if (inFlight)
     {
       // Still owned by the driver. Leaking it is the only safe choice; the
       // callback frees it once it finds no pool entry.
       ESP_LOGW(TAG, "USB Video transfer %u did not cancel; leaking it", static_cast<unsigned>(slot));
-      device.videoTransferInFlight[slot] = false;
+      video->transferInFlight[slot] = false;
       continue;
     }
     usb_host_transfer_free(transfer);
   }
-  device.videoTransferCount = 0;
+  video->transferCount = 0;
 }
 
 void EspUsbHost::videoResetAssembly(DeviceState &device)
 {
-  device.videoFrameLength = 0;
-  device.videoFrameOpen = false;
-  device.videoFrameBad = false;
-  device.videoFrameIdValid = false;
-  device.videoFrameId = false;
-  device.videoFrameHasPts = false;
-  device.videoFramePts = 0;
+  VideoState *video = videoStateFor(device);
+  if (!video)
+  {
+    return;
+  }
+  video->frameLength = 0;
+  video->frameOpen = false;
+  video->frameBad = false;
+  video->frameIdValid = false;
+  video->frameId = false;
+  video->frameHasPts = false;
+  video->framePts = 0;
 }
 
 void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
 {
-  if (!device.videoStreamingActive)
+  VideoState *video = videoStateFor(device);
+  if (!video)
   {
-    free(device.videoFrameBuffer);
-    device.videoFrameBuffer = nullptr;
-    device.videoFrameCapacity = 0;
+    return;
+  }
+  if (!video->streamingActive)
+  {
+    free(video->frameBuffer);
+    video->frameBuffer = nullptr;
+    video->frameCapacity = 0;
     return;
   }
 
-  device.videoStreamingActive = false;
+  video->streamingActive = false;
   releaseVideoTransfers(device, devicePresent);
 
   // Alternate 0 of a VideoStreaming interface reserves no isochronous bandwidth,
@@ -11004,7 +11101,7 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
   // already gone: the control transfer would only time out.
   if (devicePresent)
   {
-    submitSetInterface(device, device.videoStreamingInterface, 0);
+    submitSetInterface(device, video->streamingInterface, 0);
   }
 
   // The claim is released here only while the device is still there. On a
@@ -11017,10 +11114,10 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
   // stream was never enumerated again until the host itself restarted.
   if (devicePresent && clientHandle_ && device.handle)
   {
-    usb_host_interface_release(clientHandle_, device.handle, device.videoStreamingInterface);
+    usb_host_interface_release(clientHandle_, device.handle, video->streamingInterface);
     for (uint8_t i = 0; i < device.interfaceCount; i++)
     {
-      if (device.interfaces[i] == device.videoStreamingInterface)
+      if (device.interfaces[i] == video->streamingInterface)
       {
         for (uint8_t j = i; j + 1 < device.interfaceCount; j++)
         {
@@ -11036,12 +11133,12 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
     }
   }
 
-  free(device.videoFrameBuffer);
-  device.videoFrameBuffer = nullptr;
-  device.videoFrameCapacity = 0;
-  device.videoActiveAlternate = 0;
-  device.videoActiveEndpoint = 0;
-  device.videoActivePacketBytes = 0;
+  free(video->frameBuffer);
+  video->frameBuffer = nullptr;
+  video->frameCapacity = 0;
+  video->activeAlternate = 0;
+  video->activeEndpoint = 0;
+  video->activePacketBytes = 0;
   videoResetAssembly(device);
 }
 
@@ -11064,28 +11161,31 @@ bool EspUsbHost::videoStop(uint8_t address)
 bool EspUsbHost::videoStreaming(uint8_t address) const
 {
   const DeviceState *device = findVideoDevice(address);
-  return device && device->videoStreamingActive;
+  const VideoState *video = device ? videoStateFor(*device) : nullptr;
+  return video && video->streamingActive;
 }
 
 bool EspUsbHost::videoCommitted(EspUsbHostVideoProbeControl &control, uint8_t address) const
 {
   const DeviceState *device = findVideoDevice(address);
-  if (!device || !device->videoStreamingActive)
+  const VideoState *video = device ? videoStateFor(*device) : nullptr;
+  if (!video || !video->streamingActive)
   {
     return false;
   }
-  control = device->videoCommit;
+  control = video->commit;
   return true;
 }
 
 bool EspUsbHost::videoStats(EspUsbHostVideoStats &stats, uint8_t address) const
 {
   const DeviceState *device = findVideoDevice(address);
-  if (!device)
+  const VideoState *video = device ? videoStateFor(*device) : nullptr;
+  if (!video)
   {
     return false;
   }
-  stats = device->videoStatsState;
+  stats = video->stats;
   return true;
 }
 
@@ -11096,49 +11196,50 @@ void EspUsbHost::onVideoFrame(VideoFrameCallback callback)
 
 void EspUsbHost::videoDeliverFrame(DeviceState &device)
 {
-  if (!device.videoFrameOpen)
+  VideoState *video = videoStateFor(device);
+  if (!video || !video->frameOpen)
   {
     return;
   }
-  device.videoFrameOpen = false;
+  video->frameOpen = false;
 
   // A frame with no payload bytes is not an image. It happens when a camera sends
   // an end-of-frame payload that carries only a header, and delivering it would
   // give the sketch a zero-length frame to reason about.
-  if (device.videoFrameLength == 0)
+  if (video->frameLength == 0)
   {
-    device.videoFrameBad = false;
+    video->frameBad = false;
     return;
   }
 
-  device.videoStatsState.frames++;
-  device.videoStatsState.bytes += device.videoFrameLength;
-  if (device.videoFrameBad)
+  video->stats.frames++;
+  video->stats.bytes += video->frameLength;
+  if (video->frameBad)
   {
-    device.videoStatsState.framesIncomplete++;
+    video->stats.framesIncomplete++;
   }
 
   if (videoFrameCallback_)
   {
     EspUsbHostVideoFrame frame;
     frame.address = device.info.address;
-    frame.interfaceNumber = device.videoStreamingInterface;
-    frame.data = device.videoFrameBuffer;
-    frame.length = device.videoFrameLength;
-    frame.width = device.videoActiveStream.width;
-    frame.height = device.videoActiveStream.height;
-    frame.format = device.videoActiveStream.format;
-    frame.sequence = device.videoFrameSequence++;
-    frame.complete = !device.videoFrameBad;
-    frame.hasPresentationTime = device.videoFrameHasPts;
-    frame.presentationTime = device.videoFramePts;
+    frame.interfaceNumber = video->streamingInterface;
+    frame.data = video->frameBuffer;
+    frame.length = video->frameLength;
+    frame.width = video->activeStream.width;
+    frame.height = video->activeStream.height;
+    frame.format = video->activeStream.format;
+    frame.sequence = video->frameSequence++;
+    frame.complete = !video->frameBad;
+    frame.hasPresentationTime = video->frameHasPts;
+    frame.presentationTime = video->framePts;
     videoFrameCallback_(frame);
   }
 
-  device.videoFrameLength = 0;
-  device.videoFrameBad = false;
-  device.videoFrameHasPts = false;
-  device.videoFramePts = 0;
+  video->frameLength = 0;
+  video->frameBad = false;
+  video->frameHasPts = false;
+  video->framePts = 0;
 }
 
 void EspUsbHost::videoAppendPayload(DeviceState &device,
@@ -11146,54 +11247,59 @@ void EspUsbHost::videoAppendPayload(DeviceState &device,
                                     const uint8_t *data,
                                     size_t length)
 {
-  device.videoStatsState.payloads++;
+  VideoState *video = videoStateFor(device);
+  if (!video)
+  {
+    return;
+  }
+  video->stats.payloads++;
 
   // The frame ID toggles at every boundary. A change without an end-of-frame
   // payload in between means that payload was lost, so the frame so far is
   // closed and marked incomplete rather than being spliced onto the next one.
-  if (device.videoFrameIdValid && header.frameId != device.videoFrameId && device.videoFrameOpen)
+  if (video->frameIdValid && header.frameId != video->frameId && video->frameOpen)
   {
-    device.videoFrameBad = true;
+    video->frameBad = true;
     videoDeliverFrame(device);
   }
-  device.videoFrameId = header.frameId;
-  device.videoFrameIdValid = true;
+  video->frameId = header.frameId;
+  video->frameIdValid = true;
 
-  if (!device.videoFrameOpen)
+  if (!video->frameOpen)
   {
-    device.videoFrameOpen = true;
-    device.videoFrameLength = 0;
-    device.videoFrameBad = false;
-    device.videoFrameHasPts = false;
+    video->frameOpen = true;
+    video->frameLength = 0;
+    video->frameBad = false;
+    video->frameHasPts = false;
   }
 
   if (header.error)
   {
     // The camera is telling the host these bytes are not image data. Keep the
     // frame open so its end-of-frame still closes it, but mark it.
-    device.videoStatsState.payloadErrors++;
-    device.videoFrameBad = true;
+    video->stats.payloadErrors++;
+    video->frameBad = true;
   }
   else if (length > 0)
   {
-    const size_t room = device.videoFrameCapacity - device.videoFrameLength;
+    const size_t room = video->frameCapacity - video->frameLength;
     const size_t copied = length < room ? length : room;
     if (copied < length)
     {
-      device.videoStatsState.overflows++;
-      device.videoFrameBad = true;
+      video->stats.overflows++;
+      video->frameBad = true;
     }
     if (copied > 0)
     {
-      memcpy(device.videoFrameBuffer + device.videoFrameLength, data, copied);
-      device.videoFrameLength += copied;
+      memcpy(video->frameBuffer + video->frameLength, data, copied);
+      video->frameLength += copied;
     }
   }
 
-  if (header.hasPresentationTime && !device.videoFrameHasPts)
+  if (header.hasPresentationTime && !video->frameHasPts)
   {
-    device.videoFrameHasPts = true;
-    device.videoFramePts = header.presentationTime;
+    video->frameHasPts = true;
+    video->framePts = header.presentationTime;
   }
 
   if (header.endOfFrame)
@@ -11208,7 +11314,8 @@ void EspUsbHost::handleVideo(DeviceState &device, usb_transfer_t *transfer)
   {
     return;
   }
-  if (!device.videoStreamingActive || !device.videoFrameBuffer)
+  VideoState *video = videoStateFor(device);
+  if (!video || !video->streamingActive || !video->frameBuffer)
   {
     return;
   }
@@ -11227,7 +11334,7 @@ void EspUsbHost::handleVideo(DeviceState &device, usb_transfer_t *transfer)
       // Isochronous packets are not retried. A steady stream of these means the
       // pipe is not carrying the camera's data at all -- most often because the
       // streaming alternate was not selected before the transfer was armed.
-      device.videoStatsState.packetErrors++;
+      video->stats.packetErrors++;
       continue;
     }
     // A zero-length packet is the camera saying it has nothing ready this
@@ -11242,7 +11349,7 @@ void EspUsbHost::handleVideo(DeviceState &device, usb_transfer_t *transfer)
     EspUsbHostVideoPayloadHeader header;
     if (!espUsbHostVideoDecodePayloadHeader(data, packet.actual_num_bytes, header))
     {
-      device.videoStatsState.headerErrors++;
+      video->stats.headerErrors++;
       continue;
     }
 
@@ -11259,13 +11366,13 @@ void EspUsbHost::handleVideo(DeviceState &device, usb_transfer_t *transfer)
   // usb_host_interface_claim() accepted can still be too large to receive.
   // Warned once per stream so the log says why nothing is arriving.
   if (failedPackets == static_cast<uint32_t>(transfer->num_isoc_packets) &&
-      device.videoStatsState.payloads == 0 &&
-      device.videoStatsState.packetErrors == failedPackets)
+      video->stats.payloads == 0 &&
+      video->stats.packetErrors == failedPackets)
   {
     ESP_LOGW(TAG, "USB Video: every packet failed on ep=0x%02x at %lu bytes; the host "
                   "controller cannot receive isochronous packets this large",
-             device.videoActiveEndpoint,
-             static_cast<unsigned long>(device.videoActiveStream.maxPayloadSize));
+             video->activeEndpoint,
+             static_cast<unsigned long>(video->activeStream.maxPayloadSize));
   }
 }
 
@@ -13181,6 +13288,12 @@ EspUsbHost::DeviceState *EspUsbHost::allocateDevice()
 
 void EspUsbHost::resetDeviceState(DeviceState &device)
 {
+  // The whole video allocation goes, rather than its fields being zeroed: the
+  // next device in this slot may not be a camera at all, and holding a kilobyte
+  // for it is the cost this indirection exists to avoid. Anything still in flight
+  // is dropped rather than wound down -- the device this slot described is gone.
+  releaseVideoStreaming(device, false);
+  releaseVideoState(device);
   // Free the reusable OUT transfer (it references this device's now-stale handle),
   // but keep the TX lock / completion semaphore alive across the reset: they are
   // created once per device slot and reused for whatever device next occupies it.
@@ -13486,7 +13599,7 @@ const EspUsbHost::DeviceState *EspUsbHost::findVideoDevice(uint8_t address) cons
 {
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || !device.hasVideoInterface)
+    if (!device.inUse || !device.handle || !device.video)
     {
       continue;
     }
@@ -14528,10 +14641,15 @@ size_t EspUsbHost::getVideoStreams(uint8_t address, EspUsbHostVideoStreamInfo *s
     return 0;
   }
 
-  const size_t count = device->videoStreamInfoCount < maxStreams ? device->videoStreamInfoCount : maxStreams;
+  const VideoState *video = videoStateFor(*device);
+  if (!video)
+  {
+    return 0;
+  }
+  const size_t count = video->streamInfoCount < maxStreams ? video->streamInfoCount : maxStreams;
   for (size_t i = 0; i < count; i++)
   {
-    streams[i] = device->videoStreamInfos[i];
+    streams[i] = video->streamInfos[i];
   }
   return count;
 }
@@ -14539,7 +14657,8 @@ size_t EspUsbHost::getVideoStreams(uint8_t address, EspUsbHostVideoStreamInfo *s
 size_t EspUsbHost::getVideoStreamCount(uint8_t address) const
 {
   const DeviceState *device = findDevice(address);
-  return device ? device->videoStreamInfoCount : 0;
+  const VideoState *video = device ? videoStateFor(*device) : nullptr;
+  return video ? video->streamInfoCount : 0;
 }
 
 void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
@@ -14848,16 +14967,6 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.ccidSlotCount = 1;
   device.ccidMaxMessageLength = 0;
   device.audioStreamInfoCount = 0;
-  releaseVideoStreaming(device, false);
-  device.videoStatsState = EspUsbHostVideoStats();
-  device.videoFrameSequence = 0;
-  device.hasVideoInterface = false;
-  device.videoVersion = 0;
-  device.videoControlInterface = 0xff;
-  device.videoStreamingInterface = 0xff;
-  device.videoStreamingEndpoint = 0;
-  device.videoStreamInfoCount = 0;
-  device.videoAlternateCount = 0;
   device.interfaceInfoCount = 0;
   device.endpointInfoCount = 0;
   device.hidReportDescriptorCount = 0;

@@ -3304,6 +3304,57 @@ private:
     bool isochronous = true;
   };
 
+  // Per-device USB Video state. Allocated by videoStateFor(device, true) when a
+  // VideoControl or VideoStreaming descriptor is first seen, and freed with the
+  // device.
+  struct VideoState
+  {
+    // bcdUVC from the VideoControl header: 0x0100, 0x0110 or 0x0150. It decides
+    // the Probe/Commit control length, which a camera stalls if it is wrong.
+    uint16_t version = 0;
+    uint8_t controlInterface = 0xff;
+    uint8_t streamingInterface = 0xff;
+    // bEndpointAddress from VS_INPUT_HEADER: which endpoint the camera will
+    // stream on once an alternate carrying it is selected.
+    uint8_t streamingEndpoint = 0;
+    EspUsbHostVideoStreamInfo streamInfos[ESP_USB_HOST_MAX_VIDEO_STREAMS] = {};
+    uint8_t streamInfoCount = 0;
+    VideoAlternateState alternates[ESP_USB_HOST_MAX_VIDEO_ALTERNATES] = {};
+    uint8_t alternateCount = 0;
+    bool streamingActive = false;
+    // Set while the streaming transfers are being torn down, so a completion
+    // callback that is already running does not resubmit.
+    bool stopping = false;
+    usb_transfer_t *transfers[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
+    bool transferInFlight[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
+    uint8_t transferCount = 0;
+    uint8_t activeAlternate = 0;
+    uint8_t activeEndpoint = 0;
+    // Bytes requested per isochronous service interval on the active stream. Kept
+    // separately from the stream's maxPayloadSize, which reports what the camera
+    // offered rather than what this host asked for.
+    uint32_t activePacketBytes = 0;
+    EspUsbHostVideoStreamInfo activeStream;
+    EspUsbHostVideoProbeControl commit;
+    // Frame being assembled. The buffer is allocated by videoStart() from the
+    // format's dwMaxVideoFrameBufferSize and freed by videoStop().
+    uint8_t *frameBuffer = nullptr;
+    size_t frameCapacity = 0;
+    size_t frameLength = 0;
+    bool frameOpen = false;
+    // Set when something went wrong inside the frame currently being assembled,
+    // so it is still delivered but marked incomplete.
+    bool frameBad = false;
+    // The payload header frame ID toggles at every frame boundary. It is the only
+    // boundary marker left when an end-of-frame payload is lost.
+    bool frameIdValid = false;
+    bool frameId = false;
+    uint32_t frameSequence = 0;
+    bool frameHasPts = false;
+    uint32_t framePts = 0;
+    EspUsbHostVideoStats stats;
+  };
+
   struct AudioClockSourceState
   {
     uint8_t clockSourceId = 0;
@@ -3628,51 +3679,13 @@ private:
     uint16_t networkAsmExpected = 0;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
-    bool hasVideoInterface = false;
-    // bcdUVC from the VideoControl header: 0x0100, 0x0110 or 0x0150. It decides
-    // the Probe/Commit control length, which a camera stalls if it is wrong.
-    uint16_t videoVersion = 0;
-    uint8_t videoControlInterface = 0xff;
-    uint8_t videoStreamingInterface = 0xff;
-    // bEndpointAddress from VS_INPUT_HEADER: which endpoint the camera will
-    // stream on once an alternate carrying it is selected.
-    uint8_t videoStreamingEndpoint = 0;
-    EspUsbHostVideoStreamInfo videoStreamInfos[ESP_USB_HOST_MAX_VIDEO_STREAMS] = {};
-    uint8_t videoStreamInfoCount = 0;
-    VideoAlternateState videoAlternates[ESP_USB_HOST_MAX_VIDEO_ALTERNATES] = {};
-    uint8_t videoAlternateCount = 0;
-    bool videoStreamingActive = false;
-    // Set while the streaming transfers are being torn down, so a completion
-    // callback that is already running does not resubmit.
-    bool videoStopping = false;
-    usb_transfer_t *videoTransfers[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
-    bool videoTransferInFlight[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
-    uint8_t videoTransferCount = 0;
-    uint8_t videoActiveAlternate = 0;
-    uint8_t videoActiveEndpoint = 0;
-    // Bytes requested per isochronous service interval on the active stream. Kept
-    // separately from the stream's maxPayloadSize, which reports what the camera
-    // offered rather than what this host asked for.
-    uint32_t videoActivePacketBytes = 0;
-    EspUsbHostVideoStreamInfo videoActiveStream;
-    EspUsbHostVideoProbeControl videoCommit;
-    // Frame being assembled. The buffer is allocated by videoStart() from the
-    // format's dwMaxVideoFrameBufferSize and freed by videoStop().
-    uint8_t *videoFrameBuffer = nullptr;
-    size_t videoFrameCapacity = 0;
-    size_t videoFrameLength = 0;
-    bool videoFrameOpen = false;
-    // Set when something went wrong inside the frame currently being
-    // assembled, so it is still delivered but marked incomplete.
-    bool videoFrameBad = false;
-    // The payload header frame ID toggles at every frame boundary. It is the
-    // only boundary marker left when an end-of-frame payload is lost.
-    bool videoFrameIdValid = false;
-    bool videoFrameId = false;
-    uint32_t videoFrameSequence = 0;
-    bool videoFrameHasPts = false;
-    uint32_t videoFramePts = 0;
-    EspUsbHostVideoStats videoStatsState;
+    // Everything this device needs for USB Video, allocated only when its
+    // descriptors say it is a camera. A pointer rather than the state itself:
+    // inline it cost about 1 KB in every one of the ESP_USB_HOST_MAX_DEVICES
+    // slots -- 8 KB of static RAM on an ESP32-P4 -- paid by every sketch whether
+    // or not a camera was ever plugged in. Null means "not a camera", so there is
+    // no separate flag to keep in step with it.
+    VideoState *video = nullptr;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
@@ -3726,6 +3739,13 @@ private:
   // per Frame descriptor, because each Frame under a Format is a separate
   // stream from a caller's point of view.
   void recordVideoStream(DeviceState &device, const EspUsbHostVideoStreamInfo &stream);
+  // The device's video state, allocating it on first use when create is true.
+  // Returns null when the device has none, or when the allocation failed -- in
+  // which case the device simply enumerates without video rather than the
+  // whole enumeration failing.
+  VideoState *videoStateFor(DeviceState &device, bool create = false);
+  const VideoState *videoStateFor(const DeviceState &device) const;
+  void releaseVideoState(DeviceState &device);
   void recordVideoAlternate(DeviceState &device, const usb_ep_desc_t *ep, bool isochronous);
   // SET_INTERFACE, waited for rather than fired and forgotten.
   bool setInterfaceSync(DeviceState &device,
