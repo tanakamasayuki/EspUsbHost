@@ -10117,15 +10117,30 @@ void EspUsbHost::recordVideoAlternate(DeviceState &device, const usb_ep_desc_t *
   alternate.interval = ep->bInterval;
   // A bulk streaming endpoint moves wMaxPacketSize per transaction with no
   // multiplier; only isochronous encodes additional transactions in bits 12:11.
+  alternate.transactions = isochronous ? espUsbHostVideoIsocTransactions(ep->wMaxPacketSize) : 1;
   alternate.payloadSize = isochronous ? espUsbHostVideoIsocPayloadSize(ep->wMaxPacketSize)
                                       : ep->wMaxPacketSize;
+#if ESP_USB_HOST_ISOC_HIGH_BANDWIDTH_SUPPORTED
+  alternate.usablePayload = alternate.payloadSize;
+#else
+  // The controller runs one transaction per interval, so only the bare packet
+  // size arrives however many the camera meant to send. Counting the rest would
+  // size transfers for bandwidth that never comes and leave frames short with
+  // nothing reporting an error.
+  alternate.usablePayload = alternate.transactions > 1
+                                ? static_cast<uint32_t>(ep->wMaxPacketSize & 0x07FFu)
+                                : alternate.payloadSize;
+#endif
 
-  ESP_LOGI(TAG, "USB Video alternate: iface=%u alt=%u ep=0x%02x %s payload=%lu interval=%u",
+  ESP_LOGI(TAG, "USB Video alternate: iface=%u alt=%u ep=0x%02x %s payload=%lu usable=%lu "
+                "transactions=%u interval=%u",
            alternate.interfaceNumber,
            alternate.alternate,
            alternate.endpointAddress,
            isochronous ? "isoc" : "bulk",
            static_cast<unsigned long>(alternate.payloadSize),
+           static_cast<unsigned long>(alternate.usablePayload),
+           alternate.transactions,
            alternate.interval);
 }
 
@@ -10143,9 +10158,9 @@ void EspUsbHost::finalizeVideoStreams(DeviceState &device)
   for (uint8_t i = 0; i < device.videoAlternateCount; i++)
   {
     const VideoAlternateState &alternate = device.videoAlternates[i];
-    if (alternate.payloadSize > bestPayload)
+    if (alternate.usablePayload > bestPayload)
     {
-      bestPayload = alternate.payloadSize;
+      bestPayload = alternate.usablePayload;
       isochronous = alternate.isochronous;
     }
   }
@@ -10482,19 +10497,23 @@ const EspUsbHost::VideoAlternateState *EspUsbHost::selectVideoAlternate(const De
   for (uint8_t i = 0; i < device.videoAlternateCount; i++)
   {
     const VideoAlternateState &alternate = device.videoAlternates[i];
-    if (alternate.interfaceNumber != interfaceNumber || alternate.payloadSize == 0)
+    if (alternate.interfaceNumber != interfaceNumber || alternate.usablePayload == 0)
     {
       continue;
     }
-    if (!largest || alternate.payloadSize > largest->payloadSize)
+    // Ranked by what this host can take, not by what the descriptor offers. On a
+    // controller without high-bandwidth isochronous those differ, and an
+    // alternate chosen on the descriptor's figure would be a third of the
+    // bandwidth it looked like.
+    if (!largest || alternate.usablePayload > largest->usablePayload)
     {
       largest = &alternate;
     }
-    if (alternate.payloadSize < payloadBytes)
+    if (alternate.usablePayload < payloadBytes)
     {
       continue;
     }
-    if (!best || alternate.payloadSize < best->payloadSize)
+    if (!best || alternate.usablePayload < best->usablePayload)
     {
       best = &alternate;
     }
@@ -10510,7 +10529,17 @@ const EspUsbHost::VideoAlternateState *EspUsbHost::selectVideoAlternate(const De
     // payloads than it planned to.
     ESP_LOGW(TAG, "USB Video: no alternate carries %lu bytes; using the widest (%lu)",
              static_cast<unsigned long>(payloadBytes),
-             static_cast<unsigned long>(largest->payloadSize));
+             static_cast<unsigned long>(largest->usablePayload));
+#if !ESP_USB_HOST_ISOC_HIGH_BANDWIDTH_SUPPORTED
+    if (largest->transactions > 1)
+    {
+      ESP_LOGW(TAG, "USB Video: the widest alternate wants %u transactions per interval and this "
+                    "host controller runs one, so %lu of its %lu bytes will not arrive",
+               largest->transactions,
+               static_cast<unsigned long>(largest->payloadSize - largest->usablePayload),
+               static_cast<unsigned long>(largest->payloadSize));
+    }
+#endif
   }
   return largest;
 }
@@ -10679,7 +10708,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     return false;
   }
 
-  const uint32_t packetBytes = alternate->payloadSize;
+  const uint32_t packetBytes = alternate->usablePayload;
   device->videoTransferCount = 0;
   for (size_t slot = 0; slot < ESP_USB_HOST_MAX_VIDEO_TRANSFERS; slot++)
   {
@@ -10722,6 +10751,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   device->videoActiveStream.frameInterval = committed.frameInterval;
   device->videoActiveAlternate = alternate->alternate;
   device->videoActiveEndpoint = alternate->endpointAddress;
+  device->videoActivePacketBytes = packetBytes;
   device->videoCommit = committed;
   device->videoStatsState = EspUsbHostVideoStats();
   videoResetAssembly(*device);
@@ -10813,7 +10843,7 @@ bool EspUsbHost::submitVideoTransfer(DeviceState &device, uint8_t slot)
   device.videoTransferInFlight[slot] = true;
   portEXIT_CRITICAL(&endpointSubmitMux_);
 
-  const uint32_t packetBytes = device.videoActiveStream.maxPayloadSize;
+  const uint32_t packetBytes = device.videoActivePacketBytes;
   transfer->num_bytes = 0;
   for (int i = 0; i < transfer->num_isoc_packets; i++)
   {
@@ -11003,6 +11033,7 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
   device.videoFrameCapacity = 0;
   device.videoActiveAlternate = 0;
   device.videoActiveEndpoint = 0;
+  device.videoActivePacketBytes = 0;
   videoResetAssembly(device);
 }
 
