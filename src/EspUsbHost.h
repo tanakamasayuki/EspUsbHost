@@ -3376,6 +3376,47 @@ private:
   // of the ESP_USB_HOST_MAX_DEVICES slots, paid by every sketch whether or not
   // an audio device was ever plugged in. Null means "no Audio interface", so
   // there is no separate flag to keep in step with it.
+
+  // Per-device vendor bulk state, allocated by vendorOpen() and freed with the
+  // device. Unlike audio and video, which are discovered during enumeration,
+  // this has a single creation point: a sketch asks for the interface. Inline it
+  // cost about 720 bytes in every device slot, over 500 of which is the receive
+  // ring alone, paid by every sketch that never calls vendorOpen().
+  struct UsbVendorState
+  {
+    bool hasInterface = false;
+    uint8_t interfaceNumber = 0xff;
+    bool readOnDemand = false;
+    bool hasInEndpoint = false;
+    uint8_t inEndpointAddress = 0;
+    uint16_t inPacketSize = 0;
+    size_t inTransferBytes = 0;
+    bool hasOutEndpoint = false;
+    uint8_t outEndpointAddress = 0;
+    uint16_t outPacketSize = 0;
+    uint8_t rxBuffer[ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE] = {};
+    size_t rxHead = 0;
+    size_t rxTail = 0;
+    size_t rxCount = 0;
+    portMUX_TYPE rxMux = portMUX_INITIALIZER_UNLOCKED;
+    bool outQueueActive = false;
+    uint8_t outQueueDepth = 0;
+    size_t outBufferBytes = 0;
+    usb_transfer_t *outTransfers[ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH] = {};
+    uint8_t outSlotState[ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH] = {};
+    SemaphoreHandle_t outFreeSlots = nullptr;
+    bool outHalted = false;
+    bool autoZlp = false;
+    EspUsbHostVendorWriteStats writeStats;
+    bool inQueueActive = false;
+    uint8_t inQueueDepth = 0;
+    size_t inBufferBytes = 0;
+    usb_transfer_t *inTransfers[ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH] = {};
+    bool inSlotInFlight[ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH] = {};
+    bool inHalted = false;
+    bool inRefillPending = false;
+    EspUsbHostVendorReadStats readStats;
+  };
   struct AudioState
   {
     bool hasInterface = false;
@@ -3531,22 +3572,8 @@ private:
     bool hasVendorSerialInterface = false;
     bool vendorSerialSupported = false;
     uint8_t vendorSerialInterfaceNumber = 0;
-    bool hasUsbVendorInterface = false;
-    uint8_t usbVendorInterfaceNumber = 0xff;
-    bool usbVendorReadOnDemand = false;
-    bool hasUsbVendorInEndpoint = false;
-    uint8_t usbVendorInEndpointAddress = 0;
-    uint16_t usbVendorInPacketSize = 0;
     // Bytes per continuous IN transfer, rounded up to a whole number of packets
     // by vendorOpen(). 0 until a continuous transfer is set up.
-    size_t usbVendorInTransferBytes = 0;
-    bool hasUsbVendorOutEndpoint = false;
-    uint8_t usbVendorOutEndpointAddress = 0;
-    uint16_t usbVendorOutPacketSize = 0;
-    uint8_t usbVendorRxBuffer[ESP_USB_HOST_VENDOR_RX_BUFFER_SIZE] = {};
-    size_t usbVendorRxHead = 0;
-    size_t usbVendorRxTail = 0;
-    size_t usbVendorRxCount = 0;
     // The ring is filled from the USB client task and drained by whichever task
     // calls vendorRead(), and it is not a plain single-producer/single-consumer
     // ring: when it overflows the producer advances the *consumer's* tail to
@@ -3554,32 +3581,14 @@ private:
     // safe -- each index written by one side only -- so both sides take this.
     // Without it a vendorRead() in progress can have the tail moved out from
     // under it and return a window with a seam in the middle of a message.
-    portMUX_TYPE usbVendorRxMux = portMUX_INITIALIZER_UNLOCKED;
     // Asynchronous bulk OUT queue. Slots are preallocated by
     // vendorWriteQueueBegin() and reused; usbVendorOutFreeSlots counts the slots
     // that are neither acquired nor in flight.
-    bool usbVendorOutQueueActive = false;
-    uint8_t usbVendorOutQueueDepth = 0;
-    size_t usbVendorOutBufferBytes = 0;
-    usb_transfer_t *usbVendorOutTransfers[ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH] = {};
-    uint8_t usbVendorOutSlotState[ESP_USB_HOST_VENDOR_WRITE_QUEUE_MAX_DEPTH] = {};
-    SemaphoreHandle_t usbVendorOutFreeSlots = nullptr;
-    bool usbVendorOutHalted = false;
-    bool usbVendorAutoZlp = false;
-    EspUsbHostVendorWriteStats usbVendorWriteStats;
     // Asynchronous bulk IN queue. Slots are preallocated by
     // vendorReadQueueBegin() and resubmitted from their own completion callback,
     // so the endpoint keeps several transfers outstanding.
-    bool usbVendorInQueueActive = false;
-    uint8_t usbVendorInQueueDepth = 0;
-    size_t usbVendorInBufferBytes = 0;
-    usb_transfer_t *usbVendorInTransfers[ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH] = {};
-    bool usbVendorInSlotInFlight[ESP_USB_HOST_VENDOR_READ_QUEUE_MAX_DEPTH] = {};
     // A stalled pipe and a failed resubmit are both repaired from the client
     // task, which owns endpoint recovery; the callback only records them.
-    bool usbVendorInHalted = false;
-    bool usbVendorInRefillPending = false;
-    EspUsbHostVendorReadStats usbVendorReadStats;
     bool hasMidiInterface = false;
     uint8_t midiInterfaceNumber = 0;
     bool hasMidiOutEndpoint = false;
@@ -3695,6 +3704,7 @@ private:
     // slots -- 8 KB of static RAM on an ESP32-P4 -- paid by every sketch whether
     // or not a camera was ever plugged in. Null means "not a camera", so there is
     // no separate flag to keep in step with it.
+    UsbVendorState *usbVendor = nullptr;
     AudioState *audio = nullptr;
     VideoState *video = nullptr;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
@@ -3754,6 +3764,9 @@ private:
   // Returns null when the device has none, or when the allocation failed -- in
   // which case the device simply enumerates without video rather than the
   // whole enumeration failing.
+  UsbVendorState *usbVendorStateFor(DeviceState &device, bool create = false);
+  const UsbVendorState *usbVendorStateFor(const DeviceState &device) const;
+  void releaseUsbVendorState(DeviceState &device);
   AudioState *audioStateFor(DeviceState &device, bool create = false);
   const AudioState *audioStateFor(const DeviceState &device) const;
   void releaseAudioState(DeviceState &device);
