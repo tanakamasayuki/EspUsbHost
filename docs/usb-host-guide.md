@@ -126,7 +126,7 @@ USB defines standard classes; devices with the same class code are driven the sa
 | Mass Storage | `0x08` | Library API ([Storage](../examples/Storage/)) |
 | Hub | `0x09` | Library API |
 | Smart Card (CCID) | `0x0b` | Library API ([Ccid](../examples/Ccid/)) |
-| Video (UVC) | `0x0e` | **Not supported** ([3.5](#35-the-256-byte-control-transfer-wall)) |
+| Video (UVC) | `0x0e` | Library API (`getVideoStreams()` / `videoStart()` / `onVideoFrame()`), but **only for a camera small enough to clear two core limits** ([3.5](#35-the-256-byte-control-transfer-wall)), which almost none are |
 | Application Specific (USBTMC, DFU) | `0xfe` | Example ([EspUsbHostUsbtmcScpi](../examples/Vendor/EspUsbHostUsbtmcScpi/)) |
 | Vendor Specific | `0xff` | Library API ([Vendor](../examples/Vendor/)) |
 
@@ -247,7 +247,7 @@ Claiming interface error: ESP_ERR_NOT_SUPPORTED
 
 Arduino-ESP32's precompiled host stack is built with `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256`. One control transfer carries at most 256 bytes including the 8-byte setup packet. Two consequences:
 
-1. **A device whose configuration descriptor exceeds 256 bytes in total fails to enumerate**, before any class driver runs. This is why USB cameras (UVC) do not work — a Logitech C920's configuration descriptor is 1,974 bytes. No sketch or library option can work around it; it would take a change on the Arduino-ESP32 side.
+1. **A device whose configuration descriptor exceeds 256 bytes in total fails to enumerate**, before any class driver runs. This is why USB cameras (UVC) do not work — a Logitech C920's configuration descriptor is 1,974 bytes. No sketch or library option can work around it; it would take a change on the Arduino-ESP32 side. The library implements UVC in full — descriptors, Probe/Commit and isochronous streaming — but only for a camera that fits under this wall, which in practice means a purpose-built one rather than a product. A second wall applies on a full-speed port: the host's periodic IN FIFO limits isochronous IN packets to about 120 bytes, which is far below what a camera asks for. Both are measured in [usb-host-advanced.md](usb-host-advanced.md#53-isochronous-in-on-a-full-speed-port).
 2. **One GET_DESCRIPTOR can read at most 248 bytes.** Tools that dump raw descriptor bytes stop there.
 
 ### 3.6 ESP32-S2 memory

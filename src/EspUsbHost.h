@@ -147,6 +147,32 @@ static constexpr size_t ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS = 8;
 // Clock Source carries a streaming interface's sample rate.
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES = 4;
 static constexpr size_t ESP_USB_HOST_MAX_AUDIO_TERMINALS = 8;
+// USB Video (UVC) format/frame combinations tracked per device, and the number
+// of discrete frame intervals kept for each. A camera that advertises more of
+// either is not rejected: the extra entries are dropped and the ones kept are
+// still startable.
+static constexpr size_t ESP_USB_HOST_MAX_VIDEO_STREAMS = 8;
+static constexpr size_t ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS = 8;
+// Alternate settings of a VideoStreaming interface kept per device. Each one is
+// a different isochronous bandwidth the camera offers for the same formats, and
+// the right one is only known after Probe/Commit reports
+// dwMaxPayloadTransferSize, so they all have to be remembered during
+// enumeration.
+static constexpr size_t ESP_USB_HOST_MAX_VIDEO_ALTERNATES = 12;
+// Isochronous packets in one streaming transfer. The transfer is resubmitted
+// from its own completion, so this is how long the camera may keep sending
+// while the host is between submits. Isochronous packets are never retried, so
+// a transfer that is too short loses image data outright; 16 covers 2 ms at
+// full speed and 2 ms at high speed.
+static constexpr int ESP_USB_HOST_VIDEO_ISOC_PACKETS = 8;
+// Streaming transfers kept in flight at once. One is not enough: an isochronous
+// packet that arrives while no transfer is queued is gone, and with a single
+// transfer the endpoint is unqueued for the whole time between its completion
+// callback and its resubmit. Measured against an EspUsbDevice camera, that gap
+// cost about one packet per transfer -- every frame lost a slice exactly
+// ESP_USB_HOST_VIDEO_ISOC_PACKETS packets into it. Four transfers cover 32 frame
+// intervals, which is longer than any gap the client task introduces.
+static constexpr size_t ESP_USB_HOST_MAX_VIDEO_TRANSFERS = 4;
 // EspUsbHostCdcSerial objects that can be attached to one host at a time. Eight
 // because a single device can now publish up to seven CDC ports and a sketch may
 // want a Stream on each of them, with room left for a second device. Each slot is
@@ -218,6 +244,7 @@ static_assert(ESP_USB_HOST_CDC_RX_BUFFER_SIZE >= 2,
               "ESP_USB_HOST_CDC_RX_BUFFER_SIZE must leave room for at least one byte");
 static constexpr uint32_t ESP_USB_HOST_MSC_DEFAULT_TIMEOUT_MS = 5000;
 static constexpr uint32_t ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
+static constexpr uint32_t ESP_USB_HOST_VIDEO_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 static constexpr uint32_t ESP_USB_HOST_VENDOR_CONTROL_DEFAULT_TIMEOUT_MS = 1000;
 // Upper bound for vendorWriteQueueBegin(depth, ...). Each slot holds one
 // preallocated transfer, so the practical depth is limited by DMA memory rather
@@ -1588,6 +1615,764 @@ inline EspUsbHostAudioStreamSelection espUsbHostSelectAudioOutputStream(const Es
   return espUsbHostSelectAudioStream(streams, count, false, filter);
 }
 
+// ---------------------------------------------------------------------------
+// USB Video Class (UVC)
+// ---------------------------------------------------------------------------
+//
+// UVC describes what a camera can send as a two-level tree: a Format descriptor
+// (what the pixels mean) with one or more Frame descriptors beneath it (what
+// size, at which rates). This host flattens that tree into one
+// EspUsbHostVideoStreamInfo per format/frame pair, because a caller picks both
+// together and the Probe/Commit negotiation names both together.
+
+// Pixel formats this host names. UNKNOWN doubles as the "any format" wildcard in
+// espUsbHostSelectVideoStream(), which is why it is zero. UNCOMPRESSED is the
+// catch-all for a Format Uncompressed descriptor whose GUID is not one of the
+// FourCCs below: the frame sizes and rates are still usable, only the byte
+// layout is unnamed.
+static constexpr uint8_t ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN = 0;
+static constexpr uint8_t ESP_USB_HOST_VIDEO_FORMAT_MJPEG = 1;
+static constexpr uint8_t ESP_USB_HOST_VIDEO_FORMAT_YUY2 = 2;
+static constexpr uint8_t ESP_USB_HOST_VIDEO_FORMAT_NV12 = 3;
+static constexpr uint8_t ESP_USB_HOST_VIDEO_FORMAT_H264 = 4;
+static constexpr uint8_t ESP_USB_HOST_VIDEO_FORMAT_UNCOMPRESSED = 5;
+
+// Length of the Video Probe/Commit Control payload by class revision. A camera
+// answers GET_LEN with the one it implements, and a UVC 1.0 camera stalls a
+// 34-byte SET_CUR, so the negotiated length has to be carried rather than
+// assumed. MAX_LENGTH covers UVC 1.5 so a buffer sized by it always fits the
+// reply, even though this host never writes the 1.5-only fields.
+static constexpr size_t ESP_USB_HOST_VIDEO_PROBE_LENGTH_10 = 26;
+static constexpr size_t ESP_USB_HOST_VIDEO_PROBE_LENGTH_11 = 34;
+static constexpr size_t ESP_USB_HOST_VIDEO_PROBE_MAX_LENGTH = 48;
+
+struct EspUsbHostVideoStreamInfo
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  uint8_t alternate = 0;
+  uint8_t endpointAddress = 0;
+  // False for a bulk-only streaming interface. Isochronous is the common case;
+  // bulk cameras exist and stream over a single alternate setting.
+  bool isochronous = true;
+  uint8_t format = ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN;
+  // Indices as the device numbers them, which is what Probe/Commit takes. Both
+  // are 1-based in UVC, so zero means "not decoded".
+  uint8_t formatIndex = 0;
+  uint8_t frameIndex = 0;
+  // bNumFrameDescriptors and bDefaultFrameIndex of the parent Format, repeated
+  // on every stream that came from it.
+  uint8_t frameCount = 0;
+  uint8_t defaultFrameIndex = 0;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  // Uncompressed formats only; MJPEG leaves it zero.
+  uint8_t bitsPerPixel = 0;
+  // All intervals are in 100 ns units, the unit UVC uses throughout. Use
+  // espUsbHostVideoFrameIntervalToFps() rather than dividing at the call site.
+  // frameInterval is dwDefaultFrameInterval: the rate to use when the caller
+  // expresses no preference.
+  uint32_t frameInterval = 0;
+  // A frame descriptor is either discrete (frameIntervalCount entries in
+  // frameIntervals) or continuous (min/max/step, with frameIntervalCount zero).
+  // Never both.
+  uint8_t frameIntervalCount = 0;
+  uint32_t frameIntervals[ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS] = {};
+  uint32_t frameIntervalMin = 0;
+  uint32_t frameIntervalMax = 0;
+  uint32_t frameIntervalStep = 0;
+  // dwMaxVideoFrameBufferSize: the largest single video frame this format/frame
+  // pair can produce. A caller sizing a frame buffer must use this rather than
+  // width * height * bytes, which is wrong for MJPEG.
+  uint32_t maxVideoFrameBufferSize = 0;
+  // Bytes per microframe the streaming endpoint's alternate setting offers,
+  // already multiplied out by espUsbHostVideoIsocPayloadSize().
+  uint32_t maxPayloadSize = 0;
+  uint8_t interval = 0;
+  // False when the camera advertises the format but this host has no way to run
+  // it: the VideoStreaming interface offers no usable alternate setting, or it
+  // was not claimed. Unlike audio, which binds a format to one alternate, a UVC
+  // camera describes every format on alternate 0 and picks the alternate at
+  // start time from the negotiated payload size, so this is a property of the
+  // interface rather than of the individual format. Defaults to true so a
+  // hand-built array still selects.
+  bool startable = true;
+};
+
+// One assembled video frame, handed to the onVideoFrame() callback.
+//
+// data points into a buffer the library owns and reuses for the next frame, so a
+// sketch that needs to keep the image must copy it before returning. The callback
+// runs on the USB client task, which is also the task that resubmits the
+// streaming transfer, so anything slow in it costs isochronous packets that
+// cannot be retried -- see docs/usb-host-advanced.md.
+struct EspUsbHostVideoFrame
+{
+  uint8_t address = 0;
+  uint8_t interfaceNumber = 0;
+  const uint8_t *data = nullptr;
+  size_t length = 0;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  uint8_t format = ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN;
+  // Counts frames delivered since videoStart(), complete and incomplete alike, so
+  // a gap in it is a frame that was dropped outright.
+  uint32_t sequence = 0;
+  // False when the camera flagged a payload bad, the frame overran the buffer, or
+  // the end-of-frame payload never arrived and the frame ID toggled instead. The
+  // bytes up to that point are still handed over: a partial MJPEG frame is often
+  // displayable, and dropping it silently would hide a link that is losing
+  // packets. A sketch that cannot use one should check this and return.
+  bool complete = true;
+  bool hasPresentationTime = false;
+  uint32_t presentationTime = 0;
+};
+
+// Counters kept while streaming, reset by videoStart(). Isochronous transfers are
+// not retried, so these are the only way to tell a healthy stream from one that
+// is losing packets: on a good link everything but frames and payloads stays at
+// zero.
+struct EspUsbHostVideoStats
+{
+  uint32_t frames = 0;
+  uint32_t framesIncomplete = 0;
+  uint32_t payloads = 0;
+  // Packets whose payload header would not decode. A camera does not send these;
+  // a nonzero count means packets are arriving damaged.
+  uint32_t headerErrors = 0;
+  // Payloads the camera itself flagged bad with the error bit.
+  uint32_t payloadErrors = 0;
+  // Isochronous packets the host controller reported as failed. These are never
+  // retried, so a nonzero count is lost image data; a count that climbs in step
+  // with the transfers means the pipe is not carrying the stream at all.
+  uint32_t packetErrors = 0;
+  // Frames that ran past the frame buffer. The buffer is sized from the format's
+  // dwMaxVideoFrameBufferSize, so this should not happen; when it does, the
+  // camera is sending more than it declared.
+  uint32_t overflows = 0;
+  uint64_t bytes = 0;
+};
+
+struct EspUsbHostVideoStreamSelection
+{
+  int index = -1;
+  uint32_t frameInterval = 0;
+  int score = 0;
+
+  explicit operator bool() const
+  {
+    return index >= 0 && frameInterval > 0;
+  }
+};
+
+// One payload header, which prefixes every non-empty packet the streaming
+// endpoint delivers. payloadOffset is where the image bytes start.
+struct EspUsbHostVideoPayloadHeader
+{
+  uint8_t headerLength = 0;
+  uint8_t info = 0;
+  // Toggles on every frame boundary. Two consecutive payloads with different
+  // frameId belong to different video frames even if neither carried endOfFrame,
+  // which is how a dropped end-of-frame packet is recovered from.
+  bool frameId = false;
+  bool endOfFrame = false;
+  bool stillImage = false;
+  // The camera is telling the host this payload is bad. The frame it belongs to
+  // has to be discarded; the bytes are not image data.
+  bool error = false;
+  bool endOfHeader = false;
+  bool hasPresentationTime = false;
+  uint32_t presentationTime = 0;
+  bool hasSourceClock = false;
+  uint32_t sourceClock = 0;
+  uint16_t sourceClockCounter = 0;
+  size_t payloadOffset = 0;
+};
+
+// The Video Probe and Commit Control payload, in host-native fields. Both
+// controls carry the same structure; Probe negotiates and Commit applies.
+struct EspUsbHostVideoProbeControl
+{
+  // bmHint bit 0 = dwFrameInterval is fixed, which is what a host asking for a
+  // specific rate means.
+  uint16_t hint = 0x0001;
+  uint8_t formatIndex = 0;
+  uint8_t frameIndex = 0;
+  uint32_t frameInterval = 0;
+  uint16_t keyFrameRate = 0;
+  uint16_t pFrameRate = 0;
+  uint16_t compQuality = 0;
+  uint16_t compWindowSize = 0;
+  uint16_t delay = 0;
+  uint32_t maxVideoFrameSize = 0;
+  // What the camera will put in one payload transfer. This is the number that
+  // decides which alternate setting the host must select: an alternate whose
+  // espUsbHostVideoIsocPayloadSize() is smaller cannot carry it.
+  uint32_t maxPayloadTransferSize = 0;
+  // UVC 1.1 and later only; zero on a 26-byte reply.
+  uint32_t clockFrequency = 0;
+  uint8_t framingInfo = 0;
+  uint8_t preferredVersion = 0;
+  uint8_t minVersion = 0;
+  uint8_t maxVersion = 0;
+};
+
+inline uint16_t espUsbHostVideoReadU16(const uint8_t *data)
+{
+  return static_cast<uint16_t>(static_cast<uint16_t>(data[0]) |
+                               static_cast<uint16_t>(static_cast<uint16_t>(data[1]) << 8));
+}
+
+inline uint32_t espUsbHostVideoReadU32(const uint8_t *data)
+{
+  return static_cast<uint32_t>(data[0]) |
+         (static_cast<uint32_t>(data[1]) << 8) |
+         (static_cast<uint32_t>(data[2]) << 16) |
+         (static_cast<uint32_t>(data[3]) << 24);
+}
+
+inline void espUsbHostVideoWriteU16(uint8_t *data, uint16_t value)
+{
+  data[0] = static_cast<uint8_t>(value & 0xff);
+  data[1] = static_cast<uint8_t>(value >> 8);
+}
+
+inline void espUsbHostVideoWriteU32(uint8_t *data, uint32_t value)
+{
+  data[0] = static_cast<uint8_t>(value & 0xff);
+  data[1] = static_cast<uint8_t>((value >> 8) & 0xff);
+  data[2] = static_cast<uint8_t>((value >> 16) & 0xff);
+  data[3] = static_cast<uint8_t>((value >> 24) & 0xff);
+}
+
+// A UVC format GUID is {FourCC}-0000-0010-8000-00AA00389B71: the first four
+// bytes are the FourCC and the remaining twelve are a fixed suffix. A GUID that
+// does not carry that suffix is a vendor format, not a FourCC, so it is reported
+// as UNCOMPRESSED rather than being decoded as four ASCII characters that happen
+// to spell something.
+inline uint8_t espUsbHostVideoFormatFromGuid(const uint8_t *guid)
+{
+  if (!guid)
+  {
+    return ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN;
+  }
+  static const uint8_t suffix[12] = {
+      0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
+  for (size_t i = 0; i < sizeof(suffix); i++)
+  {
+    if (guid[4 + i] != suffix[i])
+    {
+      return ESP_USB_HOST_VIDEO_FORMAT_UNCOMPRESSED;
+    }
+  }
+  if (guid[0] == 'Y' && guid[1] == 'U' && guid[2] == 'Y' && guid[3] == '2')
+  {
+    return ESP_USB_HOST_VIDEO_FORMAT_YUY2;
+  }
+  if (guid[0] == 'N' && guid[1] == 'V' && guid[2] == '1' && guid[3] == '2')
+  {
+    return ESP_USB_HOST_VIDEO_FORMAT_NV12;
+  }
+  if (guid[0] == 'H' && guid[1] == '2' && guid[2] == '6' && guid[3] == '4')
+  {
+    return ESP_USB_HOST_VIDEO_FORMAT_H264;
+  }
+  return ESP_USB_HOST_VIDEO_FORMAT_UNCOMPRESSED;
+}
+
+inline const char *espUsbHostVideoFormatName(uint8_t format)
+{
+  switch (format)
+  {
+  case ESP_USB_HOST_VIDEO_FORMAT_MJPEG:
+    return "MJPEG";
+  case ESP_USB_HOST_VIDEO_FORMAT_YUY2:
+    return "YUY2";
+  case ESP_USB_HOST_VIDEO_FORMAT_NV12:
+    return "NV12";
+  case ESP_USB_HOST_VIDEO_FORMAT_H264:
+    return "H.264";
+  case ESP_USB_HOST_VIDEO_FORMAT_UNCOMPRESSED:
+    return "Uncompressed";
+  default:
+    return "Unknown";
+  }
+}
+
+// Frame intervals are in 100 ns units, so a rate is 10000000 / interval. The
+// division is rounded rather than truncated: 24 fps is advertised as 416667,
+// and truncating that gives 23.
+inline uint32_t espUsbHostVideoFrameIntervalToFps(uint32_t frameInterval)
+{
+  if (frameInterval == 0)
+  {
+    return 0;
+  }
+  return (10000000u + frameInterval / 2) / frameInterval;
+}
+
+inline uint32_t espUsbHostVideoFpsToFrameInterval(uint32_t fps)
+{
+  if (fps == 0)
+  {
+    return 0;
+  }
+  return 10000000u / fps;
+}
+
+// Bytes an isochronous endpoint can move per microframe. Bits 10:0 of
+// wMaxPacketSize are the packet size and bits 12:11 are the number of
+// *additional* transactions, which is how a high-speed UVC alternate offers more
+// than 1024 bytes. Reading wMaxPacketSize directly understates such an alternate
+// by up to 3x, which then picks an alternate too small for the camera's
+// dwMaxPayloadTransferSize and produces a stream that never completes a frame.
+inline uint32_t espUsbHostVideoIsocPayloadSize(uint16_t wMaxPacketSize)
+{
+  const uint32_t size = wMaxPacketSize & 0x07FFu;
+  const uint32_t additional = (wMaxPacketSize >> 11) & 0x03u;
+  if (additional > 2)
+  {
+    // 11b is reserved. Claiming four transactions for it would reserve bandwidth
+    // the device never offered, so fall back to a single transaction.
+    return size;
+  }
+  return size * (additional + 1);
+}
+
+// Decodes a VS_FORMAT_UNCOMPRESSED (0x04) or VS_FORMAT_MJPEG (0x06) class
+// descriptor into the format half of a stream. Frame-based formats (0x10/0x11,
+// used by H.264 cameras) carry a different frame layout and are not decoded yet.
+inline bool espUsbHostVideoDecodeFormatDescriptor(const uint8_t *data,
+                                                  EspUsbHostVideoStreamInfo &stream)
+{
+  if (!data || data[0] < 3 || data[1] != 0x24)
+  {
+    return false;
+  }
+  if (data[2] == 0x06)
+  {
+    // bLength, CS_INTERFACE, VS_FORMAT_MJPEG, bFormatIndex,
+    // bNumFrameDescriptors, bmFlags, bDefaultFrameIndex, ...
+    if (data[0] < 11)
+    {
+      return false;
+    }
+    stream.format = ESP_USB_HOST_VIDEO_FORMAT_MJPEG;
+    stream.formatIndex = data[3];
+    stream.frameCount = data[4];
+    stream.defaultFrameIndex = data[6];
+    stream.bitsPerPixel = 0;
+    return true;
+  }
+  if (data[2] == 0x04)
+  {
+    // ... bFormatIndex, bNumFrameDescriptors, guidFormat[16] at offset 5,
+    // bBitsPerPixel, bDefaultFrameIndex, ...
+    if (data[0] < 23)
+    {
+      return false;
+    }
+    stream.format = espUsbHostVideoFormatFromGuid(data + 5);
+    stream.formatIndex = data[3];
+    stream.frameCount = data[4];
+    stream.bitsPerPixel = data[21];
+    stream.defaultFrameIndex = data[22];
+    return true;
+  }
+  return false;
+}
+
+// Decodes a VS_FRAME_UNCOMPRESSED (0x05) or VS_FRAME_MJPEG (0x07) class
+// descriptor into the frame half of a stream. Every length check below exists
+// because bFrameIntervalType is attacker-adjacent data: a camera that claims
+// more intervals than bLength covers would otherwise have them read from
+// whatever follows the descriptor in the configuration buffer.
+inline bool espUsbHostVideoDecodeFrameDescriptor(const uint8_t *data,
+                                                 EspUsbHostVideoStreamInfo &stream)
+{
+  // 26 bytes of fixed fields: bLength, CS_INTERFACE, subtype, bFrameIndex,
+  // bmCapabilities, wWidth, wHeight, dwMinBitRate, dwMaxBitRate,
+  // dwMaxVideoFrameBufferSize, dwDefaultFrameInterval, bFrameIntervalType.
+  if (!data || data[0] < 26 || data[1] != 0x24)
+  {
+    return false;
+  }
+  if (data[2] != 0x05 && data[2] != 0x07)
+  {
+    return false;
+  }
+  const uint8_t intervalType = data[25];
+  const size_t needed = intervalType == 0
+                            ? 26u + 12u
+                            : 26u + static_cast<size_t>(intervalType) * 4u;
+  if (data[0] < needed)
+  {
+    return false;
+  }
+
+  stream.frameIndex = data[3];
+  stream.width = espUsbHostVideoReadU16(data + 5);
+  stream.height = espUsbHostVideoReadU16(data + 7);
+  stream.maxVideoFrameBufferSize = espUsbHostVideoReadU32(data + 17);
+  stream.frameInterval = espUsbHostVideoReadU32(data + 21);
+  stream.frameIntervalCount = 0;
+  stream.frameIntervalMin = 0;
+  stream.frameIntervalMax = 0;
+  stream.frameIntervalStep = 0;
+  for (size_t i = 0; i < ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS; i++)
+  {
+    stream.frameIntervals[i] = 0;
+  }
+
+  if (intervalType == 0)
+  {
+    stream.frameIntervalMin = espUsbHostVideoReadU32(data + 26);
+    stream.frameIntervalMax = espUsbHostVideoReadU32(data + 30);
+    stream.frameIntervalStep = espUsbHostVideoReadU32(data + 34);
+    return true;
+  }
+
+  // A camera may advertise more rates than the fixed array holds. Keeping the
+  // first few and reporting the frame is better than dropping a frame size the
+  // caller asked for: the rates kept are the ones the device listed first, which
+  // by convention are its fastest.
+  const size_t count = intervalType < ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS
+                           ? static_cast<size_t>(intervalType)
+                           : ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS;
+  for (size_t i = 0; i < count; i++)
+  {
+    stream.frameIntervals[i] = espUsbHostVideoReadU32(data + 26 + i * 4);
+  }
+  stream.frameIntervalCount = static_cast<uint8_t>(count);
+  return true;
+}
+
+inline bool espUsbHostVideoStreamSupportsFrameInterval(const EspUsbHostVideoStreamInfo &stream,
+                                                       uint32_t frameInterval)
+{
+  if (frameInterval == 0)
+  {
+    return true;
+  }
+  if (stream.frameIntervalCount > 0)
+  {
+    for (uint8_t i = 0;
+         i < stream.frameIntervalCount && i < ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS;
+         i++)
+    {
+      if (stream.frameIntervals[i] == frameInterval)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (stream.frameIntervalMin == 0 && stream.frameIntervalMax == 0)
+  {
+    // Neither form was decoded: all that is known is the default rate.
+    return stream.frameInterval == 0 || stream.frameInterval == frameInterval;
+  }
+  if (frameInterval < stream.frameIntervalMin || frameInterval > stream.frameIntervalMax)
+  {
+    return false;
+  }
+  // The endpoints are always offered. Cameras routinely advertise a
+  // dwMaxFrameInterval that is not min + n * step, and rejecting it would deny
+  // the slowest rate the device itself named.
+  if (frameInterval == stream.frameIntervalMin || frameInterval == stream.frameIntervalMax)
+  {
+    return true;
+  }
+  if (stream.frameIntervalStep == 0)
+  {
+    return true;
+  }
+  return ((frameInterval - stream.frameIntervalMin) % stream.frameIntervalStep) == 0;
+}
+
+// The interval this stream would actually run at for a requested one. Zero means
+// the caller has no preference, which resolves to the device's own default.
+inline uint32_t espUsbHostVideoStreamNearestFrameInterval(const EspUsbHostVideoStreamInfo &stream,
+                                                          uint32_t desired)
+{
+  if (desired == 0)
+  {
+    return stream.frameInterval;
+  }
+  if (stream.frameIntervalCount > 0)
+  {
+    uint32_t best = 0;
+    uint32_t bestDelta = 0;
+    for (uint8_t i = 0;
+         i < stream.frameIntervalCount && i < ESP_USB_HOST_MAX_VIDEO_FRAME_INTERVALS;
+         i++)
+    {
+      const uint32_t candidate = stream.frameIntervals[i];
+      if (candidate == 0)
+      {
+        continue;
+      }
+      const uint32_t delta = candidate > desired ? candidate - desired : desired - candidate;
+      if (best == 0 || delta < bestDelta)
+      {
+        best = candidate;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }
+  if (stream.frameIntervalMin == 0 && stream.frameIntervalMax == 0)
+  {
+    return stream.frameInterval;
+  }
+  if (desired <= stream.frameIntervalMin)
+  {
+    return stream.frameIntervalMin;
+  }
+  if (desired >= stream.frameIntervalMax)
+  {
+    return stream.frameIntervalMax;
+  }
+  if (stream.frameIntervalStep == 0)
+  {
+    return desired;
+  }
+  const uint32_t offset = desired - stream.frameIntervalMin;
+  const uint32_t steps = (offset + stream.frameIntervalStep / 2) / stream.frameIntervalStep;
+  const uint32_t value = stream.frameIntervalMin + steps * stream.frameIntervalStep;
+  return value > stream.frameIntervalMax ? stream.frameIntervalMax : value;
+}
+
+// Ranks one stream against a request. A zero width, height or frameInterval is a
+// wildcard; a non-zero one must match exactly, because a caller that sized a
+// frame buffer for what it asked for would overflow it if the host quietly
+// substituted a larger frame. Returns -1 for a stream that cannot serve the
+// request at all.
+inline int espUsbHostVideoStreamScore(const EspUsbHostVideoStreamInfo &stream,
+                                      uint16_t width,
+                                      uint16_t height,
+                                      uint32_t frameInterval)
+{
+  if (!stream.startable || stream.width == 0 || stream.height == 0)
+  {
+    return -1;
+  }
+  if (width != 0 && stream.width != width)
+  {
+    return -1;
+  }
+  if (height != 0 && stream.height != height)
+  {
+    return -1;
+  }
+  if (!espUsbHostVideoStreamSupportsFrameInterval(stream, frameInterval))
+  {
+    return -1;
+  }
+  // Pixel count dominates, so an unconstrained request gets the largest frame the
+  // camera offers. The format bonus only ever breaks ties between two streams of
+  // the same size, where MJPEG is the one an MCU host wants: it costs a fraction
+  // of the bandwidth and of the frame buffer an uncompressed stream needs.
+  int score = static_cast<int>(stream.width) * static_cast<int>(stream.height);
+  if (stream.format == ESP_USB_HOST_VIDEO_FORMAT_MJPEG)
+  {
+    score += 2;
+  }
+  else if (stream.format != ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN)
+  {
+    score += 1;
+  }
+  return score;
+}
+
+// Picks the stream that best serves a request. Pass
+// ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN, 0, 0, 0 to take whatever the camera offers.
+// fps is a frame rate, not an interval: the conversion is done here so callers
+// never have to write 10000000 / n.
+inline EspUsbHostVideoStreamSelection espUsbHostSelectVideoStream(const EspUsbHostVideoStreamInfo *streams,
+                                                                  size_t count,
+                                                                  uint8_t format,
+                                                                  uint16_t width,
+                                                                  uint16_t height,
+                                                                  uint32_t fps)
+{
+  EspUsbHostVideoStreamSelection best;
+  if (!streams)
+  {
+    return best;
+  }
+  const uint32_t requested = espUsbHostVideoFpsToFrameInterval(fps);
+  for (size_t i = 0; i < count; i++)
+  {
+    const EspUsbHostVideoStreamInfo &stream = streams[i];
+    if (format != ESP_USB_HOST_VIDEO_FORMAT_UNKNOWN && stream.format != format)
+    {
+      continue;
+    }
+    // With no rate named, the stream runs at its own default.
+    const uint32_t frameInterval = requested != 0 ? requested : stream.frameInterval;
+    const int score = espUsbHostVideoStreamScore(stream, width, height, frameInterval);
+    if (score < 0)
+    {
+      continue;
+    }
+    if (best.index < 0 || score > best.score)
+    {
+      best.index = static_cast<int>(i);
+      best.frameInterval = frameInterval;
+      best.score = score;
+    }
+  }
+  return best;
+}
+
+// Decodes the payload header that prefixes every non-empty packet from the
+// streaming endpoint. Returns false for a packet that carries no usable header,
+// including the zero-length packets a camera sends when it has nothing ready --
+// those are normal and not an error.
+inline bool espUsbHostVideoDecodePayloadHeader(const uint8_t *data,
+                                               size_t length,
+                                               EspUsbHostVideoPayloadHeader &header)
+{
+  if (!data || length < 2)
+  {
+    return false;
+  }
+  const uint8_t headerLength = data[0];
+  if (headerLength < 2 || static_cast<size_t>(headerLength) > length)
+  {
+    return false;
+  }
+  const uint8_t info = data[1];
+  // bHeaderLength has to cover the optional fields bmHeaderInfo claims. A header
+  // that does not is rejected rather than parsed: the PTS and SCR would be read
+  // out of the image bytes, and payloadOffset would then point into the middle of
+  // the header.
+  size_t needed = 2;
+  if ((info & 0x04) != 0)
+  {
+    needed += 4;
+  }
+  if ((info & 0x08) != 0)
+  {
+    needed += 6;
+  }
+  if (static_cast<size_t>(headerLength) < needed)
+  {
+    return false;
+  }
+
+  header = EspUsbHostVideoPayloadHeader();
+  header.headerLength = headerLength;
+  header.info = info;
+  header.frameId = (info & 0x01) != 0;
+  header.endOfFrame = (info & 0x02) != 0;
+  header.stillImage = (info & 0x20) != 0;
+  header.error = (info & 0x40) != 0;
+  header.endOfHeader = (info & 0x80) != 0;
+
+  size_t offset = 2;
+  if ((info & 0x04) != 0)
+  {
+    header.hasPresentationTime = true;
+    header.presentationTime = espUsbHostVideoReadU32(data + offset);
+    offset += 4;
+  }
+  if ((info & 0x08) != 0)
+  {
+    header.hasSourceClock = true;
+    header.sourceClock = espUsbHostVideoReadU32(data + offset);
+    header.sourceClockCounter = espUsbHostVideoReadU16(data + offset + 4);
+  }
+  // Image data starts at bHeaderLength, not at the end of the fields decoded
+  // above: a camera may pad the header beyond what its flags require.
+  header.payloadOffset = headerLength;
+  return true;
+}
+
+// Serialises a Probe/Commit payload. length is the negotiated control length, so
+// pass what GET_LEN reported: a UVC 1.0 camera stalls a 34-byte SET_CUR. Writes
+// at most the UVC 1.1 form -- this host has no use for the 1.5-only fields --
+// and returns the number of bytes written, or 0 if length is too small to hold
+// even the 1.0 form.
+inline size_t espUsbHostVideoEncodeProbeControl(const EspUsbHostVideoProbeControl &control,
+                                                uint8_t *out,
+                                                size_t length)
+{
+  if (!out || length < ESP_USB_HOST_VIDEO_PROBE_LENGTH_10)
+  {
+    return 0;
+  }
+  const size_t written = length < ESP_USB_HOST_VIDEO_PROBE_LENGTH_11
+                             ? ESP_USB_HOST_VIDEO_PROBE_LENGTH_10
+                             : ESP_USB_HOST_VIDEO_PROBE_LENGTH_11;
+  for (size_t i = 0; i < written; i++)
+  {
+    out[i] = 0;
+  }
+  espUsbHostVideoWriteU16(out + 0, control.hint);
+  out[2] = control.formatIndex;
+  out[3] = control.frameIndex;
+  espUsbHostVideoWriteU32(out + 4, control.frameInterval);
+  espUsbHostVideoWriteU16(out + 8, control.keyFrameRate);
+  espUsbHostVideoWriteU16(out + 10, control.pFrameRate);
+  espUsbHostVideoWriteU16(out + 12, control.compQuality);
+  espUsbHostVideoWriteU16(out + 14, control.compWindowSize);
+  espUsbHostVideoWriteU16(out + 16, control.delay);
+  espUsbHostVideoWriteU32(out + 18, control.maxVideoFrameSize);
+  espUsbHostVideoWriteU32(out + 22, control.maxPayloadTransferSize);
+  if (written >= ESP_USB_HOST_VIDEO_PROBE_LENGTH_11)
+  {
+    espUsbHostVideoWriteU32(out + 26, control.clockFrequency);
+    out[30] = control.framingInfo;
+    out[31] = control.preferredVersion;
+    out[32] = control.minVersion;
+    out[33] = control.maxVersion;
+  }
+  return written;
+}
+
+// Parses a Probe/Commit reply. Fields the reply is too short to carry read back
+// as zero rather than as whatever the transfer buffer held before it.
+inline bool espUsbHostVideoDecodeProbeControl(const uint8_t *data,
+                                              size_t length,
+                                              EspUsbHostVideoProbeControl &control)
+{
+  if (!data || length < ESP_USB_HOST_VIDEO_PROBE_LENGTH_10)
+  {
+    return false;
+  }
+  control = EspUsbHostVideoProbeControl();
+  control.hint = espUsbHostVideoReadU16(data + 0);
+  control.formatIndex = data[2];
+  control.frameIndex = data[3];
+  control.frameInterval = espUsbHostVideoReadU32(data + 4);
+  control.keyFrameRate = espUsbHostVideoReadU16(data + 8);
+  control.pFrameRate = espUsbHostVideoReadU16(data + 10);
+  control.compQuality = espUsbHostVideoReadU16(data + 12);
+  control.compWindowSize = espUsbHostVideoReadU16(data + 14);
+  control.delay = espUsbHostVideoReadU16(data + 16);
+  control.maxVideoFrameSize = espUsbHostVideoReadU32(data + 18);
+  control.maxPayloadTransferSize = espUsbHostVideoReadU32(data + 22);
+  if (length >= ESP_USB_HOST_VIDEO_PROBE_LENGTH_11)
+  {
+    control.clockFrequency = espUsbHostVideoReadU32(data + 26);
+    control.framingInfo = data[30];
+    control.preferredVersion = data[31];
+    control.minVersion = data[32];
+    control.maxVersion = data[33];
+  }
+  else
+  {
+    control.clockFrequency = 0;
+    control.framingInfo = 0;
+    control.preferredVersion = 0;
+    control.minVersion = 0;
+    control.maxVersion = 0;
+  }
+  return true;
+}
+
 void espUsbHostPrintHex(const uint8_t *data, size_t length, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostDeviceInfo &device, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostInterfaceInfo &intf, Print &out = Serial);
@@ -1595,6 +2380,7 @@ void espUsbHostPrint(const EspUsbHostEndpointInfo &endpoint, Print &out = Serial
 void espUsbHostPrint(const EspUsbHostNetworkInterfaceInfo &network, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostSerialPortInfo &port, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostAudioStreamInfo &stream, Print &out = Serial);
+void espUsbHostPrint(const EspUsbHostVideoStreamInfo &stream, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostKeyboardEvent &event, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDInput &input, Print &out = Serial);
 void espUsbHostPrint(const EspUsbHostHIDReportDescriptor &descriptor, Print &out = Serial);
@@ -1655,6 +2441,7 @@ public:
   using HIDReportDescriptorCallback = std::function<void(const EspUsbHostHIDReportDescriptor &)>;
   using SerialDataCallback = std::function<void(const EspUsbHostSerialData &)>;
   using MidiMessageCallback = std::function<void(const EspUsbHostMidiMessage &)>;
+  using VideoFrameCallback = std::function<void(const EspUsbHostVideoFrame &)>;
   using AudioDataCallback = std::function<void(const EspUsbHostAudioData &)>;
   using AudioOutputCallback = std::function<void(EspUsbHostAudioOutputRequest &)>;
   using ConsumerControlCallback = std::function<void(const EspUsbHostConsumerControlEvent &)>;
@@ -1691,6 +2478,7 @@ public:
   void onHIDReportDescriptor(HIDReportDescriptorCallback callback);
   void onSerialData(SerialDataCallback callback);
   void onMidiMessage(MidiMessageCallback callback);
+  void onVideoFrame(VideoFrameCallback callback);
   void onAudioData(AudioDataCallback callback);
   void onAudioOutputRequest(AudioOutputCallback callback);
   void onConsumerControl(ConsumerControlCallback callback);
@@ -2321,6 +3109,53 @@ public:
   // of the interface it claims, which is what estimatedHcdChannelCount() adds up.
   size_t maxEndpointChannelCount() const;
   size_t getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *streams, size_t maxStreams) const;
+  // Every format/frame pair a UVC camera on this address advertises, flattened
+  // out of the two-level Format/Frame descriptor tree. Pass the result to
+  // espUsbHostSelectVideoStream() to choose one.
+  //
+  // A camera whose configuration descriptor is larger than the core's
+  // CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE never enumerates far enough to
+  // reach this, and reports zero streams. That limit is 256 bytes up to and
+  // including arduino-esp32 3.3.x, which is smaller than almost every real
+  // webcam's configuration descriptor; see docs/usb-host-advanced.md.
+  size_t getVideoStreams(uint8_t address, EspUsbHostVideoStreamInfo *streams, size_t maxStreams) const;
+  // Number of format/frame pairs discovered, without copying any of them.
+  size_t getVideoStreamCount(uint8_t address) const;
+  // Start streaming one of the formats getVideoStreams() reported.
+  //
+  // The sequence is the one UVC requires and cannot be shortened: SET_CUR and
+  // GET_CUR on the Probe control to find out what the camera will actually
+  // send, SET_CUR on the Commit control to fix it, then the alternate setting
+  // whose bandwidth covers the dwMaxPayloadTransferSize the camera answered
+  // with. Picking the alternate before probing is what makes a naive UVC host
+  // produce a stream that never completes a frame.
+  //
+  // fps is a frame rate, 0 for the format's own default. The frame buffer is
+  // allocated here from the format's dwMaxVideoFrameBufferSize and freed by
+  // videoStop(), so a large format can fail for memory alone.
+  //
+  // Must not be called from the USB client task: it waits on control
+  // transfers that task is the one to complete.
+  bool videoStart(const EspUsbHostVideoStreamInfo &stream,
+                  uint32_t fps = 0,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // The same, selecting the format with espUsbHostSelectVideoStream(). Any of
+  // format, width, height and fps may be 0 for no preference; a value the
+  // camera does not offer fails rather than resolving to something else.
+  bool videoStart(uint8_t format,
+                  uint16_t width,
+                  uint16_t height,
+                  uint32_t fps,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Stop streaming, put the interface back on its zero-bandwidth alternate,
+  // and free the frame buffer. Safe to call when not streaming.
+  bool videoStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool videoStreaming(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // What the camera committed to, which is not always what was asked for.
+  bool videoCommitted(EspUsbHostVideoProbeControl &control,
+                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  bool videoStats(EspUsbHostVideoStats &stats,
+                  uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
 
   int lastError() const;
   const char *lastErrorName() const;
@@ -2408,6 +3243,20 @@ private:
   // UAC2 Clock Source entity. bmControls D1..D0 tell whether the sample frequency
   // control is present and programmable, which decides whether a rate change can
   // be pushed to the device or only read back.
+  // One alternate setting of a VideoStreaming interface. payloadSize is the
+  // bandwidth it offers per microframe, already multiplied out by
+  // espUsbHostVideoIsocPayloadSize(), which is the number the alternate has to
+  // be chosen by.
+  struct VideoAlternateState
+  {
+    uint8_t interfaceNumber = 0xff;
+    uint8_t alternate = 0;
+    uint8_t endpointAddress = 0;
+    uint32_t payloadSize = 0;
+    uint8_t interval = 0;
+    bool isochronous = true;
+  };
+
   struct AudioClockSourceState
   {
     uint8_t clockSourceId = 0;
@@ -2732,6 +3581,47 @@ private:
     uint16_t networkAsmExpected = 0;
     EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
     uint8_t audioStreamInfoCount = 0;
+    bool hasVideoInterface = false;
+    // bcdUVC from the VideoControl header: 0x0100, 0x0110 or 0x0150. It decides
+    // the Probe/Commit control length, which a camera stalls if it is wrong.
+    uint16_t videoVersion = 0;
+    uint8_t videoControlInterface = 0xff;
+    uint8_t videoStreamingInterface = 0xff;
+    // bEndpointAddress from VS_INPUT_HEADER: which endpoint the camera will
+    // stream on once an alternate carrying it is selected.
+    uint8_t videoStreamingEndpoint = 0;
+    EspUsbHostVideoStreamInfo videoStreamInfos[ESP_USB_HOST_MAX_VIDEO_STREAMS] = {};
+    uint8_t videoStreamInfoCount = 0;
+    VideoAlternateState videoAlternates[ESP_USB_HOST_MAX_VIDEO_ALTERNATES] = {};
+    uint8_t videoAlternateCount = 0;
+    bool videoStreamingActive = false;
+    // Set while the streaming transfers are being torn down, so a completion
+    // callback that is already running does not resubmit.
+    bool videoStopping = false;
+    usb_transfer_t *videoTransfers[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
+    bool videoTransferInFlight[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
+    uint8_t videoTransferCount = 0;
+    uint8_t videoActiveAlternate = 0;
+    uint8_t videoActiveEndpoint = 0;
+    EspUsbHostVideoStreamInfo videoActiveStream;
+    EspUsbHostVideoProbeControl videoCommit;
+    // Frame being assembled. The buffer is allocated by videoStart() from the
+    // format's dwMaxVideoFrameBufferSize and freed by videoStop().
+    uint8_t *videoFrameBuffer = nullptr;
+    size_t videoFrameCapacity = 0;
+    size_t videoFrameLength = 0;
+    bool videoFrameOpen = false;
+    // Set when something went wrong inside the frame currently being
+    // assembled, so it is still delivered but marked incomplete.
+    bool videoFrameBad = false;
+    // The payload header frame ID toggles at every frame boundary. It is the
+    // only boundary marker left when an end-of-frame payload is lost.
+    bool videoFrameIdValid = false;
+    bool videoFrameId = false;
+    uint32_t videoFrameSequence = 0;
+    bool videoFrameHasPts = false;
+    uint32_t videoFramePts = 0;
+    EspUsbHostVideoStats videoStatsState;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
     EspUsbHostEndpointInfo endpointInfos[ESP_USB_HOST_MAX_ENDPOINTS] = {};
@@ -2779,6 +3669,64 @@ private:
   void parseAudioClockSourceDescriptor(DeviceState &device, const uint8_t *data);
   void parseAudioTerminalDescriptor(DeviceState &device, const uint8_t *data, bool input);
   void parseAudioStreamingDescriptor(DeviceState &device, const uint8_t *data);
+  void parseVideoControlDescriptor(DeviceState &device, const uint8_t *data);
+  void parseVideoStreamingDescriptor(DeviceState &device, const uint8_t *data);
+  // Commits the format/frame pair the scan just finished reading. Called once
+  // per Frame descriptor, because each Frame under a Format is a separate
+  // stream from a caller's point of view.
+  void recordVideoStream(DeviceState &device, const EspUsbHostVideoStreamInfo &stream);
+  void recordVideoAlternate(DeviceState &device, const usb_ep_desc_t *ep, bool isochronous);
+  // SET_INTERFACE, waited for rather than fired and forgotten.
+  bool setInterfaceSync(DeviceState &device,
+                        uint8_t interfaceNumber,
+                        uint8_t alternateSetting,
+                        uint32_t timeoutMs);
+  // One Probe or Commit control request. control is the selector
+  // (VS_PROBE_CONTROL / VS_COMMIT_CONTROL), request the class request code.
+  bool videoStreamingControl(DeviceState &device,
+                             uint8_t request,
+                             uint8_t control,
+                             uint8_t *data,
+                             size_t length,
+                             bool dataIn,
+                             uint32_t timeoutMs);
+  // GET_CUR on the Stream Error Code control: why the camera stalled the last
+  // request. Returns 0 when the camera does not implement it.
+  uint8_t videoStreamErrorCode(DeviceState &device);
+  // The full Probe/Commit exchange. Fills committed with what the camera
+  // answered, which is the authority on payload size and frame size.
+  bool videoNegotiate(DeviceState &device,
+                      const EspUsbHostVideoStreamInfo &stream,
+                      uint32_t frameInterval,
+                      EspUsbHostVideoProbeControl &committed);
+  // Smallest alternate setting whose payload size covers payloadBytes, or the
+  // largest available when none does. Smallest rather than largest because an
+  // isochronous alternate reserves its bandwidth for as long as it is
+  // selected, whether or not the camera fills it.
+  const VideoAlternateState *selectVideoAlternate(const DeviceState &device,
+                                                  uint8_t interfaceNumber,
+                                                  uint32_t payloadBytes) const;
+  static void videoTransferCallback(usb_transfer_t *transfer);
+  int videoSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
+  bool submitVideoTransfer(DeviceState &device, uint8_t slot);
+  void releaseVideoTransfers(DeviceState &device, bool devicePresent);
+  void handleVideo(DeviceState &device, usb_transfer_t *transfer);
+  // Appends one payload to the frame being assembled, opening and closing
+  // frames as the payload headers say to.
+  void videoAppendPayload(DeviceState &device,
+                          const EspUsbHostVideoPayloadHeader &header,
+                          const uint8_t *data,
+                          size_t length);
+  void videoDeliverFrame(DeviceState &device);
+  void videoResetAssembly(DeviceState &device);
+  // Tears down the streaming endpoint, interface claim and buffer. Used by
+  // videoStop() and by the disconnect path, so it must tolerate a device that
+  // is already gone.
+  void releaseVideoStreaming(DeviceState &device, bool devicePresent);
+  // Marks every discovered format startable or not once the whole
+  // configuration has been walked, which is the first point at which the
+  // available alternate settings are known.
+  void finalizeVideoStreams(DeviceState &device);
   // Clock Source entity that drives a streaming interface, resolved through the
   // interface's bTerminalLink. Falls back to the only declared clock source when
   // the terminal link cannot be matched, and returns 0 when there is none.
@@ -2853,6 +3801,8 @@ private:
   DeviceState *findAudioInputDevice(uint8_t address);
   const DeviceState *findAudioInputDevice(uint8_t address) const;
   const DeviceState *findAudioDevice(uint8_t address) const;
+  DeviceState *findVideoDevice(uint8_t address);
+  const DeviceState *findVideoDevice(uint8_t address) const;
   DeviceState *findAudioControlDevice(uint8_t address);
   const DeviceState *findAudioControlDevice(uint8_t address) const;
   const EspUsbHostAudioFeatureUnitInfo *findAudioFeatureUnit(const DeviceState &device,
@@ -3116,6 +4066,11 @@ private:
   uint32_t currentAudioSampleRateResolution_ = 0;
   // bTerminalLink of the Audio Streaming interface being parsed (UAC2 AS_GENERAL).
   uint8_t currentAudioTerminalLink_ = 0;
+  // Format-level fields of the VideoStreaming Format descriptor the scan is
+  // inside. Each Frame descriptor that follows copies these and adds its own
+  // size and rates, which is how the two-level descriptor tree is flattened.
+  EspUsbHostVideoStreamInfo currentVideoFormat_;
+  bool currentVideoFormatValid_ = false;
   bool currentInterfaceClaimed_ = false;
   esp_err_t currentClaimResult_ = ESP_OK;
   // Direction of the MIDI Streaming bulk endpoint the scan just passed, so the
@@ -3141,6 +4096,7 @@ private:
   HIDReportDescriptorCallback hidReportDescriptorCallback_;
   SerialDataCallback serialDataCallback_;
   std::shared_ptr<MidiMessageCallback> midiMessageCallback_;
+  VideoFrameCallback videoFrameCallback_;
   AudioDataCallback audioDataCallback_;
   AudioOutputCallback audioOutputCallback_;
   std::shared_ptr<ConsumerControlCallback> consumerControlCallback_;

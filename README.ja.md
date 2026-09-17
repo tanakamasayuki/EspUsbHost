@@ -117,7 +117,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | Mass Storage（BOT/SCSI） | `0x08` | ライブラリAPI — ブロックI/OとFatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
 | Hub | `0x09` | ライブラリAPI — 検出・トポロジ・ポート単位の電源制御（PPPS） | [`examples/Info/`](examples/Info/) |
 | Smart Card（CCID） | `0x0b` | ライブラリAPI — ATR、カード種別、APDU送受信、escapeコマンド | [`examples/Ccid/`](examples/Ccid/) |
-| Video（UVC） | `0x0e` | **未対応** — 後述のディスクリプタサイズ制限のため | — |
+| Video（UVC） | `0x0e` | ライブラリAPI — 後述のコア側2つの制限を受ける | — |
 | CDC-NCM / CDC-ECM Ethernet | `0x02` のsubclass | ライブラリAPI — 生フレーム、またはlwIP `esp_netif` | [`examples/UsbNetwork/`](examples/UsbNetwork/) |
 | Application Specific（USBTMC） | `0xfe` | example — USBTMC/USB488 + SCPIをvendor bulk/control API上で | [`examples/Vendor/EspUsbHostUsbtmcScpi/`](examples/Vendor/EspUsbHostUsbtmcScpi/) |
 | Vendor-specific | `0xff` | ライブラリAPI — interfaceの明示claim、bulk IN/OUT、EP0 request | [`examples/Vendor/`](examples/Vendor/) |
@@ -148,7 +148,7 @@ interface classが役に立たないデバイスも同じ道筋で扱います�
 | HUB — ハブ検出・トポロジー情報・ポート電源制御 | ✅ 基本実装済み。`hub_info`と`hub_power`のmanual確認済み。change bit処理、複数段Hub、USB 3.x Hub互換性は継続確認 |
 | CDC-NCM / CDC-ECM — 生フレームアクセスとlwIP netif attachによるUSB Ethernet | 🔲 実験的。EspUsbDeviceの`UsbNetwork`sketchおよびAX88179Aアダプタでpeer確認済み。network機能が既定configurationに無いアダプタは`setConfigurationSelector()`と2パスの列挙が必要 |
 | MSC — USBストレージのブロックI/OとFatFs/Arduino FSマウント | 🔲 実験的。単一MSCデバイスの基本read/writeとFatFsマウントはpeer/manual確認済み。非準拠デバイス、複数MSC・複数LUN、異常系BOT完全復旧は継続確認 |
-| UVC — USBカメラ | ❌ 現在非対応。Arduino-ESP32のプリコンパイル済みUSB HostスタックにあるConfiguration Descriptor長の制限により、一般的なUVCデバイスを列挙できないため |
+| UVC — USBカメラ | 🟡 一通り実装。列挙時にディスクリプタを解析し、`getVideoStreams()` / `espUsbHostSelectVideoStream()` でフォーマットを選び、`videoStart()` が Probe/Commit を行ってストリーミングを開始、`onVideoFrame()` が1フレーム単位で受け取る。ただし arduino-esp32 3.3.11 のプリコンパイル済みホストスタックにある2つの制限により実在の webcam には届かず、どちらもスケッチ側では回避できない: Configuration Descriptor の256バイト上限と、フルスピードポートでの isochronous IN 約120バイト上限。検証は小さな `EspUsbDevice` カメラ peer に対して行っている |
 
 ### その他の予定機能
 
@@ -169,7 +169,7 @@ interface classが役に立たないデバイスも同じ道筋で扱います�
 - **USB Hostリソース:** ESP32-S3のUSB host channel数は少ないです。複合デバイス、Hub、Audio、MSC、複数シリアルデバイスではすぐ上限に近づきます。`printDeviceInfo()` / `printAllDeviceInfo()` やendpoint/channel診断APIで使用量を確認してください。
 - **USB Hub:** 複数デバイスの確認にはセルフパワーのUSB 2.0 Hubを推奨します。USB 3.x Hubや内部多段Hubは挙動が複雑で、十分に検証できていません。
 - **USB Audio:** 標準Arduino `USBAudioCard`（UAC1）と `EspUsbDevice` peer（UAC2）で入力・出力のpeerテストは通っています。実USBマイク・オーディオIFでの確認はまだ限定的です。またESP32-S3/S2のホストはfull-speed専用のため、full-speed configurationを持たないUAC2デバイスはそもそも列挙できません。Clock Selector / Clock Multiplierや高度なAudio Control Unitは非対応です。
-- **UVC / USBカメラ:** 現在は非対応です。Arduino-ESP32のプリコンパイル済みUSB Hostスタックは`CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256`でビルドされており、Configuration Descriptorが256 bytesを超えるUSBデバイスはクラスドライバを開始する前の列挙で失敗します。実機確認したLogitech C920のDescriptorは1974 bytesでした。この値はスケッチやEspUsbHostのビルドオプションでは変更できず、Arduino-ESP32のプリコンパイルライブラリを生成する設定の制限です。この制限がArduino-ESP32側で解消された場合にUVC対応を改めて検討します。
+- **UVC / USBカメラ:** 一通り実装し実機で検証済みですが、相手は実在の webcam ではありません。Arduino-ESP32のプリコンパイル済みUSB Hostスタックに2つの制限があり、どちらもスケッチやEspUsbHostのビルドオプションでは変更できないためです（いずれもプリコンパイルライブラリを生成する側の設定です）。1つめは `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256` で、Configuration Descriptorが256 bytesを超えるUSBデバイスはクラスドライバを開始する前の列挙で失敗します。実機確認したLogitech C920のDescriptorは1974 bytesでした。2つめはフルスピードポートで、`CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT` によりINに残るのが約120バイトしかなく、カメラの isochronous IN エンドポイントは claim に失敗するか、claim できても何も届きません（ハイスピードポートはこちらの影響を受けません）。上限の引き上げは今後の Arduino-ESP32 リリースで見込まれますが、**それがどのバージョンになるか、また実際に出てくる値が実在の webcam に足りるかは、出てみないと分かりません。** 実測値は [docs/usb-host-advanced.ja.md](docs/usb-host-advanced.ja.md) にあります。
 - **Mass Storage:** FAT利用は実用上単一MSCデバイスを前提にしてください。複数MSC、複数LUN、特殊なblock size、異常系BOT復旧は追加検証が必要です。非準拠デバイスではMSC節の`SYNCHRONIZE CACHE(10)`フォールバックが必要になる場合があります。
 - **活線挿抜:** ファイル、シリアル転送、Audio stream、各クラス操作の途中で抜くと、デバイスによっては失敗やデータ喪失が起こります。
 - **ESP32-P4:** `EspUsbHostConfig::port`でFS/HS OTGを選べますが、P4向け検証は継続中です。特にHS OTGとHubの組み合わせには実用上の制限があります。
