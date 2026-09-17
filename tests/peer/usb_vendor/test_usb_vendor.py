@@ -153,3 +153,47 @@ def test_usb_vendor(dut, peers, run_checks):
         on_demand_read,
         end_rebegin_with_device_open,
     ])
+
+
+def _free_heap(dut):
+    dut.write("h")
+    return int(dut.expect(r"HEAP free=(\d+) largest=\d+\r?\n").group(1))
+
+
+def test_repeated_attach_and_detach_does_not_leak(dut, peers):
+    """The per-device vendor state is allocated and freed; cycling must not drift.
+
+    vendorOpen() allocates it and the device slot reset frees it, so an unbalanced
+    path shows up as free heap falling by about 700 bytes per cycle and nowhere
+    else. One attach/detach cannot show that -- a leak and a one-time allocation
+    look identical -- so this cycles several times and compares the first
+    completed cycle against the last.
+    """
+    device = peers["device"]
+
+    cycles = 5
+    readings = []
+    for _ in range(cycles):
+        dut.write("o")
+        dut.expect(r"VENDOR_OPEN [01]\r?\n")
+
+        device.write("X")
+        device.expect_exact("DEVICE_DETACHED")
+        _poll_state(dut, r"HOST_STATE running devices=0")
+
+        # Measured with the device away, so the reading is of the state that
+        # should have been returned rather than of the state in use.
+        readings.append(_free_heap(dut))
+
+        device.write("Y")
+        device.expect_exact("DEVICE_ATTACHED 1")
+        _poll_state(dut, r"HOST_STATE running devices=1")
+
+    print(f"\nfree heap after each detach: {readings}")
+
+    # The first cycle also pays for anything allocated once, so the comparison
+    # starts at the second.
+    drift = readings[1] - readings[-1]
+    assert drift < 512, (
+        f"free heap fell by {drift} bytes over {cycles - 1} attach/detach cycles "
+        f"({readings}); the per-device vendor state is not being freed")

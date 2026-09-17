@@ -46,6 +46,17 @@ static void stopHost()
 // this rather than by waiting for a connect line that is printed once.
 static bool handleLifecycle(char command)
 {
+    if (command == 'h')
+    {
+        // Free heap, for the allocation cycling test: the per-device audio state
+        // is allocated when the descriptors say the device has an Audio interface
+        // and freed when the device slot resets, so an unbalanced path shows up
+        // here and nowhere else.
+        Serial.printf("HEAP free=%lu largest=%lu\n",
+                      static_cast<unsigned long>(ESP.getFreeHeap()),
+                      static_cast<unsigned long>(ESP.getMaxAllocHeap()));
+        return true;
+    }
     if (command == 'Q')
     {
         Serial.printf("HOST_STATE %s devices=%u\n",

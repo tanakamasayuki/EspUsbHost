@@ -193,3 +193,45 @@ def test_usb_audio_uac2_bidirectional(dut, peers):
     dut.expect_exact("AUDIO_OUT_START 1")
     dut.write("i")
     dut.expect_exact("AUDIO_IN_START 1")
+
+
+def _free_heap(dut):
+    dut.write("h")
+    return int(dut.expect(r"HEAP free=(\d+) largest=\d+\r?\n").group(1))
+
+
+def test_repeated_attach_and_detach_does_not_leak(dut, peers):
+    """The per-device audio state is allocated and freed; cycling must not drift.
+
+    It is allocated when the device's descriptors are parsed and freed when the
+    device slot is reset, so an unbalanced path shows up as free heap falling by
+    about 740 bytes per cycle and nowhere else. One attach/detach cannot show that
+    -- a leak and a one-time allocation look identical -- so this cycles several
+    times and compares the first completed cycle against the last.
+    """
+    device = peers["device"]
+    _discard_previous_output(dut)
+
+    cycles = 5
+    readings = []
+    for _ in range(cycles):
+        device.write("X")
+        device.expect_exact("AUDIO_DEVICE_DETACHED")
+        _poll_state(dut, r"HOST_STATE running devices=0")
+
+        # Measured with the device away, so the reading is of the state that
+        # should have been returned rather than of the state in use.
+        readings.append(_free_heap(dut))
+
+        device.write("Y")
+        device.expect_exact("AUDIO_DEVICE_ATTACHED 1")
+        _poll_state(dut, r"HOST_STATE running devices=1")
+
+    print(f"\nfree heap after each detach: {readings}")
+
+    # The first cycle also pays for anything allocated once, so the comparison
+    # starts at the second.
+    drift = readings[1] - readings[-1]
+    assert drift < 512, (
+        f"free heap fell by {drift} bytes over {cycles - 1} attach/detach cycles "
+        f"({readings}); the per-device audio state is not being freed")
