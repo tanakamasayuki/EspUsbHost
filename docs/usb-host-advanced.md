@@ -417,6 +417,40 @@ A full-speed port only has 256 lines in total, so **no split makes a 1024-byte e
 
 The IN direction rarely needs any of this: the high-speed default leaves `(640 - 2) * 4 = 2552` bytes for IN, and even `ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT` keeps 1032. **A 1024-byte interrupt or bulk IN endpoint opens on a high-speed port without repartitioning** — every IN endpoint shares the one rx FIFO, so there is no separate periodic-IN budget to run out of. If a large periodic IN enumerates and claims but then does not stream, look at the submit rate rather than the FIFO: a 1024-byte interrupt IN at `bInterval=1` wants a transfer every 125 µs, and the client task's turnaround ([1.3](#13-in-transfers-stay-submitted)) is what has to keep up with that.
 
+### 5.3 Isochronous IN on a full-speed port
+
+A **full-speed** port has 256 lines in total, and arduino-esp32 builds the host stack with `CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT`, which spends most of them on the two OUT areas. What is left for IN works out to about 120 bytes.
+
+That limit is invisible almost everywhere, because on a full-speed bus **every endpoint except isochronous is capped at 64 bytes by the USB specification itself**. Only isochronous can ask for more (up to 1023), so only isochronous ever meets it. It is why a USB Audio microphone works — a 48 kHz mono 16-bit capture endpoint is 98 bytes — and why a camera does not.
+
+Measured on an ESP32-S3 host against an `EspUsbDevice` UVC camera, varying only the camera's isochronous packet size:
+
+| Packet size | Result |
+|-------------|--------|
+| 96, 112, 120 bytes | Streams; every packet carries data |
+| 128 bytes | `usb_host_interface_claim()` succeeds, then **every packet returns `USB_TRANSFER_STATUS_ERROR`** and no image data ever arrives |
+| 256, 512 bytes | `usb_host_interface_claim()` fails with `ESP_ERR_NOT_SUPPORTED` |
+
+The 128-byte row is the trap, and it is worth stating as a rule: **a successful `usb_host_interface_claim()` does not mean the endpoint can be used.** The claim checks a coarse per-transfer-type limit; the FIFO decides what can actually be received, and the difference only shows up afterwards as a stream that produces nothing. `EspUsbHostVideoStats::packetErrors` counts it, and the library logs once per stream when every packet of a transfer fails, so the log says why nothing is arriving instead of leaving a silent stream.
+
+The device side of a pairing has the same shape of limit, which is worth knowing before concluding the host is at fault. An isochronous IN endpoint is allocated up front on the device too, and its allocation is not refused when it does not fit — so a camera that outgrows the transmit FIFO enumerates, binds a host driver, reports its frames as sent, and transmits nothing. The sibling `EspUsbDevice` library checks the arithmetic itself and refuses such a configuration at `begin()` with `ESP_ERR_NO_MEM` rather than letting it enumerate (`transmitFifoFits()`):
+
+```
+available = fifoDepth - 2 * endpointCount          ESP32-S2/S3: 256 - 14 = 242 words
+EP0 IN    = ceil(64 / 4)                                       =  16 words
+overhead  = 14 + 2 * (largestOutPacket / 4 + 1) + 2 * endpointCount
+                                                               =  62 words  (64-byte OUT)
+left for everything else                                       = 164 words = 656 bytes
+```
+
+Both ends can therefore look correctly configured while no video crosses the cable, and the two failures are told apart by which side reports something: **the host counts `packetErrors`, the device refuses to start.** The asymmetry is worth remembering — one has to be noticed, the other announces itself.
+
+**These are two different FIFOs and their numbers must not be mixed up.** The 2552 bytes above is the *host* controller's receive FIFO, shared by every IN endpoint of every attached device. The 656 bytes here is the *device* controller's transmit FIFO on an S2/S3, shared by its own endpoints; the same formula gives about 2688 bytes on an ESP32-P4 high-speed device, but only once a 512-byte OUT endpoint is assumed, since `largestOutPacket` is part of the overhead term.
+
+On **arduino-esp32 3.3.11 this cannot be repartitioned**: `usb_host_config_t::fifo_settings_custom` arrived in ESP-IDF 5.5 and that core is built on 5.4, so `EspUsbHostConfig::fifo` is ignored there and the Kconfig bias in the precompiled libraries is the only split available. A core built on ESP-IDF 5.5 or later can raise `rxFifoLines` instead.
+
+A **high-speed** port should not be in this situation: 1024 lines in total and a default that leaves 2552 bytes for IN, which is more than any UVC alternate setting asks for. That follows from the FIFO arithmetic above rather than from a measurement — the figures in this section were taken on a full-speed ESP32-S3 pair, and UVC has not yet been run on the ESP32-P4 high-speed port.
+
 ---
 
 ## 6. Errors and recovery

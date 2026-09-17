@@ -142,6 +142,20 @@ uv run --env-file .env pytest unit/
   wildcard、幅やレートが異なるalt間のランク付け、指定レートがスコア優先より優先される
   こと、連続range、`startable == false`のフォーマット専用altが除外されること)。
 
+- `video_uvc`: `src/EspUsbHost.h` のUSB Video descriptor / payload header /
+  Probe Commitデコーダを検証します。format GUID(先頭のFourCCと、固定suffixが
+  一致しないGUIDを4文字として解釈せずuncompressed扱いにすること)、100 ns単位の
+  frame intervalとフレームレートの相互変換(24 fpsに必要な四捨五入を含む)、
+  `wMaxPacketSize` のbit 12:11にあるisochronous high-bandwidth multiplier
+  (予約値`11b`を含む)、離散形と連続形の両方のFormat / Frame descriptor、および
+  切り詰められた・自己矛盾したdescriptorが拒否されること(`bLength` が覆う範囲を
+  超えるinterval数を主張する`bFrameIntervalType`、descriptorに収まらない連続range、
+  自身のフラグが主張するPTS / SCRを`bHeaderLength` が覆っていないpayload header)を
+  対象とします。あわせてinterval照合と`espUsbHostSelectVideoStream()` も検証します
+  (完全一致と wildcard、無指定時に最大フレームが選ばれること、カメラが持たない
+  サイズ・レート・フォーマットが代替されずに拒否されること。これが、確保した
+  バッファより大きいフレームを呼び出し側が受け取る事態を防ぎます)。
+
 ## 仕組み
 
 `dl1xx`・`ax206`・`felica_idm`・`usbtmc`・`dp100`・`escpos`のヘッダと`src/EspUsbHostCcidAtr.h`・

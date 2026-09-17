@@ -126,7 +126,7 @@ USBには標準クラスがあり、クラスコードが同じなら同じ手�
 | Mass Storage | `0x08` | ライブラリAPI（[Storage](../examples/Storage/)） |
 | Hub | `0x09` | ライブラリAPI |
 | Smart Card (CCID) | `0x0b` | ライブラリAPI（[Ccid](../examples/Ccid/)） |
-| Video (UVC) | `0x0e` | **非対応**（[3.5](#35-コントロール転送256バイトの壁)） |
+| Video (UVC) | `0x0e` | ライブラリAPI（`getVideoStreams()` / `videoStart()` / `onVideoFrame()`）。ただし**コア側2つの制限を通れる小さなカメラに限る**（[3.5](#35-コントロール転送256バイトの壁)）ため、実在の製品はほぼ対象外 |
 | Application Specific (USBTMC, DFU) | `0xfe` | サンプル（[EspUsbHostUsbtmcScpi](../examples/Vendor/EspUsbHostUsbtmcScpi/)） |
 | Vendor Specific | `0xff` | ライブラリAPI（[Vendor](../examples/Vendor/)） |
 
@@ -247,7 +247,7 @@ Claiming interface error: ESP_ERR_NOT_SUPPORTED
 
 Arduino-ESP32のビルド済みホストスタックは `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=256` でビルドされています。1回のコントロール転送は、8バイトのsetupパケットを含めて256バイトまでです。ここから2つの帰結があります。
 
-1. **コンフィグレーションディスクリプタ全体が256バイトを超えるデバイスは列挙に失敗します。** クラスドライバが動く以前の問題です。USBカメラ（UVC）が使えないのはこれが理由で、たとえばLogitech C920のコンフィグレーションディスクリプタは1,974バイトあります。これはスケッチやライブラリのオプションでは回避できません。Arduino-ESP32側がこの値を上げれば状況は変わります。
+1. **コンフィグレーションディスクリプタ全体が256バイトを超えるデバイスは列挙に失敗します。** クラスドライバが動く以前の問題です。USBカメラ（UVC）が使えないのはこれが理由で、たとえばLogitech C920のコンフィグレーションディスクリプタは1,974バイトあります。これはスケッチやライブラリのオプションでは回避できません。Arduino-ESP32側がこの値を上げれば状況は変わります。なお本ライブラリは UVC を一通り実装していますが（ディスクリプタ、Probe/Commit、isochronous ストリーミング）、対象はこの壁の下に収まるカメラに限られ、実際には製品ではなく専用に作ったデバイスということになります。フルスピードポートではもう1つ壁があり、ホストの periodic IN FIFO により isochronous IN のパケットが約120バイトに制限されます。カメラが要求する量よりはるかに小さい値です。いずれも [usb-host-advanced.ja.md](usb-host-advanced.ja.md#53-フルスピードポートの-isochronous-in) に実測値があります。
 2. **1回のGET_DESCRIPTORで読めるのは248バイトまで**です。ディスクリプタの生バイトを読むツールはこの範囲で打ち切られます。
 
 ### 3.6 ESP32-S2のメモリ

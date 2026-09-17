@@ -171,6 +171,24 @@ headers directly, so a new warning in them fails here before it reaches a board.
   a pinned rate beating the scoring preference, continuous ranges, and
   format-only (`startable == false`) alternates being skipped.
 
+- `video_uvc`: verifies the USB Video descriptor, payload-header and
+  Probe/Commit decoders in `src/EspUsbHost.h`: the format GUID (the FourCC
+  prefix, and a GUID whose fixed suffix does not match being reported as
+  uncompressed rather than decoded as four characters), the 100 ns frame
+  interval converted to and from a frame rate with the rounding that 24 fps
+  needs, the isochronous high-bandwidth multiplier in bits 12:11 of
+  `wMaxPacketSize` including the reserved `11b` encoding, Format and Frame
+  descriptors in both their discrete and continuous forms, and every way a
+  truncated or self-contradicting descriptor is refused -- a
+  `bFrameIntervalType` claiming more intervals than `bLength` covers, a
+  continuous range the descriptor is too short to hold, a payload header whose
+  `bHeaderLength` does not cover the PTS and SCR its own flags claim. It also
+  covers the interval matching and `espUsbHostSelectVideoStream()`: exact and
+  wildcard requests, the largest frame winning an unconstrained one, and a size,
+  rate or format the camera does not offer being refused rather than substituted
+  -- which is what stops a caller receiving a frame larger than the buffer it
+  sized.
+
 ## How it works
 
 The `dl1xx`, `ax206`, `felica_idm`, `usbtmc`, `dp100` and `escpos` headers,
@@ -184,7 +202,9 @@ directly and need no extraction step.
 extracts the audio constants, structs and `inline` decoders it needs into
 `output/espusbhost_audio_real.h` the same way the keymap test does, and
 `midi_cable` extracts the MIDI constants, `EspUsbHostMidiPortInfo` and the
-cable-count decoder into `output/espusbhost_midi_real.h`.
+cable-count decoder into `output/espusbhost_midi_real.h`, and `video_uvc`
+extracts the video constants, structs and decoders into
+`output/espusbhost_video_real.h`.
 
 `src/EspUsbHostHid.cpp` includes `Arduino.h` and the ESP USB host stack, so it
 cannot be compiled on the host directly. To test the real conversion code
