@@ -11007,25 +11007,33 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
     submitSetInterface(device, device.videoStreamingInterface, 0);
   }
 
+  // The claim is released here only while the device is still there. On a
+  // disconnect it is deliberately left in device.interfaces[] for
+  // finalizeDisconnectedDevice() to release, because a claim outlives the device
+  // it was made against: the client still holds it, usb_host_device_close()
+  // refuses while one is held, and that close is retried from the client loop.
+  // Dropping the interface from the list without releasing it made the close fail
+  // forever -- the address stayed in use, and a camera that was unplugged during a
+  // stream was never enumerated again until the host itself restarted.
   if (devicePresent && clientHandle_ && device.handle)
   {
     usb_host_interface_release(clientHandle_, device.handle, device.videoStreamingInterface);
-  }
-  for (uint8_t i = 0; i < device.interfaceCount; i++)
-  {
-    if (device.interfaces[i] == device.videoStreamingInterface)
+    for (uint8_t i = 0; i < device.interfaceCount; i++)
     {
-      for (uint8_t j = i; j + 1 < device.interfaceCount; j++)
+      if (device.interfaces[i] == device.videoStreamingInterface)
       {
-        device.interfaces[j] = device.interfaces[j + 1];
+        for (uint8_t j = i; j + 1 < device.interfaceCount; j++)
+        {
+          device.interfaces[j] = device.interfaces[j + 1];
+        }
+        device.interfaceCount--;
+        break;
       }
-      device.interfaceCount--;
-      break;
     }
-  }
-  if (device.endpointChannelCount > 0)
-  {
-    device.endpointChannelCount--;
+    if (device.endpointChannelCount > 0)
+    {
+      device.endpointChannelCount--;
+    }
   }
 
   free(device.videoFrameBuffer);
