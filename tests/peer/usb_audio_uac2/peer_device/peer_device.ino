@@ -19,6 +19,19 @@ static bool receivedAudioReported = false;
 static int16_t micSamples[48];
 static int16_t micValue = 0;
 
+// Built here rather than inline in setup() so the detach/attach commands can
+// bring the device back up with exactly the same descriptors.
+static bool startDevice()
+{
+    EspUsbDeviceConfig config;
+    config.vid = 0x303a;
+    config.pid = 0x4024;
+    config.manufacturer = "EspUsb";
+    config.product = "EspUsbDevice UAC2 Headset";
+    config.serialNumber = "espusb-uac2";
+    return device.begin(config);
+}
+
 static void fillMicSamples()
 {
     for (size_t i = 0; i < sizeof(micSamples) / sizeof(micSamples[0]); i++)
@@ -36,14 +49,7 @@ void setup()
     playback.addFormat({48000, 1, 2, 16});
     capture.addFormat({48000, 1, 2, 16});
 
-    EspUsbDeviceConfig config;
-    config.vid = 0x303a;
-    config.pid = 0x4024;
-    config.manufacturer = "EspUsb";
-    config.product = "EspUsbDevice UAC2 Headset";
-    config.serialNumber = "espusb-uac2";
-
-    if (!device.begin(config))
+    if (!startDevice())
     {
         Serial.printf("USB_BEGIN_FAILED %s\n", device.lastErrorName());
         return;
@@ -83,7 +89,18 @@ void loop()
     if (Serial.available() > 0)
     {
         const char command = Serial.read();
-        if (command == 'r')
+        if (command == 'X')
+        {
+            // The host sees an ordinary unplug; 'Y' is the plug back in. Together
+            // they let a host-side test cycle a device without touching the cable.
+            device.end();
+            Serial.println("AUDIO_DEVICE_DETACHED");
+        }
+        else if (command == 'Y')
+        {
+            Serial.printf("AUDIO_DEVICE_ATTACHED %u\n", startDevice() ? 1 : 0);
+        }
+        else if (command == 'r')
         {
             receivedAudioBytes = 0;
             receivedAudioReported = false;

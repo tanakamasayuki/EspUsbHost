@@ -6,6 +6,21 @@ EspUsbDeviceVendor Vendor(device);
 static volatile uint32_t rxCount = 0;
 static volatile uint32_t controlCount = 0;
 
+// Built here rather than inline in setup() so the detach/attach commands can
+// bring the device back up with exactly the same descriptors.
+static bool startDevice()
+{
+  EspUsbDeviceConfig config;
+  config.vid = 0x303a;
+  config.pid = 0x4019;
+  config.manufacturer = "EspUsbDevice";
+  config.product = "EspUsbDevice USB Vendor";
+  config.serialNumber = "espusb-usb-vendor";
+  config.webusbEnabled = true;
+  config.webusbUrl = "example.com/espusbdevice";
+  return device.begin(config);
+}
+
 static void processVendorRx()
 {
   size_t available = Vendor.available();
@@ -48,15 +63,7 @@ void setup()
                             return false;
                           });
 
-  EspUsbDeviceConfig config;
-  config.vid = 0x303a;
-  config.pid = 0x4019;
-  config.manufacturer = "EspUsbDevice";
-  config.product = "EspUsbDevice USB Vendor";
-  config.serialNumber = "espusb-usb-vendor";
-  config.webusbEnabled = true;
-  config.webusbUrl = "example.com/espusbdevice";
-  Serial.printf("DEVICE_BEGIN %u\n", device.begin(config) ? 1 : 0);
+  Serial.printf("DEVICE_BEGIN %u\n", startDevice() ? 1 : 0);
 }
 
 void loop()
@@ -68,6 +75,17 @@ void loop()
     if (command == '?')
     {
       Serial.println("DEVICE_READY");
+    }
+    else if (command == 'X')
+    {
+      // The host sees an ordinary unplug; 'Y' is the plug back in. Together they
+      // let a host-side test cycle a device without anyone touching the cable.
+      device.end();
+      Serial.println("DEVICE_DETACHED");
+    }
+    else if (command == 'Y')
+    {
+      Serial.printf("DEVICE_ATTACHED %u\n", startDevice() ? 1 : 0);
     }
     else if (command == 's')
     {
