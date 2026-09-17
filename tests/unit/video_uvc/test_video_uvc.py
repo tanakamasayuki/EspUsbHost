@@ -34,6 +34,7 @@ FUNCTIONS = [
     "inline const char *espUsbHostVideoFormatName(",
     "inline uint32_t espUsbHostVideoFrameIntervalToFps(",
     "inline uint32_t espUsbHostVideoFpsToFrameInterval(",
+    "inline uint8_t espUsbHostVideoIsocTransactions(",
     "inline uint32_t espUsbHostVideoIsocPayloadSize(",
     "inline bool espUsbHostVideoDecodeFormatDescriptor(",
     "inline bool espUsbHostVideoDecodeFrameDescriptor(",

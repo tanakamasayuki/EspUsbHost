@@ -198,6 +198,31 @@ void testIsocPayloadSize()
   checkEqual(espUsbHostVideoIsocPayloadSize(0x1BFC), 1020, "reserved multiplier");
 }
 
+void testIsocTransactions()
+{
+  // The transaction count is decoded separately from the payload size because a
+  // host controller that cannot run more than one transaction per interval has to
+  // know which alternates it can use in full. Getting this wrong is silent: the
+  // camera sends three transactions, the host takes one, and frames arrive short
+  // with nothing reporting an error.
+  checkEqual(espUsbHostVideoIsocTransactions(0x0200), 1, "single transaction");
+  checkEqual(espUsbHostVideoIsocTransactions(0x0C00), 2, "two transactions");
+  checkEqual(espUsbHostVideoIsocTransactions(0x13FC), 3, "three transactions");
+  checkEqual(espUsbHostVideoIsocTransactions(0x1BFC), 1, "reserved reads as one");
+  checkEqual(espUsbHostVideoIsocTransactions(0x0000), 1, "unused endpoint");
+
+  // The two agree: payload size is the packet size times the transaction count,
+  // for every encoding including the reserved one.
+  const uint16_t encodings[] = {0x0200, 0x0C00, 0x13FC, 0x1BFC, 0x0400, 0x0800};
+  for (uint16_t encoding : encodings)
+  {
+    const uint32_t packet = encoding & 0x07FF;
+    checkEqual(espUsbHostVideoIsocPayloadSize(encoding),
+               packet * espUsbHostVideoIsocTransactions(encoding),
+               "payload size is packet size times transactions");
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Format and frame descriptor decoding
 // ---------------------------------------------------------------------------
@@ -637,6 +662,7 @@ int main()
   testFormatGuid();
   testFrameIntervalConversion();
   testIsocPayloadSize();
+  testIsocTransactions();
   testDecodeMjpegFormat();
   testDecodeUncompressedFormat();
   testDecodeFormatRejects();

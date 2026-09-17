@@ -164,6 +164,29 @@ static constexpr size_t ESP_USB_HOST_MAX_VIDEO_ALTERNATES = 12;
 // while the host is between submits. Isochronous packets are never retried, so
 // a transfer that is too short loses image data outright; 16 covers 2 ms at
 // full speed and 2 ms at high speed.
+// Whether the host controller can run a high-bandwidth isochronous endpoint --
+// two or three transactions in one service interval, which is how a real webcam
+// asks for more than 1024 bytes per microframe.
+//
+// Zero on arduino-esp32 3.3.11 (ESP-IDF 5.4), and that is a missing feature
+// rather than a setting. The DWC2 register field exists (HCCHAR.ec, the Multi
+// Count), but `usb_dwc_hal_ep_char_t` has nowhere to carry it -- it holds
+// `mps: 11` and nothing else -- and no LL helper writes it, so it keeps its reset
+// value of one transaction per interval.
+//
+// It matters because getting it wrong is silent. A camera on such an alternate
+// sends three transactions per interval and the host takes one, so frames arrive
+// short with no error reported anywhere. Rather than let that happen, the host
+// counts only what it can actually take (see VideoAlternateState::usablePayload)
+// and prefers an alternate it can use in full.
+//
+// To re-check on a newer core: look for a multiplier field in
+// `usb_dwc_hal_ep_char_t` and for an LL setter that writes HCCHAR's `ec`. Define
+// this to 1 in the sketch's build_opt.h once both are there.
+#ifndef ESP_USB_HOST_ISOC_HIGH_BANDWIDTH_SUPPORTED
+#define ESP_USB_HOST_ISOC_HIGH_BANDWIDTH_SUPPORTED 0
+#endif
+
 static constexpr int ESP_USB_HOST_VIDEO_ISOC_PACKETS = 8;
 // Streaming transfers kept in flight at once. One is not enough: an isochronous
 // packet that arrives while no transfer is queued is gone, and with a single
@@ -1926,6 +1949,20 @@ inline uint32_t espUsbHostVideoFpsToFrameInterval(uint32_t fps)
 // than 1024 bytes. Reading wMaxPacketSize directly understates such an alternate
 // by up to 3x, which then picks an alternate too small for the camera's
 // dwMaxPayloadTransferSize and produces a stream that never completes a frame.
+// Transactions per service interval an isochronous endpoint asks for: 1, 2 or 3.
+// Bits 12:11 of wMaxPacketSize hold one less than that, and 11b is reserved.
+inline uint8_t espUsbHostVideoIsocTransactions(uint16_t wMaxPacketSize)
+{
+  const uint8_t additional = static_cast<uint8_t>((wMaxPacketSize >> 11) & 0x03u);
+  // 11b is reserved. Claiming four transactions for it would reserve bandwidth
+  // the device never offered, so it is read as a single transaction.
+  return additional > 2 ? 1u : static_cast<uint8_t>(additional + 1u);
+}
+
+// Bytes an isochronous endpoint can move per service interval, as the descriptor
+// declares it. This is what the device offers; what this host can take is
+// VideoAlternateState::usablePayload, which differs when the controller cannot
+// run more than one transaction per interval.
 inline uint32_t espUsbHostVideoIsocPayloadSize(uint16_t wMaxPacketSize)
 {
   const uint32_t size = wMaxPacketSize & 0x07FFu;
@@ -3252,7 +3289,17 @@ private:
     uint8_t interfaceNumber = 0xff;
     uint8_t alternate = 0;
     uint8_t endpointAddress = 0;
+    // What the descriptor offers per service interval, transactions multiplied
+    // out. Reported as-is so a dump shows what the camera asked for.
     uint32_t payloadSize = 0;
+    // What this host can actually take per interval. Equal to payloadSize unless
+    // the alternate is high-bandwidth and the controller cannot run more than one
+    // transaction, in which case it is the bare packet size. Selection and
+    // transfer sizing use this one; using payloadSize there would size transfers
+    // for bandwidth that never arrives.
+    uint32_t usablePayload = 0;
+    // 1, 2 or 3.
+    uint8_t transactions = 1;
     uint8_t interval = 0;
     bool isochronous = true;
   };
@@ -3603,6 +3650,10 @@ private:
     uint8_t videoTransferCount = 0;
     uint8_t videoActiveAlternate = 0;
     uint8_t videoActiveEndpoint = 0;
+    // Bytes requested per isochronous service interval on the active stream. Kept
+    // separately from the stream's maxPayloadSize, which reports what the camera
+    // offered rather than what this host asked for.
+    uint32_t videoActivePacketBytes = 0;
     EspUsbHostVideoStreamInfo videoActiveStream;
     EspUsbHostVideoProbeControl videoCommit;
     // Frame being assembled. The buffer is allocated by videoStart() from the

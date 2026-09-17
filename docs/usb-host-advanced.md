@@ -461,6 +461,26 @@ Every frame matched its expected length and contents, with one failed isochronou
 
 The larger frames being *faster* is worth noticing: per-frame overhead is small, and the limit is the packet rate rather than anything per-frame.
 
+### 5.4 High-bandwidth isochronous is not supported by the driver
+
+8.19 MB/s is the ceiling for a *standard* isochronous endpoint — one transaction per 125 µs microframe of at most 1024 bytes. USB 2.0 lets a periodic endpoint ask for two or three transactions per interval instead, up to 24.6 MB/s, by putting one less than that in bits 12:11 of `wMaxPacketSize`. **Real webcams use this**, and offer a ladder of alternate settings so a host can reserve just enough.
+
+ESP-IDF 5.4 cannot run one. The evidence is three layers deep and none of it is a setting:
+
+| Layer | State |
+|-------|-------|
+| `HCCHAR.ec` (Multi Count, bits 21:20) | Present in the register definition |
+| `usb_dwc_hal_ep_char_t` | Carries `mps: 11` and nothing else — no field for the count |
+| LL helpers | Setters exist for `mps`, `epnum`, `epdir`, `eptype`, `devaddr`; **none writes `ec`** |
+
+With no field to carry it, the channel keeps the reset value of one transaction per interval.
+
+**Getting this wrong is silent**, which is why the library models it rather than ignoring it. A camera on a three-transaction alternate sends 3072 bytes per interval and the host takes 1024; the payloads are truncated mid-stream, frames arrive short, and nothing reports an error — no stall, no failed packet, no overflow. So each alternate is recorded twice: `payloadSize` is what the descriptor offers, and `usablePayload` is what this controller can take. Selection and transfer sizing use the second, so an alternate that needs a multiplier is ranked at its bare packet size and a smaller one that can be used in full wins. When only a high-bandwidth alternate covers the negotiated payload, the library says so in the log rather than streaming short frames quietly.
+
+`ESP_USB_HOST_ISOC_HIGH_BANDWIDTH_SUPPORTED` is the single switch. It defaults to 0; define it to 1 in a sketch's `build_opt.h` once the core gains support, and `usablePayload` becomes `payloadSize` everywhere. **To re-check on a newer core**, look for a multiplier field in `usb_dwc_hal_ep_char_t` and for an LL setter that writes HCCHAR's `ec`. Both have to be there.
+
+Until then, the practical reading is that this host can serve a camera asking for up to 1024 bytes per microframe — enough for 1080p30 MJPEG at 3–6 MB/s, not enough for the top alternate of a webcam that offers one.
+
 **What is slow in the frame callback comes straight off that figure.** The callback runs on the USB client task, which is also the task that resubmits the streaming transfers, and four transfers of eight packets is only 4 ms of queue. An earlier version of this measurement verified all 128 KB of each frame inside the callback: the 128 KB row then came out at 3.47 MB/s — half the 32 KB row — with frames arriving about 6 KB short, because the microframes that landed while the callback ran had nowhere to go. Nothing reported an error; the frames simply had less in them. Copy the frame and return.
 
 ---
