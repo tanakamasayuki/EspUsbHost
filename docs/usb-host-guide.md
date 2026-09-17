@@ -316,6 +316,7 @@ Once you know the class, flash the matching example as-is (the [table in 1.7](#1
 - MSC → [`EspUsbHostMSCFatList`](../examples/Storage/EspUsbHostMSCFatList/)
 - CCID → [`EspUsbHostCcidReader`](../examples/Ccid/EspUsbHostCcidReader/)
 - MIDI / Audio → [MIDI](../examples/MIDI/) / [Audio](../examples/Audio/)
+- UVC → [`EspUsbHostVideoCamera`](../examples/Video/EspUsbHostVideoCamera/), for a camera small enough to clear the limits in [3.5](#35-the-256-byte-control-transfer-wall)
 
 ### Step 4. For HID, read the report descriptor
 

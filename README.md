@@ -125,7 +125,7 @@ class-specific in the library. The next section lists the same ground by maturit
 | Mass Storage (BOT/SCSI) | `0x08` | Library API — block I/O and FatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
 | Hub | `0x09` | Library API — detection, topology, per-port power (PPPS) | [`examples/Info/`](examples/Info/) |
 | Smart Card (CCID) | `0x0b` | Library API — ATR, card type, APDU exchange, escape commands | [`examples/Ccid/`](examples/Ccid/) |
-| Video (UVC) | `0x0e` | Library API — subject to two core limits, see below | — |
+| Video (UVC) | `0x0e` | Library API — subject to two core limits, see below | [`examples/Video/`](examples/Video/) |
 | CDC-NCM / CDC-ECM Ethernet | `0x02` subclasses | Library API — raw frames or an lwIP `esp_netif` | [`examples/UsbNetwork/`](examples/UsbNetwork/) |
 | Application Specific (USBTMC) | `0xfe` | Example — USBTMC/USB488 + SCPI over the vendor bulk/control API | [`examples/Vendor/EspUsbHostUsbtmcScpi/`](examples/Vendor/EspUsbHostUsbtmcScpi/) |
 | Vendor-specific | `0xff` | Library API — explicit interface claim, bulk IN/OUT, EP0 requests | [`examples/Vendor/`](examples/Vendor/) |
@@ -374,6 +374,7 @@ void loop() {
 | Sketch | Description |
 |--------|-------------|
 | [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | Open a CCID smart card reader, report card insertion/removal, read the ATR and card type, and send the PC/SC Get UID APDU |
+| [EspUsbHostVideoCamera](examples/Video/EspUsbHostVideoCamera/) | Receive frames from a UVC camera: list its formats, negotiate Probe/Commit, stream, and hand each frame to `loop()`. Needs a camera small enough to clear the two core limits — an ordinary webcam does not enumerate |
 | [EspUsbHostCcidFelicaIdm](examples/Ccid/EspUsbHostCcidFelicaIdm/) | Read a FeliCa IDm for a chosen System Code on a Sony RC-S300: take the RF field over with a transparent session and send the FeliCa Polling frame, which is the only way to reach one system rather than whatever the reader's own wildcard poll found |
 
 ### Network
