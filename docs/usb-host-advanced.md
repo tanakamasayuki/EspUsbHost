@@ -304,16 +304,40 @@ The measurements come from [`vendor_bulk_throughput`](../tests/manual/vendor_bul
 
 Bulk IN has the same two dimensions and its own sweep, [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/): the continuous read at one packet per transfer, then the read queue over transfer sizes and depths.
 
-| Read shape | Measured (bulk IN, HS) |
-|---|---|
-| Continuous, one 512 B packet per transfer | **6.10 MB/s** |
-| Queue, depth 1 × 32 KB | 14.77 MB/s |
-| Queue, depth 2 × 2 KB | 18.74 MB/s |
-| **Queue, depth 4 × 32 KB** | **24.45 MB/s** |
+| Read shape | Buffered device | Direct device |
+|---|---:|---:|
+| Continuous, one 512 B packet per transfer | 8.0 MB/s | 8.0 MB/s |
+| Queue, depth 1 × 32 KB | 27.6 MB/s | **42.5 MB/s** |
+| Queue, depth 2 × 2 KB | 28.5 MB/s | 38.8 MB/s |
+| **Queue, depth 2–4 × 8–32 KB** | 28.5 MB/s | **41.9 MB/s** |
 
-ESP32-P4 host reading an ESP32-P4 device (EspUsbDevice 2.3.0, `CFG_TUD_VENDOR_TX_BUFSIZE` / `_TX_EPSIZE` 8192, handing over `writeCapacity()` per write and flushing once per stream); wch-protocols experiment E089, 2026-09-13. **Both dimensions are needed here**: transfer size alone is 2.4x, and the queue on top of it 4.0x. Unlike the OUT side, where the host decides when to put a packet on the bus, on IN it only decides how often to ask — so the turnaround between transfers is time the device cannot use.
+ESP32-P4 host (EspUsbHost 2.9.4) reading an ESP32-P4 device (EspUsbDevice 2.5.0),
+both released, over an OTG HS cable;
+[`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/),
+2026-09-17. The two device columns are the same sweep against the same host: the
+first has the device copy each block through the vendor class transmit FIFO, the
+second has it hand the block to the controller directly
+(`EspUsbDeviceVendor::writeDirect()`, selected by `CFG_TUD_VENDOR_TXRX_BUFFERED=0`).
 
-That 24.45 MB/s is also where the *device* saturates: the same device read by a PC's xHCI reaches 23.88 MB/s (E088). Two unrelated host controllers stopping at the same figure is what identifies the limit as the device's own supply rather than either host's scheduling.
+**Both dimensions are needed on this side**: one packet per transfer is worth 8
+MB/s whatever else is done, and `depth` 1 starves on every completion however
+large the transfer. Unlike the OUT side, where the host decides when to put a
+packet on the bus, on IN it only decides how often to ask — so the turnaround
+between transfers is time the device cannot use.
+
+**Which side is the limit is readable from the same table.** Against the buffered
+device every transfer comes back short and `per_transfer` sits at 16 KB against a
+32 KB request: the device is deciding how fast bytes appear, and no depth or
+transfer size on this side changes it. Against the direct device nothing is short,
+`per_transfer` equals what was asked for, `starved` is 0 from `depth` 2, and more
+depth or size buys nothing — that flat 42 MB/s is this host, about 80% of the
+53 MB/s the bus allows. **Read `short` and `per_transfer` before concluding
+anything about the host from a throughput number.**
+
+An earlier revision of this table reported 24.45 MB/s, measured against
+EspUsbDevice 2.3.0, whose bulk IN endpoint had a one-packet transmit FIFO. The
+two-packet FIFO in EspUsbDevice 2.4.0 and the direct path in 2.5.0 both moved the
+*device's* supply; neither changed this host's scheduling.
 
 Do not assume the OUT numbers transfer to IN. On OUT the host decides when to put a packet on the bus; on IN it decides only how often to ask, and the device decides what comes back — which is why `per_transfer` in that table is read alongside the MB/s rather than after it.
 

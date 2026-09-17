@@ -17,7 +17,16 @@ EspUsbDeviceVendor Vendor(device);
 // not the host under test -- the thing that limits throughput. Measured against
 // an ESP32-P4 host, a fixed 512 held the link to 8.5 MB/s where the FIFO-sized
 // chunk reaches 24.45 MB/s.
-static constexpr size_t CHUNK_MAX = 8192;
+// Overridable so a rate measurement can hand over bigger blocks without that
+// choice leaking into the correctness pairing that shares this sketch. Raising
+// it is only useful together with a larger CFG_TUD_VENDOR_TX_BUFSIZE, and both
+// belong in the build_opt.h of the sketch that wants them -- build_opt.h applies
+// to every profile of the sketch it sits next to, which is why the measurement
+// gets its own directory rather than flags here.
+#ifndef PEER_DEVICE_CHUNK_MAX
+#define PEER_DEVICE_CHUNK_MAX 8192
+#endif
+static constexpr size_t CHUNK_MAX = PEER_DEVICE_CHUNK_MAX;
 static size_t chunkSize = 512;
 
 static volatile uint32_t rxCount = 0;

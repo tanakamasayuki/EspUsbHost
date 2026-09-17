@@ -303,16 +303,37 @@ HSの1024バイトinterrupt OUTがFSポートで開けないのは、そもそ�
 
 bulk IN にも同じ2軸があり、掃引は [`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/) です。1パケット/転送の continuous read から始め、read queue の転送サイズと depth を振ります。
 
-| 受け方 | 実測（bulk IN、HS） |
-|---|---|
-| continuous、512 B 1パケット/転送 | **6.10 MB/s** |
-| queue、depth 1 × 32 KB | 14.77 MB/s |
-| queue、depth 2 × 2 KB | 18.74 MB/s |
-| **queue、depth 4 × 32 KB** | **24.45 MB/s** |
+| 受け方 | buffered device | direct device |
+|---|---:|---:|
+| continuous、512 B 1パケット/転送 | 8.0 MB/s | 8.0 MB/s |
+| queue、depth 1 × 32 KB | 27.6 MB/s | **42.5 MB/s** |
+| queue、depth 2 × 2 KB | 28.5 MB/s | 38.8 MB/s |
+| **queue、depth 2〜4 × 8〜32 KB** | 28.5 MB/s | **41.9 MB/s** |
 
-ESP32-P4 の host が ESP32-P4 の device を読んだ値（device 側は EspUsbDevice 2.3.0、`CFG_TUD_VENDOR_TX_BUFSIZE` / `_TX_EPSIZE` を 8192、送出は `writeCapacity()` ぶんずつ渡して `flush()` は stream の最後だけ）。wch-protocols 実験 E089、2026-09-13。**IN では2軸とも要ります** — 転送サイズだけで2.4倍、その上に queue を重ねて4.0倍です。OUT では「いつバスにパケットを出すか」を host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」だけなので、転送間の折り返しはそのまま device が使えない時間になります。
+ESP32-P4 の host（EspUsbHost 2.9.4）が ESP32-P4 の device（EspUsbDevice 2.5.0）を
+OTG HS ケーブル直結で読んだ値です。**両側ともリリース版**。
+[`vendor_bulk_in_throughput`](../tests/manual/vendor_bulk_in_throughput/)、2026-09-17。
+device 側の2列は、同じ host に対する同じ掃引です。左は device が各ブロックを vendor
+class の送信 FIFO 経由でコピーする経路、右はコントローラへ直接渡す経路
+（`EspUsbDeviceVendor::writeDirect()`、`CFG_TUD_VENDOR_TXRX_BUFFERED=0` で選択）です。
 
-この 24.45 MB/s は **device 側が飽和する点**でもあります。同じ device を PC の xHCI が読むと 23.88 MB/s（E088）で、**無関係な host controller 2 つが同じ値で止まる**ことが、律速をどちらかの host のスケジューリングではなく device 自身の供給能力だと同定します。
+**こちら側では2軸とも要ります** — 1転送1パケットのままでは何をしても 8 MB/s どまりで、
+`depth` 1 は転送をいくら大きくしても完了のたびに starve します。OUT では「いつバスに
+パケットを出すか」を host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」
+だけなので、転送間の折り返しはそのまま device が使えない時間になります。
+
+**どちらが律速かは同じ表から読めます。** buffered な device に対しては、どの転送も short
+で返り、32 KB の要求に対して `per_transfer` は 16 KB に張り付きます。バイトの出る速さを
+決めているのは device 側で、こちらの depth も転送長もそれを動かしません。direct な device
+に対しては short が 0、`per_transfer` は要求どおり、`depth` 2 以上で `starved` は 0、
+そして depth も転送長もそれ以上は効きません。この平坦な 42 MB/s がこの host の値で、
+バスが許す 53 MB/s のおよそ 80% です。**スループットの数値から host について何か結論する
+前に、`short` と `per_transfer` を見てください。**
+
+この表の以前の版は 24.45 MB/s としていました。EspUsbDevice 2.3.0 に対して測ったもので、
+当時は bulk IN endpoint の送信 FIFO が 1 パケット分でした。EspUsbDevice 2.4.0 の 2 パケット
+FIFO も 2.5.0 の direct 経路も、動かしたのは **device 側の供給能力**であって、この host の
+スケジューリングではありません。
 
 **OUT の数字をそのまま IN に当てはめないでください。** OUT はいつバスにパケットを出すかを host が決めますが、IN で host が決めるのは「どれだけ頻繁に訊くか」だけで、返ってくる中身は device が決めます。あの表で MB/s と `per_transfer` を並べて読むのはそのためです。
 
