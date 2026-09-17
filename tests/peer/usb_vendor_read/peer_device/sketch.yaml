@@ -5,7 +5,7 @@ profiles:
       - platform: esp32:esp32 (3.3.11)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (2.4.0)
+      - EspUsbDevice (2.5.0)
 
 # Pairs with p4_peer_host. Same console reasoning: the device stack drives the
 # OTG port while Serial stays on the USB-Serial-JTAG one, so the harness can ask
