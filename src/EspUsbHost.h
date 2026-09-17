@@ -3370,6 +3370,56 @@ private:
     uint8_t clockSourceId = 0;
   };
 
+  // Per-device USB Audio state, allocated only when the device's descriptors
+  // say it has an Audio interface. A pointer rather than the state itself, for
+  // the same reason as VideoState: inline it cost about 740 bytes in every one
+  // of the ESP_USB_HOST_MAX_DEVICES slots, paid by every sketch whether or not
+  // an audio device was ever plugged in. Null means "no Audio interface", so
+  // there is no separate flag to keep in step with it.
+  struct AudioState
+  {
+    bool hasInterface = false;
+    uint8_t interfaceNumber = 0;
+    bool hasInEndpoint = false;
+    uint8_t inInterfaceNumber = 0;
+    uint8_t inAlternate = 0;
+    uint8_t inEndpointAddress = 0;
+    uint8_t inChannels = 0;
+    uint8_t inBytesPerSample = 0;
+    uint8_t inBitsPerSample = 0;
+    bool hasOutEndpoint = false;
+    uint8_t outInterfaceNumber = 0;
+    uint8_t outEndpointAddress = 0;
+    uint16_t outPacketSize = 0;
+    uint8_t outChannels = 0;
+    uint8_t outBytesPerSample = 0;
+    uint8_t outBitsPerSample = 0;
+    uint8_t outInterval = 0;
+    bool outRunning = false;
+    uint32_t outFrameAccumulator = 0;
+    uint32_t outUnderruns = 0;
+    usb_transfer_t *outTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
+    uint8_t outFeedbackInterfaceNumber = 0xff;
+    uint8_t outFeedbackEndpointAddress = 0;
+    uint16_t outFeedbackPacketSize = 0;
+    uint8_t outFeedbackInterval = 0;
+    usb_transfer_t *outFeedbackTransfer = nullptr;
+    uint32_t outFeedbackRate = 0;
+    uint32_t outFeedbackUpdates = 0;
+    uint32_t outFeedbackRejects = 0;
+    uint32_t sampleRate = 48000;
+    uint8_t controlInterfaceNumber = 0xff;
+    uint8_t protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
+    EspUsbHostAudioFeatureUnitInfo featureUnits[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS] = {};
+    uint8_t featureUnitCount = 0;
+    AudioClockSourceState clockSources[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
+    uint8_t clockSourceCount = 0;
+    AudioTerminalClockLink terminalClocks[ESP_USB_HOST_MAX_AUDIO_TERMINALS] = {};
+    uint8_t terminalClockCount = 0;
+    EspUsbHostAudioStreamInfo streamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
+    uint8_t streamInfoCount = 0;
+  };
+
   // One CDC-ACM function (control + data interface pair), or the single VCP of a
   // vendor USB-serial bridge. Everything a serial port owns lives here rather
   // than on DeviceState, so a composite device with two ACM functions keeps two
@@ -3537,53 +3587,15 @@ private:
     uint16_t midiOutPacketSize = 0;
     uint8_t midiInCableCount = 0;
     uint8_t midiOutCableCount = 0;
-    bool hasAudioInterface = false;
-    uint8_t audioInterfaceNumber = 0;
-    bool hasAudioInEndpoint = false;
-    uint8_t audioInInterfaceNumber = 0;
-    uint8_t audioInAlternate = 0;
-    uint8_t audioInEndpointAddress = 0;
-    uint8_t audioInChannels = 0;
-    uint8_t audioInBytesPerSample = 0;
-    uint8_t audioInBitsPerSample = 0;
-    bool hasAudioOutEndpoint = false;
-    uint8_t audioOutInterfaceNumber = 0;
-    uint8_t audioOutEndpointAddress = 0;
-    uint16_t audioOutPacketSize = 0;
-    uint8_t audioOutChannels = 0;
-    uint8_t audioOutBytesPerSample = 0;
-    uint8_t audioOutBitsPerSample = 0;
-    uint8_t audioOutInterval = 0;
-    bool audioOutRunning = false;
-    uint32_t audioOutFrameAccumulator = 0;
-    uint32_t audioOutUnderruns = 0;
-    usb_transfer_t *audioOutTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
     // Explicit feedback endpoint of an asynchronous playback interface, when the
     // claimed alternate declares one. audioOutFeedbackRate is the last plausible
     // rate the device asked for; audioOutRate() falls back to the negotiated rate
     // while it is 0, so a synchronous device behaves exactly as before.
-    uint8_t audioOutFeedbackInterfaceNumber = 0xff;
-    uint8_t audioOutFeedbackEndpointAddress = 0;
-    uint16_t audioOutFeedbackPacketSize = 0;
-    uint8_t audioOutFeedbackInterval = 0;
-    usb_transfer_t *audioOutFeedbackTransfer = nullptr;
-    uint32_t audioOutFeedbackRate = 0;
-    uint32_t audioOutFeedbackUpdates = 0;
-    uint32_t audioOutFeedbackRejects = 0;
-    uint32_t audioSampleRate = 48000;
-    uint8_t audioControlInterfaceNumber = 0xff;
     // bInterfaceProtocol of the device's Audio interfaces (0x20 for UAC2), taken
     // from the Audio Control interface and reused for its streaming interfaces.
-    uint8_t audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
-    EspUsbHostAudioFeatureUnitInfo audioFeatureUnits[ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS] = {};
-    uint8_t audioFeatureUnitCount = 0;
     // UAC2 clock topology. Clock Source entities carry the sample frequency
     // control, and the Input/Output Terminal a streaming interface links to names
     // the clock that drives it.
-    AudioClockSourceState audioClockSources[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
-    uint8_t audioClockSourceCount = 0;
-    AudioTerminalClockLink audioTerminalClocks[ESP_USB_HOST_MAX_AUDIO_TERMINALS] = {};
-    uint8_t audioTerminalClockCount = 0;
     bool hasMscInterface = false;
     uint8_t mscInterfaceNumber = 0;
     bool hasMscInEndpoint = false;
@@ -3677,14 +3689,13 @@ private:
     uint8_t *networkAsm = nullptr;
     uint16_t networkAsmLen = 0;
     uint16_t networkAsmExpected = 0;
-    EspUsbHostAudioStreamInfo audioStreamInfos[ESP_USB_HOST_MAX_AUDIO_STREAMS] = {};
-    uint8_t audioStreamInfoCount = 0;
     // Everything this device needs for USB Video, allocated only when its
     // descriptors say it is a camera. A pointer rather than the state itself:
     // inline it cost about 1 KB in every one of the ESP_USB_HOST_MAX_DEVICES
     // slots -- 8 KB of static RAM on an ESP32-P4 -- paid by every sketch whether
     // or not a camera was ever plugged in. Null means "not a camera", so there is
     // no separate flag to keep in step with it.
+    AudioState *audio = nullptr;
     VideoState *video = nullptr;
     EspUsbHostInterfaceInfo interfaceInfos[ESP_USB_HOST_MAX_INTERFACES] = {};
     uint8_t interfaceInfoCount = 0;
@@ -3743,6 +3754,9 @@ private:
   // Returns null when the device has none, or when the allocation failed -- in
   // which case the device simply enumerates without video rather than the
   // whole enumeration failing.
+  AudioState *audioStateFor(DeviceState &device, bool create = false);
+  const AudioState *audioStateFor(const DeviceState &device) const;
+  void releaseAudioState(DeviceState &device);
   VideoState *videoStateFor(DeviceState &device, bool create = false);
   const VideoState *videoStateFor(const DeviceState &device) const;
   void releaseVideoState(DeviceState &device);

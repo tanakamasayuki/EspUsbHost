@@ -5537,10 +5537,15 @@ bool EspUsbHost::audioInputStart(uint8_t channels,
     ESP_LOGW(TAG, "audioInputStart() called before a USB Audio IN endpoint is ready");
     return false;
   }
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
 
   const EspUsbHostAudioStreamSelection selection =
-      espUsbHostSelectAudioStreamForFormat(device->audioStreamInfos,
-                                           device->audioStreamInfoCount,
+      espUsbHostSelectAudioStreamForFormat(audio->streamInfos,
+                                           audio->streamInfoCount,
                                            true,
                                            channels,
                                            bitsPerSample,
@@ -5554,7 +5559,7 @@ bool EspUsbHost::audioInputStart(uint8_t channels,
     return false;
   }
 
-  return audioInputStart(device->audioStreamInfos[selection.index],
+  return audioInputStart(audio->streamInfos[selection.index],
                          selection.sampleRate,
                          device->info.address);
 }
@@ -5573,6 +5578,11 @@ bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
   if (!device)
   {
     ESP_LOGW(TAG, "audioInputStart() called before a USB Audio IN endpoint is ready");
+    return false;
+  }
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
     return false;
   }
 
@@ -5619,13 +5629,13 @@ bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
     return false;
   }
 
-  device->audioSampleRate = selectedRate;
-  device->audioInInterfaceNumber = stream.interfaceNumber;
-  device->audioInAlternate = stream.alternate;
-  device->audioInEndpointAddress = stream.endpointAddress;
-  device->audioInChannels = stream.channels;
-  device->audioInBytesPerSample = stream.bytesPerSample;
-  device->audioInBitsPerSample = stream.bitsPerSample;
+  audio->sampleRate = selectedRate;
+  audio->inInterfaceNumber = stream.interfaceNumber;
+  audio->inAlternate = stream.alternate;
+  audio->inEndpointAddress = stream.endpointAddress;
+  audio->inChannels = stream.channels;
+  audio->inBytesPerSample = stream.bytesPerSample;
+  audio->inBitsPerSample = stream.bitsPerSample;
 
   bool submitted = applyAudioStreamSampleRate(*device, stream, selectedRate);
   if (stream.alternate == 0)
@@ -5836,18 +5846,23 @@ bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
   {
     return true;
   }
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
 
-  device->audioSampleRate = sampleRate;
+  audio->sampleRate = sampleRate;
   bool submitted = true;
-  if (device->audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  if (audio->protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
   {
     // UAC2 programs the rate once per Clock Source entity, not once per endpoint.
     uint8_t applied[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
     uint8_t appliedCount = 0;
-    for (uint8_t i = 0; i < device->audioStreamInfoCount; i++)
+    for (uint8_t i = 0; i < audio->streamInfoCount; i++)
     {
-      const uint8_t clockSourceId = device->audioStreamInfos[i].clockSourceId;
-      if (device->audioStreamInfos[i].protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ||
+      const uint8_t clockSourceId = audio->streamInfos[i].clockSourceId;
+      if (audio->streamInfos[i].protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ||
           clockSourceId == 0)
       {
         continue;
@@ -5866,13 +5881,13 @@ bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
         continue;
       }
       applied[appliedCount++] = clockSourceId;
-      submitted = submitAudioClockSampleRate(*device, clockSourceId, device->audioSampleRate) && submitted;
+      submitted = submitAudioClockSampleRate(*device, clockSourceId, audio->sampleRate) && submitted;
     }
     return submitted;
   }
-  if (device->hasAudioOutEndpoint)
+  if (audio->hasOutEndpoint)
   {
-    submitted = submitAudioSamplingFrequency(*device, device->audioOutEndpointAddress, device->audioSampleRate) && submitted;
+    submitted = submitAudioSamplingFrequency(*device, audio->outEndpointAddress, audio->sampleRate) && submitted;
   }
   for (EndpointState &endpoint : endpoints_)
   {
@@ -5884,7 +5899,7 @@ bool EspUsbHost::setAudioSampleRate(uint32_t sampleRate, uint8_t address)
     {
       continue;
     }
-    submitted = submitAudioSamplingFrequency(*device, endpoint.address, device->audioSampleRate) && submitted;
+    submitted = submitAudioSamplingFrequency(*device, endpoint.address, audio->sampleRate) && submitted;
   }
   return submitted;
 }
@@ -5900,10 +5915,15 @@ bool EspUsbHost::audioOutputStart(uint8_t channels,
     ESP_LOGW(TAG, "audioOutputStart() called before a USB Audio OUT endpoint is ready");
     return false;
   }
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
 
   const EspUsbHostAudioStreamSelection selection =
-      espUsbHostSelectAudioStreamForFormat(device->audioStreamInfos,
-                                           device->audioStreamInfoCount,
+      espUsbHostSelectAudioStreamForFormat(audio->streamInfos,
+                                           audio->streamInfoCount,
                                            false,
                                            channels,
                                            bitsPerSample,
@@ -5917,7 +5937,7 @@ bool EspUsbHost::audioOutputStart(uint8_t channels,
     return false;
   }
 
-  return audioOutputStart(device->audioStreamInfos[selection.index],
+  return audioOutputStart(audio->streamInfos[selection.index],
                           selection.sampleRate,
                           device->info.address);
 }
@@ -5946,13 +5966,18 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     ESP_LOGW(TAG, "audioOutputStart() called before a USB Audio OUT endpoint is ready");
     return false;
   }
-  if (device->audioOutRunning)
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
+  if (audio->outRunning)
   {
     return true;
   }
   for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
   {
-    if (device->audioOutTransfers[i])
+    if (audio->outTransfers[i])
     {
       ESP_LOGW(TAG, "audioOutputStart() called while previous audio OUT transfers are stopping");
       return false;
@@ -5968,7 +5993,7 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
   }
 
   bool hasEndpoint = false;
-  for (const EspUsbHostAudioStreamInfo &candidate : device->audioStreamInfos)
+  for (const EspUsbHostAudioStreamInfo &candidate : audio->streamInfos)
   {
     if (candidate.output &&
         candidate.interfaceNumber == stream.interfaceNumber &&
@@ -5988,19 +6013,19 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     return false;
   }
 
-  device->audioSampleRate = selectedRate;
-  device->audioOutInterfaceNumber = stream.interfaceNumber;
-  device->audioOutEndpointAddress = stream.endpointAddress;
-  device->audioOutPacketSize = stream.maxPacketSize;
-  device->audioOutChannels = stream.channels;
-  device->audioOutBytesPerSample = stream.bytesPerSample;
-  device->audioOutBitsPerSample = stream.bitsPerSample;
-  device->audioOutInterval = stream.interval;
+  audio->sampleRate = selectedRate;
+  audio->outInterfaceNumber = stream.interfaceNumber;
+  audio->outEndpointAddress = stream.endpointAddress;
+  audio->outPacketSize = stream.maxPacketSize;
+  audio->outChannels = stream.channels;
+  audio->outBytesPerSample = stream.bytesPerSample;
+  audio->outBitsPerSample = stream.bitsPerSample;
+  audio->outInterval = stream.interval;
 
-  if (device->audioOutPacketSize == 0 ||
-      device->audioOutChannels == 0 ||
-      device->audioOutBytesPerSample == 0 ||
-      device->audioSampleRate == 0)
+  if (audio->outPacketSize == 0 ||
+      audio->outChannels == 0 ||
+      audio->outBytesPerSample == 0 ||
+      audio->sampleRate == 0)
   {
     ESP_LOGW(TAG, "audioOutputStart() called with incomplete audio OUT format");
     return false;
@@ -6016,14 +6041,14 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     return false;
   }
 
-  device->audioOutRunning = true;
-  device->audioOutFrameAccumulator = 0;
-  device->audioOutUnderruns = 0;
+  audio->outRunning = true;
+  audio->outFrameAccumulator = 0;
+  audio->outUnderruns = 0;
 
   for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
   {
     usb_transfer_t *transfer = nullptr;
-    esp_err_t err = usb_host_transfer_alloc(device->audioOutPacketSize, 1, &transfer);
+    esp_err_t err = usb_host_transfer_alloc(audio->outPacketSize, 1, &transfer);
     if (err != ESP_OK)
     {
       ESP_LOGW(TAG, "usb_host_transfer_alloc(audio OUT request) failed: %s", esp_err_to_name(err));
@@ -6033,10 +6058,10 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     }
 
     transfer->device_handle = device->handle;
-    transfer->bEndpointAddress = device->audioOutEndpointAddress;
+    transfer->bEndpointAddress = audio->outEndpointAddress;
     transfer->callback = outputTransferCallback;
     transfer->context = this;
-    device->audioOutTransfers[i] = transfer;
+    audio->outTransfers[i] = transfer;
 
     if (!submitAudioOutputRequestTransfer(*device, transfer))
     {
@@ -6050,7 +6075,7 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     // Playback itself is running; without feedback it just stays at the negotiated
     // rate, which is what a synchronous device does anyway.
     ESP_LOGW(TAG, "USB Audio feedback polling unavailable: ep=0x%02x",
-             device->audioOutFeedbackEndpointAddress);
+             audio->outFeedbackEndpointAddress);
   }
 
   return true;
@@ -6063,43 +6088,78 @@ void EspUsbHost::audioOutputStop(uint8_t address)
   {
     return;
   }
-  device->audioOutRunning = false;
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return;
+  }
+  audio->outRunning = false;
 }
 
 bool EspUsbHost::audioOutputRunning(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
-  return device && device->audioOutRunning;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
+  return device && audio->outRunning;
 }
 
 uint32_t EspUsbHost::audioOutputUnderruns(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
-  return device ? device->audioOutUnderruns : 0;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return 0;
+  }
+  return device ? audio->outUnderruns : 0;
 }
 
 bool EspUsbHost::audioOutputHasFeedback(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
-  return device && device->audioOutFeedbackTransfer != nullptr;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
+  return device && audio->outFeedbackTransfer != nullptr;
 }
 
 uint32_t EspUsbHost::audioOutputFeedbackRate(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
-  return device ? device->audioOutFeedbackRate : 0;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return 0;
+  }
+  return device ? audio->outFeedbackRate : 0;
 }
 
 uint32_t EspUsbHost::audioOutputFeedbackUpdates(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
-  return device ? device->audioOutFeedbackUpdates : 0;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return 0;
+  }
+  return device ? audio->outFeedbackUpdates : 0;
 }
 
 uint32_t EspUsbHost::audioOutputFeedbackRejects(uint8_t address) const
 {
   const DeviceState *device = findAudioOutputDevice(address);
-  return device ? device->audioOutFeedbackRejects : 0;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return 0;
+  }
+  return device ? audio->outFeedbackRejects : 0;
 }
 
 uint32_t EspUsbHost::audioOutputRate(uint8_t address) const
@@ -6116,6 +6176,11 @@ bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
     ESP_LOGW(TAG, "audioSend() called before a USB Audio OUT endpoint is ready");
     return false;
   }
+  AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return false;
+  }
   if (length > 0 && !data)
   {
     ESP_LOGW(TAG, "audioSend() called with null data");
@@ -6126,7 +6191,7 @@ bool EspUsbHost::audioSend(const uint8_t *data, size_t length, uint8_t address)
     return true;
   }
 
-  const size_t packetSize = device->audioOutPacketSize;
+  const size_t packetSize = audio->outPacketSize;
   if (packetSize == 0)
   {
     ESP_LOGW(TAG, "audioSend() called with invalid audio OUT packet size");
@@ -6155,15 +6220,20 @@ size_t EspUsbHost::getAudioFeatureUnits(uint8_t address, EspUsbHostAudioFeatureU
   {
     return 0;
   }
-  const size_t count = device->audioFeatureUnitCount < maxUnits ? device->audioFeatureUnitCount : maxUnits;
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return 0;
+  }
+  const size_t count = audio->featureUnitCount < maxUnits ? audio->featureUnitCount : maxUnits;
   if (units)
   {
     for (size_t i = 0; i < count; i++)
     {
-      units[i] = device->audioFeatureUnits[i];
+      units[i] = audio->featureUnits[i];
     }
   }
-  return device->audioFeatureUnitCount;
+  return audio->featureUnitCount;
 }
 
 bool EspUsbHost::audioHasMute(uint8_t address, uint8_t unitId, uint8_t channel) const
@@ -7431,7 +7501,12 @@ void EspUsbHost::mscUnmountAddress(uint8_t address)
 
 bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *data, size_t length)
 {
-  const size_t packetSize = device.audioOutPacketSize;
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
+  const size_t packetSize = audio->outPacketSize;
   const int packetCount = static_cast<int>((length + packetSize - 1) / packetSize);
   usb_transfer_t *transfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(packetCount * packetSize, packetCount, &transfer);
@@ -7444,7 +7519,7 @@ bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *d
 
   memcpy(transfer->data_buffer, data, length);
   transfer->device_handle = device.handle;
-  transfer->bEndpointAddress = device.audioOutEndpointAddress;
+  transfer->bEndpointAddress = audio->outEndpointAddress;
   transfer->callback = outputTransferCallback;
   transfer->context = this;
   transfer->num_bytes = length;
@@ -7472,9 +7547,14 @@ bool EspUsbHost::submitAudioOutputTransfer(DeviceState &device, const uint8_t *d
 
 bool EspUsbHost::isManagedAudioOutputTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
 {
+  const AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
   for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
   {
-    if (device.audioOutTransfers[i] == transfer)
+    if (audio->outTransfers[i] == transfer)
     {
       return true;
     }
@@ -7484,33 +7564,38 @@ bool EspUsbHost::isManagedAudioOutputTransfer(const DeviceState &device, const u
 
 bool EspUsbHost::fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
   if (!transfer || !transfer->data_buffer)
   {
     return false;
   }
 
-  const size_t bytesPerFrame = static_cast<size_t>(device.audioOutChannels) * device.audioOutBytesPerSample;
+  const size_t bytesPerFrame = static_cast<size_t>(audio->outChannels) * audio->outBytesPerSample;
   if (bytesPerFrame == 0)
   {
     return false;
   }
 
-  device.audioOutFrameAccumulator += audioOutputPacingRate(device);
-  size_t frames = device.audioOutFrameAccumulator / 1000;
-  device.audioOutFrameAccumulator %= 1000;
+  audio->outFrameAccumulator += audioOutputPacingRate(device);
+  size_t frames = audio->outFrameAccumulator / 1000;
+  audio->outFrameAccumulator %= 1000;
   if (frames == 0)
   {
     frames = 1;
   }
 
-  const size_t maxFrames = device.audioOutPacketSize / bytesPerFrame;
+  const size_t maxFrames = audio->outPacketSize / bytesPerFrame;
   if (frames > maxFrames)
   {
     frames = maxFrames;
   }
   const size_t byteCount = frames * bytesPerFrame;
 
-  if (device.audioOutBitsPerSample == 8)
+  if (audio->outBitsPerSample == 8)
   {
     memset(transfer->data_buffer, 0x80, byteCount);
   }
@@ -7524,12 +7609,12 @@ bool EspUsbHost::fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *tr
   {
     EspUsbHostAudioOutputRequest request;
     request.address = device.info.address;
-    request.interfaceNumber = device.audioOutInterfaceNumber;
-    request.endpointAddress = device.audioOutEndpointAddress;
-    request.sampleRate = device.audioSampleRate;
-    request.channels = device.audioOutChannels;
-    request.bytesPerSample = device.audioOutBytesPerSample;
-    request.bitsPerSample = device.audioOutBitsPerSample;
+    request.interfaceNumber = audio->outInterfaceNumber;
+    request.endpointAddress = audio->outEndpointAddress;
+    request.sampleRate = audio->sampleRate;
+    request.channels = audio->outChannels;
+    request.bytesPerSample = audio->outBytesPerSample;
+    request.bitsPerSample = audio->outBitsPerSample;
     request.data = transfer->data_buffer;
     request.frameCount = frames;
     request.byteCount = byteCount;
@@ -7540,11 +7625,11 @@ bool EspUsbHost::fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *tr
 
   if (writtenFrames < frames)
   {
-    device.audioOutUnderruns++;
+    audio->outUnderruns++;
     const size_t filledBytes = writtenFrames * bytesPerFrame;
     if (filledBytes < byteCount)
     {
-      if (device.audioOutBitsPerSample == 8)
+      if (audio->outBitsPerSample == 8)
       {
         memset(transfer->data_buffer + filledBytes, 0x80, byteCount - filledBytes);
       }
@@ -7564,7 +7649,12 @@ bool EspUsbHost::fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *tr
 
 bool EspUsbHost::submitAudioOutputRequestTransfer(DeviceState &device, usb_transfer_t *transfer)
 {
-  if (!device.audioOutRunning || !fillAudioOutputTransfer(device, transfer))
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
+  if (!audio->outRunning || !fillAudioOutputTransfer(device, transfer))
   {
     return false;
   }
@@ -8365,7 +8455,6 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   device->inUse = true;
   device->info.address = address;
   device->serialConfig = defaultSerialConfig_;
-  device->audioSampleRate = defaultAudioSampleRate_;
 
   esp_err_t err = usb_host_device_open(clientHandle_, address, &device->handle);
   if (err != ESP_OK)
@@ -8471,9 +8560,10 @@ void EspUsbHost::handleNewDevice(uint8_t address)
   parseConfigDescriptor(*device, configDesc);
   const bool hasHid = configHasInterfaceClass(configDesc, USB_CLASS_HID_VALUE);
   const bool hasCdc = device->serialPortCount > 0;
-  const bool hasAudio = device->hasAudioInterface ||
-                        device->hasAudioOutEndpoint ||
-                        device->audioFeatureUnitCount > 0;
+  const AudioState *audio = audioStateFor(*device);
+  const bool hasAudio = audio && (audio->hasInterface ||
+                                  audio->hasOutEndpoint ||
+                                  audio->featureUnitCount > 0);
   const bool hasMsc = device->hasMscInterface && device->hasMscInEndpoint && device->hasMscOutEndpoint;
   // hasMidiInterface is its own flag rather than part of hasAudio: a MIDI
   // streaming interface is Audio class but has no streaming endpoint, feature
@@ -8631,7 +8721,6 @@ void EspUsbHost::scanHostDevices()
     device->handle = handle;
     device->info.address = address;
     device->serialConfig = defaultSerialConfig_;
-    device->audioSampleRate = defaultAudioSampleRate_;
 
     usb_device_info_t devInfo = {};
     if (usb_host_device_info(device->handle, &devInfo) == ESP_OK)
@@ -8715,7 +8804,11 @@ void EspUsbHost::parseConfigDescriptor(DeviceState &device, const usb_config_des
   // format can actually be started is only decidable here.
   finalizeVideoStreams(device);
 
-  if (device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  // Looked up after the walk, not before it: the state is created by the walk
+  // itself, so a guard at the top of this function would return before any
+  // descriptor was parsed -- for every device, not just audio ones.
+  const AudioState *audio = audioStateFor(device);
+  if (audio && audio->protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
   {
     // UAC2 keeps the supported sample rates in the Clock Source entity instead of
     // the format descriptor, so they need a class request. This runs on the USB
@@ -8936,7 +9029,11 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       // bInterfaceProtocol. Latch it rather than assigning per interface: a device
       // with two audio functions would otherwise flip back to UAC1 while the UAC2
       // function's streaming interfaces are still being parsed.
-      device->audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+      AudioState *audio = audioStateFor(*device, true);
+      if (audio)
+      {
+        audio->protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+      }
     }
     currentInterfaceClaimed_ = false;
     currentClaimResult_ = ESP_OK;
@@ -9124,15 +9221,25 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         }
         else if (isAudioControlInterface)
         {
-          device->audioControlInterfaceNumber = currentInterfaceNumber_;
-          ESP_LOGI(TAG, "USB Audio control interface ready: iface=%u", device->audioControlInterfaceNumber);
+          AudioState *audio = audioStateFor(*device, true);
+          if (!audio)
+          {
+            break;
+          }
+          audio->controlInterfaceNumber = currentInterfaceNumber_;
+          ESP_LOGI(TAG, "USB Audio control interface ready: iface=%u", audio->controlInterfaceNumber);
         }
         else if (isAudioInterface)
         {
-          device->hasAudioInterface = true;
-          device->audioInterfaceNumber = currentInterfaceNumber_;
+          AudioState *audio = audioStateFor(*device, true);
+          if (!audio)
+          {
+            break;
+          }
+          audio->hasInterface = true;
+          audio->interfaceNumber = currentInterfaceNumber_;
           ESP_LOGI(TAG, "USB Audio streaming interface ready: iface=%u alt=%u",
-                   device->audioInterfaceNumber,
+                   audio->interfaceNumber,
                    intf->bAlternateSetting);
         }
       }
@@ -9432,10 +9539,15 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         // polled to pace the OUT packets.
         if (currentInterfaceClaimed_)
         {
-          device->audioOutFeedbackInterfaceNumber = currentInterfaceNumber_;
-          device->audioOutFeedbackEndpointAddress = ep->bEndpointAddress;
-          device->audioOutFeedbackPacketSize = ep->wMaxPacketSize;
-          device->audioOutFeedbackInterval = ep->bInterval;
+          AudioState *audio = audioStateFor(*device, true);
+          if (!audio)
+          {
+            return;
+          }
+          audio->outFeedbackInterfaceNumber = currentInterfaceNumber_;
+          audio->outFeedbackEndpointAddress = ep->bEndpointAddress;
+          audio->outFeedbackPacketSize = ep->wMaxPacketSize;
+          audio->outFeedbackInterval = ep->bInterval;
         }
         ESP_LOGI(TAG, "USB Audio feedback endpoint: iface=%u alt=%u ep=0x%02x size=%u interval=%u claimed=%u",
                  currentInterfaceNumber_,
@@ -9464,16 +9576,21 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       if (!isIn)
       {
         recordAudioStream(*device, ep, false);
-        device->hasAudioInterface = true;
-        device->audioInterfaceNumber = currentInterfaceNumber_;
-        device->hasAudioOutEndpoint = true;
-        device->audioOutInterfaceNumber = currentInterfaceNumber_;
-        device->audioOutEndpointAddress = ep->bEndpointAddress;
-        device->audioOutPacketSize = ep->wMaxPacketSize;
-        device->audioOutChannels = currentAudioChannels_;
-        device->audioOutBytesPerSample = currentAudioBytesPerSample_;
-        device->audioOutBitsPerSample = currentAudioBitsPerSample_;
-        device->audioOutInterval = ep->bInterval;
+        AudioState *audio = audioStateFor(*device, true);
+        if (!audio)
+        {
+          return;
+        }
+        audio->hasInterface = true;
+        audio->interfaceNumber = currentInterfaceNumber_;
+        audio->hasOutEndpoint = true;
+        audio->outInterfaceNumber = currentInterfaceNumber_;
+        audio->outEndpointAddress = ep->bEndpointAddress;
+        audio->outPacketSize = ep->wMaxPacketSize;
+        audio->outChannels = currentAudioChannels_;
+        audio->outBytesPerSample = currentAudioBytesPerSample_;
+        audio->outBitsPerSample = currentAudioBitsPerSample_;
+        audio->outInterval = ep->bInterval;
         ESP_LOGI(TAG, "USB Audio isochronous OUT endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
                  currentInterfaceNumber_,
                  ep->bEndpointAddress,
@@ -9483,9 +9600,14 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
       }
 
       recordAudioStream(*device, ep, true);
-      device->hasAudioInterface = true;
-      device->audioInterfaceNumber = currentInterfaceNumber_;
-      device->hasAudioInEndpoint = true;
+      AudioState *audio = audioStateFor(*device, true);
+      if (!audio)
+      {
+        break;
+      }
+      audio->hasInterface = true;
+      audio->interfaceNumber = currentInterfaceNumber_;
+      audio->hasInEndpoint = true;
       EndpointState *endpoint = allocateEndpoint(*device);
       if (!endpoint)
       {
@@ -9641,6 +9763,11 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
 
 void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t *data)
 {
+  AudioState *audio = audioStateFor(device, true);
+  if (!audio)
+  {
+    return;
+  }
   if (!data || data[0] < 3)
   {
     return;
@@ -9653,9 +9780,9 @@ void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t 
     // bInterfaceProtocol, which some devices leave at 0 even for UAC2.
     if (data[0] >= 5 &&
         data[4] >= 0x02 &&
-        device.audioProtocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+        audio->protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
     {
-      device.audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+      audio->protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
       ESP_LOGI(TAG, "USB Audio class revision from bcdADC: iface=%u bcdADC=0x%02x%02x",
                currentInterfaceNumber_,
                data[4],
@@ -9681,9 +9808,14 @@ void EspUsbHost::parseAudioControlDescriptor(DeviceState &device, const uint8_t 
 
 void EspUsbHost::parseAudioClockSourceDescriptor(DeviceState &device, const uint8_t *data)
 {
+  AudioState *audio = audioStateFor(device, true);
+  if (!audio)
+  {
+    return;
+  }
   // CLOCK_SOURCE only exists in UAC2: bClockID, bmAttributes, bmControls,
   // bAssocTerminal, iClockSource.
-  if (device.audioProtocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 || data[0] < 6)
+  if (audio->protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 || data[0] < 6)
   {
     return;
   }
@@ -9695,22 +9827,22 @@ void EspUsbHost::parseAudioClockSourceDescriptor(DeviceState &device, const uint
   }
 
   AudioClockSourceState *clock = nullptr;
-  for (uint8_t i = 0; i < device.audioClockSourceCount; i++)
+  for (uint8_t i = 0; i < audio->clockSourceCount; i++)
   {
-    if (device.audioClockSources[i].clockSourceId == clockSourceId)
+    if (audio->clockSources[i].clockSourceId == clockSourceId)
     {
-      clock = &device.audioClockSources[i];
+      clock = &audio->clockSources[i];
       break;
     }
   }
   if (!clock)
   {
-    if (device.audioClockSourceCount >= ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES)
+    if (audio->clockSourceCount >= ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES)
     {
       ESP_LOGD(TAG, "USB Audio Clock Source ignored, no slots: clock=%u", clockSourceId);
       return;
     }
-    clock = &device.audioClockSources[device.audioClockSourceCount++];
+    clock = &audio->clockSources[audio->clockSourceCount++];
   }
 
   clock->clockSourceId = clockSourceId;
@@ -9725,10 +9857,15 @@ void EspUsbHost::parseAudioClockSourceDescriptor(DeviceState &device, const uint
 
 void EspUsbHost::parseAudioTerminalDescriptor(DeviceState &device, const uint8_t *data, bool input)
 {
+  AudioState *audio = audioStateFor(device, true);
+  if (!audio)
+  {
+    return;
+  }
   // UAC2 terminals name the clock that drives them: bCSourceID sits at offset 7
   // in an Input Terminal and at offset 8 in an Output Terminal (after bSourceID).
   // UAC1 terminals have no clock field.
-  if (device.audioProtocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  if (audio->protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
   {
     return;
   }
@@ -9745,20 +9882,20 @@ void EspUsbHost::parseAudioTerminalDescriptor(DeviceState &device, const uint8_t
     return;
   }
 
-  for (uint8_t i = 0; i < device.audioTerminalClockCount; i++)
+  for (uint8_t i = 0; i < audio->terminalClockCount; i++)
   {
-    if (device.audioTerminalClocks[i].terminalId == terminalId)
+    if (audio->terminalClocks[i].terminalId == terminalId)
     {
-      device.audioTerminalClocks[i].clockSourceId = clockSourceId;
+      audio->terminalClocks[i].clockSourceId = clockSourceId;
       return;
     }
   }
-  if (device.audioTerminalClockCount >= ESP_USB_HOST_MAX_AUDIO_TERMINALS)
+  if (audio->terminalClockCount >= ESP_USB_HOST_MAX_AUDIO_TERMINALS)
   {
     ESP_LOGD(TAG, "USB Audio terminal clock link ignored, no slots: terminal=%u", terminalId);
     return;
   }
-  AudioTerminalClockLink &link = device.audioTerminalClocks[device.audioTerminalClockCount++];
+  AudioTerminalClockLink &link = audio->terminalClocks[audio->terminalClockCount++];
   link.terminalId = terminalId;
   link.clockSourceId = clockSourceId;
   ESP_LOGI(TAG, "USB Audio terminal clock link: iface=%u terminal=%u clock=%u",
@@ -9769,11 +9906,16 @@ void EspUsbHost::parseAudioTerminalDescriptor(DeviceState &device, const uint8_t
 
 void EspUsbHost::parseAudioStreamingDescriptor(DeviceState &device, const uint8_t *data)
 {
+  AudioState *audio = audioStateFor(device, true);
+  if (!audio)
+  {
+    return;
+  }
   if (data[0] < 4)
   {
     return;
   }
-  const bool uac2 = device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
+  const bool uac2 = audio->protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2;
 
   if (data[2] == USB_AUDIO_CS_AS_GENERAL)
   {
@@ -9849,6 +9991,11 @@ void EspUsbHost::parseAudioStreamingDescriptor(DeviceState &device, const uint8_
 
 void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint8_t *data)
 {
+  AudioState *audio = audioStateFor(device, true);
+  if (!audio)
+  {
+    return;
+  }
   if (data[0] < 7)
   {
     return;
@@ -9856,7 +10003,7 @@ void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint
 
   const uint8_t unitId = data[3];
   const uint8_t sourceId = data[4];
-  const EspUsbHostAudioFeatureUnitLayout layout = espUsbHostAudioFeatureUnitLayout(data, device.audioProtocol);
+  const EspUsbHostAudioFeatureUnitLayout layout = espUsbHostAudioFeatureUnitLayout(data, audio->protocol);
   if (unitId == 0 || !layout.valid)
   {
     return;
@@ -9866,7 +10013,7 @@ void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint
   const uint8_t descriptorChannelCount = layout.channelCount;
 
   EspUsbHostAudioFeatureUnitInfo *unit = nullptr;
-  for (EspUsbHostAudioFeatureUnitInfo &candidate : device.audioFeatureUnits)
+  for (EspUsbHostAudioFeatureUnitInfo &candidate : audio->featureUnits)
   {
     if (candidate.unitId == unitId)
     {
@@ -9876,12 +10023,12 @@ void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint
   }
   if (!unit)
   {
-    if (device.audioFeatureUnitCount >= ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS)
+    if (audio->featureUnitCount >= ESP_USB_HOST_MAX_AUDIO_FEATURE_UNITS)
     {
       ESP_LOGD(TAG, "USB Audio Feature Unit ignored, no slots: unit=%u", unitId);
       return;
     }
-    unit = &device.audioFeatureUnits[device.audioFeatureUnitCount++];
+    unit = &audio->featureUnits[audio->featureUnitCount++];
   }
 
   *unit = EspUsbHostAudioFeatureUnitInfo();
@@ -9890,7 +10037,7 @@ void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint
   unit->unitId = unitId;
   unit->sourceId = sourceId;
   unit->controlSize = controlSize;
-  unit->protocol = device.audioProtocol;
+  unit->protocol = audio->protocol;
   unit->channelCount = descriptorChannelCount < ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS
                            ? descriptorChannelCount
                            : ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS;
@@ -9922,12 +10069,17 @@ void EspUsbHost::parseAudioFeatureUnitDescriptor(DeviceState &device, const uint
 
 void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input, bool startable)
 {
-  if (!ep || device.audioStreamInfoCount >= ESP_USB_HOST_MAX_AUDIO_STREAMS)
+  AudioState *audio = audioStateFor(device, true);
+  if (!audio)
+  {
+    return;
+  }
+  if (!ep || audio->streamInfoCount >= ESP_USB_HOST_MAX_AUDIO_STREAMS)
   {
     return;
   }
 
-  EspUsbHostAudioStreamInfo &info = device.audioStreamInfos[device.audioStreamInfoCount++];
+  EspUsbHostAudioStreamInfo &info = audio->streamInfos[audio->streamInfoCount++];
   info.address = device.info.address;
   info.interfaceNumber = currentInterfaceNumber_;
   info.alternate = currentInterfaceAlternate_;
@@ -9949,12 +10101,50 @@ void EspUsbHost::recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep,
   info.maxPacketSize = ep->wMaxPacketSize;
   info.interval = ep->bInterval;
   info.startable = startable;
-  info.protocol = device.audioProtocol;
+  info.protocol = audio->protocol;
   info.terminalLink = currentAudioTerminalLink_;
-  if (device.audioProtocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
+  if (audio->protocol == ESP_USB_HOST_AUDIO_PROTOCOL_UAC2)
   {
     info.clockSourceId = resolveAudioClockSource(device, currentAudioTerminalLink_);
   }
+}
+
+EspUsbHost::AudioState *EspUsbHost::audioStateFor(DeviceState &device, bool create)
+{
+  if (device.audio || !create)
+  {
+    return device.audio;
+  }
+  device.audio = new (std::nothrow) AudioState();
+  if (device.audio)
+  {
+    // The sketch's default rate is applied here rather than when a device
+    // enumerates: doing it there meant allocating this state for every device,
+    // camera, keyboard or otherwise, which is exactly what the allocation exists
+    // to avoid.
+    device.audio->sampleRate = defaultAudioSampleRate_;
+  }
+  if (!device.audio)
+  {
+    // Not fatal: the device still enumerates and still works as whatever else it
+    // is, it simply reports no audio streams.
+    ESP_LOGW(TAG, "USB Audio state allocation failed (%u bytes); the device will report no streams",
+             static_cast<unsigned>(sizeof(AudioState)));
+    setLastError(ESP_ERR_NO_MEM);
+  }
+  return device.audio;
+}
+
+const EspUsbHost::AudioState *EspUsbHost::audioStateFor(const DeviceState &device) const
+{
+  return device.audio;
+}
+
+void EspUsbHost::releaseAudioState(DeviceState &device)
+{
+  AudioState *audio = device.audio;
+  device.audio = nullptr;
+  delete audio;
 }
 
 EspUsbHost::VideoState *EspUsbHost::videoStateFor(DeviceState &device, bool create)
@@ -11379,11 +11569,16 @@ void EspUsbHost::handleVideo(DeviceState &device, usb_transfer_t *transfer)
 const EspUsbHost::AudioClockSourceState *EspUsbHost::findAudioClockSource(const DeviceState &device,
                                                                          uint8_t clockSourceId) const
 {
-  for (uint8_t i = 0; i < device.audioClockSourceCount; i++)
+  const AudioState *audio = audioStateFor(device);
+  if (!audio)
   {
-    if (device.audioClockSources[i].clockSourceId == clockSourceId)
+    return 0;
+  }
+  for (uint8_t i = 0; i < audio->clockSourceCount; i++)
+  {
+    if (audio->clockSources[i].clockSourceId == clockSourceId)
     {
-      return &device.audioClockSources[i];
+      return &audio->clockSources[i];
     }
   }
   return nullptr;
@@ -11391,9 +11586,14 @@ const EspUsbHost::AudioClockSourceState *EspUsbHost::findAudioClockSource(const 
 
 uint8_t EspUsbHost::resolveAudioClockSource(const DeviceState &device, uint8_t terminalLink) const
 {
-  for (uint8_t i = 0; i < device.audioTerminalClockCount; i++)
+  const AudioState *audio = audioStateFor(device);
+  if (!audio)
   {
-    const AudioTerminalClockLink &link = device.audioTerminalClocks[i];
+    return 0;
+  }
+  for (uint8_t i = 0; i < audio->terminalClockCount; i++)
+  {
+    const AudioTerminalClockLink &link = audio->terminalClocks[i];
     if (link.terminalId == terminalLink && findAudioClockSource(device, link.clockSourceId))
     {
       return link.clockSourceId;
@@ -11401,9 +11601,9 @@ uint8_t EspUsbHost::resolveAudioClockSource(const DeviceState &device, uint8_t t
   }
   // Devices with a single clock entity are common enough that falling back to it
   // is more useful than giving up when the terminal link cannot be matched.
-  if (device.audioClockSourceCount == 1)
+  if (audio->clockSourceCount == 1)
   {
-    return device.audioClockSources[0].clockSourceId;
+    return audio->clockSources[0].clockSourceId;
   }
   return 0;
 }
@@ -11886,9 +12086,10 @@ void EspUsbHost::submitPendingTransfers(usb_device_handle_t deviceHandle, uint8_
     if (endpoint.interfaceClass == USB_CLASS_AUDIO_VALUE &&
         endpoint.interfaceSubClass == USB_AUDIO_SUBCLASS_AUDIO_STREAMING)
     {
+      const AudioState *audio = device ? audioStateFor(*device) : nullptr;
       if (!device ||
-          endpoint.address != device->audioInEndpointAddress ||
-          endpoint.alternate != device->audioInAlternate)
+          !audio || endpoint.address != audio->inEndpointAddress ||
+          endpoint.alternate != audio->inAlternate)
       {
         continue;
       }
@@ -12023,7 +12224,8 @@ void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
 
   if (managedAudioOut)
   {
-    if (device->audioOutRunning &&
+    AudioState *audio = device ? host->audioStateFor(*device) : nullptr;
+    if (audio && audio->outRunning &&
         transfer->status == USB_TRANSFER_STATUS_COMPLETED &&
         host->running_)
     {
@@ -12035,9 +12237,9 @@ void EspUsbHost::outputTransferCallback(usb_transfer_t *transfer)
 
     for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
     {
-      if (device->audioOutTransfers[i] == transfer)
+      if (audio && audio->outTransfers[i] == transfer)
       {
-        device->audioOutTransfers[i] = nullptr;
+        audio->outTransfers[i] = nullptr;
         break;
       }
     }
@@ -13288,12 +13490,15 @@ EspUsbHost::DeviceState *EspUsbHost::allocateDevice()
 
 void EspUsbHost::resetDeviceState(DeviceState &device)
 {
-  // The whole video allocation goes, rather than its fields being zeroed: the
-  // next device in this slot may not be a camera at all, and holding a kilobyte
-  // for it is the cost this indirection exists to avoid. Anything still in flight
-  // is dropped rather than wound down -- the device this slot described is gone.
+  // The whole video and audio allocations go, rather than their fields being
+  // zeroed: the next device in this slot may be neither a camera nor an audio
+  // device, and holding their state for it is the cost this indirection exists to
+  // avoid. Anything still in flight is dropped rather than wound down -- the
+  // device this slot described is gone.
   releaseVideoStreaming(device, false);
   releaseVideoState(device);
+  releaseAudioOutputTransfers(device);
+  releaseAudioState(device);
   // Free the reusable OUT transfer (it references this device's now-stale handle),
   // but keep the TX lock / completion semaphore alive across the reset: they are
   // created once per device slot and reused for whatever device next occupies it.
@@ -13557,7 +13762,8 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioOutputDevice(uint8_t address
 {
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || !device.hasAudioOutEndpoint)
+    const AudioState *audio = audioStateFor(device);
+    if (!device.inUse || !device.handle || !audio || !audio->hasOutEndpoint)
     {
       continue;
     }
@@ -13578,7 +13784,8 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioInputDevice(uint8_t address)
 {
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || !device.hasAudioInEndpoint)
+    const AudioState *audio = audioStateFor(device);
+    if (!device.inUse || !device.handle || !audio || !audio->hasInEndpoint)
     {
       continue;
     }
@@ -13615,7 +13822,8 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioDevice(uint8_t address) cons
 {
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.hasAudioInterface)
+    const AudioState *audio = audioStateFor(device);
+    if (!device.inUse || !audio || !audio->hasInterface)
     {
       continue;
     }
@@ -13636,7 +13844,8 @@ const EspUsbHost::DeviceState *EspUsbHost::findAudioControlDevice(uint8_t addres
 {
   for (const DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || device.audioControlInterfaceNumber == 0xff || device.audioFeatureUnitCount == 0)
+    const AudioState *audio = audioStateFor(device);
+    if (!device.inUse || !device.handle || !audio || audio->controlInterfaceNumber == 0xff || audio->featureUnitCount == 0)
     {
       continue;
     }
@@ -13653,14 +13862,19 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioFeatureUnit(const Dev
                                                                        uint8_t controlSelector,
                                                                        uint8_t channel) const
 {
+  const AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return nullptr;
+  }
   if (channel > ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS)
   {
     return nullptr;
   }
 
-  for (uint8_t i = 0; i < device.audioFeatureUnitCount; i++)
+  for (uint8_t i = 0; i < audio->featureUnitCount; i++)
   {
-    const EspUsbHostAudioFeatureUnitInfo &unit = device.audioFeatureUnits[i];
+    const EspUsbHostAudioFeatureUnitInfo &unit = audio->featureUnits[i];
     if (unitId != 0 && unit.unitId != unitId)
     {
       continue;
@@ -13683,6 +13897,11 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioPlaybackFeatureUnit(c
                                                                                uint8_t unitId,
                                                                                uint8_t channel) const
 {
+  const AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return nullptr;
+  }
   if (channel > ESP_USB_HOST_MAX_AUDIO_FEATURE_CHANNELS)
   {
     return nullptr;
@@ -13690,9 +13909,9 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioPlaybackFeatureUnit(c
 
   if (unitId != 0)
   {
-    for (uint8_t i = 0; i < device.audioFeatureUnitCount; i++)
+    for (uint8_t i = 0; i < audio->featureUnitCount; i++)
     {
-      const EspUsbHostAudioFeatureUnitInfo &unit = device.audioFeatureUnits[i];
+      const EspUsbHostAudioFeatureUnitInfo &unit = audio->featureUnits[i];
       if (unit.unitId == unitId && channel <= unit.channelCount)
       {
         return &unit;
@@ -13703,9 +13922,9 @@ const EspUsbHostAudioFeatureUnitInfo *EspUsbHost::findAudioPlaybackFeatureUnit(c
 
   const EspUsbHostAudioFeatureUnitInfo *muteOnlyUnit = nullptr;
   const EspUsbHostAudioFeatureUnitInfo *volumeOnlyUnit = nullptr;
-  for (uint8_t i = 0; i < device.audioFeatureUnitCount; i++)
+  for (uint8_t i = 0; i < audio->featureUnitCount; i++)
   {
-    const EspUsbHostAudioFeatureUnitInfo &unit = device.audioFeatureUnits[i];
+    const EspUsbHostAudioFeatureUnitInfo &unit = audio->featureUnits[i];
     if (channel > unit.channelCount)
     {
       continue;
@@ -14323,7 +14542,10 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
   {
     if (device.inUse)
     {
-      device.audioOutRunning = false;
+      if (AudioState *audio = audioStateFor(device))
+      {
+        audio->outRunning = false;
+      }
       device.usbVendorOutQueueActive = false;
       device.usbVendorInQueueActive = false;
     }
@@ -14358,31 +14580,33 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
   // Managed audio OUT transfers are not EndpointState entries.
   for (DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || device.audioOutEndpointAddress == 0)
+    AudioState *audio = audioStateFor(device);
+    if (!device.inUse || !device.handle || !audio || audio->outEndpointAddress == 0)
     {
       continue;
     }
     bool hasAudioTransfer = false;
-    for (usb_transfer_t *transfer : device.audioOutTransfers)
+    for (usb_transfer_t *transfer : audio->outTransfers)
     {
       hasAudioTransfer = hasAudioTransfer || transfer != nullptr;
     }
     if (hasAudioTransfer)
     {
-      usb_host_endpoint_halt(device.handle, device.audioOutEndpointAddress);
-      usb_host_endpoint_flush(device.handle, device.audioOutEndpointAddress);
+      usb_host_endpoint_halt(device.handle, audio->outEndpointAddress);
+      usb_host_endpoint_flush(device.handle, audio->outEndpointAddress);
     }
   }
 
   // Neither is the explicit feedback IN transfer that paces them.
   for (DeviceState &device : devices_)
   {
-    if (!device.inUse || !device.handle || !device.audioOutFeedbackTransfer)
+    AudioState *audio = audioStateFor(device);
+    if (!device.inUse || !device.handle || !audio || !audio->outFeedbackTransfer)
     {
       continue;
     }
-    usb_host_endpoint_halt(device.handle, device.audioOutFeedbackEndpointAddress);
-    usb_host_endpoint_flush(device.handle, device.audioOutFeedbackEndpointAddress);
+    usb_host_endpoint_halt(device.handle, audio->outFeedbackEndpointAddress);
+    usb_host_endpoint_flush(device.handle, audio->outFeedbackEndpointAddress);
   }
 
   // Queued vendor bulk OUT transfers are not EndpointState entries either.
@@ -14433,18 +14657,19 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
     }
     for (DeviceState &device : devices_)
     {
-      if (!device.inUse)
+      AudioState *audio = audioStateFor(device);
+      if (!device.inUse || !audio)
       {
         continue;
       }
-      for (usb_transfer_t *transfer : device.audioOutTransfers)
+      for (usb_transfer_t *transfer : audio->outTransfers)
       {
         if (transfer)
         {
           idle = false;
         }
       }
-      if (device.audioOutFeedbackTransfer)
+      if (audio->outFeedbackTransfer)
       {
         idle = false;
       }
@@ -14619,11 +14844,16 @@ size_t EspUsbHost::getAudioStreams(uint8_t address, EspUsbHostAudioStreamInfo *s
   {
     return 0;
   }
+  const AudioState *audio = audioStateFor(*device);
+  if (!audio)
+  {
+    return 0;
+  }
 
-  const size_t count = device->audioStreamInfoCount < maxStreams ? device->audioStreamInfoCount : maxStreams;
+  const size_t count = audio->streamInfoCount < maxStreams ? audio->streamInfoCount : maxStreams;
   for (size_t i = 0; i < count; i++)
   {
-    streams[i] = device->audioStreamInfos[i];
+    streams[i] = audio->streamInfos[i];
   }
   return count;
 }
@@ -14663,11 +14893,16 @@ size_t EspUsbHost::getVideoStreamCount(uint8_t address) const
 
 void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
 {
-  device.audioOutRunning = false;
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return;
+  }
+  audio->outRunning = false;
   for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
   {
-    usb_transfer_t *transfer = device.audioOutTransfers[i];
-    device.audioOutTransfers[i] = nullptr;
+    usb_transfer_t *transfer = audio->outTransfers[i];
+    audio->outTransfers[i] = nullptr;
     if (transfer)
     {
       usb_host_transfer_free(transfer);
@@ -14678,29 +14913,39 @@ void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
 
 uint32_t EspUsbHost::audioOutputPacingRate(const DeviceState &device) const
 {
-  return device.audioOutFeedbackRate != 0 ? device.audioOutFeedbackRate : device.audioSampleRate;
+  const AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return 0;
+  }
+  return audio->outFeedbackRate != 0 ? audio->outFeedbackRate : audio->sampleRate;
 }
 
 bool EspUsbHost::startAudioFeedback(DeviceState &device)
 {
-  device.audioOutFeedbackRate = 0;
-  device.audioOutFeedbackUpdates = 0;
-  device.audioOutFeedbackRejects = 0;
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
+  audio->outFeedbackRate = 0;
+  audio->outFeedbackUpdates = 0;
+  audio->outFeedbackRejects = 0;
 
-  if (device.audioOutFeedbackEndpointAddress == 0 ||
-      device.audioOutFeedbackPacketSize == 0 ||
-      device.audioOutFeedbackInterfaceNumber != device.audioOutInterfaceNumber)
+  if (audio->outFeedbackEndpointAddress == 0 ||
+      audio->outFeedbackPacketSize == 0 ||
+      audio->outFeedbackInterfaceNumber != audio->outInterfaceNumber)
   {
     // Synchronous or adaptive playback interface: no rate to follow.
     return true;
   }
-  if (device.audioOutFeedbackTransfer)
+  if (audio->outFeedbackTransfer)
   {
     return true;
   }
 
   usb_transfer_t *transfer = nullptr;
-  esp_err_t err = usb_host_transfer_alloc(device.audioOutFeedbackPacketSize, 1, &transfer);
+  esp_err_t err = usb_host_transfer_alloc(audio->outFeedbackPacketSize, 1, &transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_alloc(audio feedback) failed: %s", esp_err_to_name(err));
@@ -14709,10 +14954,10 @@ bool EspUsbHost::startAudioFeedback(DeviceState &device)
   }
 
   transfer->device_handle = device.handle;
-  transfer->bEndpointAddress = device.audioOutFeedbackEndpointAddress;
+  transfer->bEndpointAddress = audio->outFeedbackEndpointAddress;
   transfer->callback = audioFeedbackTransferCallback;
   transfer->context = this;
-  device.audioOutFeedbackTransfer = transfer;
+  audio->outFeedbackTransfer = transfer;
 
   if (!submitAudioFeedbackTransfer(device))
   {
@@ -14720,22 +14965,27 @@ bool EspUsbHost::startAudioFeedback(DeviceState &device)
     return false;
   }
   ESP_LOGI(TAG, "USB Audio feedback polling started: ep=0x%02x size=%u nominal=%lu",
-           device.audioOutFeedbackEndpointAddress,
-           device.audioOutFeedbackPacketSize,
-           static_cast<unsigned long>(device.audioSampleRate));
+           audio->outFeedbackEndpointAddress,
+           audio->outFeedbackPacketSize,
+           static_cast<unsigned long>(audio->sampleRate));
   return true;
 }
 
 bool EspUsbHost::submitAudioFeedbackTransfer(DeviceState &device)
 {
-  usb_transfer_t *transfer = device.audioOutFeedbackTransfer;
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
+  usb_transfer_t *transfer = audio->outFeedbackTransfer;
   if (!transfer)
   {
     return false;
   }
 
-  transfer->num_bytes = device.audioOutFeedbackPacketSize;
-  transfer->isoc_packet_desc[0].num_bytes = device.audioOutFeedbackPacketSize;
+  transfer->num_bytes = audio->outFeedbackPacketSize;
+  transfer->isoc_packet_desc[0].num_bytes = audio->outFeedbackPacketSize;
   transfer->isoc_packet_desc[0].actual_num_bytes = 0;
   transfer->isoc_packet_desc[0].status = USB_TRANSFER_STATUS_COMPLETED;
 
@@ -14751,6 +15001,11 @@ bool EspUsbHost::submitAudioFeedbackTransfer(DeviceState &device)
 
 void EspUsbHost::applyAudioFeedback(DeviceState &device, const usb_transfer_t *transfer)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return;
+  }
   const size_t length = static_cast<size_t>(transfer->isoc_packet_desc[0].actual_num_bytes);
   if (length == 0)
   {
@@ -14761,25 +15016,30 @@ void EspUsbHost::applyAudioFeedback(DeviceState &device, const usb_transfer_t *t
   const uint32_t feedbackQ16 = espUsbHostAudioDecodeFeedbackQ16(transfer->data_buffer, length);
   const bool highSpeed = device.info.speed == USB_SPEED_HIGH;
   const uint32_t rate = espUsbHostAudioFeedbackSampleRate(feedbackQ16, highSpeed);
-  if (!espUsbHostAudioFeedbackRatePlausible(rate, device.audioSampleRate))
+  if (!espUsbHostAudioFeedbackRatePlausible(rate, audio->sampleRate))
   {
-    device.audioOutFeedbackRejects++;
+    audio->outFeedbackRejects++;
     ESP_LOGD(TAG, "USB Audio feedback out of range: rate=%lu nominal=%lu len=%u",
              static_cast<unsigned long>(rate),
-             static_cast<unsigned long>(device.audioSampleRate),
+             static_cast<unsigned long>(audio->sampleRate),
              static_cast<unsigned>(length));
     return;
   }
 
-  device.audioOutFeedbackRate = rate;
-  device.audioOutFeedbackUpdates++;
+  audio->outFeedbackRate = rate;
+  audio->outFeedbackUpdates++;
 }
 
 void EspUsbHost::releaseAudioFeedbackTransfer(DeviceState &device)
 {
-  usb_transfer_t *transfer = device.audioOutFeedbackTransfer;
-  device.audioOutFeedbackTransfer = nullptr;
-  device.audioOutFeedbackRate = 0;
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return;
+  }
+  usb_transfer_t *transfer = audio->outFeedbackTransfer;
+  audio->outFeedbackTransfer = nullptr;
+  audio->outFeedbackRate = 0;
   if (transfer)
   {
     usb_host_transfer_free(transfer);
@@ -14790,7 +15050,8 @@ void EspUsbHost::audioFeedbackTransferCallback(usb_transfer_t *transfer)
 {
   EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
   DeviceState *device = host ? host->findDeviceByHandle(transfer->device_handle) : nullptr;
-  if (!host || !device || device->audioOutFeedbackTransfer != transfer)
+  AudioState *audio = device ? host->audioStateFor(*device) : nullptr;
+  if (!host || !device || !audio || audio->outFeedbackTransfer != transfer)
   {
     usb_host_transfer_free(transfer);
     return;
@@ -14799,7 +15060,7 @@ void EspUsbHost::audioFeedbackTransferCallback(usb_transfer_t *transfer)
   if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
   {
     host->applyAudioFeedback(*device, transfer);
-    if (device->audioOutRunning && host->running_ && host->submitAudioFeedbackTransfer(*device))
+    if (audio->outRunning && host->running_ && host->submitAudioFeedbackTransfer(*device))
     {
       return;
     }
@@ -14813,8 +15074,8 @@ void EspUsbHost::audioFeedbackTransferCallback(usb_transfer_t *transfer)
 
   // Polling stopped: fall back to the negotiated rate instead of pacing playback
   // from a value that is no longer refreshed.
-  device->audioOutFeedbackTransfer = nullptr;
-  device->audioOutFeedbackRate = 0;
+  audio->outFeedbackTransfer = nullptr;
+  audio->outFeedbackRate = 0;
   usb_host_transfer_free(transfer);
 }
 
@@ -14917,6 +15178,11 @@ bool EspUsbHost::finalizeDisconnectedDevice(DeviceState &device)
 
 void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return;
+  }
   device.hasKeyboardInterface = false;
   device.keyboardBitmapReport = false;
   device.keyboardLayoutInterface = 0xff;
@@ -14947,14 +15213,14 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.hasUsbVendorOutEndpoint = false;
   device.hasMidiInterface = false;
   device.hasMidiOutEndpoint = false;
-  device.hasAudioInterface = false;
-  device.hasAudioInEndpoint = false;
-  device.hasAudioOutEndpoint = false;
-  device.audioOutRunning = false;
-  device.audioFeatureUnitCount = 0;
-  device.audioProtocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
-  device.audioClockSourceCount = 0;
-  device.audioTerminalClockCount = 0;
+  audio->hasInterface = false;
+  audio->hasInEndpoint = false;
+  audio->hasOutEndpoint = false;
+  audio->outRunning = false;
+  audio->featureUnitCount = 0;
+  audio->protocol = ESP_USB_HOST_AUDIO_PROTOCOL_UAC1;
+  audio->clockSourceCount = 0;
+  audio->terminalClockCount = 0;
   device.hasMscInterface = false;
   device.hasMscInEndpoint = false;
   device.hasMscOutEndpoint = false;
@@ -14966,7 +15232,7 @@ void EspUsbHost::clearParsedDescriptorState(DeviceState &device)
   device.ccidInterfaceNumber = 0xff;
   device.ccidSlotCount = 1;
   device.ccidMaxMessageLength = 0;
-  device.audioStreamInfoCount = 0;
+  audio->streamInfoCount = 0;
   device.interfaceInfoCount = 0;
   device.endpointInfoCount = 0;
   device.hidReportDescriptorCount = 0;
@@ -16478,8 +16744,13 @@ bool EspUsbHost::submitAudioSamplingFrequency(DeviceState &device, uint8_t endpo
 
 bool EspUsbHost::submitAudioClockSampleRate(DeviceState &device, uint8_t clockSourceId, uint32_t sampleRate)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
   if (!clientHandle_ || !device.handle || clockSourceId == 0 ||
-      device.audioControlInterfaceNumber == 0xff)
+      audio->controlInterfaceNumber == 0xff)
   {
     return false;
   }
@@ -16512,7 +16783,7 @@ bool EspUsbHost::submitAudioClockSampleRate(DeviceState &device, uint8_t clockSo
   setup->bRequest = USB_AUDIO_REQUEST_CUR;
   setup->wValue = static_cast<uint16_t>(USB_AUDIO_CLOCK_SAM_FREQ_CONTROL) << 8;
   setup->wIndex = static_cast<uint16_t>(static_cast<uint16_t>(clockSourceId) << 8) |
-                  device.audioControlInterfaceNumber;
+                  audio->controlInterfaceNumber;
   setup->wLength = AUDIO_CLOCK_SAMPLE_RATE_LENGTH;
 
   uint8_t *frequency = transfer->data_buffer + USB_SETUP_PACKET_SIZE;
@@ -16566,8 +16837,13 @@ bool EspUsbHost::applyAudioStreamSampleRate(DeviceState &device,
 
 bool EspUsbHost::submitAudioClockSampleRateRange(DeviceState &device, uint8_t clockSourceId, uint8_t attemptIndex)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
   if (!clientHandle_ || !device.handle || clockSourceId == 0 ||
-      device.audioControlInterfaceNumber == 0xff)
+      audio->controlInterfaceNumber == 0xff)
   {
     return false;
   }
@@ -16606,7 +16882,7 @@ bool EspUsbHost::submitAudioClockSampleRateRange(DeviceState &device, uint8_t cl
   setup->bRequest = current ? USB_AUDIO_REQUEST_CUR : USB_AUDIO_REQUEST_RANGE;
   setup->wValue = static_cast<uint16_t>(USB_AUDIO_CLOCK_SAM_FREQ_CONTROL) << 8;
   setup->wIndex = static_cast<uint16_t>(static_cast<uint16_t>(clockSourceId) << 8) |
-                  device.audioControlInterfaceNumber;
+                  audio->controlInterfaceNumber;
   setup->wLength = static_cast<uint16_t>(length);
 
   transfer->device_handle = device.handle;
@@ -16632,12 +16908,17 @@ bool EspUsbHost::submitAudioClockSampleRateRange(DeviceState &device, uint8_t cl
 
 void EspUsbHost::queryAudioClockSampleRates(DeviceState &device)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return;
+  }
   uint8_t queried[ESP_USB_HOST_MAX_AUDIO_CLOCK_SOURCES] = {};
   uint8_t queriedCount = 0;
 
-  for (uint8_t i = 0; i < device.audioStreamInfoCount; i++)
+  for (uint8_t i = 0; i < audio->streamInfoCount; i++)
   {
-    const EspUsbHostAudioStreamInfo &stream = device.audioStreamInfos[i];
+    const EspUsbHostAudioStreamInfo &stream = audio->streamInfos[i];
     if (stream.protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 || stream.clockSourceId == 0)
     {
       continue;
@@ -16666,6 +16947,11 @@ void EspUsbHost::applyAudioClockSampleRates(DeviceState &device,
                                             size_t rateCount,
                                             uint32_t currentRate)
 {
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return;
+  }
   uint32_t resolved[ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES] = {};
   size_t resolvedCount = 0;
   for (size_t i = 0; i < rateCount && resolvedCount < ESP_USB_HOST_MAX_AUDIO_SAMPLE_RATES; i++)
@@ -16693,9 +16979,9 @@ void EspUsbHost::applyAudioClockSampleRates(DeviceState &device,
   }
 
   uint8_t updated = 0;
-  for (uint8_t i = 0; i < device.audioStreamInfoCount; i++)
+  for (uint8_t i = 0; i < audio->streamInfoCount; i++)
   {
-    EspUsbHostAudioStreamInfo &stream = device.audioStreamInfos[i];
+    EspUsbHostAudioStreamInfo &stream = audio->streamInfos[i];
     if (stream.protocol != ESP_USB_HOST_AUDIO_PROTOCOL_UAC2 ||
         stream.clockSourceId != clockSourceId)
     {
@@ -16808,7 +17094,12 @@ bool EspUsbHost::audioFeatureControl(DeviceState &device,
                                      bool dataIn,
                                      uint32_t timeoutMs)
 {
-  if (!clientHandle_ || !device.handle || !data || length == 0 || device.audioControlInterfaceNumber == 0xff)
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
+  if (!clientHandle_ || !device.handle || !data || length == 0 || audio->controlInterfaceNumber == 0xff)
   {
     return false;
   }
@@ -16840,7 +17131,7 @@ bool EspUsbHost::audioFeatureControl(DeviceState &device,
   setup->bmRequestType = dataIn ? 0xa1 : 0x21;
   setup->bRequest = request;
   setup->wValue = (static_cast<uint16_t>(controlSelector) << 8) | channel;
-  setup->wIndex = (static_cast<uint16_t>(unitId) << 8) | device.audioControlInterfaceNumber;
+  setup->wIndex = (static_cast<uint16_t>(unitId) << 8) | audio->controlInterfaceNumber;
   setup->wLength = length;
   if (!dataIn)
   {
