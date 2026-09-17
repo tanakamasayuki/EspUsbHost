@@ -316,6 +316,7 @@ Step 2でクラスがわかったら、対応するサンプルをそのまま�
 - MSC → [`EspUsbHostMSCFatList`](../examples/Storage/EspUsbHostMSCFatList/)
 - CCID → [`EspUsbHostCcidReader`](../examples/Ccid/EspUsbHostCcidReader/)
 - MIDI / Audio → [MIDI](../examples/MIDI/) / [Audio](../examples/Audio/)
+- UVC → [`EspUsbHostVideoCamera`](../examples/Video/EspUsbHostVideoCamera/)。[3.5](#35-コントロール転送256バイトの壁) の制限を通れる小さなカメラが対象
 
 ### Step 4. HIDなら、レポートディスクリプタを読む
 

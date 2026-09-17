@@ -117,7 +117,7 @@ descriptor や report を使いたい場合、または ESP32-P4 で Host / Devi
 | Mass Storage（BOT/SCSI） | `0x08` | ライブラリAPI — ブロックI/OとFatFs / Arduino `fs::FS` | [`examples/Storage/`](examples/Storage/) |
 | Hub | `0x09` | ライブラリAPI — 検出・トポロジ・ポート単位の電源制御（PPPS） | [`examples/Info/`](examples/Info/) |
 | Smart Card（CCID） | `0x0b` | ライブラリAPI — ATR、カード種別、APDU送受信、escapeコマンド | [`examples/Ccid/`](examples/Ccid/) |
-| Video（UVC） | `0x0e` | ライブラリAPI — 後述のコア側2つの制限を受ける | — |
+| Video（UVC） | `0x0e` | ライブラリAPI — 後述のコア側2つの制限を受ける | [`examples/Video/`](examples/Video/) |
 | CDC-NCM / CDC-ECM Ethernet | `0x02` のsubclass | ライブラリAPI — 生フレーム、またはlwIP `esp_netif` | [`examples/UsbNetwork/`](examples/UsbNetwork/) |
 | Application Specific（USBTMC） | `0xfe` | example — USBTMC/USB488 + SCPIをvendor bulk/control API上で | [`examples/Vendor/EspUsbHostUsbtmcScpi/`](examples/Vendor/EspUsbHostUsbtmcScpi/) |
 | Vendor-specific | `0xff` | ライブラリAPI — interfaceの明示claim、bulk IN/OUT、EP0 request | [`examples/Vendor/`](examples/Vendor/) |
@@ -360,6 +360,7 @@ void loop() {
 | スケッチ | 説明 |
 |----------|------|
 | [EspUsbHostCcidReader](examples/Ccid/EspUsbHostCcidReader/) | CCIDスマートカードリーダーをopenし、カードの挿入・排出を通知、ATRとカード種別を読み、PC/SCのGet UID APDUを送る |
+| [EspUsbHostVideoCamera](examples/Video/EspUsbHostVideoCamera/) | UVCカメラからフレームを受信する。フォーマット一覧、Probe/Commit、ストリーミング、各フレームを `loop()` へ渡すところまで。コア側2つの制限を通れる小さなカメラが必要で、市販の webcam は列挙されない |
 | [EspUsbHostCcidFelicaIdm](examples/Ccid/EspUsbHostCcidFelicaIdm/) | Sony RC-S300でSystem Codeを指定してFeliCaのIDmを読む。transparent sessionでRFフィールドを奪い、FeliCa Pollingフレームを自分で送る。リーダー自前のワイルドカードポーリングが捕まえたものではなく、特定のシステムに届かせる唯一の方法 |
 
 ### Network
