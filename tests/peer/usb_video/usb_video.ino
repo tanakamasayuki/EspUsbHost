@@ -92,6 +92,16 @@ static bool handleLifecycle(char command)
                       static_cast<unsigned>(usb.getVideoStreamCount(videoAddress)));
         return true;
     }
+    if (command == 'h')
+    {
+        // Free heap, for the allocation cycling test. The per-device video state
+        // is allocated when a camera enumerates and freed when it goes, so a leak
+        // shows up here and nowhere else.
+        Serial.printf("HEAP free=%lu largest=%lu\n",
+                      static_cast<unsigned long>(ESP.getFreeHeap()),
+                      static_cast<unsigned long>(ESP.getMaxAllocHeap()));
+        return true;
+    }
     if (command == 'Q')
     {
         Serial.printf("HOST_STATE %s devices=%u\n",

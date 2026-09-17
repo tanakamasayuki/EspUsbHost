@@ -376,3 +376,52 @@ def test_camera_can_be_replugged_while_streaming(dut, peers, camera):
 
     dut.write("T")
     dut.expect_exact("VIDEO_STOP stopped=1 streaming=0")
+
+
+def _free_heap(dut):
+    dut.write("h")
+    return int(dut.expect(r"HEAP free=(\d+) largest=\d+\r?\n").group(1))
+
+
+def test_repeated_attach_and_detach_does_not_leak(dut, peers, camera):
+    """The per-device video state is allocated and freed; cycling must not drift.
+
+    It is allocated when a camera's descriptors are parsed and freed when the
+    device slot is reset, so an unbalanced path shows up as free heap falling by
+    about a kilobyte per cycle and nowhere else. One attach/detach cannot show
+    that -- a leak and a one-time allocation look identical -- so this cycles
+    several times and compares the first completed cycle against the last.
+    """
+    device = peers["device"]
+
+    cycles = 5
+    readings = []
+    for _ in range(cycles):
+        dut.write("S")
+        dut.expect(r"VIDEO_START started=1 .*\r?\n")
+        device.expect_exact("DEVICE_VIDEO_STREAMING 1")
+        time.sleep(0.3)
+
+        device.write("X")
+        device.expect_exact("DEVICE_VIDEO_DETACHED")
+        dut.expect(r"DEVICE_DISCONNECTED addr=\d+\r?\n", timeout=10)
+
+        # Measured with the camera away, so the reading is of the state that
+        # should have been returned rather than of the state in use.
+        readings.append(_free_heap(dut))
+
+        device.write("Y")
+        device.expect_exact("DEVICE_VIDEO_ATTACHED 1")
+        _poll_state(dut, r"VIDEO_DEVICE addr=[1-9]\d* streams=[1-9]\d*", command="v", attempts=60)
+
+    print(f"\nfree heap after each detach: {readings}")
+
+    # The first cycle also pays for anything allocated once, so the comparison
+    # starts at the second.
+    drift = readings[1] - readings[-1]
+    assert drift < 512, (
+        f"free heap fell by {drift} bytes over {cycles - 1} attach/detach cycles "
+        f"({readings}); the per-device video state is not being freed")
+
+    dut.write("T")
+    dut.expect(r"VIDEO_STOP stopped=\d streaming=0\r?\n")
