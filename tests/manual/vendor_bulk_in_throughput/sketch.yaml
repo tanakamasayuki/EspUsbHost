@@ -2,7 +2,7 @@ profiles:
   esp32s3:
     fqbn: esp32:esp32:esp32s3:USBMode=default
     platforms:
-      - platform: esp32:esp32 (3.3.11)
+      - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
@@ -13,21 +13,21 @@ profiles:
     # so pytest would see an empty console after flashing.
     fqbn: esp32:esp32:esp32p4:USBMode=hwcdc,CDCOnBoot=cdc
     platforms:
-      - platform: esp32:esp32 (3.3.11)
+      - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
-
   # The two-board ESP32-P4 rig, OTG HS to OTG HS over an A-A cable. Same build as
   # esp32p4; it exists so the rig resolves TEST_SERIAL_PORT_P4_HS_DIRECT instead
   # of borrowing TEST_SERIAL_PORT_ESP32P4, which points at whichever single P4 is
   # on the bench. The wiring is temporary, so this profile is manual-only and is
   # in no CI job. Select it with --profile p4_hs_direct; the device board is
   # flashed by hand from tests/peer/usb_vendor_read/peer_device.
+
   p4_hs_direct:
     fqbn: esp32:esp32:esp32p4:USBMode=hwcdc,CDCOnBoot=cdc
     platforms:
-      - platform: esp32:esp32 (3.3.11)
+      - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
