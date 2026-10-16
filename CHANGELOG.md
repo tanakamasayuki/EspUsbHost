@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+## 2.10.1
 - (EN) Wait for the audio streaming alternate to be selected before arming pull playback, preserving its first packet. Starts from USB callbacks are deferred to the control completion. Allocate the output pool before submitting any buffer, so partial startup failures cannot free buffers still owned by the driver.
 - (JA) 引き出し型の音声出力はstreaming alternateの選択完了を待ってから転送を投入し、先頭パケットの欠落を防ぐ。USBコールバックからの開始は制御要求の完了後に転送を開始する。出力プールは全バッファを確保してから投入し、開始途中の失敗時にもドライバが所有中のバッファを解放しないようにした。
 - (EN) Keep video buffers owned through frame callbacks, prevent duplicate submissions, and wait for submit calls before canceling. Failed alternate selection or a partially rejected pool now makes `videoStart()` fail and clean up.
