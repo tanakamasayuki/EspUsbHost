@@ -61,6 +61,14 @@ Output uses `audioOutputReady()` to detect a USB Audio OUT endpoint, then `audio
 | `streams[i].input` | Data flows from the USB device to the ESP32 |
 | `streams[i].output` | Data flows from the ESP32 to the USB device |
 
+## Push and pull output
+
+`audioOutputStart()` selects the streaming interface and waits at least 1 ms before submitting output transfers. From a USB callback, it schedules playback for a later client-task iteration without blocking the callback; true then means the control request was queued, and `audioOutputRunning()` becomes true once playback is armed.
+
+`audioSend()` copies data and queues transfers without waiting for completion. True means queued, not delivered. If it returns false partway through, earlier chunks may already be queued; retrying the entire buffer can duplicate them. Failed completions are not retried.
+
+For continuous playback, use `onAudioOutputRequest()` as this example does and generate the requested number of frames. When `writtenFrames` is smaller than requested, the library pads the remainder with silence. Received byte counts can therefore exceed the source PCM length. Silence padding does not guarantee lossless delivery on the bus or device.
+
 ## Expected Serial output
 
 ```

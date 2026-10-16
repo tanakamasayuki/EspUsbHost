@@ -2,8 +2,9 @@
 
 EspUsbHost usb;
 
-static const uint8_t OUTPUT_REPORT[63] = {
-    'h', 'o', 's', 't', ' ', 'o', 'u', 't', 'p', 'u', 't'};
+// USBHIDVendor declares Report ID 6; interrupt OUT includes it on the wire.
+static const uint8_t OUTPUT_REPORT[64] = {
+    ESP_USB_HOST_HID_REPORT_ID_VENDOR, 'h', 'o', 's', 't', ' ', 'o', 'u', 't', 'p', 'u', 't'};
 static const uint8_t FEATURE_REPORT[63] = {
     'h', 'o', 's', 't', ' ', 'f', 'e', 'a', 't', 'u', 'r', 'e'};
 

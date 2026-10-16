@@ -196,6 +196,8 @@ static constexpr int ESP_USB_HOST_VIDEO_ISOC_PACKETS = 8;
 // ESP_USB_HOST_VIDEO_ISOC_PACKETS packets into it. Four transfers cover 32 frame
 // intervals, which is longer than any gap the client task introduces.
 static constexpr size_t ESP_USB_HOST_MAX_VIDEO_TRANSFERS = 4;
+// Keep capture queued while the client task dispatches audio/video callbacks.
+static constexpr size_t ESP_USB_HOST_AUDIO_INPUT_TRANSFERS = 4;
 // EspUsbHostCdcSerial objects that can be attached to one host at a time. Eight
 // because a single device can now publish up to seven CDC ports and a sketch may
 // want a Stream on each of them, with room left for a second device. Each slot is
@@ -2548,6 +2550,8 @@ public:
                      const uint8_t *data,
                      size_t length,
                      uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Raw interrupt OUT bytes. Include the Report ID prefix when the descriptor
+  // declares one; omit it for an unnumbered report. No ID is inserted or removed.
   bool sendHIDVendorOutput(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool sendHIDVendorFeature(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   // Claims a bulk interface for direct transfers. With the default
@@ -2810,6 +2814,10 @@ public:
   bool audioInputStart(const EspUsbHostAudioStreamInfo &stream,
                        uint32_t sampleRate = 0,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  // Cancel and drain capture, then select alternate 0. Waits for the client task,
+  // so call from loop()/another task, never from a USB callback. Safe to repeat.
+  bool audioInputStop(uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
+  bool audioInputRunning(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool audioOutputReady(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
   bool setAudioSampleRate(uint32_t sampleRate, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   bool audioOutputStart(uint8_t channels,
@@ -2834,6 +2842,9 @@ public:
   // Rate playback is actually paced at: the feedback rate once one has arrived,
   // otherwise the negotiated rate.
   uint32_t audioOutputRate(uint8_t address = ESP_USB_HOST_ANY_ADDRESS) const;
+  // Copies and submits without waiting for completion. True means queued, not
+  // delivered. On false, earlier chunks may already be queued; do not retry the
+  // whole buffer blindly. For continuous playback use onAudioOutputRequest().
   bool audioSend(const uint8_t *data, size_t length, uint8_t address = ESP_USB_HOST_ANY_ADDRESS);
   size_t getAudioFeatureUnits(uint8_t address, EspUsbHostAudioFeatureUnitInfo *units, size_t maxUnits) const;
   bool audioHasMute(uint8_t address = ESP_USB_HOST_ANY_ADDRESS, uint8_t unitId = 0, uint8_t channel = 0) const;
@@ -3214,6 +3225,15 @@ private:
     size_t count = 0;
   };
 
+  struct AudioInputQueue
+  {
+    usb_transfer_t *transfers[ESP_USB_HOST_AUDIO_INPUT_TRANSFERS] = {};
+    bool inFlight[ESP_USB_HOST_AUDIO_INPUT_TRANSFERS] = {};
+    uint8_t submitting = 0;
+    bool halted = false;
+    bool stopped = true;
+  };
+
   struct EndpointState
   {
     bool inUse = false;
@@ -3230,6 +3250,7 @@ private:
     uint8_t audioBytesPerSample = 0;
     uint8_t audioBitsPerSample = 0;
     usb_transfer_t *transfer = nullptr;
+    AudioInputQueue *audioInput = nullptr;
     bool transferSubmitted = false;
     // Set while an endpoint is being taken over or torn down: no path may submit
     // a new transfer on it, so the outstanding one can be canceled and freed.
@@ -3322,11 +3343,14 @@ private:
     VideoAlternateState alternates[ESP_USB_HOST_MAX_VIDEO_ALTERNATES] = {};
     uint8_t alternateCount = 0;
     bool streamingActive = false;
+    bool bulkInterfaceInitialized = false;
+    bool bulkSyncPending = false;
     // Set while the streaming transfers are being torn down, so a completion
     // callback that is already running does not resubmit.
     bool stopping = false;
     usb_transfer_t *transfers[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
     bool transferInFlight[ESP_USB_HOST_MAX_VIDEO_TRANSFERS] = {};
+    uint8_t submitting = 0;
     uint8_t transferCount = 0;
     uint8_t activeAlternate = 0;
     uint8_t activeEndpoint = 0;
@@ -3430,6 +3454,7 @@ private:
     uint8_t inBitsPerSample = 0;
     bool hasOutEndpoint = false;
     uint8_t outInterfaceNumber = 0;
+    uint8_t outAlternate = 0;
     uint8_t outEndpointAddress = 0;
     uint16_t outPacketSize = 0;
     uint8_t outChannels = 0;
@@ -3437,6 +3462,9 @@ private:
     uint8_t outBitsPerSample = 0;
     uint8_t outInterval = 0;
     bool outRunning = false;
+    bool outStartPending = false;
+    bool outStartReady = false;
+    uint32_t outStartAt = 0;
     uint32_t outFrameAccumulator = 0;
     uint32_t outUnderruns = 0;
     usb_transfer_t *outTransfers[ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS] = {};
@@ -3834,6 +3862,8 @@ private:
   // its format is reported, but no endpoint or transfer is allocated for it.
   void recordAudioStream(DeviceState &device, const usb_ep_desc_t *ep, bool input, bool startable = true);
   void handleTransfer(usb_transfer_t *transfer);
+  bool submitAudioInputTransfer(EndpointState &endpoint, size_t slot);
+  static void audioInputTransferCallback(usb_transfer_t *transfer);
   void dispatchKeyboardState(EndpointState &endpoint,
                              DeviceState *device,
                              const uint8_t *bitmap,
@@ -4051,6 +4081,7 @@ private:
   bool fillAudioOutputTransfer(DeviceState &device, usb_transfer_t *transfer);
   bool isManagedAudioOutputTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   void releaseAudioOutputTransfers(DeviceState &device);
+  bool startAudioOutputTransfers(DeviceState &device);
   // Explicit feedback endpoint polling. The transfer is not an EndpointState entry
   // for the same reason the audio OUT transfers are not: it is owned by the
   // playback stream and lives only while it runs.

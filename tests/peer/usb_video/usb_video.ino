@@ -1,8 +1,6 @@
 // Host side of the UVC peer test.
 //
-// Covers what the host can do today with a USB Video device: discover it during
-// enumeration and report every format/frame pair it offers. Streaming is not
-// part of this yet, so nothing here starts a transfer.
+// Discovers video formats, negotiates streaming, and verifies reassembled frames.
 //
 // The peer prints the numbers it built its descriptors from, and this sketch
 // prints what the host decoded from those descriptors. The test compares the

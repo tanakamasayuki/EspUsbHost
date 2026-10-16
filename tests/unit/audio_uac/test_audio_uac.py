@@ -118,3 +118,13 @@ def test_audio_uac_decoding(build_and_run):
         "audio_uac_test.cpp",
         includes=[output],  # espusbhost_audio_real.h
     ))
+
+
+def test_audio_capture_stop_lifecycle(build_and_run):
+    output = HERE / "output"
+    output.mkdir(exist_ok=True)
+    source = (SRC / "EspUsbHost.cpp").read_text()
+    (output / "espusbhost_audio_stop_real.h").write_text(
+        _brace_match(source, "bool EspUsbHost::audioInputStop(")
+    )
+    print(build_and_run("audio_stop_test.cpp", includes=[output]))

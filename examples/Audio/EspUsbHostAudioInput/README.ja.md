@@ -48,12 +48,20 @@ USBマイクなどのUSB Audio isochronous INデータを受信し、1秒ごと�
 | --- | --- |
 | `audioInputReady(address)` | USB Audio IN endpointが見つかっている |
 | `audioInputStart(stream, sampleRate, address)` | 指定した入力streamを開始する |
+| `audioInputStop(address)` | 受信転送とコールバックの完了を待ち、alternate 0へ戻す。成功ならtrue |
+| `audioInputRunning(address)` | 入力が開始され、停止されていない |
 | `audioOutputReady(address)` | USB Audio OUT endpointが見つかっている |
 | `audioOutputStart(stream, sampleRate, address)` | 指定した出力streamを開始する |
 | `streams[i].input` | そのstreamがUSBデバイスからESP32へ入ってくる入力データ |
 | `streams[i].output` | そのstreamがESP32からUSBデバイスへ出ていく出力データ |
 
 入力は `audioInputReady()` で検出し、`audioInputStart()` でフォーマットを指定して開始します。出力は `audioOutputReady()` で検出し、出力サンプル側で `audioOutputStart()` を呼びます。
+
+## 停止・再開と受信レート
+
+入力は最大4本の転送（各8パケット）をキューに保持し、再投入までの空白を減らします。`audioInputStop()` はUSB client taskの完了処理を待つため、`loop()` などから呼び、USBコールバック内からは呼ばないでください。停止後は同じstreamを `audioInputStart()` で再開できます。`audioInputStart()` は接続コールバック内からも呼べますが、その場合は制御要求の投入成功を返します。
+
+受信コールバックで時間を使うと、キューを使い切ってアイソクロナスの取りこぼしが発生します。サンプルレートの設定値と受信量は別に記録してください。32 kHz・16 bit・monoの期待値は64,000 B/sですが、連番の連続性だけを確認しても毎フレーム受信できたことの証明にはなりません。
 
 ## シリアル出力例
 

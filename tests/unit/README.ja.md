@@ -158,6 +158,10 @@ uv run --env-file .env pytest unit/
 
 ## 仕組み
 
+`audio_uac` は実際の `audioInputStop()` を、halt状態を区別するfake USBドライバでも実行します。開始前・繰り返し停止で不要なclearを呼ばないこと、interface切り替え失敗後の再試行、キャンセルtimeout後の遅延完了、USB client task内からの呼び出し拒否を検査します。
+
+`video_uvc` は実際の `submitVideoTransfer()` と `handleVideo()` をfake USBドライバでも実行します。バルクの再投入時に転送長を保持すること、ヘッダ除去、ZLPの無視、不正ヘッダの計数、アイソクロナスのパケット位置とエラー処理、停止中の投入禁止を検査します。バルク転送長の検査は、修正前のアイソクロナス専用実装では失敗します。
+
 `dl1xx`・`ax206`・`felica_idm`・`usbtmc`・`dp100`・`escpos`のヘッダと`src/EspUsbHostCcidAtr.h`・
 `src/EspUsbHostHidLayout.h`はArduino/USB非依存の純粋なバイト処理なので、
 `test_dl1xx.py`・`test_ax206.py`・`test_felica_idm.py`・`test_usbtmc.py`・

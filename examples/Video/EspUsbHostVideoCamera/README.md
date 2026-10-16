@@ -34,6 +34,10 @@ Both limits are measured in [docs/usb-host-advanced.md](../../../docs/usb-host-a
 
 ## Notes
 
+- Both isochronous and bulk IN are supported. Bulk receives the negotiated `dwMaxPayloadTransferSize`, rounded up to a USB maximum-packet-size multiple, so a UVC payload can span several USB packets.
+- `videoStart() == true` means transfers were queued. Confirm incoming frames through the frame callback and `videoStats()`.
+- Bulk carries its endpoint on alternate 0. `videoStop()` stops host reception without changing the alternate; the device can still report streaming. Resume discards a pending partial frame and waits for EOF followed by a new FID before delivering complete frames.
+
 - **The frame callback runs on the USB task, which also resubmits the streaming transfers.** Four transfers of eight packets is 4 ms of queue at high speed, and an isochronous packet arriving with nothing queued is gone — there is no retry. Time spent in the callback comes off the stream *silently*: no stall, no failed packet, just frames with less in them. An earlier version of the throughput measurement verified all 128 KB of each frame inside the callback and reported 3.47 MB/s instead of 7.06, with frames arriving 6 KB short. This sketch does one `memcpy` and returns.
 - A frame arriving while the previous one is still being worked on is dropped and counted. A queue of buffers is the next step if the drops matter.
 - An ESP32-P4's hardware JPEG decoder (`driver/jpeg_decode.h`) belongs in `loop()` for the same reason. The frame handed over is one contiguous MJPEG image, which is what the decoder takes.

@@ -66,6 +66,12 @@ static bool audioReported = false;
 static uint8_t audioInputAddress = 0;
 static uint8_t audioOutputAddress = 0;
 static int16_t outputSamples[480];
+static uint32_t outputNext = 0;
+static uint32_t inputSequenceErrors = 0;
+static uint16_t inputPrevious = 0;
+static bool inputHavePrevious = false;
+static bool startOutputFromCallback = false;
+static portMUX_TYPE audioTestMux = portMUX_INITIALIZER_UNLOCKED;
 
 void setup()
 {
@@ -137,7 +143,26 @@ void setup()
 
     usb.onAudioData([](const EspUsbHostAudioData &audio)
                     {
+                        portENTER_CRITICAL(&audioTestMux);
                         audioBytes += audio.length;
+                        for (size_t i = 0; i + 1 < audio.length; i += 2)
+                        {
+                            const uint16_t value = audio.data[i] | (static_cast<uint16_t>(audio.data[i + 1]) << 8);
+                            if (inputHavePrevious && value != static_cast<uint16_t>(inputPrevious + 197))
+                            {
+                                inputSequenceErrors++;
+                            }
+                            inputPrevious = value;
+                            inputHavePrevious = true;
+                        }
+                        const bool startOutput = startOutputFromCallback;
+                        startOutputFromCallback = false;
+                        portEXIT_CRITICAL(&audioTestMux);
+                        if (startOutput)
+                        {
+                            Serial.printf("AUDIO_OUT_START %u callback=1\n",
+                                          usb.audioOutputStart(1, 16, 32000, audioOutputAddress) ? 1 : 0);
+                        }
                         if (!audioReported && audioBytes >= 96)
                         {
                             audioReported = true;
@@ -147,6 +172,22 @@ void setup()
                                           static_cast<unsigned long>(audioBytes),
                                           static_cast<unsigned>(audio.length));
                         } });
+
+    usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
+                             {
+        // A finite, nonzero pattern followed by the library's silence padding.
+        // The peer sums samples, so losing any source sample changes the sum.
+        if (outputNext == 0) return;
+        size_t frames = 0;
+        while (frames < request.frameCount && outputNext <= 4096)
+        {
+            const uint16_t value = outputNext++;
+            request.data[frames * 2] = value & 0xff;
+            request.data[frames * 2 + 1] = value >> 8;
+            frames++;
+        }
+        request.writtenFrames = frames;
+    });
 
     Serial.println("HOST_STATE idle devices=0");
 }
@@ -172,17 +213,55 @@ void loop()
         }
         if (command == 'r')
         {
+            portENTER_CRITICAL(&audioTestMux);
             audioBytes = 0;
             audioReported = false;
+            inputHavePrevious = false;
+            inputSequenceErrors = 0;
+            portEXIT_CRITICAL(&audioTestMux);
             Serial.println("AUDIO_RESET");
         }
         else if (command == 'a')
         {
-            Serial.printf("AUDIO_OUT_START %u\n", usb.audioOutputStart(1, 16, 48000, audioOutputAddress) ? 1 : 0);
+            Serial.printf("AUDIO_OUT_START %u\n", usb.audioOutputStart(1, 16, 32000, audioOutputAddress) ? 1 : 0);
         }
         else if (command == 'i')
         {
-            Serial.printf("AUDIO_IN_START %u\n", usb.audioInputStart(1, 16, 48000, audioInputAddress) ? 1 : 0);
+            Serial.printf("AUDIO_IN_START %u\n", usb.audioInputStart(1, 16, 32000, audioInputAddress) ? 1 : 0);
+        }
+        else if (command == 't')
+        {
+            const bool stopped = usb.audioInputStop(audioInputAddress);
+            Serial.printf("AUDIO_IN_STOP %u running=%u\n", stopped ? 1 : 0,
+                          usb.audioInputRunning(audioInputAddress) ? 1 : 0);
+        }
+        else if (command == 'q')
+        {
+            portENTER_CRITICAL(&audioTestMux);
+            const uint32_t bytes = audioBytes;
+            const uint32_t errors = inputSequenceErrors;
+            portEXIT_CRITICAL(&audioTestMux);
+            Serial.printf("AUDIO_CAPTURE bytes=%lu sequence_errors=%lu running=%u\n",
+                          static_cast<unsigned long>(bytes), static_cast<unsigned long>(errors),
+                          usb.audioInputRunning(audioInputAddress) ? 1 : 0);
+        }
+        else if (command == 'b')
+        {
+            outputNext = 1; // Issued before playback starts, while callbacks are idle.
+            Serial.printf("AUDIO_OUT_START %u\n", usb.audioOutputStart(1, 16, 32000, audioOutputAddress) ? 1 : 0);
+        }
+        else if (command == 'o')
+        {
+            usb.audioOutputStop(audioOutputAddress);
+            Serial.println("AUDIO_OUT_STOP");
+        }
+        else if (command == 'c')
+        {
+            outputNext = 1;
+            portENTER_CRITICAL(&audioTestMux);
+            startOutputFromCallback = true;
+            portEXIT_CRITICAL(&audioTestMux);
+            Serial.println("AUDIO_OUT_CALLBACK_ARMED");
         }
         else if (command == 's')
         {

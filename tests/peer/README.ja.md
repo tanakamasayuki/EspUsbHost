@@ -18,6 +18,21 @@ uv run --env-file .env pytest peer/
 ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
 ```
 
+## 2026-10-16の確認結果
+
+ESP32-S3を2台、arduino-esp32 3.3.12、full-speedで確認しました。
+`usb_audio` のマイク入力＋引き出し型スピーカー出力の同時動作では、peerが2,000 ms
+送信した間に127,954バイト（約63,977 B/s）を受信し、PCM連番の欠落は0件でした。
+通常起動とUSBコールバック内起動の両方で、有限の出力サンプルの合計値8,390,656が
+一致し、追加の受信バイトは無音でした。マイクの停止・停止維持・再開も通過しています。
+`usb_video_bulk` はEspUsbDevice 2.5.1のpeerで5回の起動・停止を行い、8,192バイトの
+パターンフレームが欠損せず届き、header・payload・packetの各エラーは0件でした。
+マイク＋カメラの同時動作とhigh-speedでの動作は、この試験では確認していません。
+
+既存のisochronous UVCとUAC2の回帰試験も10件通過し、それぞれ5回の接続・切断で
+free heapは一定でした。音声・bulk映像・HID vendorの実データ到達確認を合わせて
+実機試験13件、ホスト単体のunit試験15件が通過しています。
+
 ## ハードウェア接続
 
 ホストボードとピアボードはUSBで接続する必要があります。
@@ -64,10 +79,11 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
 - `usb_midi`: Arduino Core標準USB MIDI実装とペアで動作。MIDIとdevice lifecycleのlistener APIもここで検証する。1つのテストは意図的にpeerを再起動する。device側のcoreにUSB detach APIがなく、hostに本物の切断を渡す手段が再起動しかないため。
 - `usb_msc`: Arduino Core標準の `USBMSC` device（16ブロック×512バイトのRAMディスク）とペアで動作。容量取得（32bit・64bit両方）、Inquiry、Max LUNとLUN選択、Request Sense、Test Unit Ready / 準備待ち、Synchronize Cache、peer側メモリと突き合わせる単一・複数ブロックおよび分割転送のwrite/read往復、範囲外アクセスの拒否、write失敗の報告（peerが要求に応じて1回のwriteを失敗させる）を検証。さらに`end()`/再開を2通り検証する。デバイス接続中の場合と、peer再起動でdevice listが空の場合で、後者はhost libraryがinstallされたまま残っていたケース（issue #42）
 - `usb_msc_fat`: Arduino Core標準の `USBMSC` device とペアで動作。256ブロック×512バイトのRAMディスクを、peer自身がUSB開始前に`f_mkfs()`で整形し`PEER.TXT`を書き込む。hostがマウントするのと同じFatFsで作ったボリュームになる。`mscMount()` / `mscUnmount()` / `mscMounted()`、VFSパス経由でのpeerのファイル読み出し、報告された手順（mount→unmount→`end()`→`begin()`→再mount）、およびマウント中に`end()`してもFatFsのドライブスロットとVFSパスが取り残されないこと（issue #42）を検証する。なおこのpeerはSYNCHRONIZE CACHEの応答が安定せず、同じコマンドが1回目は成功し次はCSW status 1で返ってくる。そのため`y`コマンドは診断用で、検証対象にはしていない。ライブラリはデバイス単位でこのコマンドを諦める動作に落ち、どちらでもunmountは成功する
-- `usb_audio`: `USBAudioCard` のスピーカー出力を使い、Arduino Core標準USB Audio device相当とペアで動作。UAC1
+- `usb_audio`: UAC1の `USBAudioCard` headsetとペアで動作。マイク入力と引き出し型スピーカー出力の同時動作、PCM連番、出力サンプルの合計値、マイク停止・再開を検査し、受信レートを記録します。
 - `usb_audio_uac2`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbAudioFunction` をUAC2指定にしたheadsetとペアで動作。`USBAudioCard` はUAC1専用のため、Arduino Core標準device stackでは作れない唯一のaudio構成である。class revision、Clock Sourceのサンプルレート（UAC2 descriptorが持たないため `SAM_FREQ` の `RANGE` リクエストで取得）、4バイト・2ビットのFeature Unit controlとvolumeの `RANGE` リクエスト、feedback IN endpointがstream一覧に出ずポーリングされてOUTパケットのレート追従に使われること（`f`: 報告レートが48 kHz近傍、追従レートが一致、更新が継続すること）、OUT/IN streaming、およびUAC2固有ではないが引数を0にした「最良フォーマット自動選択」での起動を検証する
 - `usb_vendor`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVendor` とペアで動作
 - `usb_vendor_read`: 同じ組み合わせで、その下を流れる bulk IN 転送の「形」を検証する。peer は echo ではなく、要求された長さぶんの 0..255 ramp を流す。1パケットずつ受けても、8 KB の1転送で受けても、read queue で2本同時に受けても、同じバイトが同じ順で届くことを host 側で確認できる。既定の読みサイズ、`vendorOpen()` の転送サイズ指定と別サイズでの再open拒否、`vendorReadQueueBegin()` / `vendorReadQueueEnd()`、不正な queue 形状の拒否、queue が endpoint を持っている間の `vendorReadSync()` 拒否を対象とする。これは正しさのテストで、帯域の掃引は `manual/vendor_bulk_in_throughput` にある（full-speed の S3 同士では、転送の形が high-speed でどれだけ効くかは見えないため）
+- `usb_video_bulk`: `usb_video` と同じ連番パターンのカメラを、バルク転送・128バイトのペイロードバッファでビルドします。複数USBパケットにまたがるUVCペイロードの組み直しと停止・再開を検査します。`build_opt.h` の変更後は `--clean` を付けてください。
 - `usb_video`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceVideo` カメラ（MJPEG 320x240 15fps の1フォーマット）とペアで動作。UVC を一通り対象とする: VideoControl header、VideoStreaming input header、Format / Frame descriptor の2階層ツリーを format/frame の組ごとに1ストリームへ平坦化する処理、`espUsbHostSelectVideoStream()` が要求を解決しカメラが持たないサイズ・レート・フォーマットを拒否すること、さらに Probe/Commit、alternate 選択、フレーム再構成、停止と再開まで。さらに、ストリーミング中に抜かれたカメラが挿し直しで再び列挙されること（device が既に居なくても切断処理が claim を release しなければならない、という点）も対象とする。peer が送るフレームは `buffer[i] = i + n` のパターンを持つので、host はバイト数ではなく**中身**を検査する。payload header を画像データに残す、payload を1つ落とす、2フレームを繋いでしまう——いずれもパターンを壊すが、どれもバイト数には現れない。descriptor 由来の値はテストに書いた定数ではなく peer が自身の生成元から print した数値と突き合わせるので、デコードの誤りは「両ボードの不一致」として現れる。peer を小さくしているのは2点ともコア側の制約による: configuration descriptor が `CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE`（arduino-esp32 3.3.11 で256バイト）に収まらないと host がそもそも列挙できないこと、および full-speed の host が約120バイトを超える isochronous IN パケットを受け取れないため `build_opt.h` で `CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE` を112に固定していること。最初のチェックが descriptor の上限を検査するので、将来収まらなくなった日は「デコード失敗」ではなく「サイズ超過」として報告される。payload サイズはコンパイラフラグなので、変更したら `--clean` を付けて実行すること。
 - `usb_ncm`: 兄弟ライブラリ `EspUsbDevice` の `EspUsbDeviceNet`（CDC-NCM）device とペアで動作。Host は USB NIC を DHCP クライアントの lwIP netif として attach し、device の DHCP サーバから `192.168.7.x` のリースを取得して、固定ページを HTTP GET で取得する。
 - `usb_ncm_throughput`: 同じ組み合わせに連続負荷をかける。device 側の TCP sink（port 9000）と TCP source（port 9001）へ各5秒間フルレートで流し、両方向が動き続けること、bulk OUT が失敗を報告しないこと、交渉したサイズを超えて破棄される NTB が無いことを確認する。peer の `build_opt.h` で `CFG_TUD_NCM_IN_NTB_MAX_SIZE` を 8192・送信バッファ3面に上げ、device 側はバースト書き込みするため、実売 USB NIC と同様に複数 datagram を1つの NTB にまとめる。これが、以前は固定3200バイトだった host 側バッファを超える NTB を丸ごと破棄していた問題を露出させた構成である。この peer 設定は維持すること: `usb_ncm` は 1NTB=1datagram しか作らず、この回帰を検出できない。これらはコンパイラフラグなので、`build_opt.h` を触った後は `--clean` を付けて実行する。付けないとキャッシュされた `EspUsbDevice` のビルドが再利用され、peer は以前のサイズを申告する（テストは交渉値を検査しているので、その場合は明確に失敗する）。

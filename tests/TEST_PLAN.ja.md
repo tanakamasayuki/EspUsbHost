@@ -130,7 +130,7 @@ autouse フィクスチャが `G` で開始し `H` で停止する。
 | HIDシステムコントロール | ✅ peer | | |
 | HIDゲームパッド | ✅ peer | | |
 | HID複数listener配送 | ✅ peer（単一callbackとの共存、listener単独配送、順序、上限、解除、callback内変更） | | |
-| HIDベンダー入出力 | ✅ peer | | |
+| HIDベンダー入出力 | ✅ peer（Report ID付きinterrupt OUTの受信内容とfeature report） | | |
 | HID生データダンプ | ✅ peer (custom_hid) | | |
 | キーボードLED出力 | ✅ peer (hid_logic) | ✅ manual（目視） | |
 | USBシリアル — CDC ACM | ✅ peer、line coding設定、`end()`/再開 | | |
@@ -140,7 +140,8 @@ autouse フィクスチャが `G` で開始し `H` で停止する。
 | device lifecycle複数listener配送 | ✅ peer（`end()`/再開による接続event、peer再起動による切断→再接続、単一callbackとの共存、順序、専用上限8、解除） | | |
 | Vendor-specific bulk/control | ✅ peer（usb_vendor、`end()`/再開を含む） | ✅ manual（Android ADB認証＋shell stream） | |
 | Vendor bulk INの転送の形 | ✅ peer（usb_vendor_read: 既定の1パケット読み、`vendorOpen()` の転送サイズ指定と再open時の競合、read queueのbegin/end、queue動作中の `vendorReadSync()` 拒否、128 KBのrampを両経路でバイト単位検証） | 🆕 manual（`vendor_bulk_in_throughput`: continuous readとdepth 1/2/4 × 512 B〜32 KB転送の比較。ここでは未実行だが、同じ掃引をESP32-P4同士で回したのが wch-protocols E089: continuous 6.10 MB/s → depth 4 で 24.45 MB/s） | ⬜ このリポジトリ内でのhigh-speed実測。そのために追加したP4 profileはまだ走らせていない |
-| USBオーディオ入出力 — UAC1 | ✅ peer（標準`USBAudioCard`で双方向） | | ⬜ 実USBマイク・オーディオIF |
+| USBオーディオ入出力 — UAC1 | ✅ peer（`usb_audio`: 32 kHz mono16の同時入出力、入力連番と受信レート、callback起動を含む引き出し型出力の合計値、入力停止・再開）、✅ ホスト単体（`unit/audio_uac`: 入力停止・timeout・再試行） | | ⬜ 実USBマイク・オーディオIF、マイク＋カメラの同時動作 |
+| USBビデオ — UVC | ✅ peer（`usb_video`: isochronousのフレーム内容・停止再開・抜き差し、`usb_video_bulk`: 複数USBパケットにまたがるbulk payloadと5回の停止再開）、✅ ホスト単体（`unit/video_uvc`: bulk/iso転送処理、payload組み立て、転送バッファの所有権） | | ⬜ 実カメラ、high-speed streaming |
 | USBオーディオ入出力 — UAC2 | ✅ peer（`usb_audio_uac2`: class revision、Clock Sourceのサンプルレート、4バイト・2ビットのFeature Unit control、volumeの`RANGE`、explicit feedback endpointのポーリングとOUTのレート追従、双方向streaming）、✅ ホスト単体（`unit/audio_uac`: descriptorと`RANGE`のデコード） | | ⬜ 実UAC2機器（high-speed設計が多く、full-speedホストでは列挙できない）、Clock Selector / Clock Multiplier、実DACでの長時間の非同期playback（peerのfeedbackはFIFO残量からの計算でハードウェアクロック由来ではない） |
 | USB Mass Storage — ブロックI/O / FatFsマウント | ✅ peer（容量、Inquiry/Sense、read/write、範囲外拒否、write失敗検出、デバイス接続中とdevice listが空の状態での`end()`/再開。usb_msc_fat: peerが整形したFAT12ボリュームのmount/read/unmount、mount→unmount→`end()`→`begin()`→再mount、マウント中`end()`でのボリューム解放） | ✅ manual（実USBメモリの容量取得、LBA0 read、FatFs/VFS mount、`fs::FS` wrapper、ファイルwrite/read/delete、mount中disconnect/remount） | ⬜ data phase失敗後の完全なBOT復旧、複数LUN、32-bit sector超のFatFs mount |
 | CCIDスマートカードリーダー | | ✅ manual（`ccid_info` のdescriptorダンプ、`ccid_card` のopen/状態/ATR/APDU、`ccid_hotplug` のslot変化通知をSony RC-S300で確認） | ⬜ 複数slotリーダー、接触カード、チェイン応答、ICCD変種 |

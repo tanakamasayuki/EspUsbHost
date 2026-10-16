@@ -52,6 +52,7 @@ STRUCTS = [
     "EspUsbHostVideoStreamSelection",
     "EspUsbHostVideoPayloadHeader",
     "EspUsbHostVideoProbeControl",
+    "EspUsbHostVideoStats",
 ]
 
 CONSTANTS = [
@@ -126,3 +127,19 @@ def test_video_uvc_decoding(build_and_run):
         "video_uvc_test.cpp",
         includes=[output],  # espusbhost_video_real.h
     ))
+
+
+def test_video_transfer_transport(build_and_run):
+    """Exercise the production submit/receive paths with a small fake driver."""
+    output = HERE / "output"
+    output.mkdir(exist_ok=True)
+    _generate_real_header(output / "espusbhost_video_real.h")
+    host_cpp = (SRC / "EspUsbHost.cpp").read_text()
+    (output / "espusbhost_video_transfers_real.h").write_text("\n\n".join(
+        _brace_match(host_cpp, signature) for signature in (
+            "bool EspUsbHost::submitVideoTransfer(",
+            "void EspUsbHost::handleVideo(",
+            "void EspUsbHost::videoTransferCallback(",
+        )
+    ))
+    print(build_and_run("video_transfer_test.cpp", includes=[output]))

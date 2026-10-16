@@ -84,6 +84,8 @@ onHIDInput	KEYWORD2
 onAudioData	KEYWORD2
 audioInputReady	KEYWORD2
 audioInputStart	KEYWORD2
+audioInputStop	KEYWORD2
+audioInputRunning	KEYWORD2
 audioOutputReady	KEYWORD2
 audioOutputStart	KEYWORD2
 setAudioSampleRate	KEYWORD2

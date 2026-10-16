@@ -121,7 +121,7 @@ static void reportVideoFacts()
                   camera.height(),
                   camera.frameRate(),
                   static_cast<unsigned long>(camera.maxFrameSize()),
-                  EspUsbDeviceVideo::isochronousPacketSize(false),
+                  EspUsbDeviceVideo::bulkStreaming() ? 64 : EspUsbDeviceVideo::isochronousPacketSize(false),
                   EspUsbDeviceVideo::bulkStreaming() ? 1 : 0);
     Serial.printf("DEVICE_VIDEO_DESC len=%u\n", camera.descriptorLength(false));
     Serial.printf("DEVICE_VIDEO_FRAME bytes=%u\n", static_cast<unsigned>(FRAME_BYTES));

@@ -191,6 +191,10 @@ headers directly, so a new warning in them fails here before it reaches a board.
 
 ## How it works
 
+`audio_uac` also executes the production `audioInputStop()` against a fake controller that distinguishes halted and active pipes. It checks stopping before capture, repeated stop, retry after interface-selection failure, a late completion after cancellation timeout, and rejection from the USB client task.
+
+`video_uvc` also executes the production `submitVideoTransfer()` and `handleVideo()` methods with a fake USB driver. It checks that bulk transfer length survives resubmission, payload headers are removed, ZLPs are ignored, malformed headers are counted, isochronous packet offsets and errors remain correct, and stopping prevents new submissions. The bulk-length check fails against the original isochronous-only implementation.
+
 The `dl1xx`, `ax206`, `felica_idm`, `usbtmc`, `dp100` and `escpos` headers,
 `src/EspUsbHostCcidAtr.h` and `src/EspUsbHostHidLayout.h` are pure byte
 formatting with no Arduino / USB dependencies, so `test_dl1xx.py`,

@@ -27,7 +27,7 @@
   - `input.interfaceNumber` — HIDインターフェース番号
   - `input.rawData`, `input.rawLength` — 生のHID入力レポートバイト
   - `input.reportData`, `input.reportLength` — Report IDがある場合はそれを除いたレポートバイト
-- `usb.sendHIDVendorOutput(data, length)` — interrupt OUT endpointでHID出力レポートを送信
+- `usb.sendHIDVendorOutput(data, length)` — interrupt OUT endpointへ渡されたバイト列をそのまま送信。Report ID付きのdescriptorなら `[Report ID, payload…]` を渡します。IDなしならpayloadだけを渡します。IDの自動挿入・除去はしません。IDを別引数で指定するAPIから移植するときは、この違いに注意してください。
 - `usb.sendHIDVendorFeature(data, length)` — EP0の`SET_REPORT`でHIDフィーチャーレポートを送信
 
 ## シリアル出力例

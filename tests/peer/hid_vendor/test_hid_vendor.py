@@ -56,3 +56,6 @@ def test_hid_vendor(dut, peers):
 
     dut.write("o")
     dut.expect_exact("SEND_OUTPUT 1")
+    # A successful host submit alone missed the missing Report ID prefix: the
+    # peer discarded 'h' as an unknown ID. Verify the full payload at the peer.
+    device.expect_exact("DEVICE_OUTPUT host output")

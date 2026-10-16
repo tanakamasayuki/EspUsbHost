@@ -48,12 +48,20 @@ The output-side counterpart is `audioOutputReady()`, which checks whether an Aud
 | --- | --- |
 | `audioInputReady(address)` | A USB Audio IN endpoint was found |
 | `audioInputStart(stream, sampleRate, address)` | Start the specified input stream |
+| `audioInputStop(address)` | Drain capture transfers and callbacks, then select alternate 0; true on success |
+| `audioInputRunning(address)` | Capture has been started and has not been stopped |
 | `audioOutputReady(address)` | A USB Audio OUT endpoint was found |
 | `audioOutputStart(stream, sampleRate, address)` | Start the specified output stream |
 | `streams[i].input` | Data flows from the USB device to the ESP32 |
 | `streams[i].output` | Data flows from the ESP32 to the USB device |
 
 Input is detected with `audioInputReady()` and started with `audioInputStart()` with an explicit format. Output is detected with `audioOutputReady()`, and the output examples call `audioOutputStart()`.
+
+## Stopping, restarting and capture rate
+
+Capture queues up to four transfers of eight packets each to cover the resubmission gap. Call `audioInputStop()` from `loop()` or another application task, never from a USB callback: it waits for the client task to drain transfers and callbacks. Restart the same stream with `audioInputStart()`. Starting from a connection callback remains supported; in that case success means the control request was queued.
+
+Slow callbacks can exhaust the queue and lose isochronous packets. Record measured throughput separately from the configured sample rate. For 32 kHz, 16-bit mono, the expected rate is 64,000 B/s; a continuous sample sequence alone does not prove capture occurred every USB frame.
 
 ## Expected Serial output
 

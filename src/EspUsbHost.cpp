@@ -8,6 +8,7 @@
 #include <esp_idf_version.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 #include <atomic>
 #include <new>
 #include <utility>
@@ -5808,6 +5809,23 @@ bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
     return false;
   }
 
+  if (audioInputRunning(device->info.address))
+  {
+    const bool sameStream = audio->inEndpointAddress == stream.endpointAddress &&
+                            audio->inInterfaceNumber == stream.interfaceNumber &&
+                            audio->inAlternate == stream.alternate && audio->sampleRate == selectedRate;
+    if (!sameStream)
+    {
+      setLastError(ESP_ERR_INVALID_STATE);
+    }
+    return sameStream;
+  }
+  if (selectedEndpoint->transferSubmitted || selectedEndpoint->audioInput->halted)
+  {
+    setLastError(ESP_ERR_INVALID_STATE); // A previous stop has not drained yet.
+    return false;
+  }
+
   audio->sampleRate = selectedRate;
   audio->inInterfaceNumber = stream.interfaceNumber;
   audio->inAlternate = stream.alternate;
@@ -5816,16 +5834,132 @@ bool EspUsbHost::audioInputStart(const EspUsbHostAudioStreamInfo &stream,
   audio->inBytesPerSample = stream.bytesPerSample;
   audio->inBitsPerSample = stream.bitsPerSample;
 
-  bool submitted = applyAudioStreamSampleRate(*device, stream, selectedRate);
-  if (stream.alternate == 0)
+  if (!applyAudioStreamSampleRate(*device, stream, selectedRate))
   {
-    submitted = submitInputTransfer(*selectedEndpoint) && submitted;
+    return false;
   }
-  else
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
   {
-    submitted = submitSetInterface(*device, stream.interfaceNumber, stream.alternate) && submitted;
+    // Preserve start-from-onDeviceConnected(): the control completion arms the
+    // pool. A synchronous SET_INTERFACE here would deadlock its own dispatcher.
+    selectedEndpoint->stopping = false;
+    selectedEndpoint->audioInput->stopped = false;
+    const bool submitted = stream.alternate == 0
+                               ? submitInputTransfer(*selectedEndpoint)
+                               : submitSetInterface(*device, stream.interfaceNumber, stream.alternate);
+    if (!submitted)
+    {
+      selectedEndpoint->stopping = true;
+      selectedEndpoint->audioInput->stopped = true;
+    }
+    return submitted;
   }
-  return submitted;
+  if (!setInterfaceSync(*device, stream.interfaceNumber, stream.alternate,
+                        ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS))
+  {
+    return false;
+  }
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  selectedEndpoint->stopping = false;
+  selectedEndpoint->audioInput->stopped = false;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
+  return submitInputTransfer(*selectedEndpoint);
+}
+
+bool EspUsbHost::audioInputRunning(uint8_t address) const
+{
+  const DeviceState *device = findAudioInputDevice(address);
+  const AudioState *audio = device ? audioStateFor(*device) : nullptr;
+  for (const EndpointState &endpoint : endpoints_)
+  {
+    if (audio && endpoint.inUse && endpoint.deviceHandle == device->handle &&
+        endpoint.audioInput && endpoint.address == audio->inEndpointAddress && !endpoint.stopping)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool EspUsbHost::audioInputStop(uint8_t address)
+{
+  DeviceState *device = findAudioInputDevice(address);
+  AudioState *audio = device ? audioStateFor(*device) : nullptr;
+  if (!audio || xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
+  EndpointState *endpoint = findEndpoint(device->handle, audio->inEndpointAddress);
+  if (!endpoint || !endpoint->audioInput)
+  {
+    return true; // Capture has never been started.
+  }
+  if (endpoint->audioInput->stopped)
+  {
+    return true;
+  }
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  endpoint->stopping = true;
+  endpoint->resubmitPending = false;
+  endpoint->recoveryPending = false;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
+  // A submitter may have claimed a slot just before stopping was set. Wait
+  // until that submit reaches the driver before flushing it.
+  const uint32_t submitStarted = millis();
+  while (endpoint->audioInput->submitting && millis() - submitStarted < 1000)
+  {
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+  if (endpoint->audioInput->submitting)
+  {
+    setLastError(ESP_ERR_TIMEOUT);
+    return false;
+  }
+  if (endpoint->transferSubmitted)
+  {
+    if (!endpoint->audioInput->halted)
+    {
+      const esp_err_t err = usb_host_endpoint_halt(device->handle, endpoint->address);
+      if (err != ESP_OK)
+      {
+        setLastError(err);
+        return false;
+      }
+      endpoint->audioInput->halted = true;
+    }
+    const esp_err_t err = usb_host_endpoint_flush(device->handle, endpoint->address);
+    if (err != ESP_OK)
+    {
+      setLastError(err);
+      return false;
+    }
+    const uint32_t started = millis();
+    while (endpoint->transferSubmitted && millis() - started < 1000)
+    {
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+  if (endpoint->transferSubmitted)
+  {
+    setLastError(ESP_ERR_TIMEOUT);
+    return false; // Keep the buffers alive until their callbacks return.
+  }
+  if (endpoint->audioInput->halted)
+  {
+    const esp_err_t err = usb_host_endpoint_clear(device->handle, endpoint->address);
+    if (err != ESP_OK)
+    {
+      setLastError(err);
+      return false;
+    }
+    endpoint->audioInput->halted = false;
+  }
+  const bool stopped = audio->inAlternate == 0 ||
+                       setInterfaceSync(*device, audio->inInterfaceNumber, 0,
+                                         ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS);
+  endpoint->audioInput->stopped = stopped;
+  return stopped;
 }
 
 bool EspUsbHost::mscReady(uint8_t address) const
@@ -6150,7 +6284,7 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
   {
     return false;
   }
-  if (audio->outRunning)
+  if (audio->outRunning || audio->outStartPending)
   {
     return true;
   }
@@ -6194,6 +6328,7 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
 
   audio->sampleRate = selectedRate;
   audio->outInterfaceNumber = stream.interfaceNumber;
+  audio->outAlternate = stream.alternate;
   audio->outEndpointAddress = stream.endpointAddress;
   audio->outPacketSize = stream.maxPacketSize;
   audio->outChannels = stream.channels;
@@ -6210,17 +6345,55 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     return false;
   }
 
-  bool submitted = applyAudioStreamSampleRate(*device, stream, selectedRate);
-  if (stream.alternate > 0)
-  {
-    submitted = submitSetInterface(*device, stream.interfaceNumber, stream.alternate) && submitted;
-  }
-  if (!submitted)
+  if (!applyAudioStreamSampleRate(*device, stream, selectedRate))
   {
     return false;
   }
+  audio->outStartPending = true;
+  audio->outStartReady = false;
+  if (stream.alternate > 0)
+  {
+    if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+    {
+      // A connection callback cannot wait on its own control dispatcher. Arm
+      // playback only from the successful SET_INTERFACE completion instead.
+      if (!submitSetInterface(*device, stream.interfaceNumber, stream.alternate))
+      {
+        audio->outStartPending = false;
+        return false;
+      }
+      return true;
+    }
+    if (!setInterfaceSync(*device, stream.interfaceNumber, stream.alternate,
+                          ESP_USB_HOST_AUDIO_CONTROL_DEFAULT_TIMEOUT_MS))
+    {
+      audio->outStartPending = false;
+      return false;
+    }
+    // Some devices finish resetting their audio FIFO in the status-completion
+    // event, after the host has already seen the ACK. Give it one USB frame.
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+  return startAudioOutputTransfers(*device);
+}
 
+bool EspUsbHost::startAudioOutputTransfers(DeviceState &device)
+{
+  AudioState *audio = audioStateFor(device);
+  if (!audio)
+  {
+    return false;
+  }
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  if (!audio->outStartPending || !running_)
+  {
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    return false;
+  }
+  audio->outStartPending = false;
+  audio->outStartReady = false;
   audio->outRunning = true;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
   audio->outFrameAccumulator = 0;
   audio->outUnderruns = 0;
 
@@ -6232,24 +6405,34 @@ bool EspUsbHost::audioOutputStart(const EspUsbHostAudioStreamInfo &stream,
     {
       ESP_LOGW(TAG, "usb_host_transfer_alloc(audio OUT request) failed: %s", esp_err_to_name(err));
       setLastError(err);
-      releaseAudioOutputTransfers(*device);
+      releaseAudioOutputTransfers(device);
       return false;
     }
 
-    transfer->device_handle = device->handle;
+    transfer->device_handle = device.handle;
     transfer->bEndpointAddress = audio->outEndpointAddress;
     transfer->callback = outputTransferCallback;
     transfer->context = this;
     audio->outTransfers[i] = transfer;
+  }
 
-    if (!submitAudioOutputRequestTransfer(*device, transfer))
+  // Allocate the whole pool before giving any buffer to the driver. On a
+  // submit failure, earlier buffers remain alive until their callbacks return.
+  for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
+  {
+    if (!submitAudioOutputRequestTransfer(device, audio->outTransfers[i]))
     {
-      releaseAudioOutputTransfers(*device);
+      audio->outRunning = false;
+      for (size_t j = i; j < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; j++)
+      {
+        usb_host_transfer_free(audio->outTransfers[j]);
+        audio->outTransfers[j] = nullptr;
+      }
       return false;
     }
   }
 
-  if (!startAudioFeedback(*device))
+  if (!startAudioFeedback(device))
   {
     // Playback itself is running; without feedback it just stays at the negotiated
     // rate, which is what a synchronous device does anyway.
@@ -6272,7 +6455,11 @@ void EspUsbHost::audioOutputStop(uint8_t address)
   {
     return;
   }
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  audio->outStartPending = false;
+  audio->outStartReady = false;
   audio->outRunning = false;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
 }
 
 bool EspUsbHost::audioOutputRunning(uint8_t address) const
@@ -8499,6 +8686,12 @@ void EspUsbHost::clientTaskLoop()
       if (device.inUse)
       {
         serviceVendorInQueue(device);
+        AudioState *audio = audioStateFor(device);
+        if (audio && audio->outStartPending && audio->outStartReady &&
+            static_cast<int32_t>(millis() - audio->outStartAt) >= 0)
+        {
+          startAudioOutputTransfers(device);
+        }
       }
     }
     for (EndpointState &ep : endpoints_)
@@ -9826,6 +10019,40 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
         endpoint->transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
       }
 
+      endpoint->audioInput = new (std::nothrow) AudioInputQueue();
+      if (!endpoint->audioInput)
+      {
+        usb_host_transfer_free(endpoint->transfer);
+        endpoint->transfer = nullptr;
+        endpoint->inUse = false;
+        setLastError(ESP_ERR_NO_MEM);
+        return;
+      }
+      endpoint->stopping = true; // Only audioInputStart() arms capture.
+      endpoint->transfer->callback = audioInputTransferCallback;
+      endpoint->audioInput->transfers[0] = endpoint->transfer;
+      for (size_t slot = 1; slot < ESP_USB_HOST_AUDIO_INPUT_TRANSFERS; slot++)
+      {
+        usb_transfer_t *extra = nullptr;
+        err = usb_host_transfer_alloc(transferSize, AUDIO_ISOC_PACKETS, &extra);
+        if (err != ESP_OK)
+        {
+          ESP_LOGW(TAG, "usb_host_transfer_alloc(audio IN slot %u) failed: %s",
+                   static_cast<unsigned>(slot), esp_err_to_name(err));
+          break;
+        }
+        extra->device_handle = device->handle;
+        extra->bEndpointAddress = ep->bEndpointAddress;
+        extra->callback = audioInputTransferCallback;
+        extra->context = this;
+        extra->num_bytes = transferSize;
+        for (int i = 0; i < AUDIO_ISOC_PACKETS; i++)
+        {
+          extra->isoc_packet_desc[i].num_bytes = ep->wMaxPacketSize;
+        }
+        endpoint->audioInput->transfers[slot] = extra;
+      }
+
       ESP_LOGI(TAG, "USB Audio isochronous IN endpoint ready: iface=%u ep=0x%02x size=%u interval=%u",
                endpoint->interfaceNumber,
                endpoint->address,
@@ -10962,6 +11189,12 @@ const EspUsbHost::VideoAlternateState *EspUsbHost::selectVideoAlternate(const De
     {
       continue;
     }
+    if (!alternate.isochronous)
+    {
+      // Bulk payload length is negotiated independently of USB packet size;
+      // there is no periodic bandwidth alternate to rank against that length.
+      return &alternate;
+    }
     // Ranked by what this host can take, not by what the descriptor offers. On a
     // controller without high-bandwidth isochronous those differ, and an
     // alternate chosen on the descriptor's figure would be a third of the
@@ -11103,11 +11336,23 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   // Alternate 0 reserves no isochronous bandwidth, so this costs nothing and is
   // undone by videoStop() selecting it again. A camera that refuses it is not
   // failed on: some devices have no alternate settings at all.
-  if (!setInterfaceSync(*device, video->streamingInterface, 0,
-                        ESP_USB_HOST_VIDEO_CONTROL_DEFAULT_TIMEOUT_MS))
+  // Bulk has no idle alternate. Prime it only once: reopening a live bulk
+  // endpoint can discard a pending payload and exhaust TinyUSB's FIFO allocator.
+  const bool resumingBulk = !stream.isochronous && video->bulkInterfaceInitialized &&
+                            video->commit.maxPayloadTransferSize != 0;
+  if (stream.isochronous || !video->bulkInterfaceInitialized)
   {
-    ESP_LOGD(TAG, "USB Video: SET_INTERFACE(iface=%u alt=0) refused; probing anyway",
-             video->streamingInterface);
+    const bool initialized = setInterfaceSync(*device, video->streamingInterface, 0,
+                                               ESP_USB_HOST_VIDEO_CONTROL_DEFAULT_TIMEOUT_MS);
+    if (!initialized)
+    {
+      ESP_LOGD(TAG, "USB Video: SET_INTERFACE(iface=%u alt=0) refused; probing anyway",
+               video->streamingInterface);
+    }
+    else if (!stream.isochronous)
+    {
+      video->bulkInterfaceInitialized = true;
+    }
   }
 
   EspUsbHostVideoProbeControl committed;
@@ -11181,12 +11426,28 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   }
 
   const uint32_t packetBytes = alternate->usablePayload;
+  // A bulk UVC payload can span several USB packets. Read the whole negotiated
+  // payload in one transfer (rounded to MPS as required by the host driver).
+  // A short packet ends an earlier payload; a separate ZLP is harmless.
+  const uint64_t requestedBytes = alternate->isochronous
+                                      ? static_cast<uint64_t>(packetBytes) * ESP_USB_HOST_VIDEO_ISOC_PACKETS
+                                      : ((static_cast<uint64_t>(committed.maxPayloadTransferSize) + packetBytes - 1) /
+                                         packetBytes) * packetBytes;
+  if (requestedBytes > INT_MAX)
+  {
+    setLastError(ESP_ERR_INVALID_SIZE);
+    usb_host_interface_release(clientHandle_, device->handle, alternate->interfaceNumber);
+    free(frameBuffer);
+    return false;
+  }
+  const size_t transferBytes = static_cast<size_t>(requestedBytes);
+  const int isocPackets = alternate->isochronous ? ESP_USB_HOST_VIDEO_ISOC_PACKETS : 0;
   video->transferCount = 0;
   for (size_t slot = 0; slot < ESP_USB_HOST_MAX_VIDEO_TRANSFERS; slot++)
   {
     usb_transfer_t *transfer = nullptr;
-    err = usb_host_transfer_alloc(static_cast<size_t>(packetBytes) * ESP_USB_HOST_VIDEO_ISOC_PACKETS,
-                                  ESP_USB_HOST_VIDEO_ISOC_PACKETS,
+    err = usb_host_transfer_alloc(transferBytes,
+                                  isocPackets,
                                   &transfer);
     if (err != ESP_OK)
     {
@@ -11201,6 +11462,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     transfer->bEndpointAddress = alternate->endpointAddress;
     transfer->callback = videoTransferCallback;
     transfer->context = this;
+    transfer->num_bytes = transferBytes;
     video->transfers[slot] = transfer;
     video->transferInFlight[slot] = false;
     video->transferCount++;
@@ -11220,6 +11482,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   video->activeStream = stream;
   video->activeStream.alternate = alternate->alternate;
   video->activeStream.endpointAddress = alternate->endpointAddress;
+  video->activeStream.isochronous = alternate->isochronous;
   video->activeStream.frameInterval = committed.frameInterval;
   video->activeAlternate = alternate->alternate;
   video->activeEndpoint = alternate->endpointAddress;
@@ -11227,6 +11490,7 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   video->commit = committed;
   video->stats = EspUsbHostVideoStats();
   videoResetAssembly(*device);
+  video->bulkSyncPending = resumingBulk;
   video->stopping = false;
   video->streamingActive = true;
 
@@ -11236,11 +11500,10 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
   }
   device->endpointChannelCount = static_cast<uint8_t>(device->endpointChannelCount + 1);
 
-  // SET_INTERFACE before the first transfer, and waited for. Arming first looks
-  // like it would catch the earliest packets, but the device is still on its idle
-  // alternate and has no endpoint there, so every packet of that transfer comes
-  // back USB_TRANSFER_STATUS_ERROR.
-  const bool selected = setInterfaceSync(*device,
+  // Select the isochronous alternate before arming. Bulk already uses alternate
+  // 0: selecting it again after Commit can reset the camera's transfer state,
+  // and devices with no alternate settings may legitimately stall that request.
+  const bool selected = !alternate->isochronous || setInterfaceSync(*device,
                                          alternate->interfaceNumber,
                                          alternate->alternate,
                                          ESP_USB_HOST_VIDEO_CONTROL_DEFAULT_TIMEOUT_MS);
@@ -11249,6 +11512,8 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     ESP_LOGW(TAG, "USB Video: SET_INTERFACE(iface=%u alt=%u) failed",
              alternate->interfaceNumber,
              alternate->alternate);
+    releaseVideoStreaming(*device, true);
+    return false;
   }
 
   size_t armed = 0;
@@ -11260,23 +11525,24 @@ bool EspUsbHost::videoStart(const EspUsbHostVideoStreamInfo &stream, uint32_t fp
     }
   }
 
-  ESP_LOGI(TAG, "USB Video streaming: iface=%u alt=%u ep=0x%02x packet=%lu x%d transfers=%u/%u "
+  ESP_LOGI(TAG, "USB Video streaming: iface=%u alt=%u ep=0x%02x %s transfer_bytes=%u packets=%d transfers=%u/%u "
                 "frame_buffer=%u",
            alternate->interfaceNumber,
            alternate->alternate,
            alternate->endpointAddress,
-           static_cast<unsigned long>(packetBytes),
-           ESP_USB_HOST_VIDEO_ISOC_PACKETS,
+           alternate->isochronous ? "isoc" : "bulk",
+           static_cast<unsigned>(transferBytes),
+           isocPackets,
            static_cast<unsigned>(armed),
            static_cast<unsigned>(video->transferCount),
            static_cast<unsigned>(capacity));
 
-  if (armed == 0)
+  if (armed != video->transferCount)
   {
     releaseVideoStreaming(*device, true);
     return false;
   }
-  return selected;
+  return true;
 }
 
 int EspUsbHost::videoSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const
@@ -11311,18 +11577,27 @@ bool EspUsbHost::submitVideoTransfer(DeviceState &device, uint8_t slot)
   // flight and free the transfer before usb_host_transfer_submit() ran. Taking
   // the claim under the same lock makes the teardown either wait for this
   // transfer or leak it, but never free it underneath the driver.
-  usb_transfer_t *transfer = video->transfers[slot];
   portENTER_CRITICAL(&endpointSubmitMux_);
+  usb_transfer_t *transfer = video->transfers[slot];
   if (!transfer || video->stopping || !video->streamingActive)
   {
     portEXIT_CRITICAL(&endpointSubmitMux_);
     return false;
   }
+  if (video->transferInFlight[slot])
+  {
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    return true;
+  }
   video->transferInFlight[slot] = true;
+  video->submitting++;
   portEXIT_CRITICAL(&endpointSubmitMux_);
 
   const uint32_t packetBytes = video->activePacketBytes;
-  transfer->num_bytes = 0;
+  if (transfer->num_isoc_packets > 0)
+  {
+    transfer->num_bytes = 0;
+  }
   for (int i = 0; i < transfer->num_isoc_packets; i++)
   {
     transfer->isoc_packet_desc[i].num_bytes = packetBytes;
@@ -11333,12 +11608,16 @@ bool EspUsbHost::submitVideoTransfer(DeviceState &device, uint8_t slot)
   espUsbHostCacheSyncBeforeInTransfer(transfer);
 
   const esp_err_t err = usb_host_transfer_submit(transfer);
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  video->submitting--;
   if (err != ESP_OK)
   {
     // Hand the claim back so the teardown can free this slot.
-    portENTER_CRITICAL(&endpointSubmitMux_);
     video->transferInFlight[slot] = false;
-    portEXIT_CRITICAL(&endpointSubmitMux_);
+  }
+  portEXIT_CRITICAL(&endpointSubmitMux_);
+  if (err != ESP_OK)
+  {
     ESP_LOGW(TAG, "usb_host_transfer_submit(video slot %u) failed: %s",
              static_cast<unsigned>(slot),
              esp_err_to_name(err));
@@ -11381,13 +11660,18 @@ void EspUsbHost::videoTransferCallback(usb_transfer_t *transfer)
   }
 
   VideoState *video = device->video;
-  video->transferInFlight[slot] = false;
-  if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+  const usb_transfer_status_t status = transfer->status;
+  if (status == USB_TRANSFER_STATUS_COMPLETED)
   {
     host->handleVideo(*device, transfer);
   }
-  else if (transfer->status == USB_TRANSFER_STATUS_NO_DEVICE ||
-           transfer->status == USB_TRANSFER_STATUS_CANCELED)
+  // The callback still owns both the transfer and the frame buffer while it
+  // assembles/delivers data. Teardown must not free either until that is done.
+  portENTER_CRITICAL(&host->endpointSubmitMux_);
+  video->transferInFlight[slot] = false;
+  portEXIT_CRITICAL(&host->endpointSubmitMux_);
+  if (status == USB_TRANSFER_STATUS_NO_DEVICE ||
+      status == USB_TRANSFER_STATUS_CANCELED)
   {
     return;
   }
@@ -11408,6 +11692,14 @@ void EspUsbHost::releaseVideoTransfers(DeviceState &device, bool devicePresent)
   portENTER_CRITICAL(&endpointSubmitMux_);
   video->stopping = true;
   portEXIT_CRITICAL(&endpointSubmitMux_);
+
+  // A slot can have been claimed just before stopping, while its submit is
+  // still outside the lock. Flush only after those calls reach the driver.
+  const uint32_t submitStarted = millis();
+  while (video->submitting && millis() - submitStarted < 1000)
+  {
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
 
   if (devicePresent && device.handle && video->activeEndpoint != 0)
   {
@@ -11496,7 +11788,7 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
   // Alternate 0 of a VideoStreaming interface reserves no isochronous bandwidth,
   // which is how the camera is told to stop sending. Skipped when the device is
   // already gone: the control transfer would only time out.
-  if (devicePresent)
+  if (devicePresent && video->activeStream.isochronous)
   {
     submitSetInterface(device, video->streamingInterface, 0);
   }
@@ -11707,13 +11999,54 @@ void EspUsbHost::videoAppendPayload(DeviceState &device,
 
 void EspUsbHost::handleVideo(DeviceState &device, usb_transfer_t *transfer)
 {
-  if (!transfer || !transfer->data_buffer || transfer->num_isoc_packets <= 0)
+  if (!transfer || !transfer->data_buffer)
   {
     return;
   }
   VideoState *video = videoStateFor(device);
   if (!video || !video->streamingActive || !video->frameBuffer)
   {
+    return;
+  }
+
+  if (!video->activeStream.isochronous)
+  {
+    if (transfer->actual_num_bytes == 0)
+    {
+      return;
+    }
+    EspUsbHostVideoPayloadHeader header;
+    if (!espUsbHostVideoDecodePayloadHeader(transfer->data_buffer, transfer->actual_num_bytes, header))
+    {
+      if (video->bulkSyncPending)
+      {
+        video->frameIdValid = false;
+      }
+      else
+      {
+        video->stats.headerErrors++;
+      }
+      return;
+    }
+    if (video->bulkSyncPending)
+    {
+      // A paused bulk camera can still have part of its previous frame queued.
+      // Wait for EOF followed by a changed FID before exposing a new full frame.
+      if (video->frameIdValid && header.frameId != video->frameId)
+      {
+        video->bulkSyncPending = false;
+        video->frameIdValid = false;
+      }
+      else
+      {
+        video->frameIdValid = header.endOfFrame;
+        video->frameId = header.frameId;
+        return;
+      }
+    }
+    videoAppendPayload(device, header,
+                       transfer->data_buffer + header.payloadOffset,
+                       transfer->actual_num_bytes - header.payloadOffset);
     return;
   }
 
@@ -11820,8 +12153,109 @@ void EspUsbHost::transferCallback(usb_transfer_t *transfer)
   static_cast<EspUsbHost *>(transfer->context)->handleTransfer(transfer);
 }
 
+bool EspUsbHost::submitAudioInputTransfer(EndpointState &endpoint, size_t slot)
+{
+  AudioInputQueue *queue = endpoint.audioInput;
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  usb_transfer_t *transfer = queue->transfers[slot];
+  if (!transfer || endpoint.stopping || !running_ || queue->inFlight[slot])
+  {
+    const bool pending = queue->inFlight[slot];
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    return pending;
+  }
+  queue->inFlight[slot] = true;
+  queue->submitting++;
+  endpoint.transferSubmitted = true;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
+
+  transfer->num_bytes = 0;
+  for (int i = 0; i < transfer->num_isoc_packets; i++)
+  {
+    transfer->num_bytes += transfer->isoc_packet_desc[i].num_bytes;
+    transfer->isoc_packet_desc[i].actual_num_bytes = 0;
+    transfer->isoc_packet_desc[i].status = USB_TRANSFER_STATUS_COMPLETED;
+  }
+  espUsbHostCacheSyncBeforeInTransfer(transfer);
+  const esp_err_t err = usb_host_transfer_submit(transfer);
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  queue->submitting--;
+  if (err != ESP_OK)
+  {
+    queue->inFlight[slot] = false;
+    endpoint.transferSubmitted = false;
+    for (bool pending : queue->inFlight)
+    {
+      endpoint.transferSubmitted = endpoint.transferSubmitted || pending;
+    }
+  }
+  portEXIT_CRITICAL(&endpointSubmitMux_);
+  if (err != ESP_OK)
+  {
+    setLastError(err);
+    return false;
+  }
+  return true;
+}
+
+void EspUsbHost::audioInputTransferCallback(usb_transfer_t *transfer)
+{
+  EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
+  // Match pool membership, so a late cancellation cannot be attributed to a new
+  // device that reused the address after disconnect.
+  for (EndpointState &endpoint : host->endpoints_)
+  {
+    AudioInputQueue *queue = endpoint.audioInput;
+    if (!endpoint.inUse || !queue)
+    {
+      continue;
+    }
+    for (size_t slot = 0; slot < ESP_USB_HOST_AUDIO_INPUT_TRANSFERS; slot++)
+    {
+      if (queue->transfers[slot] != transfer)
+      {
+        continue;
+      }
+      if (!endpoint.stopping && transfer->status == USB_TRANSFER_STATUS_COMPLETED)
+      {
+        // Keep this slot busy until the user callback has returned. Stop waits
+        // for both driver ownership and callback access to the capture buffer.
+        host->handleAudio(endpoint, transfer);
+      }
+      portENTER_CRITICAL(&host->endpointSubmitMux_);
+      queue->inFlight[slot] = false;
+      endpoint.transferSubmitted = false;
+      for (bool pending : queue->inFlight)
+      {
+        endpoint.transferSubmitted = endpoint.transferSubmitted || pending;
+      }
+      portEXIT_CRITICAL(&host->endpointSubmitMux_);
+      if (transfer->status != USB_TRANSFER_STATUS_NO_DEVICE &&
+          transfer->status != USB_TRANSFER_STATUS_CANCELED)
+      {
+        if (!host->submitAudioInputTransfer(endpoint, slot) && !endpoint.stopping)
+        {
+          endpoint.recoveryPending = true;
+        }
+      }
+      return;
+    }
+  }
+  // An in-flight slot deliberately left alive by teardown is now safe to free.
+  usb_host_transfer_free(transfer);
+}
+
 bool EspUsbHost::submitInputTransfer(EndpointState &endpoint)
 {
+  if (endpoint.audioInput)
+  {
+    bool submitted = false;
+    for (size_t slot = 0; slot < ESP_USB_HOST_AUDIO_INPUT_TRANSFERS; slot++)
+    {
+      submitted = submitAudioInputTransfer(endpoint, slot) || submitted;
+    }
+    return submitted;
+  }
   if (!endpoint.transfer)
   {
     return endpoint.transferSubmitted;
@@ -12311,6 +12745,7 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
   EspUsbHost *host = static_cast<EspUsbHost *>(transfer->context);
   usb_device_handle_t deviceHandle = transfer->device_handle;
   uint8_t setInterfaceNumber = 0;
+  uint8_t setInterfaceAlternate = 0;
   bool isSetInterface = false;
   if (transfer->data_buffer && transfer->num_bytes >= USB_SETUP_PACKET_SIZE)
   {
@@ -12320,6 +12755,7 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
     isSetInterface = (setup->bRequest == USB_REQUEST_SET_INTERFACE &&
                       setup->bmRequestType == USB_STANDARD_REQUEST_TYPE);
     setInterfaceNumber = setup->wIndex & 0xff;
+    setInterfaceAlternate = setup->wValue & 0xff;
   }
 
   bool isLedSetReport = false;
@@ -12344,6 +12780,33 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
     if (host)
     {
       host->setLastError(ESP_FAIL);
+    }
+  }
+
+  if (host && isSetInterface)
+  {
+    DeviceState *device = host->findDeviceByHandle(deviceHandle);
+    AudioState *audio = device ? host->audioStateFor(*device) : nullptr;
+    if (audio && audio->outStartPending && audio->outInterfaceNumber == setInterfaceNumber &&
+        audio->outAlternate == setInterfaceAlternate)
+    {
+      if (transfer->status == USB_TRANSFER_STATUS_COMPLETED && host->running_)
+      {
+        // Defer past the device's status-completion event instead of sending
+        // its first PCM packet from inside the control completion itself.
+        portENTER_CRITICAL(&host->endpointSubmitMux_);
+        if (audio->outStartPending)
+        {
+          audio->outStartAt = millis() + 1;
+          audio->outStartReady = true;
+        }
+        portEXIT_CRITICAL(&host->endpointSubmitMux_);
+      }
+      else
+      {
+        audio->outStartPending = false;
+        audio->outStartReady = false;
+      }
     }
   }
 
@@ -13747,6 +14210,17 @@ void EspUsbHost::resetDeviceState(DeviceState &device)
 
 void EspUsbHost::resetEndpointState(EndpointState &endpoint)
 {
+  if (endpoint.audioInput)
+  {
+    for (size_t slot = 0; slot < ESP_USB_HOST_AUDIO_INPUT_TRANSFERS; slot++)
+    {
+      if (endpoint.audioInput->transfers[slot] && !endpoint.audioInput->inFlight[slot])
+      {
+        usb_host_transfer_free(endpoint.audioInput->transfers[slot]);
+      }
+    }
+    delete endpoint.audioInput;
+  }
   free(endpoint.hidFieldValues);
   endpoint.hidFieldValues = nullptr;
   endpoint.~EndpointState();
@@ -15121,6 +15595,8 @@ void EspUsbHost::releaseAudioOutputTransfers(DeviceState &device)
   {
     return;
   }
+  audio->outStartPending = false;
+  audio->outStartReady = false;
   audio->outRunning = false;
   for (size_t i = 0; i < ESP_USB_HOST_AUDIO_OUTPUT_TRANSFERS; i++)
   {
@@ -15314,7 +15790,7 @@ void EspUsbHost::releaseEndpoints(DeviceState &device, bool clearEndpoints)
     {
       continue;
     }
-    if (endpoint.transfer)
+    if (endpoint.transfer && !endpoint.audioInput)
     {
       if (clearEndpoints && device.handle)
       {
