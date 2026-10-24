@@ -293,3 +293,27 @@ the sketch in this directory.
 
 Mirabox, Stream Dock, Ajazz and STREONOR are trademarks of their respective owners.
 This project is not affiliated with, endorsed by, or certified by any of them.
+
+## Walkthrough and checks
+
+### Before running
+
+Render LCD key images and receive macro-pad controls. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Connection callbacks request work, then `loop()` opens a session, encodes key images and maintains keepalive. Confirm firmware identification and one key image before changing all images. This example uses the adjacent device-specific helpers; matching the USB class alone does not prove protocol compatibility.
+
+### API use and adaptation
+
+Keep the example's adjacent protocol headers and declared graphics/codec dependencies with the sketch. Device discovery, protocol initialization, image encoding, transport submission and presentation are separate stages. A USB completion measures delivery to the device, not a promise that its panel has already refreshed.
+
+Virtual-screen rendering trades RAM for bands/tiles. A full redraw is needed when the receiver's image is no longer synchronized with the local diff state. Do image generation and synchronous transfers in the application path. Do not retain an asynchronous transfer buffer or reuse it before the helper's documented completion point.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostMacroPadN3.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

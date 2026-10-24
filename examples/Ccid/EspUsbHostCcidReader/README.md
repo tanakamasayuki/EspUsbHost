@@ -65,3 +65,27 @@ card: ISO 14443 A level 3, MIFARE Classic 1K (0x0001)
 Get UID: sw=9000
 UID: 6b6dccae
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Activate a smart card and inspect its ATR and UID response. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Insertion notifications set pending work; `loop()` opens the reader and runs power-on/APDU commands. Compare transport success, response length and the status word separately. The PC/SC Get UID pseudo-APDU is reader-dependent and is not a universal command for every contact or contactless card.
+
+### API use and adaptation
+
+Separate reader enumeration, interface opening, card presence, activation/ATR and APDU exchange. A successful CCID transfer and an application status word answer different questions. Keep the supplied output capacity and actual response length checks; do not interpret an absent card as an empty valid response.
+
+Reader-specific pseudo-APDUs and escape commands are not universal smart-card commands. Check the exact reader/card combination before reusing a command. Keep callback work bounded and run waiting reader operations through the application path shown in the sketch. Returned data must be copied if needed after a callback.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostCcidReader.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

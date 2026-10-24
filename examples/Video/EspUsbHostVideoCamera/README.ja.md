@@ -64,3 +64,29 @@ video: addr=1 fps=105 dropped=0 incomplete=0 packet_errors=0 header_errors=0 ove
 ```
 
 ESP32-P4 で `tests/peer/usb_video/peer_device` を相手に取得したものです。このうち3つの数値はホスト側ではなくカメラ側の事情によります。`payload=112` はそのカメラの `build_opt.h` がフルスピード向けに isochronous payload を固定しているため、`fps=105` は申告している15 fpsに合わせず連続してフレームを送っているため、JPEGマーカーが無いのはフレームが画像ではなくテストパターンであるためです。
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+UVC streamを選び、完成frameをメイン処理へ渡す。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+対応streamを見つけてから開始します。frame callbackは完成したframeを自分のbufferへコピーし、一つの保留枠が埋まっていれば捨てます。`loop()`でコピーを調べ、callbackのポインタを永続bufferとして使わず、不完全・破棄・処理済みを分けて数えます。
+
+### APIの使い方と改造時の注意
+
+両端で画素形式・寸法・stride・frame rateを合わせます。USBに届いたbyteが、そのまま完成画像とは限りません。解像度を上げる前に、stream交渉、frameの完成、buffer容量、受け手の速度を別々に確認します。
+
+APIが再利用を許すまでframe bufferの所有を保ちます。callbackデータは戻ると再利用される場合があるので、受信frameを別taskへ渡す前にコピーします。受け手が遅い場合は破棄かqueueの方針が必要です。frame数やUSB送信成功だけでは、PCが全画像を表示した証拠になりません。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostVideoCamera.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

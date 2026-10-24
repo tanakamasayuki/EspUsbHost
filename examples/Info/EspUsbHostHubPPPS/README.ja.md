@@ -79,3 +79,29 @@ request: OK
   port 2: status=0x0100 change=0x0001 powered=1 connected=0 enabled=0
 DISCONNECTED address=2 portId=0x02 vid=045e pid=07a5
 ```
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+hub各portの給電状態を調べ、個別の切り替えを要求する。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+最初にhubの能力を表示し、実際のhub addressと下流portを選びます。rで状態、o/nでoff/onを要求します。要求成功だけではVBUSが物理的に独立して切り替わった証拠にはならないので、hubの仕様と相手の再接続も確認します。
+
+### APIの使い方と改造時の注意
+
+hub addressはhub本体、port番号はその下流コネクタを示します。要求前に接続構造と提示された給電切替能力を調べます。softwareがportを指定できても、物理switchを共有するhubがあります。
+
+給電の切断は相手の実行中の転送も中断します。storage・audioで試す前にはファイル書き込みやstreamを終えます。給電を戻すと新しいaddressが割り当たる場合があるため、古いhandleを使わず現在の接続eventから取り直します。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostHubPPPS.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

@@ -1,26 +1,18 @@
+// en: Attach a USB network adapter and use the IP networking stack.
+// ja: USBネットワークアダプタを接続し、IP通信を行う。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include "EspUsbHost.h"
 #include <HTTPClient.h>
 
-// USB host that brings up a USB Ethernet adapter (CDC-NCM / CDC-ECM) as an lwIP
-// network interface, so standard Arduino networking (NetworkClient / HTTPClient)
-// runs over USB with no Wi-Fi.
-//
-// Arduino-ESP32 3.3.11 and later can select a non-default USB configuration
-// during enumeration. The selector below chooses the CDC-NCM configuration of
-// an AX88179A. For other adapters, plug the device in and read the "network
-// candidates" report this sketch prints on connect: it lists every CDC-ECM /
-// CDC-NCM interface found in *any* configuration, so the configuration value to
-// return from the selector can be read straight off the serial log.
-//
-// Adapters whose network function is not in the default configuration therefore
-// need two enumerations: one to discover the value, one to run with it (add the
-// printed rule, then reset the board). See README "Why Two Passes Are Needed"
-// for the reasons and for how to automate pass 2 with end() / begin().
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
-// Set this to a reachable URL when an HTTP connectivity check is wanted.
-// "http://192.168.7.1/" is suitable for the EspUsbDevice UsbNetwork peer.
+// en: Set this to a reachable URL when an HTTP connectivity check is wanted. "http://192.168.7.1/" is suitable for the EspUsbDevice UsbNetwork peer.
+// ja: HTTP試験先は実際に届く宛先へ合わせる。まずUSB側のlinkとIPを確認する。
 static constexpr const char *HTTP_TEST_URL = "https://httpbin.org/get";
 static uint8_t nicAddress = 0;
 static uint16_t nicVid = 0;
@@ -32,10 +24,8 @@ static bool attached = false;
 static uint32_t lastPoll = 0;
 static bool httpTestDone = false;
 
-// Print every CDC-ECM / CDC-NCM candidate the device exposes, in every
-// configuration, together with the configuration that is currently active.
-// networkOpen() only accepts a candidate from the active configuration, so this
-// is what tells you whether a selector rule is needed and which value to use.
+// en: Print every CDC-ECM / CDC-NCM candidate the device exposes, in every configuration, together with the configuration that is currently active. networkOpen() only accepts a candidate from the active configuration, so this is what tells you whether a selector rule is needed and which value to use.
+// ja: 複数configurationのnetwork候補を調べ、実際に選ばれた構成と対応付ける。
 static void reportNetworkCandidates(uint8_t address)
 {
   EspUsbHostNetworkInterfaceInfo networks[ESP_USB_HOST_MAX_NETWORK_INTERFACES];
@@ -79,6 +69,8 @@ static void reportNetworkCandidates(uint8_t address)
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(1000);
 
@@ -96,6 +88,8 @@ void setup()
 
   // Record the device on connect; opening the interface and attaching the netif
   // must happen outside the USB client task, so we do it from loop().
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
                           nicAddress = device.address;
@@ -106,6 +100,8 @@ void setup()
                           candidatesReported = false;
                           Serial.printf("Device connected: address=%u vid=%04x pid=%04x config=%u\n",
                                         device.address, device.vid, device.pid, device.configurationValue); });
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              (void)device;
@@ -115,6 +111,8 @@ void setup()
                              httpTestDone = false;
                              Serial.println("Device disconnected"); });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("USB host begin failed: %s\n", usb.lastErrorName());
@@ -123,8 +121,8 @@ void setup()
 
 void loop()
 {
-  // Descriptor scanning must not run inside the USB client task, so the report
-  // is emitted here rather than from onDeviceConnected().
+  // en: Descriptor scanning must not run inside the USB client task, so the report is emitted here rather than from onDeviceConnected().
+  // ja: descriptorの追加取得はUSB client callbackで待たず、アプリ側の処理で行う。
   if (nicAddress && !candidatesReported && millis() - nicConnectedAt > 500)
   {
     candidatesReported = true;

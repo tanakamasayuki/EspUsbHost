@@ -1,14 +1,13 @@
+// en: Select a UVC stream and hand completed frames to foreground processing.
+// ja: UVC streamを選び、完成frameをメイン処理へ渡す。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include "EspUsbHost.h"
 
-// USB Video Class (UVC) camera example.
-//
-// Lists the formats a connected camera advertises, starts the best one it
-// offers, and prints a frame rate. Each frame is copied out of the callback and
-// worked on in loop().
-//
-// Needs a camera whose configuration descriptor fits in 256 bytes and an ESP32-P4
-// high-speed port; an ordinary webcam clears neither. See README.md.
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 static uint8_t cameraAddress = 0;
@@ -102,12 +101,18 @@ static bool selectVideoStream(uint8_t address)
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(5000);
   Serial.println("EspUsbHost Video Camera example start");
 
+  // en: A received frame pointer can be reused after return; hand off an owned copy.
+  // ja: 受信frameのポインタは戻ると再利用され得る。自分のコピーを渡す。
   usb.onVideoFrame(handleVideoFrame);
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
                           Serial.print("connected: ");
@@ -120,6 +125,8 @@ void setup()
                             startRequested = true;
                           } });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
                              Serial.print("disconnected: ");
@@ -133,6 +140,8 @@ void setup()
                                frameCopy = nullptr;
                              } });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());

@@ -51,3 +51,29 @@ Note Off   ch=1 note=C4 vel=0
 CC         ch=1 ctrl=74 val=64
 PitchBend  ch=1 val=1024
 ```
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+USB MIDI入力を解釈し、明示的な操作で試験メッセージを送る。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+`onMidiMessage()`で受信内容を表示し、UARTのn/fでNote On/Off、ほかの操作でcontrol・program・bend・SysExを送ります。音符の開始と終了を対にします。ESP32がメッセージを送ることと、楽器やソフトが音を出すことは別です。
+
+### APIの使い方と改造時の注意
+
+MIDI channelとUSB cable・portは別の指定です。APIのchannel番号の基準とpacketのfieldをホストアプリへ合わせます。MIDI event packetとUARTの生メッセージはbyte配置が異なり、MIDIは音声sampleではなく制御メッセージを運びます。
+
+保持した音符には終了を送ります。送信結果を確認し、ホスト不在時の再試行・破棄を決めます。reset・切断で手元の発音状態が無効になる場合があります。複数化や完全なparserへ進む前に、一channel・一portで確認します。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostMIDI.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

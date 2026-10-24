@@ -4,6 +4,8 @@
 
 ESP32-S3 / ESP32-S2 / ESP32-P4でUSB Hostを使うためのArduinoライブラリです。
 
+初心者向けの操作順は[サンプルの進め方](docs/example-workflow.ja.md)、目的別の入口は[全サンプル一覧](examples/README.ja.md)を参照してください。各例のREADMEで配線・操作・API・失敗時の確認を説明しています。
+
 USB処理はバックグラウンドのFreeRTOSタスクで行われるため、`loop()`でUSBポーリング関数を呼ぶ必要はありません。`setup()`でコールバックを登録して`begin()`を呼ぶだけで動作します。
 
 USB Hostが初めての方、あるいは手元のデバイスが動かない方は、まず **[USB Host開発ガイド](docs/usb-host-guide.ja.md)** をご覧ください。USBの基礎、ESP32シリーズ固有の制限（電源・速度・ハブ・チャネル数）、ボードの確認から未知デバイスの識別、仕様非公開プロトコルの解析までの手順をまとめています。さらに踏み込んだ内容（ディスクリプタのバイト構造、ホストチャネルとFIFO分割、エラー復帰、スループット設計、コールバックのコンテキスト、独自クラスの実装）は **[上級編](docs/usb-host-advanced.ja.md)** にあります。実機で確認済みのデバイスとボードは [動作確認済みデバイスとボード](docs/tested-devices.ja.md) に、`docs/` 以下の全文書は [docs/README.ja.md](docs/README.ja.md) にまとめています。

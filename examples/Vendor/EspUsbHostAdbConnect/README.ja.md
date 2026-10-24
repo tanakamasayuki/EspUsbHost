@@ -66,3 +66,29 @@ uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 ```
 
 Pixel 6aで、初回許可、保存鍵での認証、単一shell stream、echo応答、stream closeまで確認しています。
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+ADBを認証し、範囲を限定したshellのecho試験を行う。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+受信callbackでbyteをringへコピーし、`loop()`でADB header・checksum・stream IDを検査します。Android端末をunlockし、要求されたdebug認証を確認します。秘密鍵はNVSへ保存するため、スケッチを書き直してもHostの識別が変わるとは限りません。
+
+### APIの使い方と改造時の注意
+
+USBのIN/OUTは常にdevice側から見た名称で、INはホストへ、OUTはdeviceへ向かいます。要求・応答というアプリの役割とendpoint方向を区別します。bulkはbyte streamであり、一転送が一命令とは限りません。実際の長さとprotocolの区切りを使います。control転送はpayloadだけでなく方向・request・value・index・lengthも持ちます。
+
+USB転送の受付・完了はアプリの確認応答ではありません。相手のstatusも確認し、切断時にはprotocol状態を回復します。callbackのポインタは戻ると再利用される場合があります。非同期・direct bufferはacquire・submit・completionの所有規約を守り、転送中に上書きしません。queueや転送長を調整する前に短い既知の要求から試します。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostAdbConnect.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

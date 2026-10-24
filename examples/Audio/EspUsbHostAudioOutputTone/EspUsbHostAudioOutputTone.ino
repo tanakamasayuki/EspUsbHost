@@ -1,6 +1,13 @@
+// en: Generate PCM tones for a compatible USB audio output.
+// ja: 対応するUSB音声出力へPCMの試験音を生成する。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include <Arduino.h>
 #include <EspUsbHost.h>
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 static constexpr uint32_t TONE_HZ_LEFT = 440;
@@ -51,10 +58,14 @@ static void fillTone(EspUsbHostAudioOutputRequest &request)
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(5000);
   Serial.println("EspUsbHost Audio Output Tone example start");
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
                           Serial.print("connected: ");
@@ -80,6 +91,8 @@ void setup()
                             Serial.printf("audio output %s: addr=%u\n", audioAddress == info.address ? "ready" : "unsupported", info.address);
                           } });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
                              Serial.print("disconnected: ");
@@ -89,12 +102,16 @@ void setup()
                                audioAddress = 0;
                              } });
 
+  // en: Fill only the requested PCM frames and return promptly; do not decode a file in this callback.
+  // ja: 要求されたPCM frameを用意して短く戻る。このcallbackでファイルのデコードを行わない。
   usb.onAudioOutputRequest([](EspUsbHostAudioOutputRequest &request)
                            {
                              // en: Keep this callback short; it runs on the USB client task.
                              // ja: このコールバックはUSBクライアントタスク上で動くため、短時間で戻します。
                              fillTone(request); });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin failed: %s\n", usb.lastErrorName());
@@ -103,16 +120,6 @@ void setup()
 
 void loop()
 {
-  // en: Report playback health once a second. underruns counts callbacks that did not
-  //     fill every frame (the rest is sent as silence). feedback is the rate the device
-  //     asks for through its explicit feedback endpoint, and rate is what the library
-  //     paces the OUT packets at; both are 0 / the negotiated rate on a device that has
-  //     no feedback endpoint.
-  // ja: 1秒ごとに再生状態を表示します。underrunsは全フレームを埋めなかった回数
-  //     （残りは無音として送信）、feedbackはデバイスがexplicit feedback endpointで
-  //     要求してくるレート、rateはライブラリが実際にOUTパケットを刻んでいるレート
-  //     です。feedback endpointを持たないデバイスでは0とネゴシエート済みレートに
-  //     なります。
   static uint32_t lastReportMs = 0;
   if (audioAddress != 0 && millis() - lastReportMs >= 1000)
   {

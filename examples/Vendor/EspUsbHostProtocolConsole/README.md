@@ -75,3 +75,27 @@ A failure is information, not just an error:
 - `usb.vendorControlTransfer(...)` — one EP0 transfer with a caller-supplied `bmRequestType`
 - `usb.vendorWrite()` / `usb.vendorReadSync()` / `usb.vendorWriteZlp()`
 - `usb.onVendorData()` — bulk IN payloads in continuous mode
+
+## Walkthrough and checks
+
+### Before running
+
+Issue explicit control and bulk requests from a diagnostic console. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Start with list and read-only descriptor inspection, then select an address and interface before using ctl/in/out. The console parses protocol fields as hexadecimal where documented. It supplies transport, not automatic protocol discovery; check command meaning and direction before writing to a real device.
+
+### API use and adaptation
+
+USB IN/OUT is always named from the device's viewpoint: IN goes to the host, OUT goes to the device. Keep endpoint direction separate from the application roles of request and response. A bulk transfer is a byte stream, not necessarily a whole command; use the actual length and protocol framing. Control transfers also carry direction, request, value, index and length, not just a payload.
+
+A USB transfer accepted or completed is not an application acknowledgment. Check error/status replies and recover protocol state on disconnect. Callback pointers may be reused after return. For asynchronous or direct buffers, obey the acquire/submit/completion ownership rules and do not overwrite in-flight data. Start with a short known request before tuning queues or transfer sizes.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostProtocolConsole.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

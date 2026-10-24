@@ -1,14 +1,8 @@
-// Draw on a USB graphics display adapter with LovyanGFX.
-//
-// The adapter is a DisplayLink DL-1xx device (VID 0x17e9). Everything specific to
-// it lives in the headers next to this sketch, so this file only holds the parts
-// you would change: what to draw, and at what resolution.
-//
-// LGFXVirtualCanvas renders the screen as a series of horizontal bands through a
-// small sprite, so a Full HD surface needs no full-size frame buffer on the host.
-// Its diff transfer then skips bands that did not change, which suits this
-// adapter well because it keeps showing its own frame buffer with no USB traffic
-// at all.
+// en: Render a scene through a compatible DL-1xx USB graphics adapter.
+// ja: 対応するDL-1xx USB映像アダプタへ描画する。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include <LovyanGFX.hpp>
 
@@ -16,6 +10,8 @@
 
 #include "Panel_Dl1xx.hpp"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 static EspUsbHost usb;
 static dl1xx::Dl1xxDevice adapter(usb);
 static dl1xx::LGFX_Dl1xx lcd(&adapter);
@@ -24,8 +20,8 @@ static LGFXVirtualScreen screen(lcd);
 static bool displayReady = false;
 static uint32_t frame = 0;
 
-// Draw in full-screen coordinates. The callback runs once per band; the library
-// hides the band offset and clipping.
+// en: Draw in full-screen coordinates. The callback runs once per band; the library hides the band offset and clipping.
+// ja: 描画座標は画面全体で指定する。bandの位置とclippingは描画library側が扱う。
 static void drawScene(LGFXVirtualCanvas &g)
 {
     g.fillScreen(TFT_NAVY);
@@ -63,9 +59,8 @@ static bool openDisplay()
         return false;
     }
 
-    // Pick the largest mode the table offers. Use dl1xx::findMode(w, h) to force
-    // one, or adapter.readEdid() plus dl1xx::parseEdidPreferredTiming() to follow
-    // what the monitor asks for.
+    // en: Pick the largest mode the table offers. Use dl1xx::findMode(w, h) to force one, or adapter.readEdid() plus dl1xx::parseEdidPreferredTiming() to follow what the monitor asks for.
+    // ja: 表示modeを選ぶ。解像度を固定する場合も機器の対応timingを確認する。
     const dl1xx::Timing *mode = dl1xx::selectMode(0);
     if (!mode || !adapter.setMode(*mode))
     {
@@ -78,8 +73,8 @@ static bool openDisplay()
     }
     lcd.fillScreen(TFT_BLACK);
 
-    // Full HD at 16 bpp is 3840 bytes per row, so the default budget gives a band
-    // of a few rows. Raise it for fewer, larger bands.
+    // en: A larger rendering budget can reduce band overhead but consumes more RAM; verify the memory cost before changing it.
+    // ja: 描画の予算を増やすとband処理の負担を減らせるがRAMを多く使う。変更前に使用量を確認する。
     screen.setMemoryLimit(32 * 1024);
     if (!screen.begin())
     {
@@ -91,9 +86,8 @@ static bool openDisplay()
     return true;
 }
 
-// Once a second, report the frame rate and how much the diff transfer saved. The
-// pixel count is what LGFXVirtualCanvas actually sent; the byte count is what
-// went over USB after RLE compression.
+// en: Once a second, report the frame rate and how much the diff transfer saved. The pixel count is what LGFXVirtualCanvas actually sent; the byte count is what went over USB after RLE compression.
+// ja: 定期的に描画と転送の量を比較する。描いたpixel数とUSBの実byte数は別に数える。
 static void reportRate()
 {
     static uint32_t reportedAtMs = 0;
@@ -118,8 +112,12 @@ static void reportRate()
 
 void setup()
 {
+    // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+    // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
     Serial.begin(115200);
 
+    // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+    // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
     usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device) {
         if (device.address == adapter.address())
         {
@@ -129,6 +127,8 @@ void setup()
         }
     });
 
+    // en: Start host processing; success does not mean a peripheral has finished enumeration.
+    // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
     if (!usb.begin())
     {
         Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
@@ -150,8 +150,8 @@ void loop()
         }
     }
 
-    // A reopened adapter or a mode change means the screen no longer holds what
-    // the diff cache believes, so every band has to be sent again.
+    // en: A reopened adapter or a mode change means the screen no longer holds what the diff cache believes, so every band has to be sent again.
+    // ja: 映像接続を再開始したら差分状態も無効化し、全体を描き直す。
     if (lcd.panel().invalidated())
     {
         screen.invalidate();

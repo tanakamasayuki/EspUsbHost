@@ -79,3 +79,27 @@ request: OK
   port 2: status=0x0100 change=0x0001 powered=1 connected=0 enabled=0
 DISCONNECTED address=2 portId=0x02 vid=045e pid=07a5
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Inspect hub port power and request individual port switching. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Print hub capabilities first and select the actual hub address and downstream port. Use r to inspect status and o/n to request off/on. A successful control request alone is not proof that the hub physically switches VBUS independently; verify its hardware and the attached device's reconnect behavior.
+
+### API use and adaptation
+
+A hub address identifies the hub device; a port number identifies one of its downstream connectors. Inspect topology and advertised power-switching capability before sending requests. A hub may share its power switch among ports even if software can address each port.
+
+Power cycling interrupts every active transfer on the affected device. Finish file writes and stop active streams before testing with storage or audio hardware. After power returns, enumeration can assign a new address; reconnect through current device events instead of reusing an old handle.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostHubPPPS.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

@@ -1,15 +1,13 @@
+// en: Observe held-key bitmaps and simultaneous key changes.
+// ja: 保持キーのbitmapと複数キーの変化を観察する。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include "EspUsbHost.h"
 
-// NKRO (N-key rollover) keyboard host. A boot keyboard reports at most 6 keys at
-// once; an NKRO keyboard sends a bitmap instead, so any number of keys can be
-// held simultaneously. EspUsbHost decodes both automatically from the HID report
-// descriptor — no configuration needed — and normalizes both formats for
-// onKeyboardState(). This sketch reports every changed HID usage, including
-// modifiers (0xE0-0xE7), and counts how many keys are held at the same time.
-//
-// Pairs with the sibling EspUsbDevice "KeyboardNKRO" example (or any NKRO USB
-// keyboard). Use keyboardUsesBitmapReport() to see which format was detected.
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 static int pressedCount = 0; // keys currently held
@@ -17,11 +15,15 @@ static int maxSimultaneous = 0;
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(1000);
 
   usb.setKeyboardLayout(ESP_USB_HOST_KEYBOARD_LAYOUT_EN_US);
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
                           Serial.printf("Keyboard connected: %04x:%04x nkro-bitmap=%u\n",
@@ -29,6 +31,8 @@ void setup()
                                         usb.keyboardUsesBitmapReport(device.address) ? 1 : 0);
                         });
 
+  // en: Handle input on the USB client task; copy any borrowed report data needed after return.
+  // ja: 入力はUSB clientタスクで受ける。戻った後も使うreportデータはコピーする。
   usb.onKeyboardState([](const EspUsbHostKeyboardState &state)
                       {
                         pressedCount = 0;
@@ -56,6 +60,8 @@ void setup()
                                       pressedCount, maxSimultaneous, state.modifiers);
                       });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());

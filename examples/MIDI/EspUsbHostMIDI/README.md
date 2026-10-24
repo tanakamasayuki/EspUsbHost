@@ -51,3 +51,27 @@ Note Off   ch=1 note=C4 vel=0
 CC         ch=1 ctrl=74 val=64
 PitchBend  ch=1 val=1024
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Decode USB MIDI input and send explicit test messages. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+`onMidiMessage()` prints received MIDI meaning. UART n/f send Note On/Off and the other documented commands send control, program, bend and SysEx data. Pair note activation with release; the ESP32 sends messages, but sound requires an instrument or software that acts on them.
+
+### API use and adaptation
+
+A MIDI channel and a USB cable/port are different selectors. Match the API's channel indexing and packet fields to your host application; a MIDI event packet is not the same byte layout as a raw UART message. MIDI transfers control messages, not audio samples.
+
+Always provide the matching release for held notes. Check send results and decide whether to retry or discard when the host is absent. Reset and disconnect can invalidate local note state. Begin with one channel and one port before adding multiplexing or a full MIDI parser.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostMIDI.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

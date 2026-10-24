@@ -39,3 +39,29 @@ USB Serial/JTAG on GPIO24/GPIO25 will disconnect.
 ```
 
 この2行の表示後に割り当てが切り替わり、GPIO24/GPIO25側のUSB Serial/JTAGコンソールは切断されるため、以降はそこには何も表示されません。`usb.begin failed: ...`などのそれ以降のメッセージは、外付けUSB-UARTブリッジまたは別のconsole接続でのみ確認できます。
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+P4のFullSpeed PHY経路を選んでからHostを開始する。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+回路図を読み、先に独立したログ・書き込み経路を用意します。実行時のPHY選択でOTGとSerial/JTAGの端子が入れ替わるため、端末切断が異常終了とは限りません。PHYの経路変更だけではVBUS給電やUSB-Cの役割処理は行われません。
+
+### APIの使い方と改造時の注意
+
+選択controller、PHY・pad、基板コネクタ、給電回路を区別します。controller optionが基板配線まで変えるわけではありません。Serial/JTAGを動かす試験の前に書き込み・debug経路を確保し、必要なら独立UARTでログを見ます。
+
+例のtarget・profileを使い、VBUS・USB-Cの役割回路は基板の回路図に従います。実行時のPHY選択とチップの永続設定は異なります。一controller・一相手で動かしてから、別portのHostとDeviceを組み合わせます。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostP4FsPhyRouting.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

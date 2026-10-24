@@ -242,3 +242,27 @@ not disassembled.
 
 > ALIENTEK and DP100 are trademarks of their respective owner. This project is not
 > affiliated with, endorsed by, or certified by ALIENTEK.
+
+## Walkthrough and checks
+
+### Before running
+
+Read and optionally configure a DP100 power supply over HID. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Start with APPLY_SETPOINT and TURN_OUTPUT_ON left false. Follow `identify()`, `refresh()` and `readSetpoint()` before interpreting measurements. Only enable application of settings after checking the connected load; successful USB transport does not mean the supply accepted a setting or measured that exact value.
+
+### API use and adaptation
+
+This example's adjacent helpers implement a particular device protocol on top of USB transport. Read identification/status before changing settings. A matching class or VID alone is not proof that all models or firmware variants accept the same commands. Keep the protocol's units, framing and response checks when reusing a helper.
+
+Perform waiting requests from the application path shown in the sketch rather than adding them to USB callbacks. After disconnect, discard old interface/address/session assumptions and reconnect deliberately. Separate transport errors, protocol refusals and physical device state; retrying the same request forever is not a recovery strategy.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostDp100Power.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

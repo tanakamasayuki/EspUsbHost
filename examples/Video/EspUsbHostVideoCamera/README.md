@@ -64,3 +64,27 @@ video: addr=1 fps=105 dropped=0 incomplete=0 packet_errors=0 header_errors=0 ove
 ```
 
 Taken on an ESP32-P4 against `tests/peer/usb_video/peer_device`. Three numbers in it are that camera's doing rather than this host's: `payload=112` because its `build_opt.h` pins the isochronous payload for a full-speed pairing, `fps=105` because it sends frames back to back instead of pacing them at the 15 fps it declares, and the missing JPEG markers because its frames are a test pattern rather than an image.
+
+## Walkthrough and checks
+
+### Before running
+
+Select a UVC stream and hand completed frames to foreground processing. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Start only after finding a supported stream. The frame callback copies a complete frame into owned storage and drops input when its one pending slot is busy. `loop()` inspects the copy; a callback pointer is not a permanent frame buffer, and incomplete or dropped frames must be counted separately from delivered frames.
+
+### API use and adaptation
+
+Match pixel encoding, dimensions, stride and frame rate on both ends. Bytes arriving at USB are not automatically complete images. Confirm stream negotiation, frame completeness, buffer capacity and consumer speed separately before increasing resolution.
+
+Keep a frame buffer owned until the API permits reuse. Callback data can be recycled on return; copy before handing a received frame to another task. A slow consumer needs an explicit drop or queue policy. Frame counters and USB send success do not by themselves prove that the PC displayed every image.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostVideoCamera.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

@@ -1,20 +1,8 @@
-// Draw on an AX206 USB display with LovyanGFX.
-//
-// The display is a 480x320 USB photo frame (VID 0x1908, PID 0x0102) that speaks
-// USB mass-storage Bulk-Only Transport with vendor commands. Everything specific
-// to it lives in the headers next to this sketch, so this file only holds the
-// parts you would change: what to draw.
-//
-// LGFXVirtualCanvas renders the screen as a series of horizontal bands through a
-// small sprite, so no full-size frame buffer is needed on the host. That suits
-// this display exactly: it accepts only whole-screen blits, and the bands arrive
-// top to bottom, which is the order the pixels have to go out on the wire. The
-// panel streams each band straight to USB, so one rendered screen is one USB
-// transaction and neither side ever holds a full frame.
-//
-// Diff transfer is deliberately not enabled. A frame has to carry all 307,200
-// bytes whatever changed, so a skipped band would leave a hole in the stream
-// rather than save anything.
+// en: Render a scene on a compatible AX206 USB display.
+// ja: 対応するAX206 USB画面へ描画する。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include <LovyanGFX.hpp>
 
@@ -22,6 +10,8 @@
 
 #include "Panel_Ax206.hpp"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 static EspUsbHost usb;
 static ax206::Ax206Device display(usb);
 static ax206::LGFX_Ax206 lcd(&display);
@@ -30,8 +20,8 @@ static LGFXVirtualScreen screen(lcd);
 static bool displayReady = false;
 static uint32_t frame = 0;
 
-// Draw in full-screen coordinates. The callback runs once per band; the library
-// hides the band offset and clipping.
+// en: Draw in full-screen coordinates. The callback runs once per band; the library hides the band offset and clipping.
+// ja: 描画座標は画面全体で指定する。bandの位置とclippingは描画library側が扱う。
 static void drawScene(LGFXVirtualCanvas &g)
 {
     g.fillScreen(TFT_NAVY);
@@ -74,13 +64,6 @@ static bool openDisplay()
     }
     lcd.fillScreen(TFT_BLACK);
 
-    // 480 pixels per row is 960 bytes, so this budget gives a band of about 17
-    // rows. Band size is a RAM trade-off only: the USB cost of a frame is fixed
-    // at 307,200 bytes however it is cut up, and at 0.53 s on the wire the
-    // drawing time does not show. setUsePsram(true) with a budget of
-    // 480 * 320 * 2 would render the screen as a single tile in one pass, which
-    // is worth doing where the RAM is there and worth no measurable frame rate
-    // here.
     screen.setMemoryLimit(16 * 1024);
     if (!screen.begin())
     {
@@ -119,8 +102,12 @@ static void reportRate()
 
 void setup()
 {
+    // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+    // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
     Serial.begin(115200);
 
+    // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+    // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
     usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device) {
         if (device.address == display.address())
         {
@@ -130,6 +117,8 @@ void setup()
         }
     });
 
+    // en: Start host processing; success does not mean a peripheral has finished enumeration.
+    // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
     if (!usb.begin())
     {
         Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
@@ -151,8 +140,8 @@ void loop()
         }
     }
 
-    // A reopened display starts blank, so let the canvas know its idea of what is
-    // on screen is stale.
+    // en: A reopened display starts blank, so let the canvas know its idea of what is on screen is stale.
+    // ja: 画面を再開始すると相手の内容が変わるため、差分状態を無効にして全体を送り直す。
     if (lcd.panel().invalidated())
     {
         screen.invalidate();

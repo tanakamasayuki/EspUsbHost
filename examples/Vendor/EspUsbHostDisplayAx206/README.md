@@ -216,3 +216,27 @@ cross-check the pixel format for VID `0x1908` panels.
 
 It contains no code from the GPL-licensed `dpf-ax` or `lcd4linux` implementations.
 Both are historically important for this hardware and neither was copied from.
+
+## Walkthrough and checks
+
+### Before running
+
+Render a scene on a compatible AX206 USB display. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+The adjacent AX206 helpers implement the device protocol; LovyanGFX and the virtual screen generate and send the scene. Confirm detection and initialization before investigating rendering. On disconnect, invalidate the display state; diff rendering assumes the receiver and local image agree.
+
+### API use and adaptation
+
+Keep the example's adjacent protocol headers and declared graphics/codec dependencies with the sketch. Device discovery, protocol initialization, image encoding, transport submission and presentation are separate stages. A USB completion measures delivery to the device, not a promise that its panel has already refreshed.
+
+Virtual-screen rendering trades RAM for bands/tiles. A full redraw is needed when the receiver's image is no longer synchronized with the local diff state. Do image generation and synchronous transfers in the application path. Do not retain an asynchronous transfer buffer or reuse it before the helper's documented completion point.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostDisplayAx206.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

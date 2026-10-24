@@ -179,3 +179,29 @@ VID/PID も機種の上限値も入っていないので、DMM やオシロな�
 > KIKUSUI and PMX are trademarks of KIKUSUI ELECTRONICS CORPORATION. This project
 > is not affiliated with, endorsed by, or certified by KIKUSUI ELECTRONICS
 > CORPORATION.
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+対応USBTMC計測器とSCPI命令をやり取りする。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+測定前に識別と能力を読みます。`TURN_OUTPUT_ONがfalseでもconnect()`は例の電圧・電流を設定するため、すでに出力中の機器は影響を受けます。先に出力状態と負荷を確認します。USBTMCは転送の形式であり、SCPI命令が全機種共通になるわけではありません。
+
+### APIの使い方と改造時の注意
+
+隣のhelperはUSB転送の上に特定機器のprotocolを実装します。設定を変える前に識別・statusを読みます。classやVIDが一致するだけで、全型番・firmwareが同じ命令を扱うとは判断しません。helperを再利用しても単位・フレーム形式・応答の検査は残します。
+
+完了待ちする要求はスケッチが示すアプリ側の経路で行い、USB callbackへ追加しないようにします。切断したら古いinterface・address・sessionの前提を破棄して接続し直します。転送異常・protocolの拒否・機器の物理状態を分け、同じ要求の無限再試行を回復手順の代わりにしないようにします。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostUsbtmcScpi.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

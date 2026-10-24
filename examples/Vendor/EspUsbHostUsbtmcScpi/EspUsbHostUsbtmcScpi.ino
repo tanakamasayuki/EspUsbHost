@@ -1,17 +1,14 @@
-// Talk SCPI to a USBTMC instrument: a KIKUSUI PMX18-5A DC power supply.
-//
-// USBTMC is interface class 0xfe (Application Specific) subclass 0x03, not the
-// vendor-specific class 0xff. The library has no USBTMC support of its own; this
-// example builds the whole protocol on the vendor bulk/control API, which is why
-// it lives under examples/Vendor/. See README.md.
-//
-// SAFETY: this sketch changes the supply's output settings and, if
-// TURN_OUTPUT_ON is enabled, switches the output on. Run it with nothing
-// connected to the output terminals until you have seen what it does.
+// en: Exchange SCPI commands with a compatible USBTMC instrument.
+// ja: 対応USBTMC計測器とSCPI命令をやり取りする。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 #include "ScpiPmx.hpp"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 pmx::ScpiPmx supply(usb);
 
@@ -19,8 +16,8 @@ pmx::ScpiPmx supply(usb);
 static constexpr float SET_VOLTAGE = 5.0f;
 static constexpr float SET_CURRENT = 0.5f;
 
-// Set to true to actually enable the output. Leave it false to exercise the
-// command path with the output off.
+// en: This flag controls the request to enable output, not whether earlier voltage/current settings are written.
+// ja: このflagは出力をonにする要求を制御する。先行する電圧・電流の書き込みを止めるものではない。
 static constexpr bool TURN_OUTPUT_ON = false;
 
 static constexpr uint32_t MEASURE_INTERVAL_MS = 1000;
@@ -46,9 +43,8 @@ static void printCapabilities(const usbtmc::Capabilities &capabilities)
                 capabilities.dt1 ? 1 : 0);
 }
 
-// Reports whatever the instrument put in its error queue. A non-zero code means
-// one of the commands above was rejected, which is the check that matters when
-// bringing up a new instrument.
+// en: Inspect the instrument error queue separately from USB transport errors; a completed transfer can still carry a rejected command.
+// ja: 計測器のerror queueとUSB転送異常を別に調べる。転送が完了しても命令が拒否される場合がある。
 static void printErrors()
 {
   for (int i = 0; i < 8; i++)
@@ -124,9 +120,13 @@ static bool connect()
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(3000);
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         { Serial.printf("connected address=%u vid=%04x pid=%04x product=\"%s\"\n",
                                         device.address,
@@ -134,6 +134,8 @@ void setup()
                                         device.pid,
                                         device.product); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
         Serial.printf("disconnected address=%u\n", device.address);
@@ -143,6 +145,8 @@ void setup()
           connected = false;
         } });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   usb.begin();
   Serial.println("EspUsbHostUsbtmcScpi start");
   Serial.println("Connect a KIKUSUI PMX series power supply with nothing on its output terminals.");

@@ -1,22 +1,15 @@
-// Drive a Mirabox N3 / Ajazz AKP03 family LCD macro pad (STREONOR S6 confirmed,
-// 1500:3006) from an ESP32-P4: paint the six key screens and read the keys,
-// scene keys and encoders - with no vendor software involved.
-//
-// The pad is a composite HID device. Interface 0 is vendor-defined and carries the
-// pad's own "CRT" protocol; interface 1 is a boot keyboard, which the library claims
-// and reports through onKeyboard() as usual. This sketch drives interface 0 through
-// sendHIDVendorOutput() and onHIDInput(), so the library needs no additions for it -
-// which is why the example lives under examples/HID/.
-//
-// ESP32-P4 only, and only on its high-speed port: the protocol's OUT endpoint has a
-// 1024-byte max packet size, which no full-speed port can stage. That also needs a
-// FIFO split the host driver does not use by default - see cfg.fifo below and
-// README.md.
+// en: Render LCD key images and receive macro-pad controls.
+// ja: LCDキー画像を描き、マクロパッドの操作を受け取る。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 #include "KeyImage.hpp"
 #include "MacroPadN3Device.hpp"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 n3::MacroPadN3Device pad(usb);
 n3::KeyImageEncoder image;
@@ -28,9 +21,8 @@ static volatile bool deviceArrived = false;
 static bool padReady = false;
 static uint32_t arrivedAt = 0;
 
-// The session has to be held open or the pad drops off the bus. The vendor
-// application sends its keepalive about every ten seconds; half of that leaves room
-// for a packet to be missed.
+// en: The session has to be held open or the pad drops off the bus. The vendor application sends its keepalive about every ten seconds; half of that leaves room for a packet to be missed.
+// ja: sessionを保つkeepaliveが必要。未送信や切断を検出して接続状態を見直す。
 static constexpr uint32_t KEEPALIVE_INTERVAL_MS = 5000;
 static uint32_t lastKeepaliveAt = 0;
 
@@ -44,10 +36,8 @@ static void paintKey(uint8_t keyIndex, uint32_t color)
   const uint16_t border = n3::KeyImageEncoder::rgb565(0xff, 0xff, 0xff);
 
   image.fill(body);
-  // Deliberately asymmetric, so one look at the panel says whether
-  // KEY_IMAGE_ROTATION is right: a horizontal bar near the top whose length counts
-  // the key, and a square in the bottom-left corner. Sideways bars mean the
-  // rotation is a quarter turn out; a bar along the bottom means it is 180 out.
+  // en: Deliberately asymmetric, so one look at the panel says whether KEY_IMAGE_ROTATION is right: a horizontal bar near the top whose length counts the key, and a square in the bottom-left corner. Sideways bars mean the rotation is a quarter turn out; a bar along the bottom means it is 180 out.
+  // ja: 非対称の模様を描き、回転の方向やキー番号を見た目で確認できるようにする。
   image.fillRect(0, 0, n3::KEY_IMAGE_WIDTH, 2, border);
   image.fillRect(0, n3::KEY_IMAGE_HEIGHT - 2, n3::KEY_IMAGE_WIDTH, 2, border);
   image.fillRect(0, 0, 2, n3::KEY_IMAGE_HEIGHT, border);
@@ -74,8 +64,8 @@ static bool connect()
   }
   Serial.printf("pad ready address=%u interface=%u\n", pad.address(), pad.interfaceNumber());
 
-  // Proof that the device speaks this protocol, before anything is sent to it. The
-  // first field is the protocol version: this example assumes V3 packet sizes.
+  // en: Proof that the device speaks this protocol, before anything is sent to it. The first field is the protocol version: this example assumes V3 packet sizes.
+  // ja: 先に識別情報とprotocol版を確かめ、対応するpacket形式か確認してから設定を送る。
   char version[32] = {};
   if (pad.readFirmwareVersion(version, sizeof(version)))
   {
@@ -88,8 +78,8 @@ static bool connect()
 
   pad.onInput([](const n3::InputEvent &event, const uint8_t *raw, size_t rawLength)
               {
-    // Runs on the USB task, so this only prints. The raw bytes are printed next to
-    // the decoded event so that a control this table does not cover is still visible.
+    // en: Runs on the USB task, so this only prints. The raw bytes are printed next to the decoded event so that a control this table does not cover is still visible.
+    // ja: USBタスク上の通知なので短い表示に留め、生データと解釈した操作を対応付ける。
     if (event.keyIndex != 0)
     {
       Serial.printf("key %u %s", event.keyIndex, event.pressed ? "down" : "up");
@@ -117,8 +107,8 @@ static bool connect()
     }
     Serial.println(); });
 
-  // Take the screens over and start the input reports. Everything below depends on
-  // this, and so does the keepalive in loop().
+  // en: Take the screens over and start the input reports. Everything below depends on this, and so does the keepalive in loop().
+  // ja: 画面sessionと入力reportを開始する。以後の描画とkeepaliveは開始成功を前提にする。
   if (!pad.beginSession(BRIGHTNESS))
   {
     Serial.println("session start failed");
@@ -148,10 +138,14 @@ static void paintAllKeys()
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(3000);
   Serial.println("MacroPad N3 example");
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
     Serial.printf("connected address=%u vid=%04x pid=%04x product=\"%s\"\n",
@@ -159,6 +153,8 @@ void setup()
     deviceArrived = true;
     arrivedAt = millis(); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
     Serial.printf("disconnected address=%u\n", device.address);
@@ -168,6 +164,8 @@ void setup()
   // The pad's own keyboard interface, for reference. Its keys report on the vendor
   // interface above, but the pad can also be configured to send keystrokes, and those
   // arrive here.
+  // en: Handle input on the USB client task; copy any borrowed report data needed after return.
+  // ja: 入力はUSB clientタスクで受ける。戻った後も使うreportデータはコピーする。
   usb.onKeyboard([](const EspUsbHostKeyboardEvent &event)
                  {
     if (event.pressed)
@@ -176,11 +174,12 @@ void setup()
     } });
 
   EspUsbHostConfig cfg;
-  // Both are required for this device. The high-speed port is the only one whose
-  // FIFO can hold a 1024-byte packet, and the default split caps interrupt OUT at
-  // 512 bytes, which makes claiming interface 0 fail with ESP_ERR_NOT_SUPPORTED.
+  // en: Both are required for this device. The high-speed port is the only one whose FIFO can hold a 1024-byte packet, and the default split caps interrupt OUT at 512 bytes, which makes claiming interface 0 fail with ESP_ERR_NOT_SUPPORTED.
+  // ja: 必要なpacketを扱えるcontrollerとFIFO構成を選ぶ。claim失敗時は機器情報と資源を確認する。
   cfg.port = ESP_USB_HOST_PORT_HIGH_SPEED;
   cfg.fifo = ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT;
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin(cfg))
   {
     Serial.printf("usb.begin() failed: %s\n", esp_err_to_name(usb.lastError()));
@@ -189,8 +188,8 @@ void setup()
 
 void loop()
 {
-  // Enumeration finishes a moment after the connect callback, so the interface is
-  // looked up on a short delay rather than from inside it.
+  // en: Enumeration finishes a moment after the connect callback, so the interface is looked up on a short delay rather than from inside it.
+  // ja: 接続通知直後は準備中の場合がある。interfaceを使う処理は短い待ち合わせ後のアプリ経路へ置く。
   if (deviceArrived && !padReady && millis() - arrivedAt > 500)
   {
     deviceArrived = false;

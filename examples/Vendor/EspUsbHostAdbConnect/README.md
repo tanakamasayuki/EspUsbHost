@@ -64,3 +64,27 @@ uv run --env-file .env pytest manual/adb_connect/adb_connect.py -v -s
 ```
 
 It has been validated on a Pixel 6a through first authorization, saved-key authentication, one shell stream, echo output, and stream close.
+
+## Walkthrough and checks
+
+### Before running
+
+Authenticate an ADB connection and run a bounded shell echo test. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+The receive callback copies bytes into a ring; `loop()` validates ADB headers, checksums and stream identifiers. Unlock the Android device and accept its debugging authorization when requested. The private key is stored in NVS, so reflashing the sketch does not necessarily create a new host identity.
+
+### API use and adaptation
+
+USB IN/OUT is always named from the device's viewpoint: IN goes to the host, OUT goes to the device. Keep endpoint direction separate from the application roles of request and response. A bulk transfer is a byte stream, not necessarily a whole command; use the actual length and protocol framing. Control transfers also carry direction, request, value, index and length, not just a payload.
+
+A USB transfer accepted or completed is not an application acknowledgment. Check error/status replies and recover protocol state on disconnect. Callback pointers may be reused after return. For asynchronous or direct buffers, obey the acquire/submit/completion ownership rules and do not overwrite in-flight data. Start with a short known request before tuning queues or transfer sizes.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostAdbConnect.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

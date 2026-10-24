@@ -1,15 +1,13 @@
+// en: Activate a smart card and inspect its ATR and UID response.
+// ja: カードを活性化し、ATRとUID要求への応答を調べる。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include "EspUsbHost.h"
 
-// CCID smart card reader example.
-//
-// Opens the CCID interface of a connected reader, reports card insertion and
-// removal, activates the card to read its ATR, and sends the PC/SC Get UID
-// pseudo APDU (FF CA 00 00 00), which contactless readers answer with the card
-// serial number.
-//
-// Slot-change callbacks run on the USB task, so they only set a flag here; the
-// CCID commands themselves are issued from loop().
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 static volatile bool cardPending = false;
@@ -62,6 +60,8 @@ static void readCard()
 {
   uint8_t atr[ESP_USB_HOST_CCID_MAX_ATR] = {};
   size_t atrLength = 0;
+  // en: Card activation returns an ATR; check response length and card/protocol status separately.
+  // ja: カードを活性化してATRを得る。応答長とカード・protocolのstatusは別に確認する。
   if (!usb.ccidPowerOn(atr, sizeof(atr), &atrLength))
   {
     Serial.printf("power on failed: error=0x%02x\n", usb.ccidLastError());
@@ -69,10 +69,8 @@ static void readCard()
   }
   printHex("ATR: ", atr, atrLength);
 
-  // The card standard and name come from the ATR: a PC/SC reader synthesizes
-  // one for storage cards that carries both. A card with an ATR of its own
-  // (contact cards, ISO 14443-4 cards) reports "ISO 7816 card (own ATR)", and a
-  // card the ATR does not identify at all is looked up from its Get UID answer.
+  // en: The card standard and name come from the ATR: a PC/SC reader synthesizes one for storage cards that carries both. A card with an ATR of its own (contact cards, ISO 14443-4 cards) reports "ISO 7816 card (own ATR)", and a card the ATR does not identify at all is looked up from its Get UID answer.
+  // ja: ATRの情報からカード種別を読み、readerが合成するATRとカード自身のATRを区別する。
   EspUsbHostCcidCardInfo card;
   if (usb.ccidIdentifyCard(card))
   {
@@ -116,13 +114,19 @@ static void readCard()
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(1000);
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         { Serial.printf("connected: address=%u vid=%04x pid=%04x product=\"%s\"\n",
                                         device.address, device.vid, device.pid, device.product); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
     Serial.printf("disconnected: address=%u\n", device.address);
@@ -140,6 +144,8 @@ void setup()
   usb.onCcidCardRemoved([](const EspUsbHostCcidSlotEvent &event)
                         { Serial.printf("card removed: address=%u slot=%u\n", event.address, event.slot); });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   usb.begin();
   Serial.println("EspUsbHost CCID reader example start");
 }

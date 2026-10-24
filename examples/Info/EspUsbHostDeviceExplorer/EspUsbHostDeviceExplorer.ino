@@ -1,38 +1,15 @@
-// en: Identify an unknown USB device and decide how to drive it.
-// ja: 未知のUSBデバイスを識別し、どう扱うかを決めるためのツールです。
-//
-// en: For every connected device it prints, in this order:
-//       1. the parsed descriptor dump (printDeviceInfo)
-//       2. one line per interface saying what that class is and which
-//          EspUsbHost API / example covers it
-//       3. the raw device and configuration descriptor bytes, plus a walk of
-//          every descriptor block inside the configuration -- including the
-//          class-specific ones (HID, CDC functional, CCID, UAC) that the
-//          parsed dump does not show
-//     Step 3 is what you compare against USBPcap/Wireshark or `lsusb -v`.
-// ja: 接続された各デバイスについて、次の順に出力します:
-//       1. 解析済みディスクリプタダンプ（printDeviceInfo）
-//       2. インターフェースごとに、そのクラスの意味と対応するEspUsbHost API／
-//          サンプルを1行で表示
-//       3. デバイス／コンフィグレーションディスクリプタの生バイトと、
-//          コンフィグレーション内の全ディスクリプタブロックの走査。解析済み
-//          ダンプでは見えないクラス固有ディスクリプタ（HID/CDC機能/CCID/UAC）も含みます
-//     手順3はUSBPcap/Wiresharkや`lsusb -v`と突き合わせるためのものです。
-//
-// en: Serial commands: 'd' dump everything again, 'r' raw descriptors only.
-// ja: シリアルコマンド: 'd' 全体を再ダンプ、'r' 生ディスクリプタのみ。
+// en: Inspect an unknown device and choose a suitable communication path.
+// ja: 未知の機器を調べ、適切な通信方法を選ぶ。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
-// en: ESP-IDF's precompiled host stack caps a control transfer at 256 bytes
-//     including the 8-byte setup packet, so at most 248 descriptor bytes can be
-//     read in one request. This is the same limit that stops USB cameras from
-//     enumerating at all.
-// ja: ESP-IDFのプリコンパイル済みホストスタックは、8バイトのsetupを含めて
-//     コントロール転送を256バイトに制限しているため、1回で読めるディスクリプタは
-//     最大248バイトです。USBカメラが列挙できないのと同じ制限です。
 static constexpr size_t MAX_CONTROL_DATA = 248;
 
 static constexpr uint32_t SETTLE_MS = 1500;
@@ -189,12 +166,6 @@ static void printHexBlock(const uint8_t *data, size_t length, const char *indent
   }
 }
 
-// en: Walk the configuration descriptor block by block. Every descriptor starts
-//     with bLength/bDescriptorType, which is all that is needed to step through
-//     it -- including the class-specific blocks whose contents are not decoded.
-// ja: コンフィグレーションディスクリプタをブロック単位で走査します。すべての
-//     ディスクリプタはbLength/bDescriptorTypeで始まるので、内容を解釈できない
-//     クラス固有ブロックも含め、これだけで辿れます。
 static void walkConfiguration(const uint8_t *data, size_t length)
 {
   size_t offset = 0;
@@ -355,11 +326,15 @@ void setup()
   // en: The dump bursts faster than the default TX buffer drains.
   // ja: ダンプは既定のTXバッファ排出より速くバーストします。
   Serial.setTxBufferSize(4096);
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(3000);
   Serial.println("EspUsbHost device explorer start");
   Serial.println("Plug in the device to inspect. Commands: 'd' dump, 'r' raw descriptors.");
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
     lastDeviceEventMs = millis();
@@ -367,11 +342,15 @@ void setup()
     Serial.printf("\nconnected address=%u %04x:%04x \"%s\"\n",
                   device.address, device.vid, device.pid, device.product); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
     lastDeviceEventMs = millis();
     Serial.printf("disconnected address=%u %04x:%04x\n", device.address, device.vid, device.pid); });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
@@ -389,6 +368,8 @@ void loop()
     dumpAll(true);
   }
 
+  // en: Read only bytes already buffered; application message boundaries must be tracked separately.
+  // ja: bufferに届いたbyteを読む。アプリのメッセージの区切りは別に管理する。
   while (Serial.available() > 0)
   {
     const char command = (char)Serial.read();

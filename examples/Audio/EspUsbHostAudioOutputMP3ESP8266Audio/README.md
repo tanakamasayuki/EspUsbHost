@@ -79,3 +79,27 @@ all files played
 The bundled sound effects are from [512 Sound Effects (8-bit style)](https://opengameart.org/content/512-sound-effects-8-bit-style)
 by Juhani Junkala, published on [OpenGameArt.org](https://opengameart.org) under the
 [CC0 1.0 Universal (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/) license.
+
+## Walkthrough and checks
+
+### Before running
+
+Decode embedded MP3 assets and feed a USB audio output. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Keep the bundled asset header and codec dependency with the sketch. The decoder runs from `loop()` and fills a PCM ring; the USB output callback consumes ready frames. Test the tone example first, then distinguish end-of-file from an empty ring or unsupported output format.
+
+### API use and adaptation
+
+USB audio directions are named from the device/host relationship. Confirm direction, sample rate, channels, bytes per sample and valid bits before interpreting PCM. A frame is one sample for every channel; a byte count is not a frame count. Interleaved stereo alternates channels rather than sending two independent byte streams.
+
+Streaming must be enabled by the host. Track stream state and underflow/overflow statistics separately from successful USB enumeration. Buffers and queues are finite, and an example that ignores a write's returned count does not promise lossless audio. Keep USB callbacks short; perform decoding, storage and expensive analysis elsewhere. Start with a known test signal before adding a codec or external hardware.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostAudioOutputMP3ESP8266Audio.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

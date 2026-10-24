@@ -37,3 +37,27 @@ audio volume range: -64.00..0.00 dB step 1.00 dB
 audio hardware volume: -12.00 dB
 audio output ready: addr=1
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Distinguish generated PCM level from USB hardware volume controls. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+After selecting the output stream, inspect Feature Units and their supported controls before setting mute/volume. Compare the requested dB with the read-back value and range. No suitable Feature Unit is a capability difference, not proof that audio streaming failed.
+
+### API use and adaptation
+
+USB audio directions are named from the device/host relationship. Confirm direction, sample rate, channels, bytes per sample and valid bits before interpreting PCM. A frame is one sample for every channel; a byte count is not a frame count. Interleaved stereo alternates channels rather than sending two independent byte streams.
+
+Streaming must be enabled by the host. Track stream state and underflow/overflow statistics separately from successful USB enumeration. Buffers and queues are finite, and an example that ignores a write's returned count does not promise lossless audio. Keep USB callbacks short; perform decoding, storage and expensive analysis elsewhere. Start with a known test signal before adding a codec or external hardware.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostAudioOutputHardwareVolume.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

@@ -180,3 +180,27 @@ Notes on this approach:
   matching USB network device
 - `tests/peer/usb_ncm` - the automated two-board CDC-NCM peer test
 - `docs/usb-network-spec.ja.md` - the USB network API design notes
+
+## Walkthrough and checks
+
+### Before running
+
+Attach a USB network adapter and use the IP networking stack. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Follow discovery of the network interfaces, configuration selection, attach and IP acquisition in that order. A USB connection is not yet an IP route. The HTTP test uses an external endpoint; test local link/IP first and do not treat remote HTTP, DNS or certificate failures as USB enumeration failures.
+
+### API use and adaptation
+
+Check in order: USB enumeration, usable network interface, link, IP configuration, route/DNS and application connection. An IP address does not prove Internet access. Avoid changing your main PC's default route merely to test a directly connected USB subnet; inspect the selected interface and destination first.
+
+Network callbacks and USB callbacks are separate from the application web/client loop. Keep blocking HTTP, DNS and file work outside USB callbacks. Check the return of network startup and client/server operations; decide how to reacquire state after unplugging. Record local connectivity separately from success of an external service.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](UsbNetwork.ino)
+- [All examples](../README.md)
+- [Example workflow](../../docs/example-workflow.md)

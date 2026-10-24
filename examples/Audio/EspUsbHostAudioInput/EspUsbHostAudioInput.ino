@@ -1,7 +1,14 @@
+// en: Receive USB microphone PCM and inspect signal peaks.
+// ja: USBマイクのPCMを受け、信号のピークを調べる。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include <Arduino.h>
 #include <EspUsbHost.h>
 #include <math.h>
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 static constexpr uint8_t MAX_PEAK_CHANNELS = 8;
@@ -59,10 +66,14 @@ static bool selectAudioInput(uint8_t address)
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(5000);
   Serial.println("EspUsbHost Audio Input example start");
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &info)
                         {
                           Serial.print("connected: ");
@@ -73,6 +84,8 @@ void setup()
                             Serial.printf("audio input %s: addr=%u\n", selectAudioInput(info.address) ? "ready" : "unsupported", info.address);
                           } });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &info)
                            {
                              Serial.print("disconnected: ");
@@ -84,6 +97,8 @@ void setup()
                                selectedSampleRate = 0;
                              } });
 
+  // en: Incoming PCM is borrowed callback data; interpret the selected format and copy before deferring work.
+  // ja: 受信PCMはcallback中に借りるデータ。選択formatで解釈し、後で処理する場合はコピーする。
   usb.onAudioData([](const EspUsbHostAudioData &audio)
                   {
                     if (!audioInputReady ||
@@ -149,6 +164,8 @@ void setup()
                       lastPrintMs = now;
                     } });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin failed: %s\n", usb.lastErrorName());

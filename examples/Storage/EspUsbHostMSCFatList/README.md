@@ -41,3 +41,27 @@ Wrote 31 bytes to /ESPUSBHT.TST
 Read back 31 bytes: EspUsbHost MSC FAT write probe
 Removed /ESPUSBHT.TST
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Mount FAT storage, list files and perform a write/read/delete probe. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Use spare writable media: `writeReadDeleteProbe()` writes /ESPUSBHT.TST and removes it after reading it back. Close each File before removal or unplugging. If that path already exists, its contents may be replaced; this example is not a read-only directory listing.
+
+### API use and adaptation
+
+A block is addressed by LBA and sized by the medium; a file needs a filesystem on top. Compare capacity, mount success and file operations separately. Check returned byte counts, close handles, and allow outstanding host writes to finish before removing or reusing storage. Neither USB connection nor a FAT signature guarantees a valid filesystem.
+
+Give the medium one writer at a time. A host-mounted volume and the sketch must not independently edit the same filesystem. RAM examples lose changes on reset; physical-media examples can change persistent data. Read the operation list before using a medium containing files you want to retain.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostMSCFatList.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

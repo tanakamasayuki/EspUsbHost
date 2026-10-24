@@ -177,3 +177,29 @@ uv run --env-file .env pytest manual/usb_display_throughput/usb_display_throughp
 GPL-2.0の `udlfb` ドライバ、LGPL-2.1の `libdlo`、およびSynapticsのDisplayLink SDKのコードは一切含みません。
 
 DisplayLink is a trademark of Synaptics Incorporated. This project is not affiliated with, endorsed by, or certified by Synaptics.
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+対応するDL-1xx USB映像アダプタへ描画する。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+隣のDL-1xx helperが機器の手順を実装し、LovyanGFXとvirtual screenが描画と送信を行います。描画を調べる前に機器検出と初期化を確認します。切断時は画面の状態を無効化し、差分描画には受信側と手元の画像が一致する必要があることを意識します。
+
+### APIの使い方と改造時の注意
+
+隣のprotocol headerと記載された描画・codec依存を含めて使います。機器検出、protocol初期化、画像符号化、転送受付、実表示は別の段階です。USB完了は機器への転送を示し、panelの更新完了を保証するものではありません。
+
+virtual screenはRAM量とband・tileを調整して描画します。相手の画面と差分状態が一致しなくなったら全体の描き直しが必要です。画像生成や同期転送はアプリ側の経路で行います。非同期bufferをhelperの完了より先に再利用しないようにします。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostDisplayDl1xx.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

@@ -72,3 +72,27 @@ CP210x assigned: portId=0x02 address=2 serial=0001
 FTDI: hello from ftdi
 CP210x: hello from cp210x
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Bind separate serial wrappers to selected USB device addresses. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Connection callbacks select FTDI and CP210x devices by VID and `setAddress()`; disconnect clears the binding. Send input to the board terminal and compare the labeled replies. Two adapters sharing the same VID need a more specific selector, and this is not the same as several CDC interfaces on one device.
+
+### API use and adaptation
+
+Keep three layers separate: the board's diagnostic Serial, the USB transport, and the peripheral UART settings. A baud value configures line coding or a serial converter; it is not USB bus speed. `available()`/`read()` expose bytes already received, while `write()` reports accepted bytes. A successful write does not prove that a device parsed a whole command.
+
+For a real bridge, retain any unsent suffix and define framing and timeout rules. Drain receive buffers regularly; enlarging a finite ring only absorbs bursts and cannot fix a permanently slower consumer. Optional `setRxBufferSize()` belongs before that wrapper's `begin()`, and its failure needs handling. Rebind on reconnect rather than assuming a stable USB address.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostMultiUSBSerial.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

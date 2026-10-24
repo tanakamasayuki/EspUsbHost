@@ -152,3 +152,27 @@ even where it implements the same PC/SC objects.
 FeliCa, PaSoRi and Suica are trademarks of their respective owners. This example
 is not affiliated with, or endorsed by, Sony or any transit operator; it only
 speaks the documented protocols to a reader.
+
+## Walkthrough and checks
+
+### Before running
+
+Read a FeliCa IDm using a selected System Code. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Open the compatible reader, then use `readTarget()` to perform the selected polling operation. Distinguish `noAnswer()` from a USB or reader error. This reader-specific escape path is needed to control polling; a generic CCID power-on plus Get UID is not the same operation.
+
+### API use and adaptation
+
+Separate reader enumeration, interface opening, card presence, activation/ATR and APDU exchange. A successful CCID transfer and an application status word answer different questions. Keep the supplied output capacity and actual response length checks; do not interpret an absent card as an empty valid response.
+
+Reader-specific pseudo-APDUs and escape commands are not universal smart-card commands. Check the exact reader/card combination before reusing a command. Keep callback work bounded and run waiting reader operations through the application path shown in the sketch. Returned data must be copied if needed after a callback.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostCcidFelicaIdm.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

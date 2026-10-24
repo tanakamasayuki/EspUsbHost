@@ -1,5 +1,12 @@
+// en: Open a matching interface and exercise vendor bulk and control transfers.
+// ja: 対応interfaceを開き、Vendor bulkとcontrol転送を試す。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include "EspUsbHost.h"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 static uint8_t deviceAddress = 0;
@@ -10,11 +17,15 @@ void setup()
   // en: Event prints can burst faster than the default TX buffer drains.
   // ja: イベント出力が既定のTXバッファ排出より速くバーストすることがあります。
   Serial.setTxBufferSize(4096);
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(500);
 
   Serial.println("EspUsbHost vendor bulk/control example start");
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
                           deviceAddress = device.address;
@@ -25,6 +36,8 @@ void setup()
                           // ja: vendor-specificインターフェースをclaimし、bulk IN受信を開始します。
                           Serial.printf("vendorOpen: %s\n", usb.vendorOpen(deviceAddress) ? "ok" : "failed"); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
                              connected = false;
@@ -43,6 +56,8 @@ void setup()
                      }
                      Serial.println(); });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
@@ -87,10 +102,8 @@ void loop()
     }
     else if (command == 'q')
     {
-      // en: For a device that streams: keep two 8 KB IN transfers in flight instead
-      //     of one packet at a time. Data still arrives through onVendorData().
-      // ja: 流しっぱなしのデバイス向け。1パケットずつではなく8 KBのIN転送を2本
-      //     同時に飛ばし続けます。データは従来どおりonVendorData()に届きます。
+      // en: For a device that streams: keep two 8 KB IN transfers in flight instead of one packet at a time. Data still arrives through onVendorData().
+      // ja: 流しっぱなしのデバイス向け。1パケットずつではなく8 KBのIN転送を2本 同時に飛ばし続けます。データは従来どおりonVendorData()に届きます。
       bool ok = usb.vendorReadQueueBegin(2, 8192, deviceAddress);
       Serial.printf("read queue: %s transfer=%u\n",
                     ok ? "ok" : "failed",
@@ -98,8 +111,7 @@ void loop()
     }
     else if (command == 'e')
     {
-      // en: Stop the queue. The endpoint goes idle; vendorOpen() starts the
-      //     continuous read again.
+      // en: Stop the queue. The endpoint goes idle; vendorOpen() starts the continuous read again.
       // ja: キューを止めます。endpointはアイドルになり、vendorOpen()で継続受信に戻ります。
       usb.vendorReadQueueEnd(deviceAddress);
       const EspUsbHostVendorReadStats stats = usb.vendorReadStats(deviceAddress);

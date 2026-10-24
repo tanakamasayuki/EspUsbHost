@@ -54,3 +54,27 @@ LBA0:
 MBR partitions:
   #1 boot=0x00 type=0x0b first_lba=8192 sectors=7823360 size_kib=3911680
 ```
+
+## Walkthrough and checks
+
+### Before running
+
+Read storage capacity and inspect the first raw block. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+After `mscReady()`, request capacity before reading LBA zero. blockSize determines buffer requirements; LBA is a block number, not a byte offset. The sample inspects raw data without mounting a filesystem, so an MBR signature alone does not mean files can be listed.
+
+### API use and adaptation
+
+A block is addressed by LBA and sized by the medium; a file needs a filesystem on top. Compare capacity, mount success and file operations separately. Check returned byte counts, close handles, and allow outstanding host writes to finish before removing or reusing storage. Neither USB connection nor a FAT signature guarantees a valid filesystem.
+
+Give the medium one writer at a time. A host-mounted volume and the sketch must not independently edit the same filesystem. RAM examples lose changes on reset; physical-media examples can change persistent data. Read the operation list before using a medium containing files you want to retain.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostMSCBlockDump.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

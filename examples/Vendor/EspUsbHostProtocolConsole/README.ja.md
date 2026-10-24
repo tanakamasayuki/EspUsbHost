@@ -75,3 +75,29 @@ in  address=1 iface=0 ep=0x82 len=1
 - `usb.vendorControlTransfer(...)` — 呼び出し側が `bmRequestType` を指定するEP0転送
 - `usb.vendorWrite()` / `usb.vendorReadSync()` / `usb.vendorWriteZlp()`
 - `usb.onVendorData()` — continuousモードでのバルクINペイロード
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+診断consoleからcontrol・bulk要求を明示的に送る。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+listと読み取りのdescriptor確認から始め、address・interfaceを選んでからctl/in/outへ進みます。記載されたprotocol値は16進で入力します。通信手段を提供するだけでprotocolを自動解明するものではないので、書き込み前に意味と方向を確認します。
+
+### APIの使い方と改造時の注意
+
+USBのIN/OUTは常にdevice側から見た名称で、INはホストへ、OUTはdeviceへ向かいます。要求・応答というアプリの役割とendpoint方向を区別します。bulkはbyte streamであり、一転送が一命令とは限りません。実際の長さとprotocolの区切りを使います。control転送はpayloadだけでなく方向・request・value・index・lengthも持ちます。
+
+USB転送の受付・完了はアプリの確認応答ではありません。相手のstatusも確認し、切断時にはprotocol状態を回復します。callbackのポインタは戻ると再利用される場合があります。非同期・direct bufferはacquire・submit・completionの所有規約を守り、転送中に上書きしません。queueや転送長を調整する前に短い既知の要求から試します。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostProtocolConsole.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

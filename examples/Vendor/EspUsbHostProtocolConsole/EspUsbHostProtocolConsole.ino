@@ -1,53 +1,13 @@
-// en: An interactive console for working out an undocumented USB protocol.
-//     Type USB transfers on the serial monitor and see what the device answers,
-//     with no rebuild between attempts.
-// ja: 仕様が公開されていないUSBプロトコルを解析するための対話コンソールです。
-//     シリアルモニタからUSB転送を入力し、デバイスの応答をその場で確認できます。
-//     試行ごとに再ビルドする必要はありません。
-//
-// en: The intended workflow is: capture the device on a PC with USBPcap +
-//     Wireshark (or usbmon on Linux), pick one transfer out of the capture, and
-//     replay it here byte for byte. When the answer matches the capture, that
-//     part of the protocol is understood and can be written into a sketch.
-// ja: 想定する手順は次のとおりです。PC上でUSBPcap + Wireshark（LinuxならUSBmon）で
-//     キャプチャし、その中の1つの転送を選び、ここでバイト単位に再現します。
-//     応答がキャプチャと一致すれば、そのプロトコルの一部は理解できたことになり、
-//     スケッチに書き起こせます。
-//
-// en: Commands (one per line; all numbers are hex, with or without 0x):
-//       help
-//       list                         devices, interfaces and endpoints
-//       addr <a>                     target device address (default: first one)
-//       open <iface> [ondemand]      claim an interface for bulk transfers
-//       ctl <bmRequestType> <bRequest> <wValue> <wIndex> <len|bytes...>
-//                                    one EP0 control transfer. IN when bit 7 of
-//                                    bmRequestType is set: give the length.
-//                                    OUT: give the data bytes, or nothing.
-//       out <bytes...>               bulk OUT
-//       in [len] [timeout_ms]        one bulk IN, waited for
-//       zlp                          zero-length bulk OUT packet
-//       mon on|off                   print unsolicited bulk IN data
-//       desc                         raw configuration descriptor
-//     Example -- a standard GET_DESCRIPTOR(DEVICE) on EP0:
-//       ctl 80 06 0100 0000 12
-// ja: コマンド（1行1コマンド、数値はすべて16進、0x接頭辞は任意）:
-//       help
-//       list                         デバイス／インターフェース／エンドポイント一覧
-//       addr <a>                     対象デバイスアドレス（既定: 最初のデバイス）
-//       open <iface> [ondemand]      バルク転送のためにインターフェースをclaim
-//       ctl <bmRequestType> <bRequest> <wValue> <wIndex> <len|bytes...>
-//                                    EP0コントロール転送を1回。bmRequestTypeのbit7が
-//                                    1ならIN（長さを指定）、0ならOUT（データを指定、省略可）
-//       out <bytes...>               バルクOUT
-//       in [len] [timeout_ms]        バルクINを1回、完了まで待つ
-//       zlp                          長さ0のバルクOUTパケット
-//       mon on|off                   非同期に届くバルクINデータの表示
-//       desc                         生のコンフィグレーションディスクリプタ
-//     例 -- EP0への標準GET_DESCRIPTOR(DEVICE):
-//       ctl 80 06 0100 0000 12
+// en: Issue explicit control and bulk requests from a diagnostic console.
+// ja: 診断consoleからcontrol・bulk要求を明示的に送る。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
 // en: setup(8) + data must stay within the stack's 256-byte control transfer.
@@ -401,15 +361,21 @@ static void handleLine(char *text)
 void setup()
 {
   Serial.setTxBufferSize(4096);
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(3000);
   Serial.println("EspUsbHost protocol console start");
   commandHelp();
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         { Serial.printf("connected address=%u %04x:%04x \"%s\"\n",
                                         device.address, device.vid, device.pid, device.product); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            { Serial.printf("disconnected address=%u\n", device.address); });
 
@@ -425,6 +391,8 @@ void setup()
                   data.address, data.interfaceNumber, data.endpoint, (unsigned)data.length);
     printHex(data.data, data.length); });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());
@@ -433,6 +401,8 @@ void setup()
 
 void loop()
 {
+  // en: Read only bytes already buffered; application message boundaries must be tracked separately.
+  // ja: bufferに届いたbyteを読む。アプリのメッセージの区切りは別に管理する。
   while (Serial.available() > 0)
   {
     const char c = (char)Serial.read();

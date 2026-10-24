@@ -1,9 +1,8 @@
-// Minimal practical ADB host template built only from EspUsbHost's generic
-// vendor-bulk API. It authenticates with an NVS-persisted RSA key, opens one
-// shell stream, runs an echo command, and closes the stream.
-//
-// 汎用vendor-bulk APIだけで構成した、実用最小限のADB hostテンプレートです。
-// NVSへ保存するRSA鍵で認証し、shell streamを1本開いてechoを実行します。
+// en: Authenticate an ADB connection and run a bounded shell echo test.
+// ja: ADBを認証し、範囲を限定したshellのecho試験を行う。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 
@@ -229,6 +228,8 @@ private:
     mbedtls_pk_context key_;
 };
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 AdbKeyStore adbKey;
 
@@ -294,6 +295,8 @@ static bool adbSend(uint32_t command, uint32_t arg0, uint32_t arg1,
     putU32(header + 12, length);
     putU32(header + 16, adbChecksum(data, length));
     putU32(header + 20, command ^ 0xffffffff);
+    // en: This synchronous transfer can wait; keep it out of USB client callbacks.
+    // ja: 完了を待つ転送。USB clientのcallback内には移さない。
     if (!usb.vendorWrite(header, sizeof(header), deviceAddress))
     {
         return false;
@@ -326,9 +329,8 @@ static bool openAdbInterface(uint8_t address)
             {
                 return false;
             }
-            // ADB sends its header and payload as separate USB transfers. If one
-            // ends exactly on a USB packet boundary, it must be terminated with a
-            // ZLP so adbd does not consume the following ADB header as payload.
+            // en: ADB sends its header and payload as separate USB transfers. If one ends exactly on a USB packet boundary, it must be terminated with a ZLP so adbd does not consume the following ADB header as payload.
+            // ja: ADBのheaderとpayloadは別転送。境界によって必要なZLPをprotocolに合わせて扱う。
             usb.vendorSetAutoZlp(true, address);
             Serial.printf("ADB bulk OUT: ep=0x%02x mps=%u auto ZLP enabled\n",
                           usb.vendorOutEndpoint(address), usb.vendorOutPacketSize(address));
@@ -601,6 +603,8 @@ static void processReceived()
 void setup()
 {
     Serial.setTxBufferSize(4096);
+    // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+    // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
     Serial.begin(115200);
     delay(5000);
 
@@ -610,6 +614,8 @@ void setup()
         return;
     }
 
+    // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+    // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
     usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                           {
         Serial.printf("connected address=%u vid=%04x pid=%04x product=\"%s\"\n",
@@ -622,6 +628,8 @@ void setup()
             connectPending = true;
         } });
 
+    // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+    // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
     usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                              {
         Serial.printf("disconnected address=%u\n", device.address);
@@ -636,6 +644,8 @@ void setup()
     usb.onVendorData([](const EspUsbHostVendorData &event)
                      { bufferVendorData(event); });
 
+    // en: Start host processing; success does not mean a peripheral has finished enumeration.
+    // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
     if (!usb.begin())
     {
         fail("usb.begin() failed");
@@ -674,9 +684,8 @@ void loop()
         }
     }
 
-    // Some devices do not send the second AUTH TOKEN described by the ADB
-    // handshake. Offer the key once after a quiet period; never repeat it on
-    // every USB re-enumeration because that can create a reconnect loop.
+    // en: If the peer does not repeat the authentication token, follow the bounded authorization fallback instead of waiting forever.
+    // ja: 認証tokenを再送しない相手では、上限付きの代替手順へ進み、無限に待たない。
     if (!finished && adbOpen && signatureSent && !publicKeySent &&
         !publicKeyOffered && !online &&
         millis() - signatureSentAtMs >= 1500)
@@ -687,9 +696,8 @@ void loop()
         }
     }
 
-    // After the key has been offered, wait for approval or for a re-enumerated
-    // transport to accept its signature. A missing dialog is reported clearly
-    // instead of continually resending the public key.
+    // en: After the key has been offered, wait for approval or for a re-enumerated transport to accept its signature. A missing dialog is reported clearly instead of continually resending the public key.
+    // ja: 公開鍵の提示後は利用者の承認を待つ。未承認のまま同じ要求を送り続けない。
     if (!finished && adbOpen && publicKeyOffered && !online)
     {
         const uint32_t waitingSince = publicKeySent

@@ -1,5 +1,12 @@
+// en: Bind separate serial wrappers to selected USB device addresses.
+// ja: 複数のシリアルwrapperを相手のUSB addressへ結び付ける。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 #include "EspUsbHost.h"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 EspUsbHostCdcSerial FtdiSerial(usb);
 EspUsbHostCdcSerial Cp210xSerial(usb);
@@ -58,6 +65,8 @@ static void forwardUsbToSerial(EspUsbHostCdcSerial &usbSerial, const char *label
   while (usbSerial.connected() && usbSerial.available() > 0)
   {
     Serial.printf("%s: ", label);
+    // en: Read only bytes already buffered; application message boundaries must be tracked separately.
+    // ja: bufferに届いたbyteを読む。アプリのメッセージの区切りは別に管理する。
     while (usbSerial.available() > 0)
     {
       Serial.write(usbSerial.read());
@@ -68,18 +77,14 @@ static void forwardUsbToSerial(EspUsbHostCdcSerial &usbSerial, const char *label
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(5000);
   Serial.println("EspUsbHost multi USB serial example start");
   Serial.println("Connect one FTDI device and one CP210x device.");
   Serial.println("Serial Monitor input is sent to both devices.");
 
-  // en: Each wrapper owns its own 512-byte receive ring, which drops the oldest
-  //     byte on overflow. The size is per instance, so only the device that
-  //     actually needs more has to pay for it. Call it before begin().
-  // ja: 受信リングはラッパーごとに独立していて（既定512バイト）、溢れると古い
-  //     バイトから捨てます。サイズはインスタンス単位なので、必要なデバイスの
-  //     分だけ増やせます。begin()より前に呼びます。
   // FtdiSerial.setRxBufferSize(8192);
 
   FtdiSerial.begin(115200);
@@ -87,9 +92,15 @@ void setup()
   FtdiSerial.setAddress(0);
   Cp210xSerial.setAddress(0);
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected(onDeviceConnected);
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected(onDeviceDisconnected);
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   if (!usb.begin())
   {
     Serial.printf("usb.begin() failed: %s\n", usb.lastErrorName());

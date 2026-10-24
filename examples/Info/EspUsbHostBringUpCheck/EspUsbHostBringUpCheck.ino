@@ -1,23 +1,18 @@
-// en: First tool to run on a new board or with a new device: does USB Host come
-//     up at all, and does the device enumerate?
-// ja: 新しいボードや新しいデバイスで最初に動かすツールです。USB Hostが起動するか、
-//     デバイスが列挙されるかだけを確認します。
-//
-// en: It answers three questions, in order: did begin() succeed, did anything
-//     enumerate, and at what speed. When nothing enumerates it prints the
-//     checklist of physical causes instead of leaving a silent log.
-// ja: 「begin()が成功したか」「何か列挙されたか」「どの速度か」を順に確認します。
-//     何も列挙されない場合は、無言のログではなく物理的な原因のチェックリストを表示します。
+// en: Check host startup separately from peripheral enumeration.
+// ja: Hostの開始と接続機器の列挙を分けて確認する。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 #include "espusbhost_version.h"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 
-// en: ESP32-P4 only. Set to 1 to use the high-speed OTG port instead of the
-//     full-speed one. Other targets ignore the port setting entirely.
-// ja: ESP32-P4専用。1にするとフルスピードではなくハイスピードOTGポートを使います。
-//     他のターゲットではポート設定は無視されます。
+// en: ESP32-P4 only. Set to 1 to use the high-speed OTG port instead of the full-speed one. Other targets ignore the port setting entirely.
+// ja: ESP32-P4専用。1にするとフルスピードではなくハイスピードOTGポートを使います。 他のターゲットではポート設定は無視されます。
 #define USE_HIGH_SPEED_PORT 0
 
 static constexpr uint32_t REPORT_INTERVAL_MS = 2000;
@@ -83,12 +78,16 @@ static void printNoDeviceHints()
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(3000);
   Serial.println("EspUsbHost bring-up check start");
 
   printEnvironment();
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         {
     Serial.println();
@@ -107,6 +106,8 @@ void setup()
                   (unsigned)usb.maxEndpointChannelCount());
     Serial.println("  Next: run examples/Info/EspUsbHostDeviceExplorer for the full layout."); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            { Serial.printf("REMOVED address=%u %04x:%04x\n", device.address, device.vid, device.pid); });
 
@@ -115,6 +116,8 @@ void setup()
   config.port = USE_HIGH_SPEED_PORT ? ESP_USB_HOST_PORT_HIGH_SPEED : ESP_USB_HOST_PORT_FULL_SPEED;
 #endif
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   beginOk = usb.begin(config);
   if (beginOk)
   {

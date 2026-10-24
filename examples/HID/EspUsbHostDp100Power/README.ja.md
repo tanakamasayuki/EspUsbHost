@@ -235,3 +235,29 @@ Windows 用 DLL `ATK-DP100DLL` だけです）。したがって **この実装�
 
 > ALIENTEK and DP100 are trademarks of their respective owner. This project is not
 > affiliated with, endorsed by, or certified by ALIENTEK.
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+DP100電源をHIDで読み、必要な場合だけ設定を変更する。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+最初はAPPLY_SETPOINT・TURN_OUTPUT_ONをfalseのままにします。`identify()`・`refresh()`・`readSetpoint()`から測定値を追います。負荷を確認してから設定変更を有効にします。USB通信の成功、設定の受理、実測値は同じ意味ではありません。
+
+### APIの使い方と改造時の注意
+
+隣のhelperはUSB転送の上に特定機器のprotocolを実装します。設定を変える前に識別・statusを読みます。classやVIDが一致するだけで、全型番・firmwareが同じ命令を扱うとは判断しません。helperを再利用しても単位・フレーム形式・応答の検査は残します。
+
+完了待ちする要求はスケッチが示すアプリ側の経路で行い、USB callbackへ追加しないようにします。切断したら古いinterface・address・sessionの前提を破棄して接続し直します。転送異常・protocolの拒否・機器の物理状態を分け、同じ要求の無限再試行を回復手順の代わりにしないようにします。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostDp100Power.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)

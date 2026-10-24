@@ -39,3 +39,27 @@ USB Serial/JTAG on GPIO24/GPIO25 will disconnect.
 ```
 
 After these two lines the mapping switches and the USB Serial/JTAG console on GPIO24/GPIO25 disconnects, so nothing further appears there. Any later message, such as `usb.begin failed: ...`, is visible only through an external USB-to-UART bridge or another console connection.
+
+## Walkthrough and checks
+
+### Before running
+
+Route the P4 full-speed PHY before starting USB Host. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Read the schematic and arrange an independent log/upload route first. The runtime PHY selection moves which pads carry OTG versus Serial/JTAG, so losing that monitor can be an expected route change rather than a crash. PHY routing does not provide VBUS power or USB-C role handling.
+
+### API use and adaptation
+
+Distinguish the selected USB controller, its PHY/pads, the PCB connector and the board's power circuitry. A controller option does not reroute copper traces. Plan a working upload/debug route before testing a change that moves Serial/JTAG; inspect logs through an independent UART if necessary.
+
+Use the example's declared target/profile and follow the board schematic for VBUS and USB-C role circuitry. A runtime PHY selection is different from a permanent chip configuration. Start with one controller and one peer before combining Host and Device on separate ports.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostP4FsPhyRouting.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

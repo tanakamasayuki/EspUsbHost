@@ -13,6 +13,8 @@ Everything under `docs/`, grouped by what you would be looking for. The library 
 | [tested-devices.md](tested-devices.md) · [ja](tested-devices.ja.md) | Every device and board verified on real hardware: VID:PID, conditions, what was and was not checked |
 | [usb-display.md](usb-display.md) · [ja](usb-display.ja.md) | Index of the USB display examples — three different protocols over three different transports |
 
+[Working through the examples](example-workflow.md) covers first-run order, connections, states, callbacks and failure isolation.
+
 ## Protocol notes
 
 Analysis notes for devices whose protocol had to be worked out, written while implementing the corresponding example. Useful as a model for [working out a protocol](usb-host-guide.md#5-working-out-a-protocol) yourself. **Written in Japanese**, except where an English page is noted below; each one carries an English summary at the top saying what it covers and where the current English documentation is.

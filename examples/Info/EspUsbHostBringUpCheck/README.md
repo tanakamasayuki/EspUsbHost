@@ -59,3 +59,27 @@ ENUMERATED address=1 speed=full-speed (12Mbps)
 ## Next step
 
 Once a device enumerates here, run [EspUsbHostDeviceExplorer](../EspUsbHostDeviceExplorer/) to see what its interfaces are and which API drives them.
+
+## Walkthrough and checks
+
+### Before running
+
+Check host startup separately from peripheral enumeration. Follow the hardware and dependency requirements above, select the board and the example's profile, and locate the diagnostic Serial connection. [Example workflow](../../../docs/example-workflow.md) explains installation, connectors, USB roles and the difference between startup and a usable peer.
+
+### Follow the code
+
+Read beginOk and the periodic device count before debugging a class protocol. An empty bus can coexist with successful `usb.begin()`. If no device appears, follow the printed connector/power hints; only after enumeration should you investigate unsupported interfaces.
+
+### API use and adaptation
+
+Treat startup, enumeration, interface discovery and actual class communication as separate checkpoints. A descriptor says what a device advertises; it does not prove a transfer completed or that a protocol is implemented. Keep received lengths and capacity checks when adapting a descriptor walker. An interface number, endpoint address, USB address and physical port identify different things.
+
+First compare the same device directly connected and reconnected. Add a hub or more functions only after the simple case is understood. Preserve the error name and the operation that produced it. Large dumps are diagnostic work, not a pattern for high-rate callbacks.
+
+### Verify one change at a time
+
+Run the unchanged example first and compare the operation above with its logs or host application. Test the peer absent and then connected; note which stage succeeds instead of expecting the final result immediately. Reset to the original configuration before changing one pin, format or command. The demonstration's error logging is not a general retry or recovery policy.
+
+- [Sketch](EspUsbHostBringUpCheck.ino)
+- [All examples](../../README.md)
+- [Example workflow](../../../docs/example-workflow.md)

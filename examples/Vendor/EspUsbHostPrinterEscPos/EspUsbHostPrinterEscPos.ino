@@ -1,31 +1,26 @@
-// Print on a USB receipt printer: an ESC/POS thermal printer with a Japanese font
-// and an auto cutter (developed against an Xprinter XP-C58K, 0483:070b).
-//
-// The interface class is 0x07 (Printer), not the vendor-specific 0xff. The library
-// has no printer support of its own; this example builds the class requests and the
-// print data stream on the vendor bulk/control API, which is why it lives under
-// examples/Vendor/. See README.md.
-//
-// PAPER: printing consumes it. Both actions below are off by default, so the
-// sketch as shipped only reads the device ID and the paper status - nothing moves.
-// Turn PRINT_SAMPLE on to print, and CUT_PAPER on once you have confirmed your
-// printer has a cutter.
+// en: Inspect a printer and optionally send an ESC/POS sample.
+// ja: プリンタの状態を調べ、必要な場合だけESC/POSの試験印刷を行う。
+// en: Wiring, operation and adaptation notes: README.md.
+// ja: 配線・操作・改造時の注意: README.ja.md。
+
 
 #include "EspUsbHost.h"
 #include "PrinterDevice.hpp"
 #include "ReceiptJa.hpp"
 
+// en: Keep the USB owner and its function objects alive for the whole session.
+// ja: USB全体と各機能のオブジェクトを、接続の使用中ずっと残す。
 EspUsbHost usb;
 printer::PrinterDevice slip(usb);
 
-// Set to true to actually print. Leave both false to exercise the class requests
-// and the status path without using paper.
+// en: Leave printing disabled while testing identification and status; enable it only for the intended physical print operation.
+// ja: 識別と状態確認の間は印刷を無効にし、実際に印刷するときだけ有効にする。
 static constexpr bool PRINT_SAMPLE = false;
-// Only meaningful with PRINT_SAMPLE. A printer without a cutter ignores GS V, but
-// a printer with a *tear bar* and no cutter can jam on it, so it is separate.
+// en: Cutting is an additional physical action after printing; confirm that the printer supports the selected cutter command.
+// ja: cutは印刷後の追加動作。選択したcut命令にプリンタが対応するか確認する。
 static constexpr bool CUT_PAPER = false;
-// The Japanese receipt needs a printer with a two-byte font ROM. On a printer
-// without one, set this to false to print the ASCII-only slip instead.
+// en: Japanese text needs a compatible printer font/encoding; transport success alone cannot prove the characters will render correctly.
+// ja: 日本語には対応fontと文字コードが必要。転送成功だけで文字が正しく出るとは限らない。
 static constexpr bool PRINT_JAPANESE = true;
 
 static constexpr uint32_t STATUS_INTERVAL_MS = 5000;
@@ -79,9 +74,8 @@ static void printStatus()
   }
 }
 
-// Prints one slip, refusing when the printer says it cannot. Checking first is not
-// pedantry: data sent to a printer that is out of paper is buffered, and comes out
-// mixed into whatever is printed after the roll is replaced.
+// en: Check paper and error status before printing; status can change after the check, so still handle write failure.
+// ja: 印刷前に用紙と異常を確認する。確認後も状態は変わるため、書き込み失敗を別に扱う。
 static bool printSample()
 {
   bool paperOut = false;
@@ -162,9 +156,13 @@ static bool connect()
 
 void setup()
 {
+  // en: Serial is the diagnostic path; confirm its board-specific route separately from USB data.
+  // ja: Serialは診断用。基板のどの経路から読めるかを、USBデータ接続とは別に確認する。
   Serial.begin(115200);
   delay(3000);
 
+  // en: Register the connection notification before startup; the reported address belongs to this enumeration.
+  // ja: 開始前に接続通知を登録する。通知のaddressは今回の列挙で割り当てられたもの。
   usb.onDeviceConnected([](const EspUsbHostDeviceInfo &device)
                         { Serial.printf("connected address=%u vid=%04x pid=%04x product=\"%s\"\n",
                                         device.address,
@@ -172,6 +170,8 @@ void setup()
                                         device.pid,
                                         device.product); });
 
+  // en: Use disconnect notifications to invalidate application state; a reconnect can have a new address.
+  // ja: 切断通知を手元の状態の無効化に使う。再接続後のaddressは変わる場合がある。
   usb.onDeviceDisconnected([](const EspUsbHostDeviceInfo &device)
                            {
         Serial.printf("disconnected address=%u\n", device.address);
@@ -181,6 +181,8 @@ void setup()
           connected = false;
         } });
 
+  // en: Start host processing; success does not mean a peripheral has finished enumeration.
+  // ja: Hostの処理を開始する。成功しても相手機器の列挙完了を意味しない。
   usb.begin();
   Serial.println("EspUsbHostPrinterEscPos start");
   Serial.println("Connect an ESC/POS USB receipt printer with paper loaded.");

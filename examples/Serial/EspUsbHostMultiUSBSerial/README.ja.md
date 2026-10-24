@@ -72,3 +72,29 @@ CP210x assigned: portId=0x02 address=2 serial=0001
 FTDI: hello from ftdi
 CP210x: hello from cp210x
 ```
+
+## 読み方と確認の手順
+
+### 実行前の準備
+
+複数のシリアルwrapperを相手のUSB addressへ結び付ける。
+
+上のハードウェア・依存libraryの条件を確認し、boardと例のprofileを選び、診断Serialの接続先を確認します。[サンプルの進め方](../../../docs/example-workflow.ja.md)では導入・コネクタ・USBの役割・開始成功と相手の利用可能状態の違いを説明しています。
+
+### コードを追う
+
+接続時にVIDからFTDI・`CP210xを選んでsetAddress()`し、切断時に対応を消します。基板の端末から送信してラベル付き返信を比べます。同じVIDの機器を二台使う場合は識別条件を増やします。一機器の複数CDC interfaceとは別の構成です。
+
+### APIの使い方と改造時の注意
+
+基板の診断Serial、USB転送、相手UARTの設定という3層を分けます。baudはline codingや変換器の設定であり、USBバス速度ではありません。`available()`/`read()`は受信済みbyte、`write()`は受け付けたbyte数です。送信成功だけでは相手が一つの命令として解釈したとは言えません。
+
+実用的な中継では未送信の後半を保持し、区切りとtimeoutを定義します。受信bufferを定期的に読み、有限ringの拡大はバーストを吸収するだけで、受け手が常に遅い問題は直らないと考えます。任意のsetRxBufferSize()はwrapperのbegin()より前に呼び、失敗も確認します。再接続時はUSB addressを固定とせず対応を取り直します。
+
+### 一つずつ確認する
+
+最初は例を変更せず、上の操作とログ・ホストアプリの結果を照合します。相手がいない場合から接続へ進み、最終結果だけでなく、どの段階まで成功したかを見ます。端子・format・命令を一つ変える前に元の設定へ戻せるようにします。例のエラー表示だけで、汎用の再試行・回復方針まで実装されるわけではありません。
+
+- [スケッチ](EspUsbHostMultiUSBSerial.ino)
+- [全サンプル](../../README.ja.md)
+- [サンプルの進め方](../../../docs/example-workflow.ja.md)
