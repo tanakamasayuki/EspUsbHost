@@ -3503,6 +3503,9 @@ bool EspUsbHost::vendorReadSync(uint8_t *buffer,
   transfer->context = context;
   transfer->num_bytes = requestLength;
 
+  // Fresh IN buffers may contain dirty cache lines on P4. Clean them
+  // before DMA owns the buffer, as for the other Host IN paths.
+  espUsbHostCacheSyncBeforeInTransfer(transfer);
   err = usb_host_transfer_submit(transfer);
   if (err != ESP_OK)
   {
