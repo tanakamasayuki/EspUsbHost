@@ -15814,6 +15814,9 @@ bool EspUsbHost::submitAudioFeedbackTransfer(DeviceState &device)
   transfer->isoc_packet_desc[0].actual_num_bytes = 0;
   transfer->isoc_packet_desc[0].status = USB_TRANSFER_STATUS_COMPLETED;
 
+  // Feedback is an IN endpoint like the others, so its buffer gets the same
+  // write-back before DMA owns it.
+  espUsbHostCacheSyncBeforeInTransfer(transfer);
   esp_err_t err = usb_host_transfer_submit(transfer);
   if (err != ESP_OK)
   {
