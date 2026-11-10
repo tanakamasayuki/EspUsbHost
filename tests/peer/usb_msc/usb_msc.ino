@@ -365,6 +365,23 @@ void loop()
         const bool writeOk = usb.mscWriteBlocks(10, block, 1);
         Serial.printf("MSC_FAILED_WRITE write=%u\n", writeOk ? 1 : 0);
     }
+    else if (command == 'v')
+    {
+        // A READ the device fails in the data phase, then the commands that
+        // follow. Each must get its own CSW: a host that leaves the failed
+        // command's CSW queued answers the next command with it.
+        uint8_t blocks[1024] = {};
+        const bool failedRead = usb.mscReadBlocks(0, blocks, 2);
+        const bool unitReady = usb.mscTestUnitReady();
+        memset(blocks, 0, sizeof(blocks));
+        const bool readOk = usb.mscReadBlocks(0, blocks, 1);
+        Serial.printf("MSC_FAILED_READ read=%u tur=%u reread=%u b0=%02x b511=%02x\n",
+                      failedRead ? 1 : 0,
+                      unitReady ? 1 : 0,
+                      readOk ? 1 : 0,
+                      blocks[0],
+                      blocks[511]);
+    }
     else if (command == 'X')
     {
         // Teardown with the device still attached, the path the vendor and CDC

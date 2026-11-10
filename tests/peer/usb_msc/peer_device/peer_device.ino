@@ -14,9 +14,21 @@ static constexpr uint32_t BLOCK_COUNT = 16;
 static constexpr uint16_t BLOCK_SIZE = 512;
 static uint8_t disk[BLOCK_COUNT][BLOCK_SIZE];
 static volatile bool failNextWrite = false;
+static volatile bool failNextRead = false;
 
 static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize)
 {
+    if (failNextRead)
+    {
+        // TinyUSB STALLs bulk IN for a failed READ with data still owed, which
+        // is the data-phase STALL the host must clear before reading the CSW.
+        failNextRead = false;
+        Serial.printf("DEVICE_READ_FAIL lba=%lu offset=%lu size=%lu\n",
+                      static_cast<unsigned long>(lba),
+                      static_cast<unsigned long>(offset),
+                      static_cast<unsigned long>(bufsize));
+        return -1;
+    }
     if (lba >= BLOCK_COUNT || offset >= BLOCK_SIZE)
     {
         return -1;
@@ -119,6 +131,11 @@ void loop()
         {
             failNextWrite = true;
             Serial.println("DEVICE_FAIL_NEXT_WRITE armed=1");
+        }
+        else if (command == 'f')
+        {
+            failNextRead = true;
+            Serial.println("DEVICE_FAIL_NEXT_READ armed=1");
         }
         else if (command == 'z')
         {

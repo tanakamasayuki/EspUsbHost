@@ -155,6 +155,15 @@ def test_usb_msc(dut, peers, run_checks):
         device.expect_exact("DEVICE_WRITE lba=4 offset=0 size=512")
         dut.expect_exact("MSC_WRITE_READ write=1 read=1 b0=a5 b1=a4 b255=5a b511=5a")
 
+    def failed_read_is_reported():
+        """A data-phase STALL on READ: the host clears it, reads that command's
+        CSW, and the commands after it line up with their own CSWs."""
+        device.write("f")
+        device.expect_exact("DEVICE_FAIL_NEXT_READ armed=1")
+        dut.write("v")
+        device.expect(r"DEVICE_READ_FAIL lba=0 offset=0 size=\d+")
+        dut.expect_exact("MSC_FAILED_READ read=0 tur=1 reread=1 b0=eb b511=aa")
+
     def end_rebegin_with_device_attached():
         """end() uninstalls the host library while the MSC device is attached."""
         dut.write("X")
@@ -217,6 +226,7 @@ def test_usb_msc(dut, peers, run_checks):
         chunked_write_read,
         out_of_range_is_rejected,
         failed_write_is_reported,
+        failed_read_is_reported,
         end_rebegin_with_device_attached,
         end_rebegin_with_empty_device_list,
     ])

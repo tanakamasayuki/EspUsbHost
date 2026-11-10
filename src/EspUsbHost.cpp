@@ -7002,14 +7002,37 @@ bool EspUsbHost::mscCommand(DeviceState &device,
                           sizeof(cbw),
                           actual);
 
+  // Whether the data phase moved every byte the CBW announced. A device may end
+  // the data phase early -- by STALLing the data endpoint, or with a short IN
+  // packet -- and still report the command in its CSW (Bulk-Only Transport
+  // 6.7.2 Hi>Di, 6.7.3 Ho>Do). The host must then clear the halt and read the
+  // CSW anyway. Skipping it left that CSW queued on bulk IN for a device that
+  // sends it right after the STALL, and the next command read it as its own,
+  // so every later command was one CSW behind.
+  bool dataComplete = true;
   if (ok && dataLength > 0)
   {
-    ok = submitAndWait(dataIn ? device.mscInEndpointAddress : device.mscOutEndpointAddress,
-                       dataIn ? nullptr : data,
-                       dataIn ? data : nullptr,
-                       dataLength,
-                       actual);
-    ok = ok && (!dataIn || actual == dataLength);
+    const uint8_t dataEndpoint = dataIn ? device.mscInEndpointAddress : device.mscOutEndpointAddress;
+    const bool dataTransferOk = submitAndWait(dataEndpoint,
+                                              dataIn ? nullptr : data,
+                                              dataIn ? data : nullptr,
+                                              dataLength,
+                                              actual);
+    if (dataTransferOk)
+    {
+      dataComplete = !dataIn || actual == dataLength;
+    }
+    else if (context.status == USB_TRANSFER_STATUS_STALL)
+    {
+      dataComplete = false;
+      ESP_LOGW(TAG, "MSC data phase STALL ep=0x%02x; clearing it and reading the CSW", dataEndpoint);
+      ok = mscClearEndpointHalt(device, dataEndpoint, timeoutMs);
+    }
+    else
+    {
+      // Timeout or a transfer error: the phase is unknown, so reset recovery.
+      ok = false;
+    }
   }
 
   EspUsbHostMscCsw csw = {};
@@ -7088,12 +7111,22 @@ bool EspUsbHost::mscCommand(DeviceState &device,
       else if (commandOpcode != SCSI_CMD_REQUEST_SENSE &&
                commandOpcode != SCSI_CMD_SYNCHRONIZE_CACHE_10)
       {
-        if (dataLength > 0 && csw.dataResidue > 0)
+        if (dataLength > 0 && csw.dataResidue > 0 && dataComplete)
         {
           failedDataEndpoint = dataIn ? device.mscInEndpointAddress : device.mscOutEndpointAddress;
         }
         requestSenseAfterCommand = true;
       }
+    }
+    if (ok && !dataComplete)
+    {
+      // The CSW says the command passed, but the data phase did not deliver the
+      // whole transfer the caller asked for.
+      ESP_LOGW(TAG, "MSC data phase incomplete expected=%lu residue=%lu",
+               static_cast<unsigned long>(dataLength),
+               static_cast<unsigned long>(csw.dataResidue));
+      setLastError(ESP_FAIL);
+      ok = false;
     }
   }
   else
@@ -7151,71 +7184,112 @@ bool EspUsbHost::mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddre
     return false;
   }
 
-  EspUsbHostSyncTransferContext context;
-  context.done = xSemaphoreCreateBinary();
-  if (!context.done)
+  // CLEAR_FEATURE(ENDPOINT_HALT) puts the device's data toggle back to DATA0,
+  // but usb_host_endpoint_clear() leaves the host pipe's toggle wherever it
+  // was (ESP-IDF's _pipe_cmd_clear() only reactivates the pipe). Half the time
+  // the two then disagree, the device's next packet is taken for a retry and
+  // dropped, and every later transfer on that pipe times out -- which turned a
+  // single failed READ into a dead drive. The public API has no toggle reset,
+  // but a pipe is created at DATA0, so release and re-claim the interface to
+  // recreate both bulk pipes, then clear both endpoints on the device so its
+  // side starts from DATA0 as well. Clearing an endpoint that is not halted is
+  // allowed and does exactly that (USB 2.0 9.4.5).
+  if (clientHandle_)
   {
-    setLastError(ESP_ERR_NO_MEM);
-    return false;
+    err = usb_host_interface_release(clientHandle_, device.handle, device.mscInterfaceNumber);
+    if (err == ESP_OK)
+    {
+      err = usb_host_interface_claim(clientHandle_, device.handle, device.mscInterfaceNumber, 0);
+    }
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "MSC interface re-claim for toggle reset failed iface=%u: %s",
+               device.mscInterfaceNumber,
+               esp_err_to_name(err));
+      setLastError(err);
+      return false;
+    }
   }
 
-  usb_transfer_t *transfer = nullptr;
-  err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
-  if (err != ESP_OK)
+  auto clearFeature = [&](uint8_t address) -> bool
   {
-    ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC ClearFeature ep=0x%02x) failed: %s",
-             endpointAddress,
-             esp_err_to_name(err));
-    setLastError(err);
-    vSemaphoreDelete(context.done);
-    return false;
-  }
+    EspUsbHostSyncTransferContext context;
+    context.done = xSemaphoreCreateBinary();
+    if (!context.done)
+    {
+      setLastError(ESP_ERR_NO_MEM);
+      return false;
+    }
 
-  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
-  setup->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT |
-                         USB_BM_REQUEST_TYPE_TYPE_STANDARD |
-                         USB_BM_REQUEST_TYPE_RECIP_ENDPOINT;
-  setup->bRequest = USB_REQUEST_CLEAR_FEATURE;
-  setup->wValue = 0; // ENDPOINT_HALT
-  setup->wIndex = endpointAddress;
-  setup->wLength = 0;
+    usb_transfer_t *transfer = nullptr;
+    esp_err_t allocErr = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+    if (allocErr != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC ClearFeature ep=0x%02x) failed: %s",
+               address,
+               esp_err_to_name(allocErr));
+      setLastError(allocErr);
+      vSemaphoreDelete(context.done);
+      return false;
+    }
 
-  context.status = USB_TRANSFER_STATUS_ERROR;
-  context.actualLength = 0;
-  transfer->device_handle = device.handle;
-  transfer->bEndpointAddress = 0;
-  transfer->callback = syncTransferCallback;
-  transfer->context = &context;
-  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+    usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+    setup->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT |
+                           USB_BM_REQUEST_TYPE_TYPE_STANDARD |
+                           USB_BM_REQUEST_TYPE_RECIP_ENDPOINT;
+    setup->bRequest = USB_REQUEST_CLEAR_FEATURE;
+    setup->wValue = 0; // ENDPOINT_HALT
+    setup->wIndex = address;
+    setup->wLength = 0;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
-  if (err != ESP_OK)
-  {
-    ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC ClearFeature ep=0x%02x) failed: %s",
-             endpointAddress,
-             esp_err_to_name(err));
-    setLastError(err);
+    context.status = USB_TRANSFER_STATUS_ERROR;
+    context.actualLength = 0;
+    transfer->device_handle = device.handle;
+    transfer->bEndpointAddress = 0;
+    transfer->callback = syncTransferCallback;
+    transfer->context = &context;
+    transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+    esp_err_t submitErr = usb_host_transfer_submit_control(clientHandle_, transfer);
+    if (submitErr != ESP_OK)
+    {
+      ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC ClearFeature ep=0x%02x) failed: %s",
+               address,
+               esp_err_to_name(submitErr));
+      setLastError(submitErr);
+      usb_host_transfer_free(transfer);
+      vSemaphoreDelete(context.done);
+      return false;
+    }
+
+    const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+    const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+    if (!done)
+    {
+      ESP_LOGW(TAG, "MSC ClearFeature timeout ep=0x%02x", address);
+      setLastError(ESP_ERR_TIMEOUT);
+      // A submitted control transfer cannot be freed until its callback returns.
+      xSemaphoreTake(context.done, portMAX_DELAY);
+    }
+    else if (!ok)
+    {
+      ESP_LOGW(TAG, "MSC ClearFeature failed ep=0x%02x status=%d", address, context.status);
+      setLastError(ESP_FAIL);
+    }
     usb_host_transfer_free(transfer);
     vSemaphoreDelete(context.done);
-    return false;
-  }
+    return ok;
+  };
 
-  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
-  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
-  if (!done)
+  // The requested endpoint first: its result is what the caller asked about.
+  const uint8_t otherEndpoint = endpointAddress == device.mscInEndpointAddress
+                                    ? device.mscOutEndpointAddress
+                                    : device.mscInEndpointAddress;
+  const bool ok = clearFeature(endpointAddress);
+  if (otherEndpoint != 0 && otherEndpoint != endpointAddress)
   {
-    ESP_LOGW(TAG, "MSC ClearFeature timeout ep=0x%02x", endpointAddress);
-    setLastError(ESP_ERR_TIMEOUT);
-    // A submitted control transfer cannot be freed until its callback returns.
-    xSemaphoreTake(context.done, portMAX_DELAY);
+    clearFeature(otherEndpoint);
   }
-  else if (!ok)
-  {
-    ESP_LOGW(TAG, "MSC ClearFeature failed ep=0x%02x status=%d", endpointAddress, context.status);
-    setLastError(ESP_FAIL);
-  }
-  usb_host_transfer_free(transfer);
-  vSemaphoreDelete(context.done);
   return ok;
 }
 
