@@ -57,6 +57,13 @@ void loop()
                     net.localIP().toString().c_str(),
                     net.linkUp() ? 1 : 0);
     }
+    else if (command == 'e')
+    {
+      // Leave the bus, as a device that is unplugged or shuts its USB down.
+      server.stop();
+      device.end();
+      Serial.println("DEVICE_END");
+    }
   }
   delay(1);
 }

@@ -16019,20 +16019,71 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
     return;
   }
 
-  // Free the bulk IN / notification IN transfers this interface started.
+  // Stop the bulk IN / notification IN transfers this interface keeps armed,
+  // and free them only once they are back from the driver. These transfers are
+  // always in flight while the interface is open, and usb_host_endpoint_clear()
+  // alone neither halts nor flushes an active pipe -- it is refused. Freeing
+  // them anyway handed the driver freed memory, and the interface release below
+  // then failed because the endpoints were still busy, which left the
+  // interfaces claimed and made end() unable to close the device (every later
+  // begin() failed with ESP_ERR_INVALID_STATE). The sequence is the one the
+  // vendor continuous read uses: block resubmission, halt, flush, wait for the
+  // callback, clear, free.
   const uint8_t inEndpoint = device.networkInterface.inEndpoint;
   const uint8_t notifyEndpoint = device.networkInterface.notificationEndpoint;
+  auto isNetworkEndpoint = [&](const EndpointState &endpoint)
+  {
+    return endpoint.inUse && endpoint.deviceHandle == device.handle &&
+           (endpoint.address == inEndpoint || endpoint.address == notifyEndpoint);
+  };
   for (EndpointState &endpoint : endpoints_)
   {
-    if (!endpoint.inUse || endpoint.deviceHandle != device.handle ||
-        (endpoint.address != inEndpoint && endpoint.address != notifyEndpoint))
+    if (!isNetworkEndpoint(endpoint))
     {
       continue;
     }
+    portENTER_CRITICAL(&endpointSubmitMux_);
+    endpoint.stopping = true;
+    endpoint.resubmitPending = false;
+    endpoint.resubmitAfterLed = false;
+    endpoint.recoveryPending = false;
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+  }
+  // A submit that had already passed the stopping check sets transferSubmitted
+  // just after; one tick later the flag tells the truth.
+  vTaskDelay(pdMS_TO_TICKS(2));
+  bool transferKept = false;
+  for (EndpointState &endpoint : endpoints_)
+  {
+    if (!isNetworkEndpoint(endpoint))
+    {
+      continue;
+    }
+    if (endpoint.transferSubmitted)
+    {
+      usb_host_endpoint_halt(device.handle, endpoint.address);
+      usb_host_endpoint_flush(device.handle, endpoint.address);
+      const uint32_t startedMs = millis();
+      while (endpoint.transferSubmitted && millis() - startedMs < 1000)
+      {
+        vTaskDelay(pdMS_TO_TICKS(1));
+      }
+    }
+    if (endpoint.transferSubmitted)
+    {
+      // Keep the transfer rather than free memory the driver still owns. The
+      // interface release below fails for the same reason, so the interface
+      // stays tracked and the device teardown retries it.
+      ESP_LOGW(TAG, "network endpoint 0x%02x transfer did not cancel; keeping it", endpoint.address);
+      setLastError(ESP_ERR_TIMEOUT);
+      transferKept = true;
+      continue;
+    }
+    usb_host_endpoint_clear(device.handle, endpoint.address);
     if (endpoint.transfer)
     {
-      usb_host_endpoint_clear(device.handle, endpoint.address); // halt + flush queued transfer
       usb_host_transfer_free(endpoint.transfer);
+      endpoint.transfer = nullptr;
     }
     resetEndpointState(endpoint);
   }
@@ -16044,7 +16095,18 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
     const uint8_t interfaceNumber = device.interfaces[i];
     if (interfaceNumber == controlInterface || interfaceNumber == dataInterface)
     {
-      usb_host_interface_release(clientHandle_, device.handle, interfaceNumber);
+      const esp_err_t releaseErr = usb_host_interface_release(clientHandle_, device.handle, interfaceNumber);
+      if (releaseErr != ESP_OK && releaseErr != ESP_ERR_NOT_FOUND)
+      {
+        // Still claimed in ESP-IDF, so keep it in interfaces[]: dropping it here
+        // is what made finalizeDisconnectedDevice() and end() skip the release
+        // and then fail to close the device.
+        ESP_LOGW(TAG, "usb_host_interface_release(network iface=%u) failed: %s",
+                 interfaceNumber, esp_err_to_name(releaseErr));
+        setLastError(releaseErr);
+        i++;
+        continue;
+      }
       for (uint8_t j = i; j + 1 < device.interfaceCount; j++)
       {
         device.interfaces[j] = device.interfaces[j + 1];
@@ -16077,9 +16139,14 @@ void EspUsbHost::releaseNetworkInterface(DeviceState &device)
   device.networkInterface = EspUsbHostNetworkInterfaceInfo();
   device.networkLinkUp = false;
   // The IN transfers have been halted and freed above, so their callbacks can
-  // no longer access the receive buffers.
-  free(device.networkRxRing);
-  free(device.networkAsm);
+  // no longer access the receive buffers -- unless one would not cancel, in
+  // which case its callback may still write into them, and leaking them is the
+  // safe choice.
+  if (!transferKept)
+  {
+    free(device.networkRxRing);
+    free(device.networkAsm);
+  }
   device.networkRxRing = nullptr;
   device.networkAsm = nullptr;
   // The buffer is gone, so the size it was negotiated at must not survive: a

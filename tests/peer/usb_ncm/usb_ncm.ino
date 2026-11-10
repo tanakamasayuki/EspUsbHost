@@ -197,6 +197,20 @@ void loop()
                     static_cast<unsigned long>(st.txFails),
                     usb.networkLocalIP(deviceAddress).toString().c_str());
     }
+    else if (command == 'n')
+    {
+      // Close the network function while the device stays attached. Reports
+      // whether the host still counts the device and the sticky last error, so a
+      // teardown that leaves the interfaces claimed shows up here and in the
+      // H/G cycle that follows.
+      usb.networkClose(deviceAddress);
+      attached = false;
+      lastReportedIp = 0; // a reopened link reports its lease again
+      Serial.printf("NETWORK_CLOSE ready=%u devices=%u error=%s\n",
+                    usb.networkReady(deviceAddress) ? 1 : 0,
+                    static_cast<unsigned>(usb.deviceCount()),
+                    usb.lastErrorName());
+    }
     else if (command == 'g')
     {
       HTTPClient http;
