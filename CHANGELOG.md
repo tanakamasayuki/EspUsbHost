@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Fix a panic in `end()` on ESP32-P4 when a device whose enumeration failed (for example one that STALLs SET_CONFIGURATION) is still attached. The P4 teardown unpowers the root port while the stack is running only when a device remains, and it counted only devices that reached NEW_DEV; it now also counts the host library's devices, so the late disconnect interrupt no longer reaches `proc_req_callback` after `usb_host_uninstall()` freed the library object.
+- (JA) ESP32-P4で、列挙に失敗したデバイス（SET_CONFIGURATIONをSTALLするものなど）が接続されたまま `end()` を呼ぶとpanicする問題を修正。P4の終了処理はデバイスが残っているときだけstackの動作中にroot portの電源を切るが、NEW_DEVに至ったデバイスしか数えていなかった。Host libraryが保持するデバイスも数えるようにし、`usb_host_uninstall()` がlibrary objectを解放した後に切断の割込みが `proc_req_callback` へ届かないようにした。
 - (EN) Add `EspUsbHostCdcSerial::setControlLines(dtr, rts)` and `EspUsbHost::setSerialControlLines(dtr, rts, address, port)`, which set DTR and RTS in a single CDC `SET_CONTROL_LINE_STATE` so the device never sees an intermediate combination (DTR/RTS auto-reset and ISP entry circuits). `setDtr()` / `setRts()` on a configured CDC ACM port now send only `SET_CONTROL_LINE_STATE` instead of resending `SET_LINE_CODING` as well.
 - (JA) DTRとRTSをCDCの `SET_CONTROL_LINE_STATE` 1回で設定する `EspUsbHostCdcSerial::setControlLines(dtr, rts)` と `EspUsbHost::setSerialControlLines(dtr, rts, address, port)` を追加。途中の組み合わせがデバイスに見えないため、DTR/RTSによる自動リセットやISP移行の回路で誤動作しない。設定済みのCDC ACMポートでは、`setDtr()` / `setRts()` も `SET_LINE_CODING` を送り直さず、`SET_CONTROL_LINE_STATE` だけを送るようにした。
 

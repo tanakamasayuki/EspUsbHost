@@ -1878,18 +1878,37 @@ void EspUsbHost::end()
   // closes it. A device that is staying attached never makes the count fall, so
   // the unpower below still runs for the case it was added for, and this wait
   // costs a teardown with no device attached nothing.
+  // Count what the host library holds as well as what this class tracks. A
+  // device whose enumeration failed (for example one that STALLs
+  // SET_CONFIGURATION) never reaches NEW_DEV, so deviceCount() stays 0, yet
+  // ESP-IDF keeps its device object and the device stays on the port. Leaving
+  // the port powered then lets usb_host_uninstall() switch it off itself, and
+  // the disconnect interrupt from that lands after p_host_lib_obj is NULL --
+  // the same proc_req_callback fault as above (reproduced on ESP32-P4X with
+  // EspUsbDevice's config-fail probe).
+  auto attachedDevices = [this]() -> int
+  {
+    int count = static_cast<int>(deviceCount());
+    usb_host_lib_info_t info = {};
+    if (usb_host_lib_info(&info) == ESP_OK && info.num_devices > count)
+    {
+      count = info.num_devices;
+    }
+    return count;
+  };
   const uint32_t settleUntilMs = millis() + 250;
-  while (deviceCount() != 0 && millis() < settleUntilMs)
+  while (attachedDevices() != 0 && millis() < settleUntilMs)
   {
     delay(5);
   }
-  if (deviceCount() == 0)
+  const bool portOccupied = attachedDevices() != 0;
+  if (!portOccupied)
   {
     ESP_LOGD(TAG, "Root port left powered: no device to disconnect");
   }
-  const esp_err_t powerErr = deviceCount() == 0
-                                 ? ESP_ERR_INVALID_STATE
-                                 : usb_host_lib_set_root_port_power(false);
+  const esp_err_t powerErr = portOccupied
+                                 ? usb_host_lib_set_root_port_power(false)
+                                 : ESP_ERR_INVALID_STATE;
   if (powerErr != ESP_OK && powerErr != ESP_ERR_INVALID_STATE)
   {
     ESP_LOGD(TAG, "usb_host_lib_set_root_port_power(false) failed: %s", esp_err_to_name(powerErr));
@@ -1899,7 +1918,7 @@ void EspUsbHost::end()
     // Wait for the disconnect to be processed rather than for a fixed time: the
     // tasks have to retire the device before they are asked to stop.
     const uint32_t unpoweredAtMs = millis();
-    while (deviceCount() != 0 && millis() - unpoweredAtMs < 1000)
+    while (attachedDevices() != 0 && millis() - unpoweredAtMs < 1000)
     {
       delay(5);
     }
