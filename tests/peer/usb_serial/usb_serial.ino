@@ -106,6 +106,22 @@ void loop()
             config.stopBits = ESP_USB_HOST_SERIAL_STOP_BITS_1_5;
             Serial.printf("SERIAL_CONFIG_MARK %u\n", CdcSerial.setConfig(config) ? 1 : 0);
         }
+        else if (command == 'n')
+        {
+            Serial.printf("CTRL_LINES 1 1 %u\n", CdcSerial.setControlLines(true, true) ? 1 : 0);
+        }
+        else if (command == 'o')
+        {
+            Serial.printf("CTRL_LINES 0 0 %u\n", CdcSerial.setControlLines(false, false) ? 1 : 0);
+        }
+        else if (command == 'i')
+        {
+            Serial.printf("CTRL_DTR 1 %u\n", CdcSerial.setDtr(true) ? 1 : 0);
+        }
+        else if (command == 'j')
+        {
+            Serial.printf("CTRL_RTS 1 %u\n", CdcSerial.setRts(true) ? 1 : 0);
+        }
         else if (command == 'b')
         {
             Serial.printf("SERIAL_BAUD %u\n", CdcSerial.setBaudRate(115200) ? 1 : 0);

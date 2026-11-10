@@ -84,6 +84,60 @@ def test_usb_serial(dut, peers, run_checks):
         device.write("l")
         device.expect_exact("DEVICE_LINE_CODING seen=1 baud=115200 stop=1 parity=3 data=5")
 
+    def control_lines():
+        """DTR and RTS go out together, so the device never sees a mixed state.
+
+        The device core drops a request that repeats the current state, so the
+        count is the number of requests that changed something. Going 11 -> 00 in
+        one setControlLines() must be one event; two single-line requests would
+        pass through 01 or 10 and count two. setDtr()/setRts() must each send one
+        request that keeps the other line as it was.
+        """
+        device = peers["device"]
+
+        def settle(dtr, rts):
+            pattern = (rf"DEVICE_LINE_STATE count=(\d+) dtr={dtr} rts={rts} "
+                       r"hist=([0-9,\-]+)\r?\n")
+            for _ in range(50):
+                device.write("k")
+                try:
+                    match = device.expect(pattern, timeout=0.2)
+                    return int(match.group(1)), match.group(2).decode()
+                except TIMEOUT:
+                    continue
+            raise AssertionError(f"device never reported DTR={dtr} RTS={rts}")
+
+        def clear():
+            device.write("z")
+            device.expect_exact("DEVICE_LINE_STATE_CLEARED")
+
+        # Start from 11 whatever an earlier check left behind.
+        dut.write("n")
+        dut.expect_exact("CTRL_LINES 1 1 1")
+        settle(1, 1)
+
+        clear()
+        dut.write("o")
+        dut.expect_exact("CTRL_LINES 0 0 1")
+        assert settle(0, 0) == (1, "00")
+
+        clear()
+        dut.write("n")
+        dut.expect_exact("CTRL_LINES 1 1 1")
+        assert settle(1, 1) == (1, "11")
+
+        dut.write("o")
+        dut.expect_exact("CTRL_LINES 0 0 1")
+        settle(0, 0)
+        clear()
+        dut.write("i")
+        dut.expect_exact("CTRL_DTR 1 1")
+        assert settle(1, 0) == (1, "10")
+        dut.write("j")
+        dut.expect_exact("CTRL_RTS 1 1")
+        # Leaves 11, the state the other checks need for the device to send.
+        assert settle(1, 1) == (2, "10,11")
+
     def write_queue():
         """The asynchronous CDC OUT queue, whose pool is allocated per port.
 
@@ -159,6 +213,7 @@ def test_usb_serial(dut, peers, run_checks):
         device_to_host,
         host_to_device,
         config_api,
+        control_lines,
         write_queue,
         write_queue_cycles,
         end_rebegin_with_device_open,

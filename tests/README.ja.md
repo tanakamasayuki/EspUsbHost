@@ -65,6 +65,12 @@ ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
 
 片方の順序でしか通らないチェックは設計の誤りです。アップロードの追加が無いので、リリース前ではなく日常の検査として回せます。[TEST_PLAN.ja.md](TEST_PLAN.ja.md) の「テストの構成」を参照してください。
 
+結線で相手が決まる peer の組は `pyproject.toml` の `arduino_combos` に名前付きで置いてあります（今は S3 ↔ S3 の `s3` だけ）。組を明示して流すときは `--combo` を使います。
+
+```bash
+uv run --env-file .env pytest peer/ --combo s3 -q -rs
+```
+
 ビルドはsketchディレクトリ毎にキャッシュされますが、無効化されるべき変更すべてでは無効化されません。ソースではなく**ビルド入力**が変わったときは `--clean` を付けます（`arduino-cli compile` に `--clean` を渡し、事前に古い生成物を削除します）：
 
 ```sh

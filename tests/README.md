@@ -74,6 +74,13 @@ A check that passes in only one order is a design error. This costs no extra
 upload, so it is an everyday check rather than a release-time one. See
 [TEST_PLAN.md](TEST_PLAN.md), *How the tests are structured*.
 
+Peer pairs fixed by wiring are named in `arduino_combos` in `pyproject.toml`
+(currently only `s3`, S3 <-> S3). Use `--combo` to run a pair explicitly:
+
+```bash
+uv run --env-file .env pytest peer/ --combo s3 -q -rs
+```
+
 Builds are cached per sketch directory, and that cache is not invalidated by
 everything that should invalidate it. Pass `--clean` (it forwards `--clean` to
 `arduino-cli compile` and removes stale artifacts first) whenever the build
