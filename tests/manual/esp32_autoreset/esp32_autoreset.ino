@@ -55,8 +55,7 @@ static bool readUntilAny(const char *needle1, const char *needle2, uint32_t time
 
 static void setLines(bool dtr, bool rts)
 {
-    TargetSerial.setDtr(dtr);
-    TargetSerial.setRts(rts);
+    TargetSerial.setControlLines(dtr, rts);
     delay(100);
 }
 

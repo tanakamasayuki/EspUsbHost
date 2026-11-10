@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add `EspUsbHostCdcSerial::setControlLines(dtr, rts)` and `EspUsbHost::setSerialControlLines(dtr, rts, address, port)`, which set DTR and RTS in a single CDC `SET_CONTROL_LINE_STATE` so the device never sees an intermediate combination (DTR/RTS auto-reset and ISP entry circuits). `setDtr()` / `setRts()` on a configured CDC ACM port now send only `SET_CONTROL_LINE_STATE` instead of resending `SET_LINE_CODING` as well.
+- (JA) DTRとRTSをCDCの `SET_CONTROL_LINE_STATE` 1回で設定する `EspUsbHostCdcSerial::setControlLines(dtr, rts)` と `EspUsbHost::setSerialControlLines(dtr, rts, address, port)` を追加。途中の組み合わせがデバイスに見えないため、DTR/RTSによる自動リセットやISP移行の回路で誤動作しない。設定済みのCDC ACMポートでは、`setDtr()` / `setRts()` も `SET_LINE_CODING` を送り直さず、`SET_CONTROL_LINE_STATE` だけを送るようにした。
 
 ## 2.10.1
 - (EN) Wait for the audio streaming alternate to be selected before arming pull playback, preserving its first packet. Starts from USB callbacks are deferred to the control completion. Allocate the output pool before submitting any buffer, so partial startup failures cannot free buffers still owned by the driver.

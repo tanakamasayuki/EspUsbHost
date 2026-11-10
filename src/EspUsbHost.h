@@ -2733,6 +2733,13 @@ public:
   bool setSerialConfig(const EspUsbHostSerialConfig &config,
                        uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
                        uint8_t port = ESP_USB_HOST_ANY_PORT);
+  // Sets DTR and RTS together. On CDC ACM this is a single
+  // SET_CONTROL_LINE_STATE, so the device never sees an intermediate
+  // combination (which matters for DTR/RTS auto-reset and ISP entry circuits).
+  bool setSerialControlLines(bool dtr,
+                             bool rts,
+                             uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
+                             uint8_t port = ESP_USB_HOST_ANY_PORT);
   // Max packet size of the CDC data OUT endpoint, or 0 when no serial device is
   // ready. Needed by callers that must terminate a transfer on a packet boundary.
   uint16_t serialOutPacketSize(uint8_t address = ESP_USB_HOST_ANY_ADDRESS,
@@ -4015,6 +4022,7 @@ private:
   bool releaseClientResources();
   bool uninstallHostLibrary(uint32_t timeoutMs);
   void configureCdcAcm(DeviceState &device, SerialPortState &port);
+  bool submitCdcControlLineState(DeviceState &device, SerialPortState &port);
   void configureVendorSerial(DeviceState &device, SerialPortState &port);
   bool submitInputTransfer(EndpointState &endpoint);
   bool submitHIDReportDescriptorRequest(const HIDReportDescriptorState &descriptor);
@@ -4302,6 +4310,9 @@ public:
 
   bool setBaudRate(uint32_t baud);
   bool setConfig(const EspUsbHostSerialConfig &config);
+  // Sets DTR and RTS in one request (see EspUsbHost::setSerialControlLines()).
+  // setDtr()/setRts() each send one request carrying the other line's last value.
+  bool setControlLines(bool dtr, bool rts);
   bool setDtr(bool enable);
   bool setRts(bool enable);
   void setAddress(uint8_t address);

@@ -711,6 +711,7 @@ size_t  write(uint8_t data);
 size_t  write(const uint8_t *buffer, size_t size);
 bool    setBaudRate(uint32_t baud);
 bool    setConfig(const EspUsbHostSerialConfig &config);
+bool    setControlLines(bool dtr, bool rts);
 bool    setDtr(bool enable);
 bool    setRts(bool enable);
 void    setAddress(uint8_t address);

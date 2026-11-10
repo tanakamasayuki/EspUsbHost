@@ -5676,6 +5676,36 @@ bool EspUsbHost::setSerialConfig(const EspUsbHostSerialConfig &config, uint8_t a
   return true;
 }
 
+bool EspUsbHost::setSerialControlLines(bool dtr, bool rts, uint8_t address, uint8_t portIndex)
+{
+  DeviceState *device = nullptr;
+  SerialPortState *port = findSerialPort(address, portIndex, &device);
+  if (!port)
+  {
+    return false;
+  }
+  port->dtr = dtr;
+  port->rts = rts;
+  if (port->vendorSerial)
+  {
+    configureVendorSerial(*device, *port);
+    return true;
+  }
+  if (!port->hasControlInterface)
+  {
+    return true;
+  }
+  if (!port->configured)
+  {
+    // Line coding has not gone out yet; the full sequence carries the lines too.
+    configureCdcAcm(*device, *port);
+    return true;
+  }
+  ESP_LOGD(TAG, "CDC control lines: port=%u iface=%u dtr=%u rts=%u",
+           serialPortIndex(*device, *port), port->controlInterfaceNumber, dtr ? 1 : 0, rts ? 1 : 0);
+  return submitCdcControlLineState(*device, *port);
+}
+
 bool EspUsbHost::midiReady(uint8_t address) const
 {
   return findMidiDevice(address) != nullptr;
@@ -17162,6 +17192,43 @@ void EspUsbHost::networkStopNetif(DeviceState &device)
 }
 #endif // ESP_USB_HOST_HAS_ESP_NETIF
 
+bool EspUsbHost::submitCdcControlLineState(DeviceState &device, SerialPortState &port)
+{
+  if (port.vendorSerial || !port.hasControlInterface || !device.handle || !clientHandle_)
+  {
+    return false;
+  }
+
+  // DTR and RTS travel in one SET_CONTROL_LINE_STATE (wValue bit0 = DTR,
+  // bit1 = RTS), so the device never sees a mixed intermediate state.
+  usb_transfer_t *lineStateTransfer = nullptr;
+  esp_err_t err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &lineStateTransfer);
+  if (err != ESP_OK)
+  {
+    setLastError(err);
+    return false;
+  }
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(lineStateTransfer->data_buffer);
+  setup->bmRequestType = CDC_SET_REQUEST_TYPE;
+  setup->bRequest = CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE;
+  setup->wValue = (port.dtr ? 0x0001 : 0) | (port.rts ? 0x0002 : 0);
+  setup->wIndex = port.controlInterfaceNumber;
+  setup->wLength = 0;
+  lineStateTransfer->device_handle = device.handle;
+  lineStateTransfer->bEndpointAddress = 0;
+  lineStateTransfer->callback = controlTransferCallback;
+  lineStateTransfer->context = this;
+  lineStateTransfer->num_bytes = USB_SETUP_PACKET_SIZE;
+  err = usb_host_transfer_submit_control(clientHandle_, lineStateTransfer);
+  if (err != ESP_OK)
+  {
+    usb_host_transfer_free(lineStateTransfer);
+    setLastError(err);
+    return false;
+  }
+  return true;
+}
+
 void EspUsbHost::configureCdcAcm(DeviceState &device, SerialPortState &port)
 {
   if (port.configured || port.vendorSerial || !port.hasControlInterface || !device.handle || !clientHandle_)
@@ -17196,28 +17263,7 @@ void EspUsbHost::configureCdcAcm(DeviceState &device, SerialPortState &port)
     }
   }
 
-  usb_transfer_t *lineStateTransfer = nullptr;
-  err = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &lineStateTransfer);
-  if (err == ESP_OK)
-  {
-    usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(lineStateTransfer->data_buffer);
-    setup->bmRequestType = CDC_SET_REQUEST_TYPE;
-    setup->bRequest = CDC_CLASS_REQUEST_SET_CONTROL_LINE_STATE;
-    setup->wValue = (port.dtr ? 0x0001 : 0) | (port.rts ? 0x0002 : 0);
-    setup->wIndex = port.controlInterfaceNumber;
-    setup->wLength = 0;
-    lineStateTransfer->device_handle = device.handle;
-    lineStateTransfer->bEndpointAddress = 0;
-    lineStateTransfer->callback = controlTransferCallback;
-    lineStateTransfer->context = this;
-    lineStateTransfer->num_bytes = USB_SETUP_PACKET_SIZE;
-    err = usb_host_transfer_submit_control(clientHandle_, lineStateTransfer);
-    if (err != ESP_OK)
-    {
-      usb_host_transfer_free(lineStateTransfer);
-      setLastError(err);
-    }
-  }
+  submitCdcControlLineState(device, port);
 
   port.configured = true;
   ESP_LOGI(TAG, "CDC ACM configured: port=%u iface=%u baud=%lu dataBits=%u parity=%u stopBits=%u dtr=%u rts=%u",
@@ -18240,46 +18286,29 @@ bool EspUsbHostCdcSerial::setConfig(const EspUsbHostSerialConfig &config)
   return host_.setSerialConfig(config, address_, port_);
 }
 
+bool EspUsbHostCdcSerial::setControlLines(bool dtr, bool rts)
+{
+  return host_.setSerialControlLines(dtr, rts, address_, port_);
+}
+
 bool EspUsbHostCdcSerial::setDtr(bool enable)
 {
-  EspUsbHost::DeviceState *device = nullptr;
-  EspUsbHost::SerialPortState *port = host_.findSerialPort(address_, port_, &device);
+  const EspUsbHost::SerialPortState *port = host_.findSerialPort(address_, port_);
   if (!port)
   {
     return false;
   }
-  port->dtr = enable;
-  if (port->vendorSerial)
-  {
-    host_.configureVendorSerial(*device, *port);
-  }
-  else if (port->hasControlInterface)
-  {
-    port->configured = false;
-    host_.configureCdcAcm(*device, *port);
-  }
-  return true;
+  return host_.setSerialControlLines(enable, port->rts, address_, port_);
 }
 
 bool EspUsbHostCdcSerial::setRts(bool enable)
 {
-  EspUsbHost::DeviceState *device = nullptr;
-  EspUsbHost::SerialPortState *port = host_.findSerialPort(address_, port_, &device);
+  const EspUsbHost::SerialPortState *port = host_.findSerialPort(address_, port_);
   if (!port)
   {
     return false;
   }
-  port->rts = enable;
-  if (port->vendorSerial)
-  {
-    host_.configureVendorSerial(*device, *port);
-  }
-  else if (port->hasControlInterface)
-  {
-    port->configured = false;
-    host_.configureCdcAcm(*device, *port);
-  }
-  return true;
+  return host_.setSerialControlLines(port->dtr, enable, address_, port_);
 }
 
 void EspUsbHostCdcSerial::setAddress(uint8_t address)

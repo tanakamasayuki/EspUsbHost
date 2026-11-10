@@ -291,6 +291,7 @@ serialReady	KEYWORD2
 setAddress	KEYWORD2
 setBaudRate	KEYWORD2
 setConfig	KEYWORD2
+setControlLines	KEYWORD2
 setDtr	KEYWORD2
 setHubPortPower	KEYWORD2
 setHubTrackingEnabled	KEYWORD2
@@ -298,6 +299,7 @@ setRts	KEYWORD2
 setPort	KEYWORD2
 clearPort	KEYWORD2
 setSerialBaudRate	KEYWORD2
+setSerialControlLines	KEYWORD2
 setSerialConfig	KEYWORD2
 setSkipSyncCache	KEYWORD2
 skipSyncCache	KEYWORD2
