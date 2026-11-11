@@ -174,6 +174,18 @@ void loop()
         Serial.println("NCM_ENUM count=0 protocol=none complete=0");
       }
     }
+    else if (command == 's')
+    {
+      // The device strings, with their lengths, so a character read past the
+      // end of a string descriptor shows up even when it is unprintable.
+      EspUsbHostDeviceInfo info;
+      const bool found = connected && usb.getDevice(deviceAddress, info);
+      Serial.printf("DEVICE_STRINGS found=%u manufacturer='%s' manufacturer_len=%u product='%s' product_len=%u serial='%s' serial_len=%u\n",
+                    found ? 1 : 0,
+                    found ? info.manufacturer : "", found ? static_cast<unsigned>(strlen(info.manufacturer)) : 0,
+                    found ? info.product : "", found ? static_cast<unsigned>(strlen(info.product)) : 0,
+                    found ? info.serial : "", found ? static_cast<unsigned>(strlen(info.serial)) : 0);
+    }
     else if (command == 'a')
     {
       EspUsbHostNetworkConfig cfg; // dhcpClient = true

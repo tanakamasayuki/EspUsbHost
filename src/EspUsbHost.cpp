@@ -717,7 +717,7 @@ static bool configHasInterfaceClass(const usb_config_desc_t *configDesc, uint8_t
     {
       return false;
     }
-    if (p[i + 1] == USB_INTERFACE_DESC)
+    if (p[i + 1] == USB_INTERFACE_DESC && length >= sizeof(usb_intf_desc_t))
     {
       const usb_intf_desc_t *intf = reinterpret_cast<const usb_intf_desc_t *>(&p[i]);
       if (intf->bInterfaceClass == interfaceClass)
@@ -9292,6 +9292,13 @@ void EspUsbHost::parseConfigDescriptor(DeviceState &device, const usb_config_des
            configDesc->bMaxPower * 2);
 
   const uint8_t *p = reinterpret_cast<const uint8_t *>(configDesc);
+  // An interface or endpoint descriptor shorter than its fixed layout would
+  // have its fields read past bLength -- past the end of the configuration
+  // descriptor when it is the last one. Skip such an endpoint, and skip such an
+  // interface together with everything up to the next interface, as Linux does:
+  // its endpoints and class descriptors would otherwise be credited to the
+  // interface before it.
+  bool skippingInterface = false;
   for (int i = 0; i < configDesc->wTotalLength;)
   {
     const uint8_t length = p[i];
@@ -9300,8 +9307,26 @@ void EspUsbHost::parseConfigDescriptor(DeviceState &device, const usb_config_des
       ESP_LOGW(TAG, "Invalid descriptor length=%u offset=%d", length, i);
       return;
     }
-    currentDevice_ = &device;
-    handleDescriptor(p[i + 1], &p[i]);
+    const uint8_t descriptorType = p[i + 1];
+    if (descriptorType == USB_INTERFACE_DESC)
+    {
+      skippingInterface = length < sizeof(usb_intf_desc_t);
+      if (skippingInterface)
+      {
+        ESP_LOGW(TAG, "Skipping short interface descriptor length=%u offset=%d", length, i);
+      }
+    }
+    else if (descriptorType == USB_ENDPOINT_DESC && !skippingInterface && length < sizeof(usb_ep_desc_t))
+    {
+      ESP_LOGW(TAG, "Skipping short endpoint descriptor length=%u offset=%d", length, i);
+      i += length;
+      continue;
+    }
+    if (!skippingInterface)
+    {
+      currentDevice_ = &device;
+      handleDescriptor(descriptorType, &p[i]);
+    }
     i += length;
   }
   currentDevice_ = nullptr;
@@ -18323,7 +18348,8 @@ String EspUsbHost::usbString(const usb_str_desc_t *strDesc)
   {
     return result;
   }
-  for (int i = 0; i < strDesc->bLength / 2; i++)
+  // bLength counts the two header bytes; the UTF-16 code units follow them.
+  for (int i = 0; i < (strDesc->bLength - 2) / 2; i++)
   {
     if (strDesc->wData[i] <= 0xff)
     {

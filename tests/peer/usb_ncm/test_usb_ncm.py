@@ -116,6 +116,13 @@ def test_usb_ncm_dhcp_and_http_then_discovery_does_not_claim(dut, peers):
     device.write("?")
     device.expect_exact("DEVICE_READY ip=192.168.7.1")
 
+    # String descriptors are decoded to exactly what the peer declared: no
+    # code unit read past bLength (the header bytes count towards it).
+    dut.write("s")
+    dut.expect_exact(
+        "DEVICE_STRINGS found=1 manufacturer='EspUsb' manufacturer_len=6 "
+        "product='EspUsbDevice NCM' product_len=16 serial='espusb-ncm-peer' serial_len=15")
+
     # Attach the USB NIC as a DHCP-client netif and wait for the lease. The host
     # auto-reports it as "NETWORK_IP ip=192.168.7.x" once, so match the address
     # directly (no intervening expects that would consume that one-shot line).
