@@ -54,8 +54,21 @@ def test_usb_audio_bidirectional(dut, peers):
     device.expect_exact("AUDIO_DEVICE_READY")
     dut.expect("AUDIO_IN_READY addr=[0-9]+\\r?\\n")
     dut.expect("AUDIO_OUT_READY addr=[0-9]+\\r?\\n")
-    dut.expect("AUDIO_STREAM iface=[0-9]+ alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=32000 rates=1 first=32000 min=0 max=0 maxPacket=98 interval=1")
-    dut.expect("AUDIO_STREAM iface=[0-9]+ alt=1 ep=0x81 dir=IN channels=1 bytes=2 bits=16 rate=32000 rates=1 first=32000 min=0 max=0 maxPacket=98 interval=1")
+    # The packet size is the device's choice for its bus speed (98 at full speed,
+    # 50 from the same card on a high-speed port), and the UAC2 sample rate comes
+    # from a SAM_FREQ RANGE query that a high-speed link answers only after the
+    # connect callback. So the connect-time lines fix the layout, and the rate is
+    # waited for separately.
+    dut.expect(r"AUDIO_STREAM iface=[0-9]+ alt=1 ep=0x01 dir=OUT channels=1 bytes=2 bits=16 rate=(?:0|32000) rates=[01] first=(?:0|32000) min=0 max=0 maxPacket=[0-9]+ interval=1")
+    dut.expect(r"AUDIO_STREAM iface=[0-9]+ alt=1 ep=0x81 dir=IN channels=1 bytes=2 bits=16 rate=(?:0|32000) rates=[01] first=(?:0|32000) min=0 max=0 maxPacket=[0-9]+ interval=1")
+    for _ in range(20):
+        dut.write("v")
+        listing = dut.expect(r"((?:AUDIO_STREAM_NOW [^\n]*\n)*)AUDIO_STREAM_NOW_END count=2").group(1)
+        if listing.count(b"rate=32000 rates=1 first=32000") == 2:
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("the UAC2 sample rate was never read")
 
     dut.write("a")
     dut.expect_exact("AUDIO_OUT_START 1")

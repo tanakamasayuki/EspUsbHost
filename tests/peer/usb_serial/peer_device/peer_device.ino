@@ -1,6 +1,9 @@
 #include "USB.h"
 
-#if !ARDUINO_USB_CDC_ON_BOOT
+// The core declares USBSerial only when CDC-on-boot puts the console on
+// TinyUSB. With the console on USB Serial/JTAG (the ESP32-P4X profile) it does
+// not, so the sketch declares its own.
+#if !ARDUINO_USB_CDC_ON_BOOT || ARDUINO_USB_MODE
 USBCDC USBSerial;
 #endif
 

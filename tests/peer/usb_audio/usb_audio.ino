@@ -263,6 +263,23 @@ void loop()
             portEXIT_CRITICAL(&audioTestMux);
             Serial.println("AUDIO_OUT_CALLBACK_ARMED");
         }
+        else if (command == 'v')
+        {
+            // The stream list again, after the connect callback: a UAC2 sample
+            // rate arrives from a SAM_FREQ RANGE query that may still be in flight
+            // when the device is announced.
+            EspUsbHostAudioStreamInfo streams[ESP_USB_HOST_MAX_AUDIO_STREAMS];
+            const size_t count = usb.getAudioStreams(audioOutputAddress, streams, ESP_USB_HOST_MAX_AUDIO_STREAMS);
+            for (size_t i = 0; i < count; i++)
+            {
+                Serial.printf("AUDIO_STREAM_NOW ep=0x%02x rate=%lu rates=%u first=%lu\n",
+                              streams[i].endpointAddress,
+                              static_cast<unsigned long>(streams[i].sampleRate),
+                              streams[i].sampleRateCount,
+                              static_cast<unsigned long>(streams[i].sampleRateCount > 0 ? streams[i].sampleRates[0] : 0));
+            }
+            Serial.printf("AUDIO_STREAM_NOW_END count=%u\n", static_cast<unsigned>(count));
+        }
         else if (command == 's')
         {
             uint32_t sent = 0;

@@ -1,6 +1,9 @@
 #include <Arduino.h>
 
-#if ARDUINO_USB_MODE
+// ARDUINO_USB_MODE selects the USB Serial/JTAG console. On the S2/S3 that
+// takes the only USB PHY, so there is nothing to run. The ESP32-P4 keeps the
+// console on its own port and runs TinyUSB on the HS OTG port regardless.
+#if ARDUINO_USB_MODE && !defined(CONFIG_IDF_TARGET_ESP32P4)
 void setup() {}
 void loop() {}
 #else
@@ -12,11 +15,13 @@ void loop() {}
 
 USBMSC MSC;
 
-// 128 KB is enough for a FAT12 volume with one sector per cluster and leaves
-// the sketch well inside internal RAM.
+// 128 KB is enough for a FAT12 volume with one sector per cluster. It comes
+// from the heap at boot rather than from .bss: on the ESP32-S2 a static array
+// this size does not fit the DRAM segment at link time, while the heap still
+// has room for it.
 static constexpr uint32_t BLOCK_COUNT = 256;
 static constexpr uint16_t BLOCK_SIZE = 512;
-static uint8_t disk[BLOCK_COUNT][BLOCK_SIZE];
+static uint8_t (*disk)[BLOCK_SIZE] = nullptr;
 static bool volumeFormatted = false;
 
 static constexpr char PEER_FILE_NAME[] = "PEER.TXT";
@@ -190,7 +195,12 @@ void setup()
 {
     Serial.begin(115200);
 
-    memset(disk, 0, sizeof(disk));
+    disk = static_cast<uint8_t (*)[BLOCK_SIZE]>(calloc(BLOCK_COUNT, BLOCK_SIZE));
+    if (disk == nullptr)
+    {
+        Serial.println("DEVICE_MSC_FAT_ALLOC_FAILED");
+        return;
+    }
     volumeFormatted = prepareVolume();
 
     MSC.vendorID("ESP32");

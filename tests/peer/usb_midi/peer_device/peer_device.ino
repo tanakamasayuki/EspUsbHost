@@ -1,6 +1,9 @@
 #include <Arduino.h>
 
-#if ARDUINO_USB_MODE
+// ARDUINO_USB_MODE selects the USB Serial/JTAG console. On the S2/S3 that
+// takes the only USB PHY, so there is nothing to run. The ESP32-P4 keeps the
+// console on its own port and runs TinyUSB on the HS OTG port regardless.
+#if ARDUINO_USB_MODE && !defined(CONFIG_IDF_TARGET_ESP32P4)
 void setup() {}
 void loop() {}
 #else
