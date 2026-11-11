@@ -61,14 +61,17 @@ On ESP32-S3, the USB D− and D+ signals are on GPIO19 and GPIO20. Wire only the
 
 Peer tests use these Arduino CLI profile names:
 
-- `s3_peer_host`: ESP32-S3 USB host board running EspUsbHost
-- `s3_peer_device`: ESP32-S3 USB device peer
+- `s3_host` / `s3_device`: the S3 <-> S3 pair (combo `s3`)
+- `s3b_host` / `s3b_device`, `s2_host` / `s2_device`: the second S3 and the S2 (combos `s3_s2`, `s2_s3`)
+- `p4_hs_host` / `p4_hs_device`, `p4x_hs_host` / `p4x_hs_device`: the P4 and P4X wired OTG HS to OTG HS (combos `p4_p4x_hs`, `p4x_p4_hs`)
+
+The names match EspUsbDevice's tests, so the same `.env` port names apply.
 
 Set matching serial ports in `.env`:
 
 ```sh
-TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
-TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
+TEST_SERIAL_PORT_S3_HOST=/dev/ttyACM0
+TEST_SERIAL_PORT_PEER_DEVICE_S3_DEVICE=/dev/ttyUSB0
 ```
 
 Current coverage:

@@ -35,7 +35,7 @@ TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 
 各 `TEST_SERIAL_PORT_*` 変数を、接続しているボードの実際のシリアルポートに設定してください。
 
-プロファイル名は接続形態を表します。`peer/` は常時接続された専用ボードを使うため、`s3_peer_host`、`s3_peer_device` のような専用プロファイルを使います。`examples/`、`manual/`、`probe/` は個別実行用の汎用ボードを想定し、`esp32s3`、`esp32p4` を使います。`loopback/` は現在 README だけを残しており、このリポジトリ側に実行用プロファイルはありません。
+プロファイル名は接続形態を表します。`peer/` と `loopback/` は常時接続された専用ボードを使い、プロファイル名は EspUsbDevice のテストと同じです（`s3_host`、`s3_device`、`s2_host`、`p4_hs_host`、`p4_loopback` など）。1つの bench と1組のポート名を両リポジトリで共有できます。`examples/`、`manual/`、`probe/` は個別実行用の汎用ボードを想定し、`esp32s3`、`esp32p4` を使います。
 
 ## テストの実行
 
@@ -65,11 +65,23 @@ ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
 
 片方の順序でしか通らないチェックは設計の誤りです。アップロードの追加が無いので、リリース前ではなく日常の検査として回せます。[TEST_PLAN.ja.md](TEST_PLAN.ja.md) の「テストの構成」を参照してください。
 
-結線で相手が決まる peer の組は `pyproject.toml` の `arduino_combos` に名前付きで置いてあります（今は S3 ↔ S3 の `s3` だけ）。組を明示して流すときは `--combo` を使います。
+結線で決まるボードの組は `pyproject.toml` の `arduino_combos` に名前付きで置いてあります。EspUsbDevice と同じ組です（PC を相手にする組だけは除きます）。
+
+| 組 | Host | Device |
+|----|------|--------|
+| `s3` | S3（`s3_host`） | S3（`s3_device`） |
+| `s3_s2` / `s2_s3` | S3 "b" / S2 | S2 / S3 "b" |
+| `p4_p4x_hs` / `p4x_p4_hs` | P4 / P4X（OTG HS） | P4X / P4（OTG HS） |
+| `p4` / `p4_psram` | loopback 配線した P4 1台（`loopback/` のみ） | |
+
+1組だけ流すときは `--combo` で名前を、全組なら `--combo all` を指定します。
 
 ```bash
-uv run --env-file .env pytest peer/ --combo s3 -q -rs
+uv run --env-file .env pytest --combo s3 -q -rs
+uv run --env-file .env pytest --combo all -q -rs
 ```
+
+全組での実行はリリース前の確認です。日常は `s3` だけで足ります。
 
 ビルドはsketchディレクトリ毎にキャッシュされますが、無効化されるべき変更すべてでは無効化されません。ソースではなく**ビルド入力**が変わったときは `--clean` を付けます（`arduino-cli compile` に `--clean` を渡し、事前に古い生成物を削除します）：
 
@@ -137,9 +149,9 @@ g++でホストPC上で実行する、純粋なC++／データ変換のテスト
 2. `TEST_SERIAL_PORT_<PROFILE>` 環境変数（`<PROFILE>` は sketch.yaml のプロファイル名を**大文字にしてハイフンをアンダースコアに変換**したもの）
 3. `TEST_SERIAL_PORT` 環境変数（任意のプロファイルのフォールバック）
 
-たとえば、sketch.yaml の `s3_peer_host` というプロファイル名は `.env` の `TEST_SERIAL_PORT_S3_PEER_HOST` に対応します。
+たとえば、sketch.yaml の `s3_host` というプロファイル名は `.env` の `TEST_SERIAL_PORT_S3_HOST` に対応します。
 
-常時接続するテスト設備では `TEST_SERIAL_PORT_S3_PEER_HOST`、`TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE` のように専用ポートを設定します。`examples/`、手動テスト、プローブのような個別実行では `TEST_SERIAL_PORT_ESP32S3`、`TEST_SERIAL_PORT_ESP32P4` を使います。
+常時接続するテスト設備では `TEST_SERIAL_PORT_S3_HOST`、`TEST_SERIAL_PORT_PEER_DEVICE_S3_DEVICE` のように専用ポートを設定します。`examples/`、手動テスト、プローブのような個別実行では `TEST_SERIAL_PORT_ESP32S3`、`TEST_SERIAL_PORT_ESP32P4` を使います。
 
 ### sketch.yaml とプロファイル
 
@@ -147,9 +159,9 @@ g++でホストPC上で実行する、純粋なC++／データ変換のテスト
 
 ```yaml
 profiles:
-  s3_peer_host:
+  s3_host:
     fqbn: esp32:esp32:esp32s3
-default_profile: s3_peer_host
+default_profile: s3_host
 ```
 
 ピアボードのスケッチはメインスケッチと同じディレクトリの `peer_<名前>/` サブディレクトリに置き、それぞれ独自の `sketch.yaml` を持ちます。

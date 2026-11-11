@@ -19,7 +19,13 @@ addopts = "--save-state"
 # sketch runs on its default_profile as before. Ports come from .env:
 # TEST_SERIAL_PORT_<PRIMARY> and TEST_SERIAL_PORT_PEER_DEVICE_<DEVICE>.
 arduino_combos = [
-    "s3: primary=s3_peer_host,device=s3_peer_device",
+    "s3: primary=s3_host,device=s3_device",
+    "p4: primary=p4_loopback",
+    "p4_psram: primary=p4_psram",
+    "p4_p4x_hs: primary=p4_hs_host,device=p4x_hs_device",
+    "p4x_p4_hs: primary=p4x_hs_host,device=p4_hs_device",
+    "s3_s2: primary=s3b_host,device=s2_device",
+    "s2_s3: primary=s2_host,device=s3b_device",
 ]
 # No testpaths on purpose. What keeps manual/ and probe/ out of the default run
 # is that their test files do not start with test_, and that is the whole rule.

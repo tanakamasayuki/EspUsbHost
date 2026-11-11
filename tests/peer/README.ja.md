@@ -51,14 +51,17 @@ ESP32-S3のUSB D−とD+はGPIO19とGPIO20です。VBUSラインは接続せず�
 
 ピアテストで使用するArduino CLIプロファイル名：
 
-- `s3_peer_host`: EspUsbHostを実行するESP32-S3 USBホストボード
-- `s3_peer_device`: ESP32-S3 USBデバイスピア
+- `s3_host` / `s3_device`: S3 ↔ S3 の組（combo `s3`）
+- `s3b_host` / `s3b_device`、`s2_host` / `s2_device`: 2台目の S3 と S2（combo `s3_s2`、`s2_s3`）
+- `p4_hs_host` / `p4_hs_device`、`p4x_hs_host` / `p4x_hs_device`: OTG HS 同士で結線した P4 と P4X（combo `p4_p4x_hs`、`p4x_p4_hs`）
+
+名前は EspUsbDevice のテストと同じなので、`.env` のポート名もそのまま使えます。
 
 `.env` にシリアルポートを設定：
 
 ```sh
-TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyACM0
-TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB0
+TEST_SERIAL_PORT_S3_HOST=/dev/ttyACM0
+TEST_SERIAL_PORT_PEER_DEVICE_S3_DEVICE=/dev/ttyUSB0
 ```
 
 現在のカバレッジ：

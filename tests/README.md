@@ -35,12 +35,12 @@ TEST_SERIAL_PORT_ESP32P4=/dev/ttyACM1
 
 Set each `TEST_SERIAL_PORT_*` variable to the actual serial port for the corresponding board.
 
-Profile names describe the connection role. `peer/` uses always-connected
-dedicated boards, so it uses dedicated profiles such as `s3_peer_host` and
-`s3_peer_device`. `examples/`, `manual/`, and `probe/` are intended for
-individually run generic boards, so they use `esp32s3` and `esp32p4`.
-`loopback/` currently only contains README files and has no runnable profile in
-this repository.
+Profile names describe the connection role. `peer/` and `loopback/` use
+always-connected dedicated boards, and their profiles carry the same names as
+EspUsbDevice's tests (`s3_host`, `s3_device`, `s2_host`, `p4_hs_host`,
+`p4_loopback`, ...), so one bench and one set of port names serve both
+repositories. `examples/`, `manual/`, and `probe/` are intended for individually
+run generic boards, so they use `esp32s3` and `esp32p4`.
 
 ## Running tests
 
@@ -74,12 +74,25 @@ A check that passes in only one order is a design error. This costs no extra
 upload, so it is an everyday check rather than a release-time one. See
 [TEST_PLAN.md](TEST_PLAN.md), *How the tests are structured*.
 
-Peer pairs fixed by wiring are named in `arduino_combos` in `pyproject.toml`
-(currently only `s3`, S3 <-> S3). Use `--combo` to run a pair explicitly:
+Boards fixed by wiring are named in `arduino_combos` in `pyproject.toml`, the
+same set as EspUsbDevice's except its PC combo:
+
+| Combo | Host | Device |
+|-------|------|--------|
+| `s3` | S3 (`s3_host`) | S3 (`s3_device`) |
+| `s3_s2` / `s2_s3` | S3 "b" / S2 | S2 / S3 "b" |
+| `p4_p4x_hs` / `p4x_p4_hs` | P4 / P4X, OTG HS | P4X / P4, OTG HS |
+| `p4` / `p4_psram` | one P4 wired for loopback (`loopback/` only) | |
+
+Use `--combo` to run one pair, or `--combo all` for every pair:
 
 ```bash
-uv run --env-file .env pytest peer/ --combo s3 -q -rs
+uv run --env-file .env pytest --combo s3 -q -rs
+uv run --env-file .env pytest --combo all -q -rs
 ```
+
+A full run on every pair is a release-time check; day to day, `s3` alone is
+enough.
 
 Builds are cached per sketch directory, and that cache is not invalidated by
 everything that should invalidate it. Pass `--clean` (it forwards `--clean` to
@@ -182,11 +195,11 @@ The plugin resolves the serial port for each board in this order:
 2. `TEST_SERIAL_PORT_<PROFILE>` environment variable, where `<PROFILE>` is the sketch.yaml profile name **uppercased with hyphens replaced by underscores**
 3. `TEST_SERIAL_PORT` environment variable (fallback for any profile)
 
-For example, a profile named `s3_peer_host` in `sketch.yaml` maps to `TEST_SERIAL_PORT_S3_PEER_HOST` in `.env`.
+For example, a profile named `s3_host` in `sketch.yaml` maps to `TEST_SERIAL_PORT_S3_HOST` in `.env`.
 
 For always-connected test setups, configure dedicated ports such as
-`TEST_SERIAL_PORT_S3_PEER_HOST` and
-`TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE`. For individually run examples,
+`TEST_SERIAL_PORT_S3_HOST` and
+`TEST_SERIAL_PORT_PEER_DEVICE_S3_DEVICE`. For individually run examples,
 manual tests, and probes, use `TEST_SERIAL_PORT_ESP32S3` and
 `TEST_SERIAL_PORT_ESP32P4`.
 
@@ -196,9 +209,9 @@ Each test sketch has a `sketch.yaml` that declares board profiles:
 
 ```yaml
 profiles:
-  s3_peer_host:
+  s3_host:
     fqbn: esp32:esp32:esp32s3
-default_profile: s3_peer_host
+default_profile: s3_host
 ```
 
 Peer board sketches live in a `peer_<name>/` subdirectory alongside the main sketch, each with their own `sketch.yaml`.
