@@ -91,11 +91,14 @@ EOM が下りた状態で届き、次の要求で継続されます。
 
 USBTMC はこのシーケンスの最後に bulk OUT への `CLEAR_FEATURE(ENDPOINT_HALT)` を
 置きます。`UsbtmcDevice::clearOutHalt()` に実装はありますが、どこからも呼んでいません。
-halt をクリアするとデバイス側のデータトグルがリセットされますが、このホストは自分側を
-合わせられません（ESP-IDF のホストスタックは実際に halt した pipe しか再同期しないため
-です）。PMX18-5A での実測では、このリクエストを入れると CLEAR 直後のクエリがタイム
-アウトし、外すと CLEAR は成功して次のクエリも応答します。本当に stall した endpoint
-は、転送失敗時に pipe を flush / clear するライブラリ本体の経路が回復させます。
+halt をクリアするとデバイス側のデータトグルがリセットされますが、EspUsbHost 2.10.1
+まではホスト側がそのままでした。PMX18-5A での実測では、このリクエストを入れると
+CLEAR 直後のクエリがタイムアウトし、外すと CLEAR は成功して次のクエリも応答しました。
+現在の `vendorControlTransfer()` はこのリクエストを送るときに vendor の pipe を DATA0
+で作り直し、EspUsbDevice を相手にした peer テストでそれを確認しています。ただし
+PMX18-5A では測り直していないため、この example では引き続き省いています。本当に
+stall した endpoint は、転送失敗時に pipe を flush / clear するライブラリ本体の経路が
+回復させます。
 
 ### GET_CAPABILITIES のオフセット注意
 

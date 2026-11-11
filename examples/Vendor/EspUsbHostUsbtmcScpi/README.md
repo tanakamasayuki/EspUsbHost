@@ -94,13 +94,15 @@ requested chunk arrives with EOM clear and is continued by another request.
 draining bulk IN while it reports data still queued.
 
 USBTMC ends the sequence with `CLEAR_FEATURE(ENDPOINT_HALT)` on bulk OUT.
-`UsbtmcDevice::clearOutHalt()` implements it but nothing calls it, because
-clearing the halt resets the data toggle at the device end and this host cannot
-resynchronise its own: the ESP-IDF host stack only resyncs a pipe that is actually
-halted. Measured on a PMX18-5A - with that request in the sequence, the query
-after a CLEAR times out; without it, CLEAR works and the next query answers. A
-genuinely stalled endpoint is recovered by the library, which flushes and clears
-the pipe when a transfer fails.
+`UsbtmcDevice::clearOutHalt()` implements it but nothing calls it. Clearing the
+halt resets the data toggle at the device end, and up to EspUsbHost 2.10.1 the
+host side stayed where it was. Measured on a PMX18-5A - with that request in the
+sequence, the query after a CLEAR timed out; without it, CLEAR works and the next
+query answers. `vendorControlTransfer()` now recreates the vendor pipes at DATA0
+when it sends this request, which a peer test checks against an EspUsbDevice, but
+the sequence has not been re-measured on the PMX18-5A, so it is still left out
+here. A genuinely stalled endpoint is recovered by the library, which flushes and
+clears the pipe when a transfer fails.
 
 ### GET_CAPABILITIES: mind the offsets
 

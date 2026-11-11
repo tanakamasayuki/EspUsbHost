@@ -128,6 +128,59 @@ def test_usb_vendor(dut, peers, run_checks):
         dut.expect_exact("HOST_END installed=0 clients=-1 devices=-1 ready=0")
         dut.expect_exact("HOST_REBEGIN 1")
 
+    def clear_halt_resets_both_toggles():
+        """CLEAR_FEATURE(ENDPOINT_HALT) leaves the host and the device both at DATA0.
+
+        One echo is one bulk OUT and one bulk IN packet, so after a single echo
+        both endpoints sit at DATA1. The device goes back to DATA0 on the clear;
+        a host pipe that stayed at DATA1 has its next OUT packet dropped by the
+        device as a retry, or drops the device's next IN packet itself, and the
+        echo after the clear times out. Checked for both endpoints and in both
+        read modes, since a continuous read keeps a transfer outstanding on the
+        IN pipe that has to be stopped and restarted around the reset.
+        """
+        device = peers["device"]
+        _wait_vendor_ready(dut, device)
+        dut.write("x")
+        dut.expect_exact("HOST_END installed=0 clients=-1 devices=-1 ready=0")
+        dut.expect_exact("HOST_REBEGIN 1")
+        _wait_vendor_ready(dut, device)
+
+        dut.write("O")
+        dut.expect_exact("VENDOR_OPEN_ONDEMAND 1")
+        for clear in ("k", "K"):
+            dut.write("R")
+            dut.expect_exact("VENDOR_READ_SYNC write=1 ok=1 len=9 data=echo:ping")
+            dut.write(clear)
+            dut.expect(r"VENDOR_CLEAR_HALT dir=(?:out|in) ok=1\r?\n")
+            for _ in range(2):
+                dut.write("R")
+                dut.expect_exact("VENDOR_READ_SYNC write=1 ok=1 len=9 data=echo:ping")
+
+        dut.write("x")
+        dut.expect_exact("HOST_END installed=0 clients=-1 devices=-1 ready=0")
+        dut.expect_exact("HOST_REBEGIN 1")
+        _wait_vendor_ready(dut, device)
+
+        dut.write("o")
+        dut.expect_exact("VENDOR_OPEN 1")
+        for clear in ("k", "K"):
+            dut.write("w")
+            dut.expect_exact("VENDOR_WRITE 1")
+            dut.write("p")
+            dut.expect_exact("VENDOR_DATA seen=1 data=echo:ping")
+            dut.write(clear)
+            dut.expect(r"VENDOR_CLEAR_HALT dir=(?:out|in) ok=1\r?\n")
+            for _ in range(2):
+                dut.write("w")
+                dut.expect_exact("VENDOR_WRITE 1")
+                dut.write("p")
+                dut.expect_exact("VENDOR_DATA seen=1 data=echo:ping")
+
+        dut.write("x")
+        dut.expect_exact("HOST_END installed=0 clients=-1 devices=-1 ready=0")
+        dut.expect_exact("HOST_REBEGIN 1")
+
     def end_rebegin_with_device_open():
         """end() fully uninstalls an active host and the same object can restart."""
         device = peers["device"]
@@ -151,6 +204,7 @@ def test_usb_vendor(dut, peers, run_checks):
         enumeration,
         bulk_and_control,
         on_demand_read,
+        clear_halt_resets_both_toggles,
         end_rebegin_with_device_open,
     ])
 

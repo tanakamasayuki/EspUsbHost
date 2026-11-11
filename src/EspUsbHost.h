@@ -2688,6 +2688,15 @@ public:
   // sends its class requests as 0xa1 / 0x21 with wIndex set to the interface, and
   // clears a halted bulk endpoint with the standard 0x02 / CLEAR_FEATURE.
   //
+  // CLEAR_FEATURE(ENDPOINT_HALT) on an endpoint of the interface vendorOpen()
+  // opened also resets the host side: the device restarts that endpoint at
+  // DATA0, and ESP-IDF has no call that does the same for the host pipe, so the
+  // vendor interface is released and claimed again to recreate both pipes at
+  // DATA0, and the interface's other bulk endpoint is cleared on the device too.
+  // That needs the endpoints idle: a continuous read is stopped and restarted
+  // around it, and while a read or write queue is active the host side is left
+  // as it was (lastError() reports ESP_ERR_INVALID_STATE).
+  //
   // The transfer direction comes from bit 7 of requestType; actualLength receives
   // the bytes received on an IN transfer. Like the calls above it waits for
   // completion, so it cannot be called from a USB callback.
@@ -3997,6 +4006,7 @@ private:
   int vendorInSlotOfTransfer(const DeviceState &device, const usb_transfer_t *transfer) const;
   bool submitVendorInSlot(DeviceState &device, uint8_t slot);
   bool stopVendorContinuousIn(DeviceState &device);
+  bool resetVendorPipes(DeviceState &device);
   void serviceVendorInQueue(DeviceState &device);
   void releaseVendorInQueue(DeviceState &device);
   void vendorDrainIn(DeviceState &device);

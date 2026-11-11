@@ -265,6 +265,17 @@ void loop()
     {
       Serial.printf("VENDOR_DATA seen=%u data=%s\n", vendorDataSeen ? 1 : 0, vendorData);
     }
+    else if (command == 'k' || command == 'K')
+    {
+      // Standard CLEAR_FEATURE(ENDPOINT_HALT) on the bulk OUT ('k') or IN ('K')
+      // endpoint. The device restarts that endpoint at DATA0, so the exchange
+      // that follows only works if the host pipe was restarted at DATA0 too.
+      const uint8_t endpoint = command == 'k' ? usb.vendorOutEndpoint(deviceAddress)
+                                              : usb.vendorInEndpoint(deviceAddress);
+      const bool ok = endpoint != 0 && usb.vendorControlTransfer(0x02, 0x01, 0, endpoint,
+                                                                  nullptr, 0, nullptr, deviceAddress);
+      Serial.printf("VENDOR_CLEAR_HALT dir=%s ok=%u\n", command == 'k' ? "out" : "in", ok ? 1 : 0);
+    }
     else if (command == 'p')
     {
       const uint32_t start = millis();

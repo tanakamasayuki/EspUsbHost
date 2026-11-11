@@ -302,11 +302,9 @@ public:
   // it still has data queued.
   //
   // The spec ends the sequence with CLEAR_FEATURE(ENDPOINT_HALT) on bulk OUT.
-  // That is deliberately left out here, see clearOutHalt(): sending it resets the
-  // device's data toggle, and this host cannot resynchronise its own unless the
-  // pipe is actually halted, which desynchronises the endpoint instead of
-  // recovering it. Measured: with the halt clear in place, the query after a
-  // CLEAR times out.
+  // It is left out here, see clearOutHalt(): with EspUsbHost 2.10.1 and earlier
+  // it desynchronised the data toggle, and the sequence has not been re-measured
+  // on the instrument since the library started resetting the host side too.
   bool clear()
   {
     uint8_t status[2] = {};
@@ -429,15 +427,17 @@ public:
   // here, and it is exposed rather than used so the reason is in one place:
   //
   // Clearing the halt resets the data toggle at the device end. A host driver
-  // resets its own to match (Linux does this inside usb_clear_halt()), but the
-  // ESP-IDF host stack only resyncs a pipe that is actually halted, so on a
-  // healthy endpoint this call desynchronises the toggle and every following OUT
-  // is ignored by the device. Measured on a PMX18-5A: with this in the CLEAR
-  // sequence, the query after a CLEAR times out; without it, CLEAR works.
+  // resets its own to match (Linux does this inside usb_clear_halt()). ESP-IDF
+  // has no call for that, and up to EspUsbHost 2.10.1 this request left the host
+  // pipe where it was, so on a healthy endpoint every following OUT was ignored
+  // by the device. Measured on a PMX18-5A: with this in the CLEAR sequence, the
+  // query after a CLEAR timed out; without it, CLEAR worked. vendorControlTransfer()
+  // now recreates the vendor pipes at DATA0 when it sends this request (and
+  // clears bulk IN on the device as well), which a peer test checks against an
+  // EspUsbDevice; the PMX18-5A itself has not been re-measured.
   //
   // A genuinely stalled endpoint is recovered by the library itself, which
-  // flushes and clears the pipe when a transfer fails. Call this only if you have
-  // a device that needs the request and have confirmed the toggle survives it.
+  // flushes and clears the pipe when a transfer fails.
   //
   // It is also the reason vendorControlTransfer() takes a bmRequestType: this is
   // a standard request to an endpoint (0x02), while the class requests above are

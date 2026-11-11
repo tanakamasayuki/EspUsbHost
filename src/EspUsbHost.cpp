@@ -4916,7 +4916,105 @@ bool EspUsbHost::vendorControlTransfer(uint8_t requestType,
   {
     return false;
   }
-  return submitVendorControl(*device, requestType, request, value, index, data, length, actualLength, timeoutMs);
+
+  // CLEAR_FEATURE(ENDPOINT_HALT) puts the device's endpoint back at DATA0, but
+  // usb_host_endpoint_clear() leaves the host pipe's toggle where it was, so
+  // half the time the next packet on that endpoint was dropped as a retry. For
+  // the open vendor interface, recreate its pipes at DATA0 first and clear the
+  // other endpoint as well, so both sides of both endpoints agree.
+  const UsbVendorState *usbVendor = usbVendorStateFor(*device);
+  const uint8_t endpointAddress = static_cast<uint8_t>(index & 0xff);
+  const bool clearsVendorHalt =
+      requestType == (USB_BM_REQUEST_TYPE_DIR_OUT | USB_BM_REQUEST_TYPE_TYPE_STANDARD |
+                      USB_BM_REQUEST_TYPE_RECIP_ENDPOINT) &&
+      request == USB_REQUEST_CLEAR_FEATURE && value == 0 && length == 0 &&
+      usbVendor && usbVendor->hasInterface && (endpointAddress & 0x7f) != 0 &&
+      ((usbVendor->hasInEndpoint && endpointAddress == usbVendor->inEndpointAddress) ||
+       (usbVendor->hasOutEndpoint && endpointAddress == usbVendor->outEndpointAddress));
+  if (!clearsVendorHalt)
+  {
+    return submitVendorControl(*device, requestType, request, value, index, data, length, actualLength, timeoutMs);
+  }
+
+  const uint8_t otherEndpoint = endpointAddress == usbVendor->inEndpointAddress
+                                    ? (usbVendor->hasOutEndpoint ? usbVendor->outEndpointAddress : 0)
+                                    : (usbVendor->hasInEndpoint ? usbVendor->inEndpointAddress : 0);
+  const bool pipesReset = resetVendorPipes(*device);
+  const bool ok = submitVendorControl(*device, requestType, request, value, index, data, length, actualLength, timeoutMs);
+  if (ok && pipesReset && otherEndpoint != 0 && otherEndpoint != endpointAddress)
+  {
+    clearEndpointHaltSync(*device, otherEndpoint, timeoutMs);
+  }
+  return ok;
+}
+
+bool EspUsbHost::resetVendorPipes(DeviceState &device)
+{
+  UsbVendorState *usbVendor = usbVendorStateFor(device);
+  if (!usbVendor || !usbVendor->hasInterface || !clientHandle_ || !device.handle)
+  {
+    return false;
+  }
+  if (xTaskGetCurrentTaskHandle() == clientTaskHandle_)
+  {
+    return false;
+  }
+  if (usbVendor->inQueueActive || usbVendor->outQueueActive)
+  {
+    ESP_LOGW(TAG, "vendor pipes cannot be reset while a read or write queue is active");
+    setLastError(ESP_ERR_INVALID_STATE);
+    return false;
+  }
+
+  // A continuous read keeps a transfer outstanding, and a pipe with one cannot
+  // be released. Stop it, and start it again on the new pipe afterwards.
+  const bool continuousIn = usbVendor->hasInEndpoint && !usbVendor->readOnDemand &&
+                            findEndpoint(device.handle, usbVendor->inEndpointAddress) != nullptr;
+  const size_t readTransferBytes = usbVendor->inTransferBytes;
+  if (continuousIn && !stopVendorContinuousIn(device))
+  {
+    return false;
+  }
+
+  const uint8_t interfaceNumber = usbVendor->interfaceNumber;
+  esp_err_t err = usb_host_interface_release(clientHandle_, device.handle, interfaceNumber);
+  if (err == ESP_OK)
+  {
+    err = usb_host_interface_claim(clientHandle_, device.handle, interfaceNumber, 0);
+    if (err != ESP_OK)
+    {
+      // The claim is gone. Forget it, as a closed interface, rather than leave
+      // vendor calls submitting to pipes that no longer exist.
+      for (uint8_t i = 0; i < device.interfaceCount; i++)
+      {
+        if (device.interfaces[i] == interfaceNumber)
+        {
+          for (uint8_t j = i; j + 1 < device.interfaceCount; j++)
+          {
+            device.interfaces[j] = device.interfaces[j + 1];
+          }
+          device.interfaceCount--;
+          break;
+        }
+      }
+      usbVendor->hasInterface = false;
+    }
+  }
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "vendor interface re-claim for toggle reset failed iface=%u: %s",
+             interfaceNumber,
+             esp_err_to_name(err));
+    setLastError(err);
+  }
+
+  if (continuousIn && usbVendor->hasInterface &&
+      !vendorOpen(device.info.address, interfaceNumber, ESP_USB_HOST_VENDOR_READ_CONTINUOUS, readTransferBytes))
+  {
+    ESP_LOGW(TAG, "vendor continuous read could not be restarted after the toggle reset");
+    return false;
+  }
+  return err == ESP_OK;
 }
 
 bool EspUsbHost::vendorControlIn(uint8_t request,
@@ -9782,6 +9880,15 @@ void EspUsbHost::handleDescriptor(uint8_t descriptorType, const uint8_t *data)
                  intf->bNumEndpoints,
                  static_cast<unsigned>(endpointChannelCount()),
                  static_cast<unsigned>(maxEndpointChannelCount()));
+        if (currentClaimResult_ == ESP_ERR_NOT_SUPPORTED)
+        {
+          // The usual cause: an endpoint larger than the host FIFO area it
+          // needs, typically a high-speed interrupt OUT endpoint above the
+          // default 512-byte periodic OUT FIFO.
+          ESP_LOGW(TAG, "iface=%u may have an endpoint larger than the host FIFO split allows; "
+                        "see EspUsbHostConfig::fifo (ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT on the ESP32-P4 HS port)",
+                   currentInterfaceNumber_);
+        }
         setLastError(currentClaimResult_);
       }
     }
