@@ -7162,6 +7162,84 @@ bool EspUsbHost::mscCommand(DeviceState &device,
   return ok;
 }
 
+// Standard CLEAR_FEATURE(ENDPOINT_HALT) to one endpoint, waited for. It puts
+// the device's data toggle for that endpoint back to DATA0 (USB 2.0 9.4.5) and
+// is allowed on an endpoint that is not halted. The host pipe's toggle is not
+// touched: see resetInterfacePipes().
+bool EspUsbHost::clearEndpointHaltSync(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs)
+{
+  if (!device.handle || !clientHandle_ || (endpointAddress & 0x7f) == 0)
+  {
+    return false;
+  }
+  EspUsbHostSyncTransferContext context;
+  context.done = xSemaphoreCreateBinary();
+  if (!context.done)
+  {
+    setLastError(ESP_ERR_NO_MEM);
+    return false;
+  }
+
+  usb_transfer_t *transfer = nullptr;
+  esp_err_t allocErr = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
+  if (allocErr != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_alloc(ClearFeature(ENDPOINT_HALT) ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(allocErr));
+    setLastError(allocErr);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT |
+                         USB_BM_REQUEST_TYPE_TYPE_STANDARD |
+                         USB_BM_REQUEST_TYPE_RECIP_ENDPOINT;
+  setup->bRequest = USB_REQUEST_CLEAR_FEATURE;
+  setup->wValue = 0; // ENDPOINT_HALT
+  setup->wIndex = endpointAddress;
+  setup->wLength = 0;
+
+  context.status = USB_TRANSFER_STATUS_ERROR;
+  context.actualLength = 0;
+  transfer->device_handle = device.handle;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = syncTransferCallback;
+  transfer->context = &context;
+  transfer->num_bytes = USB_SETUP_PACKET_SIZE;
+
+  esp_err_t submitErr = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (submitErr != ESP_OK)
+  {
+    ESP_LOGW(TAG, "usb_host_transfer_submit_control(ClearFeature(ENDPOINT_HALT) ep=0x%02x) failed: %s",
+             endpointAddress,
+             esp_err_to_name(submitErr));
+    setLastError(submitErr);
+    usb_host_transfer_free(transfer);
+    vSemaphoreDelete(context.done);
+    return false;
+  }
+
+  const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+  const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
+  if (!done)
+  {
+    ESP_LOGW(TAG, "ClearFeature(ENDPOINT_HALT) timeout ep=0x%02x", endpointAddress);
+    setLastError(ESP_ERR_TIMEOUT);
+    // A submitted control transfer cannot be freed until its callback returns.
+    xSemaphoreTake(context.done, portMAX_DELAY);
+  }
+  else if (!ok)
+  {
+    ESP_LOGW(TAG, "ClearFeature(ENDPOINT_HALT) failed ep=0x%02x status=%d", endpointAddress, context.status);
+    setLastError(ESP_FAIL);
+  }
+  usb_host_transfer_free(transfer);
+  vSemaphoreDelete(context.done);
+  return ok;
+}
+
 bool EspUsbHost::mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs)
 {
   if (!device.handle || endpointAddress == 0)
@@ -7214,84 +7292,14 @@ bool EspUsbHost::mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddre
     }
   }
 
-  auto clearFeature = [&](uint8_t address) -> bool
-  {
-    EspUsbHostSyncTransferContext context;
-    context.done = xSemaphoreCreateBinary();
-    if (!context.done)
-    {
-      setLastError(ESP_ERR_NO_MEM);
-      return false;
-    }
-
-    usb_transfer_t *transfer = nullptr;
-    esp_err_t allocErr = usb_host_transfer_alloc(USB_SETUP_PACKET_SIZE, 0, &transfer);
-    if (allocErr != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_transfer_alloc(MSC ClearFeature ep=0x%02x) failed: %s",
-               address,
-               esp_err_to_name(allocErr));
-      setLastError(allocErr);
-      vSemaphoreDelete(context.done);
-      return false;
-    }
-
-    usb_setup_packet_t *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
-    setup->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT |
-                           USB_BM_REQUEST_TYPE_TYPE_STANDARD |
-                           USB_BM_REQUEST_TYPE_RECIP_ENDPOINT;
-    setup->bRequest = USB_REQUEST_CLEAR_FEATURE;
-    setup->wValue = 0; // ENDPOINT_HALT
-    setup->wIndex = address;
-    setup->wLength = 0;
-
-    context.status = USB_TRANSFER_STATUS_ERROR;
-    context.actualLength = 0;
-    transfer->device_handle = device.handle;
-    transfer->bEndpointAddress = 0;
-    transfer->callback = syncTransferCallback;
-    transfer->context = &context;
-    transfer->num_bytes = USB_SETUP_PACKET_SIZE;
-
-    esp_err_t submitErr = usb_host_transfer_submit_control(clientHandle_, transfer);
-    if (submitErr != ESP_OK)
-    {
-      ESP_LOGW(TAG, "usb_host_transfer_submit_control(MSC ClearFeature ep=0x%02x) failed: %s",
-               address,
-               esp_err_to_name(submitErr));
-      setLastError(submitErr);
-      usb_host_transfer_free(transfer);
-      vSemaphoreDelete(context.done);
-      return false;
-    }
-
-    const bool done = xSemaphoreTake(context.done, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
-    const bool ok = done && context.status == USB_TRANSFER_STATUS_COMPLETED;
-    if (!done)
-    {
-      ESP_LOGW(TAG, "MSC ClearFeature timeout ep=0x%02x", address);
-      setLastError(ESP_ERR_TIMEOUT);
-      // A submitted control transfer cannot be freed until its callback returns.
-      xSemaphoreTake(context.done, portMAX_DELAY);
-    }
-    else if (!ok)
-    {
-      ESP_LOGW(TAG, "MSC ClearFeature failed ep=0x%02x status=%d", address, context.status);
-      setLastError(ESP_FAIL);
-    }
-    usb_host_transfer_free(transfer);
-    vSemaphoreDelete(context.done);
-    return ok;
-  };
-
   // The requested endpoint first: its result is what the caller asked about.
   const uint8_t otherEndpoint = endpointAddress == device.mscInEndpointAddress
                                     ? device.mscOutEndpointAddress
                                     : device.mscInEndpointAddress;
-  const bool ok = clearFeature(endpointAddress);
+  const bool ok = clearEndpointHaltSync(device, endpointAddress, timeoutMs);
   if (otherEndpoint != 0 && otherEndpoint != endpointAddress)
   {
-    clearFeature(otherEndpoint);
+    clearEndpointHaltSync(device, otherEndpoint, timeoutMs);
   }
   return ok;
 }
@@ -11827,13 +11835,33 @@ void EspUsbHost::releaseVideoTransfers(DeviceState &device, bool devicePresent)
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 
-  if (devicePresent && device.handle && video->activeEndpoint != 0)
+  auto anyTransferInFlight = [&]() -> bool
   {
-    bool anyInFlight = false;
+    bool inFlight = false;
+    portENTER_CRITICAL(&endpointSubmitMux_);
     for (uint8_t slot = 0; slot < video->transferCount; slot++)
     {
-      anyInFlight = anyInFlight || video->transferInFlight[slot];
+      inFlight = inFlight || video->transferInFlight[slot];
     }
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    return inFlight;
+  };
+
+  if (devicePresent && device.handle && video->activeEndpoint != 0)
+  {
+    // Let the outstanding transfers finish on their own first; nothing is
+    // resubmitted once stopping is set. A streaming camera completes them within
+    // a few milliseconds. Halting a channel while a bulk IN packet is arriving
+    // left the controller with a stale halt: the next videoStart() armed a fresh
+    // pipe, it reported "complete" before its descriptor ever ran, and ESP-IDF's
+    // bulk parser asserted from inside the USB interrupt. The halt below is only
+    // the fallback for a camera that has gone quiet.
+    const uint32_t drainStarted = millis();
+    while (anyTransferInFlight() && millis() - drainStarted < 200)
+    {
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    const bool anyInFlight = anyTransferInFlight();
     if (anyInFlight)
     {
       usb_host_endpoint_halt(device.handle, video->activeEndpoint);
@@ -11849,8 +11877,8 @@ void EspUsbHost::releaseVideoTransfers(DeviceState &device, bool devicePresent)
           pending = pending || video->transferInFlight[slot];
         }
       }
+      usb_host_endpoint_clear(device.handle, video->activeEndpoint);
     }
-    usb_host_endpoint_clear(device.handle, video->activeEndpoint);
   }
 
   for (uint8_t slot = 0; slot < video->transferCount; slot++)
@@ -11945,6 +11973,18 @@ void EspUsbHost::releaseVideoStreaming(DeviceState &device, bool devicePresent)
     if (device.endpointChannelCount > 0)
     {
       device.endpointChannelCount--;
+    }
+
+    // A bulk stream has no zero-bandwidth alternate; the host ends it with
+    // CLEAR_FEATURE(ENDPOINT_HALT) on the streaming endpoint, as the UVC
+    // specification describes and Linux uvcvideo does. It also keeps the data
+    // toggle consistent: the release above freed the host pipe, the next
+    // videoStart() claims a new one that starts at DATA0, and clearing the
+    // endpoint puts the camera's side back at DATA0 as well.
+    if (!video->activeStream.isochronous && video->activeEndpoint != 0 &&
+        xTaskGetCurrentTaskHandle() != clientTaskHandle_)
+    {
+      clearEndpointHaltSync(device, video->activeEndpoint, ESP_USB_HOST_VIDEO_CONTROL_DEFAULT_TIMEOUT_MS);
     }
   }
 

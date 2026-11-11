@@ -4106,6 +4106,7 @@ private:
                   size_t dataLength,
                   bool dataIn,
                   uint32_t timeoutMs);
+  bool clearEndpointHaltSync(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs);
   bool mscClearEndpointHalt(DeviceState &device, uint8_t endpointAddress, uint32_t timeoutMs);
   bool mscResetRecovery(DeviceState &device, uint32_t timeoutMs);
   void mscUnmountAddress(uint8_t address);
