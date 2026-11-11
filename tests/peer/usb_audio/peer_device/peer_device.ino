@@ -18,6 +18,10 @@ static bool receivedAudioReported = false;
 static int16_t micSamples[32];
 static int16_t micValue = 0;
 static uint32_t receivedAudioSum = 0;
+// The first sample after a reset, and the length of the packet that brought it.
+// A source that counts from 1 shows a dropped first packet as a later value.
+static uint32_t firstAudioSample = 0;
+static uint32_t firstAudioPacket = 0;
 static portMUX_TYPE audioTestMux = portMUX_INITIALIZER_UNLOCKED;
 
 static void audioEventCallback(void *, esp_event_base_t eventBase, int32_t eventId, void *eventData)
@@ -39,6 +43,11 @@ static void audioDataCallback(void *buffer, uint16_t length)
 {
     const uint8_t *bytes = static_cast<const uint8_t *>(buffer);
     portENTER_CRITICAL(&audioTestMux);
+    if (receivedAudioBytes == 0 && length >= 2)
+    {
+        firstAudioSample = bytes[0] | (static_cast<uint16_t>(bytes[1]) << 8);
+        firstAudioPacket = length;
+    }
     receivedAudioBytes += length;
     for (uint16_t i = 0; i + 1 < length; i += 2)
     {
@@ -82,6 +91,8 @@ void loop()
             portENTER_CRITICAL(&audioTestMux);
             receivedAudioBytes = 0;
             receivedAudioSum = 0;
+            firstAudioSample = 0;
+            firstAudioPacket = 0;
             receivedAudioReported = false;
             portEXIT_CRITICAL(&audioTestMux);
             Serial.println("DEVICE_AUDIO_RESET");
@@ -91,9 +102,12 @@ void loop()
             portENTER_CRITICAL(&audioTestMux);
             const uint32_t bytes = receivedAudioBytes;
             const uint32_t sum = receivedAudioSum;
+            const uint32_t first = firstAudioSample;
+            const uint32_t firstPacket = firstAudioPacket;
             portEXIT_CRITICAL(&audioTestMux);
-            Serial.printf("DEVICE_AUDIO_RX bytes=%lu sum=%lu\n",
-                          static_cast<unsigned long>(bytes), static_cast<unsigned long>(sum));
+            Serial.printf("DEVICE_AUDIO_RX bytes=%lu sum=%lu first=%lu first_packet=%lu\n",
+                          static_cast<unsigned long>(bytes), static_cast<unsigned long>(sum),
+                          static_cast<unsigned long>(first), static_cast<unsigned long>(firstPacket));
         }
         else if (command == 'M')
         {

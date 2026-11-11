@@ -48,7 +48,7 @@ def usb_host(dut, peers):
     dut.expect_exact("HOST_STATE idle devices=0")
 
 
-def test_usb_audio_bidirectional(dut, peers):
+def test_usb_audio_bidirectional(dut, peers, request):
     device = peers["device"]
 
     device.expect_exact("AUDIO_DEVICE_READY")
@@ -115,8 +115,9 @@ def test_usb_audio_bidirectional(dut, peers):
     print(f"\ncapture: {received} bytes / {int(sent.group(2))} ms; "
           f"peer accepted {int(sent.group(1))} bytes; sequence errors={int(capture.group(2))}")
     device.write("q")
-    output = device.expect(r"DEVICE_AUDIO_RX bytes=(\d+) sum=(\d+)\r?\n")
-    print(f"pull playback: {int(output.group(1))} received bytes, sum={int(output.group(2))}")
+    output = device.expect(r"DEVICE_AUDIO_RX bytes=(\d+) sum=(\d+) first=(\d+) first_packet=(\d+)\r?\n")
+    print(f"pull playback: {int(output.group(1))} received bytes, sum={int(output.group(2))}, "
+          f"first={int(output.group(3))} in {int(output.group(4))} bytes")
 
     # Stop must drain callbacks, survive repetition, and allow a fresh start.
     dut.write("t")
@@ -154,13 +155,51 @@ def test_usb_audio_bidirectional(dut, peers):
     device.expect(r"DEVICE_TX_AUDIO [1-9]\d*\r?\n")
     time.sleep(0.3)
     device.write("q")
-    callback_output = device.expect(r"DEVICE_AUDIO_RX bytes=(\d+) sum=(\d+)\r?\n")
+    callback_output = device.expect(r"DEVICE_AUDIO_RX bytes=(\d+) sum=(\d+) first=(\d+) first_packet=(\d+)\r?\n")
     print(f"callback pull playback: {int(callback_output.group(1))} bytes, "
-          f"sum={int(callback_output.group(2))}")
+          f"sum={int(callback_output.group(2))}, "
+          f"first={int(callback_output.group(3))} in {int(callback_output.group(4))} bytes")
     dut.write("t")
     dut.expect_exact("AUDIO_IN_STOP 1 running=0")
     assert received > 0
     assert int(capture.group(2)) == 0, "capture lost or reordered PCM samples"
     assert int(output.group(1)) >= 4096 * 2
-    assert int(output.group(2)) == 4096 * 4097 // 2, "pull playback lost source samples"
-    assert int(callback_output.group(2)) == 4096 * 4097 // 2, "callback-started playback lost source samples"
+    strict = _device_keeps_first_packet(request)
+    _check_pull_source(output, "pull playback", strict)
+    _check_pull_source(callback_output, "callback-started playback", strict)
+
+
+# The source counts 1..4096, so the sum of what arrived from the first sample the
+# device saw shows whether anything after it was lost, and that first sample
+# shows whether the stream lost its head.
+#
+# The host sends the head: measured on every combination, the first isochronous
+# OUT transfer completes with its full length and starts at sample 1. Some peers
+# drop that packet all the same, every time and depending only on when the stream
+# starts -- the ESP32-S2 when playback starts one frame after SET_INTERFACE, the
+# ESP32-P4X high-speed port when it starts from the SET_INTERFACE completion.
+# That fits the device's isochronous OUT endpoint being armed for the other
+# frame parity, and an isochronous packet is not retried. So the head is only
+# required where the peer has been measured to keep it (the ESP32-S3), which is
+# also where a host that skipped its first packet would show up; elsewhere one
+# leading packet (at most 49 samples) may be missing.
+_FIRST_PACKET_KEEPERS = ("device=s3_device", "device=s3b_device")
+
+
+def _device_keeps_first_packet(request):
+    # Without --combo the node carries no profile and the peer is the sketch's
+    # default_profile, s3_device.
+    if "device=" not in request.node.name:
+        return True
+    return any(name in request.node.name for name in _FIRST_PACKET_KEEPERS)
+
+
+def _check_pull_source(match, label, strict):
+    received_sum = int(match.group(2))
+    first = int(match.group(3))
+    assert 1 <= first <= 4096, f"{label} received no source samples"
+    assert received_sum == sum(range(first, 4097)), f"{label} lost source samples after sample {first}"
+    if strict:
+        assert first == 1, f"{label} lost the head of the source (first sample {first})"
+    else:
+        assert first <= 50, f"{label} lost more than one leading packet (first sample {first})"
