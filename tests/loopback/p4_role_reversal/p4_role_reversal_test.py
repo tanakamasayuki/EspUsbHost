@@ -30,7 +30,8 @@ Run from tests/:
 Reading the result:
     A fault shows up as REVERSE_HOST_END_ENTER with no REVERSE_HOST_END_OK after
     it -- the board panics inside usb.end() and reboots, so the next thing on the
-    console is a fresh LOOPBACK_BEGIN. PHASE_REVERSE fail with both begin() calls
+    console is the panic and boot output, after which the sketch waits for the
+    test's start command again. PHASE_REVERSE fail with both begin() calls
     reporting ok=1 is the other failure worth naming: the host restarted but the
     root port was left unpowered, so nothing enumerated.
 """
@@ -43,7 +44,15 @@ def test_p4_role_reversal(dut):
     Expected result (fail):  usb.end() does not return (panic and reboot), or the
                              restarted host enumerates nothing.
     """
-    dut.expect_exact("LOOPBACK_BEGIN p4_role_reversal", timeout=30)
+    for _ in range(30):
+        dut.write("S")
+        try:
+            dut.expect_exact("LOOPBACK_BEGIN p4_role_reversal", timeout=1)
+            break
+        except Exception:
+            continue
+    else:
+        raise AssertionError("the sketch never started")
     dut.expect_exact("NORMAL_KEYS", timeout=30)
     dut.expect_exact("NORMAL_LEDS", timeout=30)
     dut.expect_exact("PHASE_NORMAL ok", timeout=30)

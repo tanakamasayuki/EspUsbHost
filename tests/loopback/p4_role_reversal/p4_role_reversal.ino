@@ -53,7 +53,14 @@ static bool waitForDevice()
 void setup()
 {
   Serial.begin(115200);
-  delay(2500);
+  // Start on the test's word rather than after a fixed delay. A console that
+  // opens late otherwise misses LOOPBACK_BEGIN and the phase lines after it,
+  // and a board that panics and reboots waits here again instead of re-running
+  // the swap unobserved.
+  while (Serial.read() != 'S')
+  {
+    delay(10);
+  }
   Serial.println("LOOPBACK_BEGIN p4_role_reversal");
   Serial.flush();
 
