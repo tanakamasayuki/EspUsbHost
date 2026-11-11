@@ -58,6 +58,7 @@ Available profiles are defined in each test's `sketch.yaml`.
 | [`multi_hid_keyboard_mouse/`](multi_hid_keyboard_mouse/) | Keyboard and mouse deliver events independently when connected simultaneously | USB keyboard + USB mouse | ✅ |
 | [`multi_serial/`](multi_serial/) | Two serial devices work independently via `setAddress()` | Two USB serial devices with TX/RX shorted | ✅ |
 | [`hotplug/`](hotplug/) | Connect/disconnect events and no crash after repeated cycles | Any USB device | ✅ |
+| [`end_attach_race/`](end_attach_race/) | Cycles `begin()`/`end()` 300 times while an EspUsbDevice peer attaches and detaches on its own random schedule. Reproduces an ESP-IDF fault in `usb_host_uninstall()`; see [below](#esp-idf-fault-in-end-with-a-device-mid-attach) | Host + EspUsbDevice peer, as in `peer/` (`--combo s3`) | ❌ known ESP-IDF fault |
 | [`hub_info/`](hub_info/) | Displays hub topology info for devices connected through a USB hub | USB hub + two USB devices | ✅ |
 | [`hub_power/`](hub_power/) | Per-port power control — turn a hub port off/on and verify device disconnect/reconnect | USB hub with per-port power switching + any USB device | ✅ |
 | [`usb_network_descriptor/`](usb_network_descriptor/) | Detects generic CDC-ECM/CDC-NCM USB Ethernet descriptor candidates across configurations | USB Ethernet adapter with CDC-ECM or CDC-NCM support | ✅ |
@@ -113,6 +114,32 @@ What was established with `probe/hub_enum`:
 A board stuck in this loop can be hard to flash. `probe/hub_enum` therefore boots
 with `setHubTrackingEnabled(false)` and only turns tracking on part way through, so
 it always comes up in a state that can be reflashed.
+
+## ESP-IDF fault in end() with a device mid-attach
+
+`end_attach_race/` brings this down on an ESP32-S3 pair within about 25 cycles.
+It is not a library fault and has no library-side fix; the test is kept to check
+an ESP-IDF update against it.
+
+```sh
+uv run --env-file .env pytest manual/end_attach_race/end_attach_race.py -v -s --combo s3
+```
+
+- Each crash is preceded by `HUB: Root port reset failed`. A reset refused while
+  an attach or detach is pending is not retried, so the device stays on the port
+  without being enumerated.
+- `end()` with the port in that state panics with `LoadProhibited` in
+  `proc_req_callback` <- `root_port_callback` <- `intr_hdlr_main`.
+  `usb_host_uninstall()` powers the port off and sets its library object to NULL
+  before `hcd_uninstall()` removes the USB interrupt, and the port interrupt that
+  arrives in between dereferences it.
+- Powering the port off from the library first, and letting the stack handle the
+  event, only moves the fault: `hub_process()` treats a disconnect on an unpowered
+  port as an enumerated device leaving, and `ESP_ERROR_CHECK(dev_tree_node_dev_gone())`
+  aborts with `ESP_ERR_NOT_FOUND` because there is none.
+- ESP-IDF v5.5.5 (arduino-esp32 3.3.12). The `release/v5.5` branch has the same
+  code. Also seen once in the S3 host + S2 device peer run, from the MSC test that
+  restarts the host as soon as the device disconnects.
 
 ## ESP32-S3 HCD Channel Limits
 

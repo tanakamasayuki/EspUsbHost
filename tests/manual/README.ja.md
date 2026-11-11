@@ -52,6 +52,7 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 | [`multi_hid_keyboard_mouse/`](multi_hid_keyboard_mouse/) | キーボードとマウスを同時接続したとき独立してイベントが届くこと | USBキーボード＋USBマウス | ✅ |
 | [`multi_serial/`](multi_serial/) | `setAddress()` で2台のシリアルデバイスが独立して動作すること | TXとRXをショートしたUSBシリアルデバイス×2 | ✅ |
 | [`hotplug/`](hotplug/) | 接続・切断イベントの正常発火と繰り返しサイクルでクラッシュしないこと | 任意のUSBデバイス | ✅ |
+| [`end_attach_race/`](end_attach_race/) | EspUsbDevice の peer が自分の乱数周期で抜き差しする間に `begin()`/`end()` を300回繰り返す。`usb_host_uninstall()` 内の ESP-IDF の不具合を再現する（[下記](#end-でデバイスが接続途中だと-esp-idf-が落ちる)） | host と EspUsbDevice の peer（`peer/` と同じ、`--combo s3`） | ❌ ESP-IDF の既知の不具合 |
 | [`hub_info/`](hub_info/) | USBハブ経由で接続されたデバイスのトポロジー情報を表示すること | USBハブ＋USBデバイス2台 | ✅ |
 | [`hub_power/`](hub_power/) | ポート単位の電源制御 — ハブのポートをOFF/ONしてデバイスの切断・再接続を確認 | ポート単位の電源制御対応USBハブ＋任意のUSBデバイス | ✅ |
 | [`usb_network_descriptor/`](usb_network_descriptor/) | configurationを横断して汎用CDC-ECM/CDC-NCM USB Ethernet descriptor候補を検出すること | CDC-ECMまたはCDC-NCM対応USB Ethernetアダプタ | ✅ |
@@ -106,6 +107,27 @@ uv run --env-file .env pytest manual/smoke/smoke.py -v -s --profile esp32p4
 このループに入ったボードは書き込みが難しくなることがあります。そのため `probe/hub_enum`
 は `setHubTrackingEnabled(false)` の状態で起動し、途中で追跡を有効化する構成にしてあり、
 常に再書き込みできる状態で立ち上がります。
+
+## end() でデバイスが接続途中だと ESP-IDF が落ちる
+
+`end_attach_race/` は ESP32-S3 同士で 25 周期ほどのうちに落ちる。ライブラリの不具合
+ではなく、ライブラリ側で直す手段もない。ESP-IDF を更新したときの確認用に残している。
+
+```sh
+uv run --env-file .env pytest manual/end_attach_race/end_attach_race.py -v -s --combo s3
+```
+
+- 落ちる前には毎回 `HUB: Root port reset failed` が出る。接続・切断の event が未処理の
+  間に拒否された reset は再試行されず、デバイスは列挙されないまま port に残る。
+- その状態で `end()` すると、`proc_req_callback` <- `root_port_callback` <-
+  `intr_hdlr_main` で `LoadProhibited` の panic になる。`usb_host_uninstall()` は port の
+  電源を切り、library object を NULL にしてから `hcd_uninstall()` で割り込みを外すので、
+  その間に来た port の割り込みが NULL を参照する。
+- ライブラリ側で先に電源を切り、event を処理させても落ち方が変わるだけだった。
+  `hub_process()` は電源を切った port の切断を列挙済みデバイスの離脱として扱い、
+  該当がないので `ESP_ERROR_CHECK(dev_tree_node_dev_gone())` が `ESP_ERR_NOT_FOUND` で abort する。
+- ESP-IDF v5.5.5（arduino-esp32 3.3.12）。`release/v5.5` ブランチも同じコード。S3 host +
+  S2 device の peer 試験でも、切断を受けてすぐ host を再起動する MSC の試験で1回出た。
 
 ## ESP32-S3 の HCD チャネル制限
 

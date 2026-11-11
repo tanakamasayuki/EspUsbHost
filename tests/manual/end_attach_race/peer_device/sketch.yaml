@@ -1,0 +1,38 @@
+profiles:
+  s3_device:
+    fqbn: esp32:esp32:esp32s3:USBMode=default
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - EspUsbDevice (2.6.1)
+  s3b_device:
+    fqbn: esp32:esp32:esp32s3:USBMode=default
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - EspUsbDevice (2.6.1)
+  s2_device:
+    fqbn: esp32:esp32:esp32s2
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - EspUsbDevice (2.6.1)
+  p4_hs_device:
+    fqbn: esp32:esp32:esp32p4:ChipVariant=prev3,USBMode=default,CDCOnBoot=default
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - EspUsbDevice (2.6.1)
+  p4x_hs_device:
+    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,USBMode=hwcdc,CDCOnBoot=cdc
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - EspUsbDevice (2.6.1)
+
+default_profile: s3_device
