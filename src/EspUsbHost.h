@@ -3774,6 +3774,7 @@ private:
   static void clientEventCallback(const usb_host_client_event_msg_t *eventMsg, void *arg);
   static void transferCallback(usb_transfer_t *transfer);
   static void controlTransferCallback(usb_transfer_t *transfer);
+  esp_err_t submitAsyncControl(usb_transfer_t *transfer);
   static void hidReportDescriptorTransferCallback(usb_transfer_t *transfer);
   static void outputTransferCallback(usb_transfer_t *transfer);
   static void serialOutTransferCallback(usb_transfer_t *transfer);
@@ -4177,6 +4178,10 @@ private:
   // never across the driver call, so contention is not a consideration and a
   // portMUX_TYPE per endpoint would cost more than it saves.
   portMUX_TYPE endpointSubmitMux_ = portMUX_INITIALIZER_UNLOCKED;
+  // Control transfers submitted with controlTransferCallback and not completed
+  // yet, guarded by endpointSubmitMux_. The shutdown drain waits for them:
+  // usb_host_device_close() asserts while one is in flight.
+  uint32_t asyncControlInFlight_ = 0;
   esp_err_t lastError_ = ESP_OK;
 
   usb_host_client_handle_t clientHandle_ = nullptr;

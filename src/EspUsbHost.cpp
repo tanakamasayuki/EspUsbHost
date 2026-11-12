@@ -1925,6 +1925,25 @@ void EspUsbHost::end()
   }
 #endif
 
+  // Let asynchronous control transfers finish while the library task still runs:
+  // a control completion reaches the client only through
+  // usb_host_lib_handle_events(), which stops once running_ is cleared, and the
+  // drain would then wait for it in vain. The SET_INTERFACE that stopped a video
+  // stream above is the usual one; an ESP32-S2 camera answered it too late on
+  // every run, after the library task had already gone.
+  const uint32_t controlWaitStartedAtMs = millis();
+  while (millis() - controlWaitStartedAtMs < 1000)
+  {
+    portENTER_CRITICAL(&endpointSubmitMux_);
+    const uint32_t inFlight = asyncControlInFlight_;
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+    if (inFlight == 0)
+    {
+      break;
+    }
+    delay(1);
+  }
+
   ready_ = false;
   running_ = false;
   const esp_err_t unblockErr = usb_host_lib_unblock();
@@ -2362,7 +2381,7 @@ bool EspUsbHost::sendHIDReport(uint8_t interfaceNumber,
   transfer->context = this;
   transfer->num_bytes = USB_SETUP_PACKET_SIZE + length;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  err = submitAsyncControl(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit_control(Set_Report) failed: %s", esp_err_to_name(err));
@@ -2809,7 +2828,7 @@ bool EspUsbHost::sendSetProtocol(uint8_t interfaceNumber, uint8_t address)
   transfer->context = this;
   transfer->num_bytes = USB_SETUP_PACKET_SIZE;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  err = submitAsyncControl(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit_control(Set_Protocol iface=%u) failed: %s",
@@ -13128,6 +13147,34 @@ void EspUsbHost::controlTransferCallback(usb_transfer_t *transfer)
   }
 
   usb_host_transfer_free(transfer);
+  if (host)
+  {
+    portENTER_CRITICAL(&host->endpointSubmitMux_);
+    if (host->asyncControlInFlight_ > 0)
+    {
+      host->asyncControlInFlight_--;
+    }
+    portEXIT_CRITICAL(&host->endpointSubmitMux_);
+  }
+}
+
+// Submits a control transfer whose callback is controlTransferCallback, counted
+// so the shutdown drain can wait for it. Counted before the submit because the
+// completion can run on the client task before usb_host_transfer_submit_control()
+// returns here.
+esp_err_t EspUsbHost::submitAsyncControl(usb_transfer_t *transfer)
+{
+  portENTER_CRITICAL(&endpointSubmitMux_);
+  asyncControlInFlight_++;
+  portEXIT_CRITICAL(&endpointSubmitMux_);
+  const esp_err_t err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  if (err != ESP_OK)
+  {
+    portENTER_CRITICAL(&endpointSubmitMux_);
+    asyncControlInFlight_--;
+    portEXIT_CRITICAL(&endpointSubmitMux_);
+  }
+  return err;
 }
 
 void EspUsbHost::hidReportDescriptorTransferCallback(usb_transfer_t *transfer)
@@ -15640,7 +15687,14 @@ bool EspUsbHost::drainClientTransfers(uint32_t timeoutMs)
       ESP_LOGD(TAG, "usb_host_client_handle_events(shutdown) failed: %s", esp_err_to_name(eventErr));
     }
 
-    bool idle = true;
+    // An asynchronous control transfer still in flight makes the
+    // usb_host_device_close() that follows the drain assert inside the driver.
+    // end() waits for them before stopping the library task, which is the only
+    // one that can complete them, so this is the backstop for one that never
+    // finished: the drain times out and the resources are kept instead.
+    portENTER_CRITICAL(&endpointSubmitMux_);
+    bool idle = asyncControlInFlight_ == 0;
+    portEXIT_CRITICAL(&endpointSubmitMux_);
     for (const EndpointState &endpoint : endpoints_)
     {
       if (endpoint.inUse && endpoint.transferSubmitted)
@@ -17557,7 +17611,7 @@ bool EspUsbHost::submitCdcControlLineState(DeviceState &device, SerialPortState 
   lineStateTransfer->callback = controlTransferCallback;
   lineStateTransfer->context = this;
   lineStateTransfer->num_bytes = USB_SETUP_PACKET_SIZE;
-  err = usb_host_transfer_submit_control(clientHandle_, lineStateTransfer);
+  err = submitAsyncControl(lineStateTransfer);
   if (err != ESP_OK)
   {
     usb_host_transfer_free(lineStateTransfer);
@@ -17593,7 +17647,7 @@ void EspUsbHost::configureCdcAcm(DeviceState &device, SerialPortState &port)
     lineCodingTransfer->callback = controlTransferCallback;
     lineCodingTransfer->context = this;
     lineCodingTransfer->num_bytes = USB_SETUP_PACKET_SIZE + sizeof(lineCoding);
-    err = usb_host_transfer_submit_control(clientHandle_, lineCodingTransfer);
+    err = submitAsyncControl(lineCodingTransfer);
     if (err != ESP_OK)
     {
       usb_host_transfer_free(lineCodingTransfer);
@@ -17758,7 +17812,7 @@ bool EspUsbHost::submitSetInterface(DeviceState &device, uint8_t interfaceNumber
   transfer->context = this;
   transfer->num_bytes = USB_SETUP_PACKET_SIZE;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  err = submitAsyncControl(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit_control(Set_Interface iface=%u alt=%u) failed: %s",
@@ -17813,7 +17867,7 @@ bool EspUsbHost::submitAudioSamplingFrequency(DeviceState &device, uint8_t endpo
   transfer->context = this;
   transfer->num_bytes = USB_SETUP_PACKET_SIZE + AUDIO_SAMPLE_RATE_LENGTH;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  err = submitAsyncControl(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit_control(Audio SET_CUR sampling frequency ep=0x%02x) failed: %s",
@@ -17886,7 +17940,7 @@ bool EspUsbHost::submitAudioClockSampleRate(DeviceState &device, uint8_t clockSo
   transfer->context = this;
   transfer->num_bytes = USB_SETUP_PACKET_SIZE + AUDIO_CLOCK_SAMPLE_RATE_LENGTH;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  err = submitAsyncControl(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "usb_host_transfer_submit_control(Audio clock SET_CUR clock=%u) failed: %s",
@@ -18317,7 +18371,7 @@ bool EspUsbHost::submitVendorSerialControl(uint8_t requestType,
   transfer->context = this;
   transfer->num_bytes = USB_SETUP_PACKET_SIZE + length;
 
-  err = usb_host_transfer_submit_control(clientHandle_, transfer);
+  err = submitAsyncControl(transfer);
   if (err != ESP_OK)
   {
     ESP_LOGD(TAG, "VCP control request 0x%02x failed: %s", request, esp_err_to_name(err));
