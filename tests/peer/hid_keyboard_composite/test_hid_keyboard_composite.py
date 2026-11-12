@@ -77,7 +77,8 @@ def test_hid_keyboard_composite(dut, peers, run_checks):
 
         # Num Lock alone puts LED byte 0x01 on the wire — the same value as the
         # keyboard's report ID — so this also pins the report-ID-prefixed payload
-        # (TinyUSB strips a leading payload byte that equals the report ID).
+        # (a device stack that strips a leading payload byte equal to the report ID
+        # would misread it).
         _set_leds(dut, "n")
         device.expect_exact("LED numlock=1 capslock=0 scrolllock=0")
 

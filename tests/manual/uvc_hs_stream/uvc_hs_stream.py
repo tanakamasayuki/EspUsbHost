@@ -26,8 +26,7 @@ Required hardware:
     - Two ESP32-P4 boards wired OTG HS to OTG HS
     - The device board flashed with peer_device/ from this directory. It is a
       separate sketch from tests/peer/usb_video/peer_device on purpose: that one
-      pins its isochronous payload to 112 bytes for a full-speed host, and
-      build_opt.h reaches every profile of the sketch it sits beside.
+      pins its isochronous payload to 112 bytes for a full-speed host.
 
 Setup:
     1. Flash the device board:

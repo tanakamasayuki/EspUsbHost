@@ -15,11 +15,9 @@
 // them against what the host decoded, so the assertions check that the two sides
 // agree rather than that the host matched a constant written into the test.
 
-// build_opt.h next to this sketch sets CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE=112,
-// which is the isochronous payload size of the streaming endpoint. It cannot be
-// a #define here: the value has to reach the library's own translation units,
-// and build_opt.h is a compiler-argument file, so it holds the flag alone with
-// no comments in it.
+// The streaming endpoint's isochronous payload is set to 112 bytes with
+// configure() below. The bulk variant (usb_video_bulk) defines
+// PEER_VIDEO_BULK before including this file and streams over bulk instead.
 //
 // The default (512 bytes at full speed) cannot be received by an ESP32 host on
 // arduino-esp32 3.3.11, whose USB host stack is built with
@@ -31,10 +29,14 @@
 //
 // That is a property of the host under test, not of the camera, and it is why
 // this pairing streams at roughly 110 KB/s rather than at what full speed
-// allows. Because it is a compiler flag, run this test with --clean after
-// changing it. See docs/usb-host-advanced.md.
+// allows. See docs/usb-host-advanced.md.
+
+#ifndef PEER_VIDEO_BULK
+#define PEER_VIDEO_BULK 0
+#endif
 
 #include "EspUsbDevice.h"
+#include <atomic>
 
 EspUsbDevice device;
 EspUsbDeviceVideo camera(device, "EspUsb Test Camera");
@@ -62,19 +64,30 @@ static void fillFrame()
 }
 
 // Arming the next frame from the completion callback is the shape EspUsbDevice
-// documents: it is what keeps the endpoint busy.
+// documents: it is what keeps the endpoint busy. loop() also arms when nothing
+// is in flight, because a frame can end without completing -- a new
+// Probe/Commit (the host restarting the stream) cancels the frame in flight,
+// and nothing would arm the next one. Both paths go through this guard so the
+// buffer is never refilled while the device still borrows it.
+static std::atomic<bool> arming{false};
+
 static void armNextFrame()
 {
-    if (!camera.streaming())
+    bool expected = false;
+    if (!arming.compare_exchange_strong(expected, true))
     {
         return;
     }
-    frameNumber++;
-    fillFrame();
-    if (camera.sendFrame(frameBuffer, FRAME_BYTES))
+    if (camera.streaming() && !camera.frameInFlight())
     {
-        framesSent++;
+        frameNumber++;
+        fillFrame();
+        if (camera.sendFrame(frameBuffer, FRAME_BYTES))
+        {
+            framesSent++;
+        }
     }
+    arming.store(false);
 }
 
 void setup()
@@ -85,6 +98,26 @@ void setup()
     camera.setFormat(EspUsbDeviceVideoFormat::Mjpeg);
     camera.setFrameSize(320, 240);
     camera.setFrameRate(15);
+
+    EspUsbVideoConfig videoConfig;
+#if PEER_VIDEO_BULK
+    videoConfig.transport = EspUsbVideoTransport::Bulk;
+    videoConfig.payloadBytes = 128;
+#else
+    videoConfig.payloadBytes = 112;
+    videoConfig.isochronousPacketBytes = 112;
+#endif
+    if (camera.configure(videoConfig) != ESP_OK)
+    {
+        Serial.println("VIDEO_CONFIGURE_FAILED");
+        return;
+    }
+    // Registered while stopped: the device refuses callbacks after begin().
+    if (camera.onFrameComplete(armNextFrame) != ESP_OK)
+    {
+        Serial.println("VIDEO_CALLBACK_FAILED");
+        return;
+    }
 
     EspUsbDeviceConfig config;
     config.vid = 0x303a;
@@ -99,7 +132,6 @@ void setup()
         return;
     }
 
-    camera.onFrameComplete(armNextFrame);
     Serial.println("VIDEO_DEVICE_READY");
 }
 
@@ -111,8 +143,8 @@ void setup()
 //
 // maxFrameSize() here is the descriptor's dwMaxVideoFrameBufferSize, which is
 // what the host decodes. It is deliberately not the same number as the
-// dwMaxVideoFrameSize a Probe/Commit exchange settles on: for MJPEG, TinyUSB
-// recomputes that as width * height * 2 and ignores the descriptor. Comparing
+// dwMaxVideoFrameSize a Probe/Commit exchange settles on: for MJPEG, the device
+// may recompute that as width * height * 2 and ignores the descriptor. Comparing
 // the two would fail for every compressed format.
 static void reportVideoFacts()
 {
@@ -121,8 +153,8 @@ static void reportVideoFacts()
                   camera.height(),
                   camera.frameRate(),
                   static_cast<unsigned long>(camera.maxFrameSize()),
-                  EspUsbDeviceVideo::bulkStreaming() ? 64 : EspUsbDeviceVideo::isochronousPacketSize(false),
-                  EspUsbDeviceVideo::bulkStreaming() ? 1 : 0);
+                  camera.bulkStreaming() ? 64 : camera.isochronousPacketSize(false),
+                  camera.bulkStreaming() ? 1 : 0);
     Serial.printf("DEVICE_VIDEO_DESC len=%u\n", camera.descriptorLength(false));
     Serial.printf("DEVICE_VIDEO_FRAME bytes=%u\n", static_cast<unsigned>(FRAME_BYTES));
 }
@@ -166,20 +198,23 @@ void loop()
             Serial.printf("DEVICE_VIDEO_ATTACHED %u\n", device.begin(config) ? 1 : 0);
         }
     }
-    // The host selecting a streaming alternate is what starts the stream. Prime
-    // the first frame here: after that each one is armed from the completion of
-    // the last.
+    // The host selecting a streaming alternate (or, for bulk, committing) is what
+    // starts the stream. The first frame is armed here; after that each one is
+    // armed from the completion of the last, and here again if one was cancelled.
     const bool streaming = camera.streaming();
     if (streaming && !streamingReported)
     {
         streamingReported = true;
         Serial.println("DEVICE_VIDEO_STREAMING 1");
-        armNextFrame();
     }
     else if (!streaming && streamingReported)
     {
         streamingReported = false;
         Serial.println("DEVICE_VIDEO_STREAMING 0");
+    }
+    if (streaming)
+    {
+        armNextFrame();
     }
     delay(5);
 }

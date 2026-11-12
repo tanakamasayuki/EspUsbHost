@@ -53,9 +53,12 @@ void loop()
     const char command = Serial.read();
     if (command == '?')
     {
+      // link= is the host's SET_CONFIGURATION, which the tests wait for. Not
+      // net.linkUp(): from 3.x that turns true only once the host selects the
+      // data interface's alternate, i.e. after it attaches the network.
       Serial.printf("DEVICE_READY ip=%s link=%u\n",
                     net.localIP().toString().c_str(),
-                    net.linkUp() ? 1 : 0);
+                    device.ready() ? 1 : 0);
     }
     else if (command == 'e')
     {

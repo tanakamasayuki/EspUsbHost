@@ -314,7 +314,9 @@ void loop()
     {
       uint8_t buffer[64] = {};
       size_t actual = 0;
-      const bool ok = usb.vendorControlIn(0x01, 0, 0, buffer, sizeof(buffer), &actual, deviceAddress);
+      // WebUSB GET_URL: the peer's vendor code (0x01), URL descriptor index 1 in
+      // wValue, and wIndex 2 (GET_URL). The device answers only this exact form.
+      const bool ok = usb.vendorControlIn(0x01, 1, 2, buffer, sizeof(buffer), &actual, deviceAddress);
       bool found = false;
       static const char expected[] = "example.com/espusbdevice";
       for (size_t i = 0; ok && i + sizeof(expected) - 1 <= actual; i++)

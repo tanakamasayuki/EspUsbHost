@@ -2,17 +2,14 @@
 
 // Device half of the bulk IN throughput sweep, on EspUsbDevice's direct transfer
 // path: writeDirect() arms one transfer on this sketch's own memory instead of
-// copying through the class transmit FIFO, and onTxComplete() arms the next from
-// the completion. That is what keeps the stream gapless.
+// copying through the class transmit FIFO, and onDirectTxComplete() arms the
+// next from the completion. That is what keeps the stream gapless.
 //
 // The buffered pairing lives in tests/peer/usb_vendor_read/peer_device and is
-// the correctness peer; this one exists to measure a rate, and the two cannot
-// share a sketch because the direct path is selected by a build_opt.h flag that
-// reaches every profile of the sketch it sits beside.
+// the correctness peer; this one exists to measure a rate.
 //
-// In a direct build the class FIFOs are gone: available() and read() return 0
-// and flush() does nothing, so the host's 'S' command arrives through onRxData()
-// rather than being polled from loop().
+// The host's 'S' command arrives through onRxData() (rxMode Callback) on the
+// USB worker, which is where the first transfer is armed.
 
 EspUsbDevice device;
 EspUsbDeviceVendor Vendor(device);
@@ -51,11 +48,15 @@ void setup()
     blockBuffer[i] = static_cast<uint8_t>(i);
   }
 
-  // Says whether the build flag actually took. The library keeps the buffered
-  // behaviour silently when it did not, and the only other symptom is a
-  // throughput number that looks like the buffered path.
   Serial.printf("DEVICE_DIRECT %u\n", EspUsbDeviceVendor::directWriteSupported() ? 1 : 0);
   Serial.printf("DEVICE_CHUNK %u\n", static_cast<unsigned>(BLOCK_BYTES));
+
+  EspUsbVendorConfig vendorConfig = Vendor.configuration();
+  vendorConfig.rxMode = EspUsbBulkRxMode::Callback;
+  if (Vendor.configure(vendorConfig) != ESP_OK)
+  {
+    Serial.println("DEVICE_CONFIGURE_FAILED");
+  }
 
   Vendor.onRxData([](const uint8_t *data, size_t length)
                   {
@@ -73,8 +74,14 @@ void setup()
 
   // Arming the next transfer from the completion is the whole point: the
   // endpoint never goes idle between blocks.
-  Vendor.onTxComplete([](size_t sent)
+  Vendor.onDirectTxComplete([](const EspUsbTransferResult &result)
                       {
+                        if (result.status != EspUsbTransferStatus::Success)
+                        {
+                          streamRemaining = 0;
+                          return;
+                        }
+                        const size_t sent = result.actualBytes;
                         const size_t remaining = streamRemaining;
                         streamRemaining = sent >= remaining ? 0 : remaining - sent;
                         armNext();

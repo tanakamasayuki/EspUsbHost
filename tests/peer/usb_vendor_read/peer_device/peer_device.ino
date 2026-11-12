@@ -19,10 +19,7 @@ EspUsbDeviceVendor Vendor(device);
 // chunk reaches 24.45 MB/s.
 // Overridable so a rate measurement can hand over bigger blocks without that
 // choice leaking into the correctness pairing that shares this sketch. Raising
-// it is only useful together with a larger CFG_TUD_VENDOR_TX_BUFSIZE, and both
-// belong in the build_opt.h of the sketch that wants them -- build_opt.h applies
-// to every profile of the sketch it sits next to, which is why the measurement
-// gets its own directory rather than flags here.
+// it is only useful together with a larger txCapacity in configure() below.
 #ifndef PEER_DEVICE_CHUNK_MAX
 #define PEER_DEVICE_CHUNK_MAX 8192
 #endif
@@ -50,8 +47,13 @@ static void handleCommand(const uint8_t *data, size_t length)
     streamRequests++;
     return;
   }
-  Vendor.write(reinterpret_cast<const uint8_t *>("echo:"), 5);
-  Vendor.write(data, length);
+  // One write, so the reply leaves as one transfer: with autoFlush (3.x's
+  // default) a separate "echo:" write would go out on its own.
+  uint8_t reply[5 + 64];
+  const size_t replyLength = 5 + (length < 64 ? length : 64);
+  memcpy(reply, "echo:", 5);
+  memcpy(reply + 5, data, replyLength - 5);
+  Vendor.write(reply, replyLength);
   Vendor.flush();
 }
 
@@ -110,15 +112,23 @@ void setup()
   Serial.begin(115200);
   delay(500);
 
-  Vendor.onRx([](size_t)
-              { processVendorRx(); });
-
-  chunkSize = EspUsbDeviceVendor::writeCapacity();
-  if (chunkSize > CHUNK_MAX)
+  // Received data is read from loop(): onRx() runs on the USB worker, which
+  // must not block on the transmit FIFO that the echo writes into.
+  //
+  // The 2.x sizes, which this pairing was measured with: 512 bytes each way,
+  // and on the P4 a 4096-byte transmit FIFO sent 4096 bytes at a time. 2.x also
+  // ended a transfer whose length is a multiple of the packet size with a
+  // zero-length packet; 3.x does not unless asked, so ask.
+  EspUsbVendorConfig vendorConfig = Vendor.configuration();
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  vendorConfig.txCapacity = 4096;
+  vendorConfig.transferBytes = 4096;
+#endif
+  vendorConfig.streamTermination = EspUsbStreamTermination::EndWithShortPacket;
+  if (Vendor.configure(vendorConfig) != ESP_OK)
   {
-    chunkSize = CHUNK_MAX;
+    Serial.println("DEVICE_CONFIGURE_FAILED");
   }
-  Serial.printf("DEVICE_CHUNK %u\n", static_cast<unsigned>(chunkSize));
 
   EspUsbDeviceConfig config;
   config.vid = 0x303a;
@@ -126,16 +136,21 @@ void setup()
   config.manufacturer = "EspUsbDevice";
   config.product = "EspUsbDevice USB Vendor";
   config.serialNumber = "espusb-usb-vendor-read";
-  Serial.printf("DEVICE_BEGIN %u\n", device.begin(config) ? 1 : 0);
+  const bool begun = device.begin(config);
+  // The transmit FIFO is allocated by begin(), so its size is read afterwards.
+  chunkSize = Vendor.writeCapacity();
+  if (chunkSize > CHUNK_MAX)
+  {
+    chunkSize = CHUNK_MAX;
+  }
+  Serial.printf("DEVICE_CHUNK %u\n", static_cast<unsigned>(chunkSize));
+  Serial.printf("DEVICE_BEGIN %u\n", begun ? 1 : 0);
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
   // Which bulk IN endpoints actually came up with a two-packet transmit FIFO.
   // Read back after begin(), because EspUsbBulkInBuffering::Auto decides it from
   // the DFIFO budget and quietly leaves one packet when it does not fit. That
   // matters for the throughput sweep: a one-packet device holds this link near
-  // 24 MB/s, which is easy to misread as the host's own ceiling. The released
-  // library and the working tree both report version "2.3.0", so this value --
-  // not the version -- is what says which one is on the board. P4 only: the
-  // accessor does not exist in the release the S3 profile pins.
+  // 24 MB/s, which is easy to misread as the host's own ceiling.
   Serial.printf("DEVICE_BULK_IN_DOUBLE_BUFFERED 0x%04x\n",
                 static_cast<unsigned>(device.bulkInDoubleBuffered()));
 #endif

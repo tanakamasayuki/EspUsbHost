@@ -86,10 +86,10 @@ uv run --env-file .env pytest --combo all -q -rs
 ビルドはsketchディレクトリ毎にキャッシュされますが、無効化されるべき変更すべてでは無効化されません。ソースではなく**ビルド入力**が変わったときは `--clean` を付けます（`arduino-cli compile` に `--clean` を渡し、事前に古い生成物を削除します）：
 
 ```sh
-uv run --env-file .env pytest --clean peer/usb_ncm_throughput
+uv run --env-file .env pytest --clean peer/usb_ncm
 ```
 
-必須なのは、コンパイラフラグの変更（sketchの `build_opt.h`。例: `peer/usb_ncm_throughput` のpeer）、`sketch.yaml` のprofile変更、arduino-esp32 coreのバージョン更新のとき。付けないと前回のバイナリが黙って使われることがあります。`build_opt.h` の変更はsketch本体には反映されるのにキャッシュされたライブラリは再利用されるため、2つの異なる設定が混ざったfirmwareができ、テストが主張している内容と別のものを測ってしまいます。
+必須なのは、コンパイラフラグの変更（sketchの `build_opt.h`）、`sketch.yaml` のprofile変更、arduino-esp32 coreのバージョン更新のとき。付けないと前回のバイナリが黙って使われることがあります。`build_opt.h` の変更はsketch本体には反映されるのにキャッシュされたライブラリは再利用されるため、2つの異なる設定が混ざったfirmwareができ、テストが主張している内容と別のものを測ってしまいます。（EspUsbDevice の peer は大きさを実行時に `configure()` で決めるので、`build_opt.h` を持ちません。）
 
 テスト結果は実行間で保存されます（`--save-state` がデフォルトで有効）。前回失敗したテストだけを再実行する場合：
 

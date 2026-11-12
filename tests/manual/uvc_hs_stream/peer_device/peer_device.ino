@@ -1,9 +1,10 @@
 // Camera peer for tests/manual/uvc_hs_stream.
 //
 // Deliberately *not* the peer from tests/peer/usb_video: that one pins its
-// isochronous payload to 112 bytes with a build_opt.h, because a full-speed host
-// cannot receive more. This one takes the library default, which is 1023 bytes on
-// an ESP32-P4, so the measurement exercises the size a real camera would ask for.
+// isochronous payload to 112 bytes, because a full-speed host cannot receive
+// more. This one asks for a 1023-byte payload (EspUsbDevice 2.x's P4 default;
+// 3.x defaults to 512 on every chip), so the measurement exercises the size a
+// real camera would ask for.
 //
 // The frames carry buffer[i] = i + n, the same pattern the correctness pairing
 // uses, so the host can check the bytes it reassembled rather than only counting
@@ -11,6 +12,7 @@
 // throughput is per-frame overhead; the declared maximum covers the largest.
 
 #include "EspUsbDevice.h"
+#include <atomic>
 
 EspUsbDevice device;
 EspUsbDeviceVideo camera(device, "EspUsb HS Camera");
@@ -43,22 +45,33 @@ static void fillFrame()
 // Arming the next frame from the completion callback is the shape EspUsbDevice
 // documents: it is what keeps the endpoint busy. Nothing else belongs in here --
 // this runs on the USB device task.
+//
+// loop() also arms when nothing is in flight: a new Probe/Commit cancels the
+// frame in flight, and nothing else would arm the next one. The guard keeps the
+// two paths from refilling the buffer while the device still borrows it.
+static std::atomic<bool> arming{false};
+
 static void armNextFrame()
 {
-    if (!camera.streaming())
+    bool expected = false;
+    if (!arming.compare_exchange_strong(expected, true))
     {
         return;
     }
-    frameNumber++;
-    fillFrame();
-    if (camera.sendFrame(frameBuffer, frameBytes))
+    if (camera.streaming() && !camera.frameInFlight())
     {
-        framesSent++;
+        frameNumber++;
+        fillFrame();
+        if (camera.sendFrame(frameBuffer, frameBytes))
+        {
+            framesSent++;
+        }
+        else
+        {
+            armFailures++;
+        }
     }
-    else
-    {
-        armFailures++;
-    }
+    arming.store(false);
 }
 
 void setup()
@@ -72,6 +85,20 @@ void setup()
     // Declared maximum, so the host sizes its frame buffer for the largest length
     // this sketch can be asked to send. Frames shorter than this are legal.
     camera.setMaxFrameSize(MAX_FRAME_BYTES);
+
+    EspUsbVideoConfig videoConfig;
+    videoConfig.payloadBytes = 1023;
+    if (camera.configure(videoConfig) != ESP_OK)
+    {
+        Serial.println("VIDEO_CONFIGURE_FAILED");
+        return;
+    }
+    // Registered while stopped: the device refuses callbacks after begin().
+    if (camera.onFrameComplete(armNextFrame) != ESP_OK)
+    {
+        Serial.println("VIDEO_CALLBACK_FAILED");
+        return;
+    }
 
     EspUsbDeviceConfig config;
     config.vid = 0x303a;
@@ -89,7 +116,6 @@ void setup()
         return;
     }
 
-    camera.onFrameComplete(armNextFrame);
     Serial.println("VIDEO_DEVICE_READY");
 }
 
@@ -100,11 +126,11 @@ static void reportFacts()
                   camera.height(),
                   camera.frameRate(),
                   static_cast<unsigned long>(camera.maxFrameSize()),
-                  EspUsbDeviceVideo::isochronousPacketSize(true),
-                  EspUsbDeviceVideo::bulkStreaming() ? 1 : 0);
+                  camera.isochronousPacketSize(true),
+                  camera.bulkStreaming() ? 1 : 0);
     Serial.printf("DEVICE_VIDEO_DESC len=%u staging=%u\n",
                   camera.descriptorLength(true),
-                  EspUsbDeviceVideo::payloadBufferSize());
+                  static_cast<unsigned>(camera.payloadBufferSize()));
     Serial.printf("DEVICE_VIDEO_FRAME bytes=%u\n", static_cast<unsigned>(frameBytes));
 }
 
@@ -150,12 +176,15 @@ void loop()
         frameBytes = FRAME_SIZES[0];
         frameSizeChangedMs = millis();
         Serial.println("DEVICE_VIDEO_STREAMING 1");
-        armNextFrame();
     }
     else if (!streaming && streamingReported)
     {
         streamingReported = false;
         Serial.println("DEVICE_VIDEO_STREAMING 0");
+    }
+    if (streaming)
+    {
+        armNextFrame();
     }
 
     // Step through the frame lengths so one run produces a table. The next frame

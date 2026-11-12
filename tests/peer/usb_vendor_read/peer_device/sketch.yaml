@@ -5,35 +5,35 @@ profiles:
       - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (2.6.1)
+      - EspUsbDevice (3.2.0)
   s3b_device:
     fqbn: esp32:esp32:esp32s3:USBMode=default
     platforms:
       - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (2.6.1)
+      - EspUsbDevice (3.2.0)
   s2_device:
     fqbn: esp32:esp32:esp32s2
     platforms:
       - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (2.6.1)
+      - EspUsbDevice (3.2.0)
   p4_hs_device:
     fqbn: esp32:esp32:esp32p4:ChipVariant=prev3,USBMode=default,CDCOnBoot=default
     platforms:
       - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (2.6.1)
+      - EspUsbDevice (3.2.0)
   p4x_hs_device:
     fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,USBMode=hwcdc,CDCOnBoot=cdc
     platforms:
       - platform: esp32:esp32 (3.3.12)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - EspUsbDevice (2.6.1)
+      - EspUsbDevice (3.2.0)
 
 # Outside the combos: the device of the hand-wired ESP32-P4 HS pair (see
 # p4_peer_host). Flashed by hand; Serial stays on the USB-Serial-JTAG port.
@@ -46,6 +46,6 @@ profiles:
       # 2.4.0 rather than the 2.3.0 the S3 profile uses: the two-packet bulk IN
       # transmit FIFO landed in 2.4.0, and so did bulkInDoubleBuffered(), which
       # this sketch prints on the P4 so a run says whether it actually applied.
-      - EspUsbDevice (2.6.1)
+      - EspUsbDevice (3.2.0)
 
 default_profile: s3_device

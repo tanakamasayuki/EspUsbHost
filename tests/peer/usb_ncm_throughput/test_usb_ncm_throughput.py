@@ -85,7 +85,7 @@ def test_usb_ncm_throughput(dut, peers):
     """Sustained traffic in both directions over the USB NIC.
 
     The peer advertises a dwNtbInMaxSize larger than the host's preferred
-    receive buffer (see peer_device/build_opt.h) and writes in bursts, so it
+    receive buffer (set with configure() in peer_device) and writes in bursts, so it
     batches several datagrams per NTB the way a real USB NIC does under load.
     Before the host negotiated the NTB input size, every NTB above its fixed
     3200-byte buffer was dropped whole and device->host throughput collapsed
@@ -99,10 +99,8 @@ def test_usb_ncm_throughput(dut, peers):
     and is not covered here.
     """
     device = peers["device"]
-    # Informational only. This is the peer sketch's own CFG_TUD_NCM_IN_NTB_MAX_SIZE
-    # macro, which disagrees with what the device advertises on the wire whenever
-    # arduino-cli reuses a cached EspUsbDevice build that predates build_opt.h --
-    # the host's negotiated size below is the authority.
+    # Informational only: the NTB IN size the peer configured. The host's
+    # negotiated size below is the authority on what went over the wire.
     device_ntb_in = _wait_device_link(device)
 
     dut.expect_exact("HOST_CONNECTED")
@@ -145,12 +143,9 @@ def test_usb_ncm_throughput(dut, peers):
     # The negotiated size comes from the device's GET_NTB_PARAMETERS answer, so
     # it is what the peer really advertises. It has to exceed the host's former
     # fixed 3200 for this test to exercise anything: a smaller value means the
-    # peer binary predates build_opt.h, which arduino-cli happily reuses from
-    # peer_device/build even after the flags change.
+    # peer's configure() of ntbInBytes did not take.
     assert negotiated > 3200, (
-        f"peer advertises only {negotiated} bytes (its sketch reports {device_ntb_in}); "
-        "re-run with --clean so the peer's build_opt.h takes effect for the cached "
-        "EspUsbDevice build too"
+        f"peer advertises only {negotiated} bytes (its sketch reports {device_ntb_in})"
     )
     # A multiple of the bulk IN max packet size (64 on this full-speed peer),
     # because ESP-IDF specifies IN transfer lengths as integer multiples of MPS.

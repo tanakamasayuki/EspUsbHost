@@ -17,7 +17,7 @@ static bool startDevice()
   config.product = "EspUsbDevice USB Vendor";
   config.serialNumber = "espusb-usb-vendor";
   config.webusbEnabled = true;
-  config.webusbUrl = "example.com/espusbdevice";
+  config.webusbUrl = "https://example.com/espusbdevice";
   return device.begin(config);
 }
 
@@ -33,8 +33,13 @@ static void processVendorRx()
       break;
     }
     rxCount += chunk;
-    Vendor.write(reinterpret_cast<const uint8_t *>("echo:"), 5);
-    Vendor.write(buffer, chunk);
+    // One write, so the reply leaves as one transfer: with autoFlush (3.x's
+    // default) a separate "echo:" write would go out on its own.
+    uint8_t reply[5 + 64];
+    const size_t replyLength = 5 + (chunk < 64 ? chunk : 64);
+    memcpy(reply, "echo:", 5);
+    memcpy(reply + 5, buffer, replyLength - 5);
+    Vendor.write(reply, replyLength);
     Vendor.flush();
     available = Vendor.available();
   }
@@ -45,11 +50,25 @@ void setup()
   Serial.begin(115200);
   delay(500);
 
-  Vendor.onRx([](size_t)
-              { processVendorRx(); });
+  // Received data is read from loop(): onRx() runs on the USB worker, which
+  // must not block on the transmit FIFO that the echo writes into. 2.x ended a
+  // transfer whose length is a multiple of the packet size with a zero-length
+  // packet; 3.x does not unless asked, so ask.
+  EspUsbVendorConfig vendorConfig = Vendor.configuration();
+  vendorConfig.streamTermination = EspUsbStreamTermination::EndWithShortPacket;
+  if (Vendor.configure(vendorConfig) != ESP_OK)
+  {
+    Serial.println("DEVICE_CONFIGURE_FAILED");
+  }
 
+  // Called once per control stage. Both requests are answered at SETUP; the
+  // later stages only acknowledge (0x11 has no data stage).
   Vendor.onControlRequest([](const EspUsbDeviceVendorControlRequest &request)
                           {
+                            if (request.stage != ESP_USB_DEVICE_CONTROL_STAGE_SETUP)
+                            {
+                              return true;
+                            }
                             controlCount++;
                             static const char info[] = "EspUsbDeviceVendor";
                             if ((request.bmRequestType & 0x80) && request.bRequest == 0x10)

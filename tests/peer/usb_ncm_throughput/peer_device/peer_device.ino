@@ -7,16 +7,11 @@
 //   port 9000: sink   - reads and discards everything the host sends
 //   port 9001: source - writes as fast as the host reads
 //
-// build_opt.h raises CFG_TUD_NCM_IN_NTB_MAX_SIZE above the host's fixed 3200
-// byte reassembly buffer, which is legal for the device: the host never issues
-// SET_NTB_INPUT_SIZE, so the device keeps its own advertised maximum.
-
-// Mirrors the TinyUSB default in EspUsbDevice's class/net/ncm.h. build_opt.h
-// overrides it for both the library and this sketch, so the reported value is
-// what the device actually advertises in dwNtbInMaxSize.
-#ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
-#define CFG_TUD_NCM_IN_NTB_MAX_SIZE 3200
-#endif
+// configure() below raises the IN NTB size (dwNtbInMaxSize) above the host's
+// fixed 3200 byte reassembly buffer, which is legal for the device: the host
+// never issues SET_NTB_INPUT_SIZE, so the device keeps its own advertised
+// maximum. Three IN NTBs of up to eight datagrams each, as before.
+static constexpr size_t NTB_IN_BYTES = 8192;
 
 EspUsbDevice device;
 EspUsbDeviceNet net(device);
@@ -34,6 +29,16 @@ void setup()
 {
   Serial.begin(115200);
   delay(500);
+
+  EspUsbNetConfig netConfig = net.configuration();
+  netConfig.ntbInBytes = NTB_IN_BYTES;
+  netConfig.txBuffers = 3;
+  netConfig.maxDatagrams = 8;
+  if (net.configure(netConfig) != ESP_OK)
+  {
+    Serial.println("NET_CONFIGURE 0");
+    return;
+  }
 
   net.ipConfig(IPAddress(192, 168, 7, 1), IPAddress(192, 168, 7, 1), IPAddress(255, 255, 255, 0));
   net.dhcpServer(true);
@@ -64,7 +69,7 @@ void setup()
 
   Serial.printf("DEVICE_BEGIN 1 ip=%s ntbIn=%u\n",
                 net.localIP().toString().c_str(),
-                static_cast<unsigned>(CFG_TUD_NCM_IN_NTB_MAX_SIZE));
+                static_cast<unsigned>(net.configuration().ntbInBytes));
 }
 
 void loop()
@@ -118,10 +123,13 @@ void loop()
     const char command = Serial.read();
     if (command == '?')
     {
+      // link= is the host's SET_CONFIGURATION, which the tests wait for. Not
+      // net.linkUp(): from 3.x that turns true only once the host selects the
+      // data interface's alternate, i.e. after it attaches the network.
       Serial.printf("DEVICE_READY ip=%s link=%u ntbIn=%u\n",
                     net.localIP().toString().c_str(),
-                    net.linkUp() ? 1 : 0,
-                    static_cast<unsigned>(CFG_TUD_NCM_IN_NTB_MAX_SIZE));
+                    device.ready() ? 1 : 0,
+                    static_cast<unsigned>(net.configuration().ntbInBytes));
     }
     else if (command == 'c')
     {
