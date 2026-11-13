@@ -89,7 +89,7 @@ uv run --env-file .env pytest --combo all -q -rs
 uv run --env-file .env pytest --clean peer/usb_ncm
 ```
 
-必須なのは、コンパイラフラグの変更（sketchの `build_opt.h`）、`sketch.yaml` のprofile変更、arduino-esp32 coreのバージョン更新のとき。付けないと前回のバイナリが黙って使われることがあります。`build_opt.h` の変更はsketch本体には反映されるのにキャッシュされたライブラリは再利用されるため、2つの異なる設定が混ざったfirmwareができ、テストが主張している内容と別のものを測ってしまいます。（EspUsbDevice の peer は大きさを実行時に `configure()` で決めるので、`build_opt.h` を持ちません。）
+必須なのは、コンパイラフラグの変更（sketchの `build_opt.h`）のとき。`sketch.yaml` のprofile変更（coreやlibraryの版を含む）は、pytest-embedded-arduino-cli 1.12.0 からpluginがbuild pathにprofileを記録し、違えば自動でcleanするので不要です。付けないと前回のバイナリが黙って使われることがあります。`build_opt.h` の変更はsketch本体には反映されるのにキャッシュされたライブラリは再利用されるため、2つの異なる設定が混ざったfirmwareができ、テストが主張している内容と別のものを測ってしまいます。（EspUsbDevice の peer は大きさを実行時に `configure()` で決めるので、`build_opt.h` を持ちません。）
 
 テスト結果は実行間で保存されます（`--save-state` がデフォルトで有効）。前回失敗したテストだけを再実行する場合：
 

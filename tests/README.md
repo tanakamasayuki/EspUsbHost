@@ -103,8 +103,10 @@ inputs changed rather than the sources:
 uv run --env-file .env pytest --clean peer/usb_ncm
 ```
 
-Required after changing compiler flags (a sketch's `build_opt.h`), changing a
-profile in `sketch.yaml`, or upgrading the arduino-esp32 core. Without it a run
+Required after changing compiler flags (a sketch's `build_opt.h`). A change to
+a profile in `sketch.yaml` -- a core or library version included -- no longer
+needs it: from pytest-embedded-arduino-cli 1.12.0 the plugin records the profile
+in the build path and cleans by itself when it differs. Without it a run
 can silently use the previous binary: a `build_opt.h` change is picked up for
 the sketch itself while the cached library is reused, so the firmware ends up
 built from two different configurations and the test measures something other
