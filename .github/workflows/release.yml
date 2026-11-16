@@ -8,8 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       version_level:
-        description: "Version component to bump when forcing a release (major, minor, patch)"
-        required: false
+        description: "Version component to bump when forcing a release"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
         default: "patch"
 
 permissions:
@@ -24,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -35,12 +40,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
       - name: Set up Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
+        # arduino/setup-arduino-cli@v2 still runs on Node 20, so install via the official script instead.
+        run: |
+          BINDIR="$HOME/.local/bin"
+          mkdir -p "$BINDIR"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR="$BINDIR" sh
+          echo "$BINDIR" >> "$GITHUB_PATH"
+          "$BINDIR/arduino-cli" version
 
       - name: Plan version bump
         id: version_plan
