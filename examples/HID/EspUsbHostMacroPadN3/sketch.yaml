@@ -15,4 +15,20 @@ profiles:
     libraries:
       - dir: ../../../
 
+  esp32p4x:
+    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,PSRAM=enabled
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../../
+
+  esp32p4x-v:
+    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,PSRAM=enabled,DebugLevel=verbose
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../../
+
 default_profile: esp32p4
