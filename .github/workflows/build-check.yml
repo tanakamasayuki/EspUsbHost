@@ -20,6 +20,14 @@ on:
       - "tools/build_check.py"
       - ".github/workflows/build-check.yml"
   workflow_dispatch:
+    inputs:
+      core_version:
+        # Build against another Arduino-ESP32 release (e.g. 3.3.13) without
+        # changing the repository: every example's sketch.yaml is rewritten in
+        # the runner before the build. Empty keeps the pinned version.
+        description: "Arduino-ESP32 core version to build with (empty = pinned)"
+        required: false
+        default: ""
 
 concurrency:
   group: build-check-${{ github.ref }}
@@ -55,9 +63,23 @@ jobs:
             ~/.arduino15
             ~/.cache/arduino
           # Keyed on the pinned platform lines in sketch.yaml so a core bump busts it.
-          key: arduino-${{ runner.os }}-${{ matrix.profile }}-${{ hashFiles('examples/**/sketch.yaml') }}
+          key: arduino-${{ runner.os }}-${{ matrix.profile }}-${{ inputs.core_version }}-${{ hashFiles('examples/**/sketch.yaml') }}
           restore-keys: |
-            arduino-${{ runner.os }}-${{ matrix.profile }}-
+            arduino-${{ runner.os }}-${{ matrix.profile }}-${{ inputs.core_version }}-
+
+      - name: Use the requested core version
+        if: ${{ inputs.core_version != '' }}
+        env:
+          CORE_VERSION: ${{ inputs.core_version }}
+        run: |
+          if ! [[ "$CORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::core_version must look like 3.3.13 or 4.0.0-RC1, got '$CORE_VERSION'"
+            exit 1
+          fi
+          find examples -name sketch.yaml -print0 |
+            xargs -0 sed -i -E "s/esp32:esp32 \([^)]*\)/esp32:esp32 ($CORE_VERSION)/"
+          grep -rhoE "esp32:esp32 \([^)]*\)" --include=sketch.yaml examples | sort | uniq -c
+          echo "Built with Arduino-ESP32 $CORE_VERSION (the repository pins another version)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update the Arduino library index
         # sketch.yaml library versions are resolved against the library index. A
