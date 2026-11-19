@@ -1,4 +1,9 @@
 name: Build Check
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+      && format('Build Check - Arduino-ESP32 {0}', inputs.core_version || 'pinned')
+      || github.event_name == 'pull_request' && github.event.pull_request.title
+      || github.event.head_commit.message }}
 
 # Compile the examples for the key targets so library changes that break a build
 # — especially ESP32-S2 `dram0_0_seg` overflows from growing static RAM use — are
@@ -35,6 +40,7 @@ concurrency:
 
 jobs:
   build:
+    name: ${{ matrix.profile }} (${{ inputs.core_version || 'pinned core' }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
