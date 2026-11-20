@@ -298,7 +298,8 @@ static constexpr uint32_t ESP_USB_HOST_CCID_DEFAULT_TIMEOUT_MS = 5000;
 
 // How the host controller splits its hardware FIFO between the three staging
 // areas, in lines of 4 bytes. The split caps the largest endpoint the host can
-// open: IN endpoints are limited to (rxFifoLines - 2) * 4, control/bulk OUT to
+// open: IN endpoints are limited to (rxFifoLines - 3) * 4 (- 2 before arduino-esp32
+// 3.3.13, whose driver reserved one status line less), control/bulk OUT to
 // nptxFifoLines * 4, and interrupt/isochronous OUT to ptxFifoLines * 4.
 //
 // Leave every field 0 to keep the driver default, which on a high-speed port is

@@ -6,8 +6,9 @@ Purpose:
     A full-speed host cannot receive isochronous IN packets much above 120 bytes:
     arduino-esp32 builds the host stack with
     CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT, and what that leaves for IN on a
-    256-line full-speed FIFO works out to (32 - 2) * 4. The high-speed port has
-    1024 lines and the same default is supposed to leave 2552 bytes, but that was
+    256-line full-speed FIFO works out to (32 - 2) * 4, or (32 - 3) * 4 from
+    arduino-esp32 3.3.13. The high-speed port has 1024 lines and the same
+    default is supposed to leave 2552 bytes (2548 from 3.3.13), but that was
     arithmetic rather than a measurement -- see
     docs/usb-host-advanced.md#53-isochronous-in-on-a-full-speed-port.
 

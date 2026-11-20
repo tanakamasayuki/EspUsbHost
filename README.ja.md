@@ -429,7 +429,7 @@ Host controllerはパケットをハードウェアFIFOに一時保存し、そ�
 
 | エンドポイント | 上限 | High-speedポートの既定値 |
 | --- | --- | --- |
-| IN（転送種別を問わず） | `(rxFifoLines - 2) * 4` | 約2400バイト |
+| IN（転送種別を問わず） | `(rxFifoLines - 3) * 4`（arduino-esp32 3.3.13より前は `- 2`） | 約2400バイト |
 | Control / bulk OUT | `nptxFifoLines * 4` | 1024バイト |
 | Interrupt / isochronous OUT | `ptxFifoLines * 4` | **512バイト** |
 

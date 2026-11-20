@@ -446,7 +446,7 @@ and the split caps how large an endpoint the host can open:
 
 | Endpoint | Limit | High-speed port default |
 | --- | --- | --- |
-| IN (any transfer type) | `(rxFifoLines - 2) * 4` | ~2400 bytes |
+| IN (any transfer type) | `(rxFifoLines - 3) * 4` (`- 2` before arduino-esp32 3.3.13) | ~2400 bytes |
 | Control / bulk OUT | `nptxFifoLines * 4` | 1024 bytes |
 | Interrupt / isochronous OUT | `ptxFifoLines * 4` | **512 bytes** |
 

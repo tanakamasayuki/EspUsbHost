@@ -32,6 +32,19 @@
 #define ESP_USB_HOST_HAS_FIFO_SETTINGS 1
 #endif
 
+// Lines the host driver keeps out of the rx FIFO for status entries, which is
+// what separates rxFifoLines from the largest IN packet it accepts. ESP-IDF
+// raised it from 2 to 3 (arduino-esp32 3.3.13) and names it in the HAL header
+// from then on; older cores have no such name and use 2.
+#if __has_include("hal/usb_dwc_hal.h")
+#include "hal/usb_dwc_hal.h"
+#endif
+#if defined(USB_DWC_HAL_RX_FIFO_STATUS_LINES)
+#define ESP_USB_HOST_RX_FIFO_STATUS_LINES USB_DWC_HAL_RX_FIFO_STATUS_LINES
+#else
+#define ESP_USB_HOST_RX_FIFO_STATUS_LINES 2
+#endif
+
 #if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_ERROR
 static const char *TAG = "EspUsbHost";
 #endif
@@ -8721,7 +8734,7 @@ void EspUsbHost::taskLoop()
              (unsigned long)fifo.nptxFifoLines,
              (unsigned long)fifo.ptxFifoLines,
              (unsigned long)totalLines,
-             (unsigned long)((fifo.rxFifoLines - 2) * 4),
+             (unsigned long)((fifo.rxFifoLines - ESP_USB_HOST_RX_FIFO_STATUS_LINES) * 4),
              (unsigned long)(fifo.nptxFifoLines * 4),
              (unsigned long)(fifo.ptxFifoLines * 4));
 #else
