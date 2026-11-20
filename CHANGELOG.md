@@ -3,6 +3,8 @@
 ## Unreleased
 - (EN) Examples and tests now build against arduino-esp32 3.3.13. Its host driver keeps one more line of the rx FIFO for status entries, so the largest IN packet is `(rxFifoLines - 3) * 4` instead of `- 2`; the FIFO log line at `begin()` takes the figure from ESP-IDF, and the docs give both. On a full-speed port that moves the isochronous IN ceiling from 120 to 116 bytes.
 - (JA) exampleとテストのarduino-esp32を3.3.13にした。3.3.13のhostドライバはrx FIFOを状態用にもう1ライン取るため、INの最大パケットは `(rxFifoLines - 2) * 4` ではなく `- 3` になる。`begin()` のFIFOのログはESP-IDFの値で計算し、文書には両方を書いた。フルスピードポートのisochronous INの上限は120バイトから116バイトになる。
+- (EN) `EspUsbHostAudioOutputMP3ESP8266Audio` now uses ESP8266Audio 2.4.3, which builds with the GCC of arduino-esp32 4.0.0; 2.4.1 stops on incompatible pointer types in libmad.
+- (JA) `EspUsbHostAudioOutputMP3ESP8266Audio` のESP8266Audioを2.4.3にした。2.4.1はarduino-esp32 4.0.0のGCCでlibmadのポインタ型の不一致がエラーになる。2.4.3は通る。
 
 ## 2.10.2
 - (EN) Fix an ESP-IDF assert (`usbh_dev_close ... num_ctrl_xfers_inflight == 0`) when `end()` was called while an isochronous video stream was running. `end()` stops the stream with a SET_INTERFACE it does not wait for, then stopped the library task -- the only one that completes a control transfer -- so a camera that answered late left the transfer in flight and the device was closed underneath it. `end()` now waits up to 1 s for outstanding asynchronous control transfers before stopping the library task, and the shutdown drain waits for them too, keeping the resources rather than asserting if one never finishes. Seen on every run with an ESP32-S2 EspUsbDevice 3.x camera in `peer/usb_video`.
