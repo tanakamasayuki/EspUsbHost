@@ -13,10 +13,8 @@
 #include <new>
 #include <utility>
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
 #include "hal/usb_dwc_ll.h"
 #include "soc/usb_dwc_struct.h"
-#endif
 
 // Targets whose DMA-capable memory is cached (ESP32-P4 and later) need explicit
 // cache maintenance around USB DMA buffers.
@@ -1859,13 +1857,16 @@ void EspUsbHost::end()
 
   ESP_LOGI(TAG, "Stopping USB Host");
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
   // Cut power to the root port first, while the whole stack is still running.
-  // A device left attached keeps the controller raising port interrupts, and one
-  // that arrives after the host library's own object has been freed faults inside
-  // its interrupt path (proc_req_callback <- intr_hdlr_main). Unpowering makes
-  // the device an ordinary disconnect, which the tasks below are still alive to
-  // process, so the teardown that follows runs on an empty bus.
+  // usb_host_uninstall() switches the port off itself, after it has cleared
+  // p_host_lib_obj, so a device on the port at that moment -- one left attached,
+  // or one that arrives while the teardown runs -- raises a disconnect interrupt
+  // that faults inside its interrupt path (proc_req_callback <- intr_hdlr_main),
+  // and hcd_port_deinit() refuses the port it is still using ("ESP_ERROR_CHECK
+  // failed" just before the panic). Unpowering here makes the device an ordinary
+  // disconnect, which the tasks below are still alive to process, and keeps any
+  // other device off the bus until the next begin(), so the teardown that follows
+  // runs on an empty bus.
   //
   // The timing matters as much as the call: doing this later, once the client is
   // deregistered and devices are being freed, makes the hub driver process a port
@@ -1876,11 +1877,22 @@ void EspUsbHost::end()
   // class API -- begin() followed by end() was enough -- and it reproduced
   // against the released 2.8.0, so it is an old fault rather than a new one.
   //
-  // Deliberately P4-only. The same sequence on an ESP32-S3 breaks the *next*
-  // begin(), which fails to allocate its pipe and aborts inside the hub driver --
-  // and the S3 teardown has never shown the fault this repairs, across a peer
-  // suite that stops and restarts the host in almost every module. This changes
-  // the controller where the fault was observed and leaves the other alone.
+  // An empty port is unpowered on every target. ESP32-S3 host with an ESP32-S2
+  // peer that had just rebooted (peer/usb_msc's idle restart): end() ran on an
+  // empty port, the peer came back during the teardown and the S3 panicked on
+  // every run. It was hidden until the two boards shared a power line, which
+  // changed how the peer's return lines up with end().
+  //
+  // A port with a device on it is unpowered on the ESP32-P4 only. The same
+  // sequence on an ESP32-S3 breaks the *next* begin(), which fails to allocate
+  // its pipe and aborts inside the hub driver -- and the S3 teardown has never
+  // shown the fault with a device that stays attached, across a peer suite that
+  // stops and restarts the host in almost every module. "Empty" there is read
+  // from the port's connect status as well as from the device count: a device
+  // still enumerating is in neither count, and unpowering under it broke the
+  // next begin() the same way on every run (peer/usb_vendor_read, S3 host and
+  // S2 peer, whose first step stops the host while the peer is enumerating).
+  //
   // A device that is already on its way out has to be allowed to finish leaving
   // before the port goes dark. Closing it makes the hub driver recycle the root
   // port, and root_port_recycle() switches on the port state with only ENABLED
@@ -1915,18 +1927,21 @@ void EspUsbHost::end()
     delay(5);
   }
   const bool portOccupied = attachedDevices() != 0;
-  if (!portOccupied)
+#if defined(CONFIG_IDF_TARGET_ESP32P4)
+  const bool unpower = true;
+#else
+  const bool unpower = !portOccupied && !usb_dwc_ll_hprt_get_conn_status(USB_DWC_LL_GET_HW(0));
+#endif
+  const esp_err_t powerErr = unpower ? usb_host_lib_set_root_port_power(false) : ESP_ERR_INVALID_STATE;
+  if (!unpower)
   {
-    ESP_LOGD(TAG, "Root port left powered: no device to disconnect");
+    ESP_LOGD(TAG, "Root port left powered: a device is attached");
   }
-  const esp_err_t powerErr = portOccupied
-                                 ? usb_host_lib_set_root_port_power(false)
-                                 : ESP_ERR_INVALID_STATE;
-  if (powerErr != ESP_OK && powerErr != ESP_ERR_INVALID_STATE)
+  else if (powerErr != ESP_OK)
   {
     ESP_LOGD(TAG, "usb_host_lib_set_root_port_power(false) failed: %s", esp_err_to_name(powerErr));
   }
-  else if (powerErr == ESP_OK)
+  else if (portOccupied)
   {
     // Wait for the disconnect to be processed rather than for a fixed time: the
     // tasks have to retire the device before they are asked to stop.
@@ -1936,7 +1951,6 @@ void EspUsbHost::end()
       delay(5);
     }
   }
-#endif
 
   // Let asynchronous control transfers finish while the library task still runs:
   // a control completion reaches the client only through
