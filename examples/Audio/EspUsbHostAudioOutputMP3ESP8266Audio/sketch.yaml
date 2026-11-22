@@ -5,7 +5,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32s3-v:
@@ -14,7 +14,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32p4:
@@ -23,7 +23,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32p4-v:
@@ -32,7 +32,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32p4x:
@@ -41,7 +41,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32p4x-v:
@@ -50,7 +50,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32s31:
@@ -59,7 +59,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32s31-v:
@@ -68,7 +68,7 @@ profiles:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
   esp32s2:
@@ -77,7 +77,7 @@ profiles:
       - platform: esp32:esp32 (3.3.13)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
-      - dir: ../../../
+      - EspUsbHost (2.11.0)
       - ESP8266Audio (2.4.3)
 
 default_profile: esp32s3
