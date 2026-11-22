@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <FS.h>
+#include <atomic>
 #include <functional>
 #include <memory>
 #include "soc/soc_caps.h"
@@ -3791,6 +3792,7 @@ private:
   static void vendorInTransferCallback(usb_transfer_t *transfer);
 
   void taskLoop();
+  void watchRootPort(uint32_t &stuckSinceMs, uint32_t &idleSinceMs, uint8_t &cycles);
   void clientTaskLoop();
   void handleClientEvent(const usb_host_client_event_msg_t *eventMsg);
   void handleNewDevice(uint8_t address);
@@ -4182,6 +4184,12 @@ private:
   TaskHandle_t clientTaskHandle_ = nullptr;
   volatile bool running_ = false;
   volatile bool ready_ = false;
+  // The root-port watchdog in taskLoop() power-cycles the port; end() switches it
+  // off for good. stopping_ keeps the watchdog from starting once end() has
+  // begun, and end() waits for rootPortCycling_ to clear so a cycle that already
+  // started cannot switch the port back on underneath the teardown.
+  std::atomic<bool> stopping_{false};
+  std::atomic<bool> rootPortCycling_{false};
   // Guards the check-and-claim of EndpointState::transferSubmitted. One lock for
   // every endpoint rather than one each: it is held for a compare and a store,
   // never across the driver call, so contention is not a consideration and a

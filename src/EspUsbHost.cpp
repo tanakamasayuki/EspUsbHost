@@ -25,6 +25,13 @@
 
 #include "hal/usb_dwc_ll.h"
 #include "soc/usb_dwc_struct.h"
+// See watchRootPort(): the root-port stall it recovers from is in the
+// espressif/usb component that arduino-esp32 4.0.0 (ESP-IDF 6) ships.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#define ESP_USB_HOST_HAS_ROOT_PORT_WATCHDOG 1
+#else
+#define ESP_USB_HOST_HAS_ROOT_PORT_WATCHDOG 0
+#endif
 
 // Targets whose DMA-capable memory is cached (ESP32-P4 and later) need explicit
 // cache maintenance around USB DMA buffers.
@@ -1781,6 +1788,7 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
   }
 
   config_ = config;
+  stopping_ = false;
   running_ = true;
   ready_ = false;
   lastError_ = ESP_OK;
@@ -1848,6 +1856,7 @@ void EspUsbHost::end()
     setLastError(ESP_ERR_INVALID_STATE);
     return;
   }
+  stopping_ = true;
 
   // A mounted volume holds a FatFs drive slot, a registered VFS path and a
   // mscFatMounts entry, and none of them survive the block device going away.
@@ -1951,6 +1960,13 @@ void EspUsbHost::end()
   };
   const uint32_t settleUntilMs = millis() + 250;
   while (attachedDevices() != 0 && millis() < settleUntilMs)
+  {
+    delay(5);
+  }
+  // A watchdog power cycle that was already under way finishes first, so it
+  // cannot switch the port back on after the power-off below.
+  const uint32_t cycleWaitStartedAtMs = millis();
+  while (rootPortCycling_ && millis() - cycleWaitStartedAtMs < 1000)
   {
     delay(5);
   }
@@ -8920,15 +8936,26 @@ void EspUsbHost::taskLoop()
            static_cast<unsigned>(config_.taskPriority),
            static_cast<int>(config_.taskCore));
 
+#if ESP_USB_HOST_HAS_ROOT_PORT_WATCHDOG
+  uint32_t stuckSinceMs = 0;
+  uint32_t idleSinceMs = 0;
+  uint8_t rootPortCycles = 0;
+  const TickType_t eventWait = pdMS_TO_TICKS(100);
+#else
+  const TickType_t eventWait = portMAX_DELAY;
+#endif
   while (running_)
   {
     uint32_t eventFlags = 0;
-    err = usb_host_lib_handle_events(portMAX_DELAY, &eventFlags);
+    err = usb_host_lib_handle_events(eventWait, &eventFlags);
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT)
     {
       ESP_LOGW(TAG, "usb_host_lib_handle_events() failed: %s", esp_err_to_name(err));
       setLastError(err);
     }
+#if ESP_USB_HOST_HAS_ROOT_PORT_WATCHDOG
+    watchRootPort(stuckSinceMs, idleSinceMs, rootPortCycles);
+#endif
   }
 
   const uint32_t clientStopStartedAtMs = millis();
@@ -8957,6 +8984,87 @@ void EspUsbHost::taskLoop()
   ESP_LOGI(TAG, "USB Host stopped");
   vTaskDelete(nullptr);
 }
+
+#if ESP_USB_HOST_HAS_ROOT_PORT_WATCHDOG
+// espressif/usb 1.6.1 (arduino-esp32 4.0.0) can leave the root port stuck. A
+// port reset whose "enabled" interrupt never comes fails ("HUB: Root port reset
+// failed") and leaves the HCD port in RESETTING and the hub driver in POWERED,
+// waiting for a disconnect to start its recovery. While the device stays on the
+// bus that disconnect never comes: HPRT reads connected, powered and not
+// enabled (0x00021401 on an ESP32-S3), nothing enumerates, and the host stays
+// that way until the cable is pulled. Seen on an ESP32-S3 host in
+// peer/usb_vendor's attach/detach cycles, with an ESP32-S3 or a 3.3.13 ESP32-S2
+// as the device, in roughly one run in four; 3.3.x showed it once in about 770.
+//
+// Clearing the port power bit in HPRT makes the controller report exactly that
+// disconnect, and the hub driver then recovers the port and powers it again on
+// its own path -- the same one a pulled cable takes. Going through
+// usb_host_lib_set_root_port_power() instead does not work: it marks the hub
+// port NOT_POWERED first, the hub then skips its recovery, the HCD port stays in
+// RECOVERY and the power-on is refused with ESP_ERR_INVALID_STATE.
+//
+// At most two attempts per connection, so a device that fails enumeration on
+// its own is not cycled forever; the count clears once a device enumerates or
+// the port has been empty for a second.
+void EspUsbHost::watchRootPort(uint32_t &stuckSinceMs, uint32_t &idleSinceMs, uint8_t &cycles)
+{
+  static constexpr uint32_t STUCK_MS = 3000;
+  static constexpr uint32_t IDLE_RESET_MS = 1000;
+  static constexpr uint8_t MAX_CYCLES = 2;
+
+#if defined(ESP_USB_HOST_HAS_FS_AND_HS_PORTS)
+  usb_dwc_dev_t *const dwc = USB_DWC_LL_GET_HW(config_.port == ESP_USB_HOST_PORT_FULL_SPEED ? 1 : 0);
+#else
+  usb_dwc_dev_t *const dwc = USB_DWC_LL_GET_HW(0);
+#endif
+  const uint32_t now = millis();
+  usb_host_lib_info_t info = {};
+  const bool haveDevice = usb_host_lib_info(&info) == ESP_OK && info.num_devices > 0;
+  const bool connected = usb_dwc_ll_hprt_get_conn_status(dwc);
+
+  if (haveDevice)
+  {
+    stuckSinceMs = 0;
+    idleSinceMs = 0;
+    cycles = 0;
+    return;
+  }
+  if (!connected)
+  {
+    stuckSinceMs = 0;
+    if (idleSinceMs == 0)
+    {
+      idleSinceMs = now;
+    }
+    else if (now - idleSinceMs >= IDLE_RESET_MS)
+    {
+      cycles = 0;
+    }
+    return;
+  }
+  idleSinceMs = 0;
+  if (stuckSinceMs == 0)
+  {
+    stuckSinceMs = now;
+    return;
+  }
+  if (now - stuckSinceMs < STUCK_MS || cycles >= MAX_CYCLES || stopping_)
+  {
+    return;
+  }
+
+  rootPortCycling_ = true;
+  if (!stopping_)
+  {
+    ++cycles;
+    ESP_LOGW(TAG, "Root port has a device that never enumerated (HPRT=0x%08lx); dropping port power to recover (%u/%u)",
+             (unsigned long)dwc->hprt_reg.val, (unsigned)cycles, (unsigned)MAX_CYCLES);
+    usb_dwc_ll_hprt_dis_pwr(dwc);
+  }
+  stuckSinceMs = 0;
+  rootPortCycling_ = false;
+}
+#endif
 
 void EspUsbHost::clientTaskLoop()
 {
