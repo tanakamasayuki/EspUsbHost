@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.11.0
 - (EN) Examples and tests now build against arduino-esp32 4.0.0 (ESP-IDF 6.1), except the ESP32-S2 profiles, which stay on 3.3.13: 4.0.0 does not ship the ESP-IDF USB Host Library for the ESP32-S2. Including `EspUsbHost.h` there now stops with an `#error` that says so, instead of a missing `usb/usb_host.h`. The test peers keep EspUsbDevice 3.2.0, which builds on 4.0.0.
 - (JA) exampleとテストのarduino-esp32を4.0.0（ESP-IDF 6.1）にした。ただしESP32-S2のprofileは3.3.13のまま。4.0.0にはESP32-S2用のESP-IDF USB Host Libraryが入っていないため。その組み合わせで `EspUsbHost.h` をincludeすると、`usb/usb_host.h` が見つからないエラーではなく、理由を書いた `#error` で止まる。テストのpeerはEspUsbDevice 3.2.0のままで、4.0.0でもbuildできる。
 - (EN) ESP32-S31 support (arduino-esp32 4.0.0 and later). Its only USB OTG controller is the high-speed one, so it gets what the ESP32-P4 high-speed port has: 16 host channels (seven CDC ports per device), `experimentalForceFullSpeed`, and the unconditional root-port power-off in `end()`. Its FIFO is smaller, though: a custom split is checked against 896 lines (3.5 kB), the depth its GHWCFG3 reports on the bench, where the ESP32-P4 high-speed port has 1024. The target checks now come from the SoC capabilities (a UTMI PHY, more than one OTG controller) rather than from `CONFIG_IDF_TARGET_ESP32P4`. Every example except `EspUsbHostP4FsPhyRouting` has `esp32s31` / `esp32s31-v` profiles, Build Check builds them, and the tests have the `s31_p4x_hs` combo.
