@@ -7,11 +7,8 @@
 #include "EspUsbHost.h"
 
 #include <Preferences.h>
-#include <esp_random.h>
 #include <mbedtls/base64.h>
-#include <mbedtls/bignum.h>
-#include <mbedtls/pk.h>
-#include <mbedtls/rsa.h>
+#include <psa/crypto.h>
 
 static constexpr uint8_t ADB_CLASS = 0xff;
 static constexpr uint8_t ADB_SUBCLASS = 0x42;
@@ -39,18 +36,17 @@ static constexpr char EXPECTED_OUTPUT[] = "ESP_USB_HOST_ADB_OK";
 class AdbKeyStore
 {
 public:
-    AdbKeyStore()
-    {
-        mbedtls_pk_init(&key_);
-    }
-
     ~AdbKeyStore()
     {
-        mbedtls_pk_free(&key_);
+        psa_destroy_key(key_);
     }
 
     bool begin()
     {
+        if (psa_crypto_init() != PSA_SUCCESS)
+        {
+            return false;
+        }
         if (load())
         {
             Serial.println("ADB key: loaded from NVS");
@@ -58,20 +54,10 @@ public:
         }
 
         Serial.println("ADB key: generating RSA-2048 key (first run only)...");
-        mbedtls_pk_free(&key_);
-        mbedtls_pk_init(&key_);
-        if (mbedtls_pk_setup(&key_, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0)
-        {
-            return false;
-        }
-
-        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(key_);
-        if (!rsa || mbedtls_rsa_gen_key(rsa, randomBytes, nullptr, 2048, 65537) != 0 ||
-            mbedtls_rsa_check_privkey(rsa) != 0)
-        {
-            return false;
-        }
-        if (!save())
+        psa_key_attributes_t attributes = keyAttributes();
+        const psa_status_t status = psa_generate_key(&attributes, &key_);
+        psa_reset_key_attributes(&attributes);
+        if (status != PSA_SUCCESS || !save())
         {
             return false;
         }
@@ -81,23 +67,25 @@ public:
 
     bool signToken(const uint8_t *token, size_t length, uint8_t *signature, size_t capacity)
     {
-        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(key_);
-        if (!rsa || !token || length != 20 || !signature || capacity < 256)
+        // en: adbd treats the 20-byte token as a SHA-1 digest and checks a PKCS#1 v1.5 signature.
+        // ja: adbdは20 byteのtokenをSHA-1のdigestとして扱い、PKCS#1 v1.5の署名を確かめる。
+        if (key_ == PSA_KEY_ID_NULL || !token || length != 20 || !signature || capacity < MODULUS_BYTES)
         {
             return false;
         }
-        return mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa,
-                                                 randomBytes,
-                                                 nullptr,
-                                                 MBEDTLS_MD_SHA1,
-                                                 static_cast<unsigned int>(length),
-                                                 token,
-                                                 signature) == 0;
+        size_t signatureLength = 0;
+        return psa_sign_hash(key_,
+                             PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_1),
+                             token,
+                             length,
+                             signature,
+                             capacity,
+                             &signatureLength) == PSA_SUCCESS &&
+               signatureLength == MODULUS_BYTES;
     }
 
     bool publicKey(uint8_t *output, size_t capacity, size_t &outputLength)
     {
-        static constexpr size_t MODULUS_BYTES = 256;
         struct __attribute__((packed)) AndroidRsaPublicKey
         {
             uint32_t modulusSizeWords;
@@ -108,46 +96,43 @@ public:
         } encoded = {};
 
         outputLength = 0;
-        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(key_);
-        if (!rsa || mbedtls_rsa_get_len(rsa) != MODULUS_BYTES)
+        uint8_t modulus[MODULUS_BYTES];
+        if (!exportModulus(modulus))
         {
             return false;
         }
 
-        mbedtls_mpi modulus;
-        mbedtls_mpi exponent;
-        mbedtls_mpi rr;
-        mbedtls_mpi_init(&modulus);
-        mbedtls_mpi_init(&exponent);
-        mbedtls_mpi_init(&rr);
+        // en: Android wants little-endian words, n0inv = -1/n mod 2^32 and rr = 2^4096 mod n.
+        // ja: Androidはlittle-endianの値と、n0inv = -1/n mod 2^32、rr = 2^4096 mod nを求める。
+        uint32_t n[WORDS];
+        uint32_t rr[WORDS] = {1};
+        for (size_t i = 0; i < WORDS; i++)
+        {
+            const uint8_t *p = modulus + MODULUS_BYTES - 4 * (i + 1);
+            n[i] = (static_cast<uint32_t>(p[0]) << 24) | (static_cast<uint32_t>(p[1]) << 16) |
+                   (static_cast<uint32_t>(p[2]) << 8) | p[3];
+        }
+        for (size_t bit = 0; bit < MODULUS_BYTES * 16; bit++)
+        {
+            doubleModulo(rr, n);
+        }
+        for (size_t i = 0; i < WORDS; i++)
+        {
+            for (size_t b = 0; b < 4; b++)
+            {
+                encoded.modulus[4 * i + b] = static_cast<uint8_t>(n[i] >> (8 * b));
+                encoded.rr[4 * i + b] = static_cast<uint8_t>(rr[i] >> (8 * b));
+            }
+        }
 
-        bool ok = mbedtls_rsa_export(rsa, &modulus, nullptr, nullptr, nullptr, &exponent) == 0 &&
-                  mbedtls_mpi_write_binary_le(&modulus, encoded.modulus, sizeof(encoded.modulus)) == 0 &&
-                  mbedtls_mpi_lset(&rr, 1) == 0 &&
-                  mbedtls_mpi_shift_l(&rr, MODULUS_BYTES * 16) == 0 &&
-                  mbedtls_mpi_mod_mpi(&rr, &rr, &modulus) == 0 &&
-                  mbedtls_mpi_write_binary_le(&rr, encoded.rr, sizeof(encoded.rr)) == 0;
-
-        encoded.modulusSizeWords = MODULUS_BYTES / sizeof(uint32_t);
-        const uint32_t modulusLowWord = static_cast<uint32_t>(encoded.modulus[0]) |
-                                        (static_cast<uint32_t>(encoded.modulus[1]) << 8) |
-                                        (static_cast<uint32_t>(encoded.modulus[2]) << 16) |
-                                        (static_cast<uint32_t>(encoded.modulus[3]) << 24);
+        encoded.modulusSizeWords = WORDS;
         uint32_t inverse = 1;
         for (uint8_t i = 0; i < 5; i++)
         {
-            inverse *= 2 - modulusLowWord * inverse;
+            inverse *= 2 - n[0] * inverse;
         }
         encoded.n0inv = 0 - inverse;
         encoded.exponent = 65537;
-
-        mbedtls_mpi_free(&rr);
-        mbedtls_mpi_free(&exponent);
-        mbedtls_mpi_free(&modulus);
-        if (!ok)
-        {
-            return false;
-        }
 
         size_t base64Length = 0;
         if (mbedtls_base64_encode(output,
@@ -170,12 +155,112 @@ public:
     }
 
 private:
-    static int randomBytes(void *, unsigned char *output, size_t length)
+    static constexpr size_t MODULUS_BYTES = 256;
+    static constexpr size_t WORDS = MODULUS_BYTES / sizeof(uint32_t);
+    // en: PKCS#1 RSAPrivateKey DER of a 2048-bit key is about 1.2 KB.
+    // ja: 2048 bitの鍵のPKCS#1 RSAPrivateKey DERは約1.2 KB。
+    static constexpr size_t MAX_DER_BYTES = 1600;
+
+    static psa_key_attributes_t keyAttributes()
     {
-        esp_fill_random(output, length);
-        return 0;
+        psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+        psa_set_key_type(&attributes, PSA_KEY_TYPE_RSA_KEY_PAIR);
+        psa_set_key_bits(&attributes, MODULUS_BYTES * 8);
+        psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_HASH | PSA_KEY_USAGE_EXPORT);
+        psa_set_key_algorithm(&attributes, PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_1));
+        return attributes;
     }
 
+    // en: r = 2r mod n, for r < n.
+    // ja: r < nのとき、r = 2r mod n。
+    static void doubleModulo(uint32_t *r, const uint32_t *n)
+    {
+        uint32_t carry = 0;
+        for (size_t i = 0; i < WORDS; i++)
+        {
+            const uint32_t next = r[i] >> 31;
+            r[i] = (r[i] << 1) | carry;
+            carry = next;
+        }
+        bool subtract = carry != 0;
+        if (!subtract)
+        {
+            subtract = true;
+            for (size_t i = WORDS; i-- > 0;)
+            {
+                if (r[i] != n[i])
+                {
+                    subtract = r[i] > n[i];
+                    break;
+                }
+            }
+        }
+        if (subtract)
+        {
+            uint32_t borrow = 0;
+            for (size_t i = 0; i < WORDS; i++)
+            {
+                const uint64_t difference = static_cast<uint64_t>(r[i]) - n[i] - borrow;
+                r[i] = static_cast<uint32_t>(difference);
+                borrow = (difference >> 32) ? 1 : 0;
+            }
+        }
+    }
+
+    // en: Read one DER tag and length; returns the content start or nullptr.
+    // ja: DERのtagと長さを1つ読み、中身の先頭を返す。読めなければnullptr。
+    static const uint8_t *derItem(const uint8_t *p, const uint8_t *end, uint8_t tag, size_t &length)
+    {
+        if (end - p < 2 || *p++ != tag)
+        {
+            return nullptr;
+        }
+        length = *p++;
+        if (length & 0x80)
+        {
+            const size_t count = length & 0x7f;
+            if (count == 0 || count > 2 || static_cast<size_t>(end - p) < count)
+            {
+                return nullptr;
+            }
+            length = 0;
+            for (size_t i = 0; i < count; i++)
+            {
+                length = (length << 8) | *p++;
+            }
+        }
+        return static_cast<size_t>(end - p) >= length ? p : nullptr;
+    }
+
+    // en: The exported public key is RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent INTEGER }.
+    // ja: 書き出した公開鍵は RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent INTEGER }。
+    bool exportModulus(uint8_t *modulus)
+    {
+        uint8_t der[PSA_EXPORT_PUBLIC_KEY_OUTPUT_SIZE(PSA_KEY_TYPE_RSA_KEY_PAIR, MODULUS_BYTES * 8)];
+        size_t derLength = 0;
+        if (key_ == PSA_KEY_ID_NULL ||
+            psa_export_public_key(key_, der, sizeof(der), &derLength) != PSA_SUCCESS)
+        {
+            return false;
+        }
+        size_t length = 0;
+        const uint8_t *p = derItem(der, der + derLength, 0x30, length);
+        p = p ? derItem(p, p + length, 0x02, length) : nullptr;
+        while (p && length > MODULUS_BYTES && *p == 0)
+        {
+            p++;
+            length--;
+        }
+        if (!p || length != MODULUS_BYTES)
+        {
+            return false;
+        }
+        memcpy(modulus, p, MODULUS_BYTES);
+        return true;
+    }
+
+    // en: The NVS value is a PKCS#1 RSAPrivateKey DER, the same format older versions of this sketch saved.
+    // ja: NVSの値はPKCS#1 RSAPrivateKeyのDERで、以前のこのスケッチが保存した形式と同じ。
     bool load()
     {
         Preferences preferences;
@@ -184,7 +269,7 @@ private:
             return false;
         }
         const size_t length = preferences.getBytesLength("rsa-key");
-        if (length == 0 || length > 1600)
+        if (length == 0 || length > MAX_DER_BYTES)
         {
             preferences.end();
             return false;
@@ -199,17 +284,18 @@ private:
             return false;
         }
 
-        const int parsed = mbedtls_pk_parse_key(&key_, der, length, nullptr, 0, randomBytes, nullptr);
+        psa_key_attributes_t attributes = keyAttributes();
+        const psa_status_t status = psa_import_key(&attributes, der, length, &key_);
+        psa_reset_key_attributes(&attributes);
         free(der);
-        mbedtls_rsa_context *rsa = parsed == 0 ? mbedtls_pk_rsa(key_) : nullptr;
-        return rsa && mbedtls_rsa_get_bitlen(rsa) == 2048 && mbedtls_rsa_check_privkey(rsa) == 0;
+        return status == PSA_SUCCESS;
     }
 
     bool save()
     {
-        uint8_t der[1600];
-        const int length = mbedtls_pk_write_key_der(&key_, der, sizeof(der));
-        if (length <= 0)
+        uint8_t der[MAX_DER_BYTES];
+        size_t length = 0;
+        if (psa_export_key(key_, der, sizeof(der), &length) != PSA_SUCCESS)
         {
             return false;
         }
@@ -219,13 +305,12 @@ private:
         {
             return false;
         }
-        const uint8_t *start = der + sizeof(der) - length;
-        const bool saved = preferences.putBytes("rsa-key", start, length) == static_cast<size_t>(length);
+        const bool saved = preferences.putBytes("rsa-key", der, length) == length;
         preferences.end();
         return saved;
     }
 
-    mbedtls_pk_context key_;
+    psa_key_id_t key_ = PSA_KEY_ID_NULL;
 };
 
 // en: Keep the USB owner and its function objects alive for the whole session.
