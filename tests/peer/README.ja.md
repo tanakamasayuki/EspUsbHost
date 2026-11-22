@@ -54,6 +54,7 @@ ESP32-S3のUSB D−とD+はGPIO19とGPIO20です。VBUSラインは接続せず�
 - `s3_host` / `s3_device`: S3 ↔ S3 の組（combo `s3`）
 - `s3b_host` / `s3b_device`、`s2_host` / `s2_device`: 2台目の S3 と S2（combo `s3_s2`、`s2_s3`）
 - `p4_hs_host` / `p4_hs_device`、`p4x_hs_host` / `p4x_hs_device`: OTG HS 同士で結線した P4 と P4X（combo `p4_p4x_hs`、`p4x_p4_hs`）
+- `s31_host` / `p4xb_hs_device`: USB-Aのhostポートを2台目のP4XのOTG HSと結線したESP32-S31（combo `s31_p4x_hs`、arduino-esp32 4.0.0以降）
 
 名前は EspUsbDevice のテストと同じなので、`.env` のポート名もそのまま使えます。
 

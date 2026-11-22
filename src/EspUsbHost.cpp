@@ -13,6 +13,16 @@
 #include <new>
 #include <utility>
 
+// Controllers behind a UTMI (high-speed) PHY: the ESP32-P4's OTG2.0 port and
+// the ESP32-S31's only port. Only the P4 has a second, full-speed controller.
+#include "soc/soc_caps.h"
+#if defined(SOC_USB_UTMI_PHY_NUM) && SOC_USB_UTMI_PHY_NUM > 0
+#define ESP_USB_HOST_HAS_HS_PORT 1
+#endif
+#if defined(SOC_USB_OTG_PERIPH_NUM) && SOC_USB_OTG_PERIPH_NUM > 1
+#define ESP_USB_HOST_HAS_FS_AND_HS_PORTS 1
+#endif
+
 #include "hal/usb_dwc_ll.h"
 #include "soc/usb_dwc_struct.h"
 
@@ -649,7 +659,7 @@ static const ff_diskio_impl_t MSC_FAT_DISKIO = {
     .ioctl = &mscFatDiskIoctl,
 };
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_FS_AND_HS_PORTS)
 static unsigned hostPeripheralMap(EspUsbHostPort port)
 {
   switch (port)
@@ -666,15 +676,20 @@ static unsigned hostPeripheralMap(EspUsbHostPort port)
 #endif
 
 #if defined(ESP_USB_HOST_HAS_FIFO_SETTINGS)
-// Total FIFO the controller has to divide up, in lines of 4 bytes: 4 kB behind a
-// high-speed PHY, 1 kB behind a full-speed one. The hardware keeps a few lines
+// Total FIFO the controller has to divide up, in lines of 4 bytes: 4 kB on the
+// ESP32-P4 high-speed port, 3.5 kB on the ESP32-S31, 1 kB behind a full-speed PHY. The hardware keeps a few lines
 // at the end for endpoint bookkeeping, so a split can still be rejected by the
 // host driver slightly below this; it is only used to catch a config that cannot
 // possibly fit before a device gets plugged in.
 static uint32_t hostFifoCapacityLines(EspUsbHostPort port)
 {
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_FS_AND_HS_PORTS)
   return (port == ESP_USB_HOST_PORT_FULL_SPEED) ? 256 : 1024;
+#elif defined(ESP_USB_HOST_HAS_HS_PORT)
+  // ESP32-S31: its GHWCFG3 reports 896 lines (read on the bench), not the 1024
+  // the ESP32-P4 high-speed port has.
+  (void)port;
+  return 896;
 #else
   (void)port;
   return 256;
@@ -1750,15 +1765,16 @@ bool EspUsbHost::begin(const EspUsbHostConfig &config)
 
   if (config.experimentalForceFullSpeed)
   {
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_FS_AND_HS_PORTS)
     if (config.port == ESP_USB_HOST_PORT_FULL_SPEED)
     {
       ESP_LOGE(TAG, "experimentalForceFullSpeed requires the ESP32-P4 high-speed port");
       setLastError(ESP_ERR_INVALID_ARG);
       return false;
     }
+#elif defined(ESP_USB_HOST_HAS_HS_PORT)
 #else
-    ESP_LOGE(TAG, "experimentalForceFullSpeed is only supported on ESP32-P4");
+    ESP_LOGE(TAG, "experimentalForceFullSpeed is only supported on a high-speed port (ESP32-P4, ESP32-S31)");
     setLastError(ESP_ERR_NOT_SUPPORTED);
     return false;
 #endif
@@ -1883,9 +1899,21 @@ void EspUsbHost::end()
   // every run. It was hidden until the two boards shared a power line, which
   // changed how the peer's return lines up with end().
   //
-  // A port with a device on it is unpowered on the ESP32-P4 only. The same
-  // sequence on an ESP32-S3 breaks the *next* begin(), which fails to allocate
-  // its pipe and aborts inside the hub driver -- and the S3 teardown has never
+  // On ESP-IDF 6 (arduino-esp32 4.0.0) a port with a device on it is unpowered
+  // on every target. Its espressif/usb 1.6.1 switches the port off inside
+  // usb_host_uninstall() and can take that disconnect interrupt after the hub
+  // driver object is gone (LoadProhibited in root_port_callback); an ESP32-S3
+  // that left the port powered hit it in peer/usb_serial, usb_vendor,
+  // usb_vendor_read and usb_midi on every run.
+  //
+  // Before that, a port with a device on it is unpowered on the
+  // high-speed-capable targets only (ESP32-P4, ESP32-S31). The ESP32-S31 needs it as much as the P4: left
+  // powered, end() panicked with a load access fault in peer/usb_vendor and
+  // peer/usb_serial on every run. Unpowering under a device that is still
+  // enumerating costs it one "HCD Pipe alloc error" in the next begin(), which
+  // it recovers from (peer/usb_vendor_read). The same sequence on an ESP32-S3
+  // breaks the *next* begin(), which fails to allocate its pipe and aborts
+  // inside the hub driver -- and the S3 teardown has never
   // shown the fault with a device that stays attached, across a peer suite that
   // stops and restarts the host in almost every module. "Empty" there is read
   // from the port's connect status as well as from the device count: a device
@@ -1927,7 +1955,7 @@ void EspUsbHost::end()
     delay(5);
   }
   const bool portOccupied = attachedDevices() != 0;
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_HS_PORT) || ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   const bool unpower = true;
 #else
   const bool unpower = !portOccupied && !usb_dwc_ll_hprt_get_conn_status(USB_DWC_LL_GET_HW(0));
@@ -8769,8 +8797,10 @@ void EspUsbHost::taskLoop()
   enumerationHost_ = this;
   hostConfig.enum_filter_cb = enumerationFilterCallback;
 #endif
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_FS_AND_HS_PORTS)
   hostConfig.peripheral_map = hostPeripheralMap(config_.port);
+#endif
+#if defined(ESP_USB_HOST_HAS_HS_PORT)
   // Keep the root port stopped until HCFG.FSLSSUPP has been applied. Without
   // this, an already attached hub can begin HS negotiation inside
   // usb_host_install(), racing the register write below.
@@ -8794,14 +8824,16 @@ void EspUsbHost::taskLoop()
     return;
   }
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_HS_PORT)
   if (config_.experimentalForceFullSpeed)
   {
-    usb_dwc_ll_hcfg_set_fsls_supp_only(&USB_DWC_HS);
+    // Controller 0 is the high-speed one on both the P4 and the S31.
+    usb_dwc_dev_t *const hsDwc = USB_DWC_LL_GET_HW(0);
+    usb_dwc_ll_hcfg_set_fsls_supp_only(hsDwc);
     ESP_LOGI(TAG,
-             "Experimental P4 HS-port full-speed-only mode: HCFG=0x%08lx FSLSSUPP=%u",
-             static_cast<unsigned long>(USB_DWC_HS.hcfg_reg.val),
-             static_cast<unsigned>(USB_DWC_HS.hcfg_reg.fslssupp));
+             "Experimental HS-port full-speed-only mode: HCFG=0x%08lx FSLSSUPP=%u",
+             static_cast<unsigned long>(hsDwc->hcfg_reg.val),
+             static_cast<unsigned>(hsDwc->hcfg_reg.fslssupp));
   }
 #endif
 
@@ -8829,7 +8861,7 @@ void EspUsbHost::taskLoop()
     return;
   }
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_HS_PORT)
   if (config_.experimentalForceFullSpeed)
   {
     err = usb_host_lib_set_root_port_power(true);
@@ -15575,7 +15607,7 @@ size_t EspUsbHost::estimatedHcdChannelCount(uint8_t address) const
 
 size_t EspUsbHost::maxEndpointChannelCount() const
 {
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(ESP_USB_HOST_HAS_FS_AND_HS_PORTS)
   // The P4 has two host controllers with different channel counts, so this is a
   // property of the port the sketch selected, not of the SoC: soc/usb_dwc_cfg.h
   // gives OTG20_NUM_HOST_CHAN 16 for the high-speed controller and
@@ -15585,6 +15617,9 @@ size_t EspUsbHost::maxEndpointChannelCount() const
   // port negotiates -- it is still OTG2.0 hardware with 16 channels -- so it
   // deliberately does not enter into this.
   return config_.port == ESP_USB_HOST_PORT_FULL_SPEED ? 8 : 16;
+#elif defined(ESP_USB_HOST_HAS_HS_PORT)
+  // The S31's only controller is OTG2.0 with 16 channels.
+  return 16;
 #else
   // S2 and S3 both define OTG_NUM_HOST_CHAN as 8.
   return 8;

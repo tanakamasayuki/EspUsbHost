@@ -1,32 +1,48 @@
 profiles:
   esp32p4:
-    fqbn: esp32:esp32:esp32p4:PSRAM=enabled
+    fqbn: esp32:esp32:esp32p4:ChipVariant=prev3,PSRAM=enabled,USBMode=default,CDCOnBoot=default
     platforms:
-      - platform: esp32:esp32 (3.3.13)
+      - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
 
   esp32p4-v:
-    fqbn: esp32:esp32:esp32p4:PSRAM=enabled,DebugLevel=verbose
+    fqbn: esp32:esp32:esp32p4:ChipVariant=prev3,PSRAM=enabled,USBMode=default,CDCOnBoot=default,DebugLevel=verbose
     platforms:
-      - platform: esp32:esp32 (3.3.13)
+      - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
 
   esp32p4x:
-    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,PSRAM=enabled
+    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,PSRAM=enabled,USBMode=default,CDCOnBoot=default
     platforms:
-      - platform: esp32:esp32 (3.3.13)
+      - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../
 
   esp32p4x-v:
-    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,PSRAM=enabled,DebugLevel=verbose
+    fqbn: esp32:esp32:esp32p4:ChipVariant=postv3,PSRAM=enabled,USBMode=default,CDCOnBoot=default,DebugLevel=verbose
     platforms:
-      - platform: esp32:esp32 (3.3.13)
+      - platform: esp32:esp32 (4.0.0)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../../
+
+  esp32s31:
+    fqbn: esp32:esp32:esp32s31PSRAM=enabled
+    platforms:
+      - platform: esp32:esp32 (4.0.0)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../../../
+
+  esp32s31-v:
+    fqbn: esp32:esp32:esp32s31PSRAM=enabled,DebugLevel=verbose
+    platforms:
+      - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
     libraries:
       - dir: ../../../

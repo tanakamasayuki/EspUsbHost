@@ -52,14 +52,17 @@ USB Hostが初めての方、あるいは手元のデバイスが動かない方
 | --- | --- |
 | ESP32-S2 / ESP32-S3 | 3.2.0 |
 | ESP32-P4 | 3.3.1 |
+| ESP32-S31 | 4.0.0 |
 
-これより古いコアは非対応です（3.1.x 以前はビルドに失敗することがあります）。ライブラリ各バージョンのコア別ビルド結果は [`docs/`](docs/) に `COMPATIBILITY.<version>.md` として公開しています。
+これより古いコアは非対応です（3.1.x 以前はビルドに失敗することがあります）。arduino-esp32 4.0.0 には ESP32-S2 用の ESP-IDF USB Host Library が入っていないため、ESP32-S2 は当面 3.3.x が必要です。example は ESP32-S2 だけ 3.3.13、それ以外は 4.0.0 を指定しています。ライブラリ各バージョンのコア別ビルド結果は [`docs/`](docs/) に `COMPATIBILITY.<version>.md` として公開しています。
 
 主対象は ESP32-S3 で、peer/manual テストもこのターゲットで実行しています。ESP32-S2 は
 リリースごとに全対応コアでビルド確認していますが、内蔵RAMが大幅に少ないため
 `ESP_USB_HOST_MAX_DEVICES` の既定値が 8 ではなく 3 で（`-DESP_USB_HOST_MAX_DEVICES=N`
 で増やせますが `dram0_0_seg overflowed` に注意）、`UsbNetwork` の例は収まりません。
 ESP32-P4 は HS OTG が使えます（[ESP32-P4 の注意事項](#esp32-p4-の注意事項)を参照）。
+ESP32-S31 の USB OTG は high-speed の controller 1 つだけで、ライブラリは ESP32-P4 の
+high-speed ポートと同じように扱います。
 
 ## バージョン2系の位置づけ
 
@@ -442,7 +445,7 @@ config.fifo = ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT;  // {260, 128, 280} lines
 usb.begin(config);
 ```
 
-`ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT`は、512バイトのbulk転送を使えるまま1024バイトのinterrupt OUTエンドポイントを許可します。別の配分にしたい場合は3つのフィールドを直接指定します。単位は4バイトのline、`rxFifoLines`と`nptxFifoLines`は0にできず、合計はポートの容量に収める必要があります（ESP32-P4のhigh-speedポートは1024 line＝4 kB、full-speedポートは256 line＝1 kB）。1024バイトのエンドポイントがhigh-speedポートでしか開けないのはこのためです。`fifo`を既定値のままにすればdriver側の分割を使います。arduino-esp32 3.3.0以降が必要で、それ以前のコアでは警告を出して既定の分割を使います。
+`ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT`は、512バイトのbulk転送を使えるまま1024バイトのinterrupt OUTエンドポイントを許可します。別の配分にしたい場合は3つのフィールドを直接指定します。単位は4バイトのline、`rxFifoLines`と`nptxFifoLines`は0にできず、合計はポートの容量に収める必要があります（ESP32-P4のhigh-speedポートは1024 line＝4 kB、ESP32-S31は896 line＝3.5 kB、full-speedポートは256 line＝1 kB）。1024バイトのエンドポイントがhigh-speedポートでしか開けないのはこのためです。`fifo`を既定値のままにすればdriver側の分割を使います。arduino-esp32 3.3.0以降が必要で、それ以前のコアでは警告を出して既定の分割を使います。
 
 ### デバイスイベント
 
@@ -797,7 +800,7 @@ if (usb.getSerialPortInfo(info, address, 1)) {
 | コントローラ | host channel | CDCポート数 |
 |---|---:|---:|
 | ESP32-S2・ESP32-S3・ESP32-P4のfull-speedポート | 8 | 3 |
-| ESP32-P4のhigh-speedポート | 16 | 7 |
+| ESP32-P4のhigh-speedポート・ESP32-S31 | 16 | 7 |
 
 1ポートが使うのはbulk INとbulk OUTの2本で、これに加えてデバイスごとにEP0が1本使います。ライブラリがclaimするのはCDC functionのdata interfaceだけです。control interfaceは`wIndex`にそのinterfaceを入れたEP0経由で駆動し、`SET_LINE_CODING`と`SET_CONTROL_LINE_STATE`にはそれで足ります。そのため`printDeviceInfo()`ではACM control interfaceが`claimed=no`と表示されます。このinterfaceが持つendpointはnotificationのinterrupt INだけで、ライブラリはそこを使っていないため、claimすると誰も読まないpipeにchannelを1本払うことになるからです。
 

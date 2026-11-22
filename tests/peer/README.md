@@ -64,6 +64,7 @@ Peer tests use these Arduino CLI profile names:
 - `s3_host` / `s3_device`: the S3 <-> S3 pair (combo `s3`)
 - `s3b_host` / `s3b_device`, `s2_host` / `s2_device`: the second S3 and the S2 (combos `s3_s2`, `s2_s3`)
 - `p4_hs_host` / `p4_hs_device`, `p4x_hs_host` / `p4x_hs_device`: the P4 and P4X wired OTG HS to OTG HS (combos `p4_p4x_hs`, `p4x_p4_hs`)
+- `s31_host` / `p4xb_hs_device`: an ESP32-S31 whose USB-A host port is wired to a second P4X's OTG HS (combo `s31_p4x_hs`; arduino-esp32 4.0.0 and later)
 
 The names match EspUsbDevice's tests, so the same `.env` port names apply.
 

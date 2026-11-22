@@ -52,15 +52,17 @@ Minimum Arduino-ESP32 core (board package) version:
 | --- | --- |
 | ESP32-S2 / ESP32-S3 | 3.2.0 |
 | ESP32-P4 | 3.3.1 |
+| ESP32-S31 | 4.0.0 |
 
-Older cores are not supported: 3.1.x and earlier may fail to build. Per-library-version build results across core versions are published under [`docs/`](docs/) as `COMPATIBILITY.<version>.md`.
+Older cores are not supported: 3.1.x and earlier may fail to build. arduino-esp32 4.0.0 does not ship the ESP-IDF USB Host Library for the ESP32-S2, so the ESP32-S2 needs 3.3.x for now; the examples pin 3.3.13 for it and 4.0.0 for every other target. Per-library-version build results across core versions are published under [`docs/`](docs/) as `COMPATIBILITY.<version>.md`.
 
 ESP32-S3 is the primary target and the one the peer/manual tests run on. ESP32-S2
 is built for every release across all supported cores, but it has far less internal
 RAM, so `ESP_USB_HOST_MAX_DEVICES` defaults to 3 there instead of 8 (raise it with
 `-DESP_USB_HOST_MAX_DEVICES=N` and watch for `dram0_0_seg overflowed`), and the
 `UsbNetwork` example does not fit. ESP32-P4 adds HS OTG; see
-[ESP32-P4 notes](#esp32-p4-notes).
+[ESP32-P4 notes](#esp32-p4-notes). ESP32-S31 has one USB OTG controller, the
+high-speed one, and the library treats it like the ESP32-P4 high-speed port.
 
 ## Version 2 status
 
@@ -467,7 +469,8 @@ usb.begin(config);
 while keeping 512-byte bulk transfers usable. Set the three fields yourself for a
 different balance; sizes are in lines of 4 bytes, `rxFifoLines` and
 `nptxFifoLines` must be non-zero, and the total must fit the port: 1024 lines
-(4 kB) on the ESP32-P4 high-speed port, 256 lines (1 kB) on any full-speed port —
+(4 kB) on the ESP32-P4 high-speed port, 896 lines (3.5 kB) on the ESP32-S31,
+256 lines (1 kB) on any full-speed port —
 which is why a 1024-byte endpoint can only be opened on the high-speed port.
 Leave `fifo` at its default to keep the driver's own split. Requires
 arduino-esp32 3.3.0 or newer; older cores log a warning and use the default.
@@ -833,7 +836,7 @@ There is nothing to configure. How many ports are usable is set by the host cont
 | Controller | Host channels | CDC ports |
 |---|---:|---:|
 | ESP32-S2, ESP32-S3, ESP32-P4 full-speed port | 8 | 3 |
-| ESP32-P4 high-speed port | 16 | 7 |
+| ESP32-P4 high-speed port, ESP32-S31 | 16 | 7 |
 
 A port costs two channels — its bulk IN and bulk OUT — and each device's EP0 takes one more. The library claims only the data interface of a CDC function; the control interface is driven over EP0 with `wIndex` set to it, which is all `SET_LINE_CODING` and `SET_CONTROL_LINE_STATE` need. That is why an ACM control interface shows as `claimed=no` in `printDeviceInfo()`: its only endpoint is the notification interrupt IN, which this library does not use, so claiming it would spend a channel on a pipe nothing reads.
 

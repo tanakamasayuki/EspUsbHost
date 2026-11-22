@@ -72,6 +72,7 @@ ESPUSBHOST_REVERSE_CHECKS=1 uv run --env-file .env pytest peer/
 | `s3` | S3（`s3_host`） | S3（`s3_device`） |
 | `s3_s2` / `s2_s3` | S3 "b" / S2 | S2 / S3 "b" |
 | `p4_p4x_hs` / `p4x_p4_hs` | P4 / P4X（OTG HS） | P4X / P4（OTG HS） |
+| `s31_p4x_hs` | S31（OTG HS、USB-A） | もう1台のP4X（OTG HS） |
 | `p4` / `p4_psram` | loopback 配線した P4 1台（`loopback/` のみ） | |
 
 1組だけ流すときは `--combo` で名前を、全組なら `--combo all` を指定します。

@@ -82,6 +82,7 @@ same set as EspUsbDevice's except its PC combo:
 | `s3` | S3 (`s3_host`) | S3 (`s3_device`) |
 | `s3_s2` / `s2_s3` | S3 "b" / S2 | S2 / S3 "b" |
 | `p4_p4x_hs` / `p4x_p4_hs` | P4 / P4X, OTG HS | P4X / P4, OTG HS |
+| `s31_p4x_hs` | S31, OTG HS (USB-A) | a second P4X, OTG HS |
 | `p4` / `p4_psram` | one P4 wired for loopback (`loopback/` only) | |
 
 Use `--combo` to run one pair, or `--combo all` for every pair:

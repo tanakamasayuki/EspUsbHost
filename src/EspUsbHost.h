@@ -5,6 +5,12 @@
 #include <FS.h>
 #include <functional>
 #include <memory>
+#include "soc/soc_caps.h"
+#if !__has_include(<usb/usb_host.h>)
+// arduino-esp32 4.0.0 does not ship the ESP-IDF USB Host Library for the
+// ESP32-S2; arduino-esp32 3.3.x does.
+#error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+#endif
 #include <usb/usb_host.h>
 #include <class/hid/hid.h>
 
@@ -208,11 +214,12 @@ static constexpr size_t ESP_USB_HOST_MAX_CDC_SERIALS = 8;
 // interface of a CDC function and drives the control interface over EP0, so a
 // port costs two channels (bulk IN + bulk OUT) and one more goes to the device's
 // EP0. soc/usb_dwc_cfg.h gives eight channels on the S2, the S3 and the P4's
-// full-speed controller, and sixteen on the P4's high-speed one, which works out
-// to three ports and seven ports. The array is sized to those maxima so there is
-// nothing to configure: a port is 32 bytes, so even the seven-port array costs
-// less static RAM than the old single-port implementation did.
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+// full-speed controller, and sixteen on the high-speed (UTMI) controller of the
+// P4 and the S31, which works out to three ports and seven ports. The array is
+// sized to those maxima so there is nothing to configure: a port is 32 bytes, so
+// even the seven-port array costs less static RAM than the old single-port
+// implementation did.
+#if defined(SOC_USB_UTMI_PHY_NUM) && SOC_USB_UTMI_PHY_NUM > 0
 #define ESP_USB_HOST_MAX_SERIAL_PORTS 7
 #else
 #define ESP_USB_HOST_MAX_SERIAL_PORTS 3
@@ -321,8 +328,9 @@ struct EspUsbHostFifoConfig
 };
 
 // Room for a 1024-byte interrupt OUT endpoint while keeping 512-byte bulk OUT
-// and IN endpoints usable. 668 of the 1024 lines an ESP32-P4 high-speed port
-// has, so it is only valid on that port.
+// and IN endpoints usable. 668 lines: more than the 256 a full-speed port has,
+// so it is only valid on a high-speed port (1024 lines on the ESP32-P4, 896 on
+// the ESP32-S31).
 static constexpr EspUsbHostFifoConfig ESP_USB_HOST_FIFO_LARGE_PERIODIC_OUT = {260, 128, 280};
 
 struct EspUsbHostConfig
