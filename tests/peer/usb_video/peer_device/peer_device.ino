@@ -90,6 +90,20 @@ static void armNextFrame()
     arming.store(false);
 }
 
+// Arms the next frame as soon as the last one completes. Over bulk that has no
+// bus schedule to hold it back, so it sent ~1600 frames (13 MB/s) a second, and
+// checking every one of them on the host's USB client task starved the host
+// sketch's loop(): a command sent during the second stream of
+// usb_video_bulk's restart test went unanswered past the test's timeout. Bulk
+// frames are therefore armed only from loop(), whose delay(5) holds them to
+// about 200 a second -- still well beyond the 15 fps the camera declares.
+static void frameCompleted()
+{
+#if !PEER_VIDEO_BULK
+    armNextFrame();
+#endif
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -113,7 +127,7 @@ void setup()
         return;
     }
     // Registered while stopped: the device refuses callbacks after begin().
-    if (camera.onFrameComplete(armNextFrame) != ESP_OK)
+    if (camera.onFrameComplete(frameCompleted) != ESP_OK)
     {
         Serial.println("VIDEO_CALLBACK_FAILED");
         return;

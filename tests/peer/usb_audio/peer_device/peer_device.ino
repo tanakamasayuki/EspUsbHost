@@ -24,6 +24,20 @@ static uint32_t firstAudioSample = 0;
 static uint32_t firstAudioPacket = 0;
 static portMUX_TYPE audioTestMux = portMUX_INITIALIZER_UNLOCKED;
 
+// The callbacks only record what happened; loop() prints it. With arduino-esp32
+// 4.0.0, a Serial.printf() from the 2 kB arduino_usb_events task overflowed its
+// stack when the host closed the microphone ("Stack canary watchpoint triggered
+// (arduino_usb_eve)"), and the peer rebooted mid-test.
+struct InterfaceEvent
+{
+    bool mic;
+    bool enable;
+};
+static InterfaceEvent interfaceEvents[8];
+static uint8_t interfaceEventHead = 0;
+static uint8_t interfaceEventCount = 0;
+static bool receivedAudioPending = false;
+
 static void audioEventCallback(void *, esp_event_base_t eventBase, int32_t eventId, void *eventData)
 {
     if (eventBase != ARDUINO_USB_AUDIO_CARD_EVENTS)
@@ -33,9 +47,15 @@ static void audioEventCallback(void *, esp_event_base_t eventBase, int32_t event
     arduino_usb_audio_card_event_data_t *data = static_cast<arduino_usb_audio_card_event_data_t *>(eventData);
     if (eventId == ARDUINO_USB_AUDIO_CARD_INTERFACE_ENABLE_EVENT)
     {
-        Serial.printf("AUDIO_INTERFACE %s %u\n",
-                      data->interface_enable.interface == UAC_INTERFACE_MIC ? "MIC" : "SPK",
-                      data->interface_enable.enable ? 1 : 0);
+        portENTER_CRITICAL(&audioTestMux);
+        if (interfaceEventCount < sizeof(interfaceEvents) / sizeof(interfaceEvents[0]))
+        {
+            const uint8_t slot = (interfaceEventHead + interfaceEventCount) % (sizeof(interfaceEvents) / sizeof(interfaceEvents[0]));
+            interfaceEvents[slot] = {data->interface_enable.interface == UAC_INTERFACE_MIC,
+                                     data->interface_enable.enable != 0};
+            interfaceEventCount++;
+        }
+        portEXIT_CRITICAL(&audioTestMux);
     }
 }
 
@@ -53,11 +73,44 @@ static void audioDataCallback(void *buffer, uint16_t length)
     {
         receivedAudioSum += bytes[i] | (static_cast<uint16_t>(bytes[i + 1]) << 8);
     }
-    portEXIT_CRITICAL(&audioTestMux);
     if (!receivedAudioReported && receivedAudioBytes >= 96)
     {
         receivedAudioReported = true;
-        Serial.printf("DEVICE_RX_AUDIO %lu\n", static_cast<unsigned long>(receivedAudioBytes));
+        receivedAudioPending = true;
+    }
+    portEXIT_CRITICAL(&audioTestMux);
+}
+
+// Prints what the callbacks recorded, interface changes first: received audio
+// always follows the SPK enable that let it in.
+static void printCallbackEvents()
+{
+    for (;;)
+    {
+        InterfaceEvent event;
+        portENTER_CRITICAL(&audioTestMux);
+        const bool have = interfaceEventCount > 0;
+        if (have)
+        {
+            event = interfaceEvents[interfaceEventHead];
+            interfaceEventHead = (interfaceEventHead + 1) % (sizeof(interfaceEvents) / sizeof(interfaceEvents[0]));
+            interfaceEventCount--;
+        }
+        portEXIT_CRITICAL(&audioTestMux);
+        if (!have)
+        {
+            break;
+        }
+        Serial.printf("AUDIO_INTERFACE %s %u\n", event.mic ? "MIC" : "SPK", event.enable ? 1 : 0);
+    }
+    portENTER_CRITICAL(&audioTestMux);
+    const bool rxPending = receivedAudioPending;
+    const uint32_t rxBytes = receivedAudioBytes;
+    receivedAudioPending = false;
+    portEXIT_CRITICAL(&audioTestMux);
+    if (rxPending)
+    {
+        Serial.printf("DEVICE_RX_AUDIO %lu\n", static_cast<unsigned long>(rxBytes));
     }
 }
 
@@ -83,6 +136,7 @@ void setup()
 
 void loop()
 {
+    printCallbackEvents();
     if (Serial.available() > 0)
     {
         char command = Serial.read();
@@ -94,6 +148,7 @@ void loop()
             firstAudioSample = 0;
             firstAudioPacket = 0;
             receivedAudioReported = false;
+            receivedAudioPending = false;
             portEXIT_CRITICAL(&audioTestMux);
             Serial.println("DEVICE_AUDIO_RESET");
         }

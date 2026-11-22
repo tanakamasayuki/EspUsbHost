@@ -48,7 +48,7 @@ def usb_host(dut, peers):
     dut.expect_exact("HOST_STATE idle devices=0")
 
 
-def test_usb_audio_bidirectional(dut, peers, request):
+def test_usb_audio_bidirectional(dut, peers):
     device = peers["device"]
 
     device.expect_exact("AUDIO_DEVICE_READY")
@@ -164,9 +164,8 @@ def test_usb_audio_bidirectional(dut, peers, request):
     assert received > 0
     assert int(capture.group(2)) == 0, "capture lost or reordered PCM samples"
     assert int(output.group(1)) >= 4096 * 2
-    strict = _device_keeps_first_packet(request)
-    _check_pull_source(output, "pull playback", strict)
-    _check_pull_source(callback_output, "callback-started playback", strict)
+    _check_pull_source(output, "pull playback")
+    _check_pull_source(callback_output, "callback-started playback")
 
 
 # The source counts 1..4096, so the sum of what arrived from the first sample the
@@ -174,32 +173,19 @@ def test_usb_audio_bidirectional(dut, peers, request):
 # shows whether the stream lost its head.
 #
 # The host sends the head: measured on every combination, the first isochronous
-# OUT transfer completes with its full length and starts at sample 1. Some peers
-# drop that packet all the same, every time and depending only on when the stream
-# starts -- the ESP32-S2 when playback starts one frame after SET_INTERFACE, the
-# ESP32-P4X high-speed port when it starts from the SET_INTERFACE completion.
-# That fits the device's isochronous OUT endpoint being armed for the other
-# frame parity, and an isochronous packet is not retried. So the head is only
-# required where the peer has been measured to keep it (the ESP32-S3), which is
-# also where a host that skipped its first packet would show up; elsewhere one
-# leading packet (at most 49 samples) may be missing.
-_FIRST_PACKET_KEEPERS = ("device=s3_device", "device=s3b_device")
-
-
-def _device_keeps_first_packet(request):
-    # Without --combo the node carries no profile and the peer is the sketch's
-    # default_profile, s3_device.
-    if "device=" not in request.node.name:
-        return True
-    return any(name in request.node.name for name in _FIRST_PACKET_KEEPERS)
-
-
-def _check_pull_source(match, label, strict):
+# OUT transfer completes with its full length and starts at sample 1. Peers drop
+# that packet all the same, depending only on when the stream starts -- the
+# ESP32-S2 when playback starts one frame after SET_INTERFACE, the ESP32-P4X
+# high-speed port when it starts from the SET_INTERFACE completion, and since
+# arduino-esp32 4.0.0 the ESP32-S3 too, on every pull-playback start. On the S3 the
+# host was measured doing the same thing every time (sample 1 submitted one
+# frame after SET_INTERFACE, completed with 64 bytes) whether the device kept
+# the packet or not. That fits the device's isochronous OUT endpoint being armed
+# for the other frame parity, and an isochronous packet is not retried. So one
+# leading packet (at most 49 samples) may be missing on any peer.
+def _check_pull_source(match, label):
     received_sum = int(match.group(2))
     first = int(match.group(3))
     assert 1 <= first <= 4096, f"{label} received no source samples"
     assert received_sum == sum(range(first, 4097)), f"{label} lost source samples after sample {first}"
-    if strict:
-        assert first == 1, f"{label} lost the head of the source (first sample {first})"
-    else:
-        assert first <= 50, f"{label} lost more than one leading packet (first sample {first})"
+    assert first <= 50, f"{label} lost more than one leading packet (first sample {first})"
