@@ -32,7 +32,7 @@ profiles:
       - dir: ../../../
 
   esp32s31:
-    fqbn: esp32:esp32:esp32s31PSRAM=enabled
+    fqbn: esp32:esp32:esp32s31
     platforms:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
@@ -40,7 +40,7 @@ profiles:
       - dir: ../../../
 
   esp32s31-v:
-    fqbn: esp32:esp32:esp32s31PSRAM=enabled,DebugLevel=verbose
+    fqbn: esp32:esp32:esp32s31:DebugLevel=verbose
     platforms:
       - platform: esp32:esp32 (4.0.0)
         platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
