@@ -17156,15 +17156,17 @@ void EspUsbHost::deliverNetworkFrame(DeviceState &device, const uint8_t *frame, 
 #if defined(ESP_USB_HOST_HAS_ESP_NETIF)
   if (device.networkNetifAttached && device.networkNetif)
   {
-    // esp_netif owns the buffer until it calls the free hook; hand it a copy.
+    // esp_netif owns the buffer from here on, whatever the result: every failure
+    // path of its lwIP input (netif down, no pbuf, lwIP refusing the frame)
+    // releases it through the free hook before returning the error. ESP-IDF 5.5
+    // returned ESP_OK regardless; ESP-IDF 6 passes the error up, and freeing the
+    // buffer here as well was a double free that corrupted the heap
+    // (peer/ncm_stream on a P4X host, a frame arriving after the IP stopped).
     uint8_t *buf = static_cast<uint8_t *>(malloc(length));
     if (buf)
     {
       memcpy(buf, frame, length);
-      if (esp_netif_receive(static_cast<esp_netif_t *>(device.networkNetif), buf, length, buf) != ESP_OK)
-      {
-        free(buf);
-      }
+      (void)esp_netif_receive(static_cast<esp_netif_t *>(device.networkNetif), buf, length, buf);
     }
     return;
   }

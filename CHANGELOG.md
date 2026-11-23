@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Fix heap corruption (`CORRUPT HEAP: Bad head` / `assert failed: multi_heap_free`) when a USB network device delivered a frame that esp_netif did not take, for example right after the IP side was stopped. EspUsbHost freed the frame buffer when `esp_netif_receive()` failed, but esp_netif has already released it through the free hook on every failure path. ESP-IDF 5.5 always returned `ESP_OK`, so this only appeared on arduino-esp32 4.0.0 (ESP-IDF 6), which passes the error up. Seen in EspUsbDevice's `peer/ncm_stream` with an ESP32-P4X host.
+- (JA) USBのネットワークのデバイスから届いたフレームをesp_netifが受け取らなかったとき（IPを止めた直後など）、heapが壊れる（`CORRUPT HEAP: Bad head`、`assert failed: multi_heap_free`）問題を修正。`esp_netif_receive()` が失敗するとEspUsbHostがフレームのbufferを解放していたが、esp_netifは失敗するどの経路でも、すでに解放の処理でbufferを解放している。ESP-IDF 5.5は常に `ESP_OK` を返していたので、エラーを返すようになったarduino-esp32 4.0.0（ESP-IDF 6）でだけ起きた。EspUsbDeviceの `peer/ncm_stream` で、ESP32-P4Xのhostで見つかった。
 
 ## 2.11.0
 - (EN) Examples and tests now build against arduino-esp32 4.0.0 (ESP-IDF 6.1), except the ESP32-S2 profiles, which stay on 3.3.13: 4.0.0 does not ship the ESP-IDF USB Host Library for the ESP32-S2. Including `EspUsbHost.h` there now stops with an `#error` that says so, instead of a missing `usb/usb_host.h`. The test peers keep EspUsbDevice 3.2.0, which builds on 4.0.0.
