@@ -4190,6 +4190,9 @@ private:
   // started cannot switch the port back on underneath the teardown.
   std::atomic<bool> stopping_{false};
   std::atomic<bool> rootPortCycling_{false};
+  // Counts usb_host_lib_handle_events() returns in taskLoop(), so end() can wait
+  // until the library task has processed what a device's release queued.
+  std::atomic<uint32_t> hostEventPasses_{0};
   // Guards the check-and-claim of EndpointState::transferSubmitted. One lock for
   // every endpoint rather than one each: it is held for a compare and a store,
   // never across the driver call, so contention is not a consideration and a

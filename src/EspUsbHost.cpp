@@ -1958,10 +1958,30 @@ void EspUsbHost::end()
     }
     return count;
   };
+  const bool hadDevice = attachedDevices() != 0;
   const uint32_t settleUntilMs = millis() + 250;
   while (attachedDevices() != 0 && millis() < settleUntilMs)
   {
     delay(5);
+  }
+  // The count falling is not the end of it. Freeing the device makes the hub
+  // driver queue a port recycle (PORT_REQ_RECOVER for a disconnected port), and
+  // that request only runs in the library task's next
+  // usb_host_lib_handle_events(). Powering the port off in between moves the HCD
+  // port from RECOVERY to NOT_POWERED, the queued hcd_port_recover() then fails
+  // with ESP_ERR_INVALID_STATE, and the hub driver's ESP_ERROR_CHECK aborts
+  // (espressif/usb 1.6.1, hub.c root_port_req). Seen in EspUsbDevice's ESP32-P4
+  // loopback CCID test: device.end() immediately followed by host.end(). So once
+  // a device was there, let the library task finish two more passes -- the one
+  // that may already be running and one that starts after the release.
+  if (hadDevice && attachedDevices() == 0)
+  {
+    const uint32_t passesAtRelease = hostEventPasses_;
+    const uint32_t passWaitStartedAtMs = millis();
+    while (hostEventPasses_ - passesAtRelease < 2 && millis() - passWaitStartedAtMs < 300)
+    {
+      delay(5);
+    }
   }
   // A watchdog power cycle that was already under way finishes first, so it
   // cannot switch the port back on after the power-off below.
@@ -8948,6 +8968,7 @@ void EspUsbHost::taskLoop()
   {
     uint32_t eventFlags = 0;
     err = usb_host_lib_handle_events(eventWait, &eventFlags);
+    hostEventPasses_++;
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT)
     {
       ESP_LOGW(TAG, "usb_host_lib_handle_events() failed: %s", esp_err_to_name(err));
