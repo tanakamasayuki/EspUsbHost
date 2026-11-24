@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+
+## 2.11.1
 - (EN) The test peers now use EspUsbDevice 3.3.0 (was 3.2.0).
 - (JA) テストのpeerのEspUsbDeviceを3.3.0にした（これまでは3.2.0）。
 - (EN) Fix `end()` leaving a USB network device's netif registered when the device stayed on the bus and `end()` left the root port powered (ESP32-S2 on arduino-esp32 3.3.x). The next `networkAttachNetif()` then failed on the `USB_NCM` key being taken (`esp_netif_new_api: ... duplicate key`), and the netif and its driver leaked. `end()` now stops an attached netif first, while the client task still runs, so a DHCP release lwIP sends as it stops can complete. Covered by the new `peer/usb_ncm/test_usb_ncm_end_with_netif.py`, which fails on an ESP32-S2 host without the change.
