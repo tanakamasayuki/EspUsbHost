@@ -10,6 +10,7 @@ that run USB Host and USB Device on the same chip.
 | Test | Covers | Requires |
 |------|--------|----------|
 | [`p4_role_reversal/`](p4_role_reversal/) | `usb.end()` during an ESP32-P4 role reversal: the host starts on the full-speed controller with the device on the high-speed one, then `device.end()` and `usb.end()` run back to back and the roles are swapped. 2.9.0 aborted inside the teardown; this is its regression test | One ESP32-P4 with its two USB controllers wired for loopback (`TEST_SERIAL_PORT_P4_LOOPBACK`). No second board. The device side is `EspUsbDevice`, pinned to a release |
+| [`p4_end_after_device_free/`](p4_end_after_device_free/) | `usb.end()` called the instant the host library has freed a device that went away, before the hub driver has recovered the root port. The sketch spins on `usb_host_lib_info()` on core 1 with the host tasks on core 0, so it hits that microsecond window every time; ten cycles alternate the host between the full-speed and high-speed ports. 2.11.0 aborted in the first cycle | Same as above |
 
 It exists here rather than in EspUsbDevice because the fault is in this library's
 `end()`, and a fix cannot be verified from a repository whose tests are not run

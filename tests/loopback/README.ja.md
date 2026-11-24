@@ -10,6 +10,7 @@ loopback テスト用の場所として残しています。
 | テスト | 対象 | 必要な機材 |
 |--------|------|-----------|
 | [`p4_role_reversal/`](p4_role_reversal/) | ESP32-P4 の役割反転中の `usb.end()`。Host を full-speed 側、Device を high-speed 側で起動し、`device.end()` と `usb.end()` を連続で呼んで役割を入れ替えます。2.9.0 はこのテアダウン中に abort しました。その回帰テストです | 2つの USB コントローラを loopback 配線した ESP32-P4 が1台（`TEST_SERIAL_PORT_P4_LOOPBACK`）。2台目は不要です。device 側は `EspUsbDevice` で、リリース版を pin しています |
+| [`p4_end_after_device_free/`](p4_end_after_device_free/) | host library が去ったデバイスを解放した直後、hub driver が root port を回復する前に呼ぶ `usb.end()`。host の task を core 0 に置き、core 1 で `usb_host_lib_info()` を回し続けるので、数マイクロ秒の窓に毎回当たります。host を full-speed と high-speed のポートで交互に 10 サイクル回します。2.11.0 は 1 サイクル目で abort しました | 上と同じ |
 
 EspUsbDevice 側ではなくここに置いているのは、不具合がこのライブラリの `end()` にあり、
 こちらのテストとして走らないリポジトリでは修正を検証できないためです。`EspUsbDevice` は

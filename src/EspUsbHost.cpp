@@ -1958,29 +1958,37 @@ void EspUsbHost::end()
     }
     return count;
   };
-  const bool hadDevice = attachedDevices() != 0;
   const uint32_t settleUntilMs = millis() + 250;
   while (attachedDevices() != 0 && millis() < settleUntilMs)
   {
     delay(5);
   }
-  // The count falling is not the end of it. Freeing the device makes the hub
-  // driver queue a port recycle (PORT_REQ_RECOVER for a disconnected port), and
-  // that request only runs in the library task's next
-  // usb_host_lib_handle_events(). Powering the port off in between moves the HCD
-  // port from RECOVERY to NOT_POWERED, the queued hcd_port_recover() then fails
-  // with ESP_ERR_INVALID_STATE, and the hub driver's ESP_ERROR_CHECK aborts
-  // (espressif/usb 1.6.1, hub.c root_port_req). Seen in EspUsbDevice's ESP32-P4
-  // loopback CCID test: device.end() immediately followed by host.end(). So once
-  // a device was there, let the library task finish two more passes -- the one
-  // that may already be running and one that starts after the release.
-  if (hadDevice && attachedDevices() == 0)
+  // The count falling is not the end of it. The library task drops the count in
+  // usbh's handle_free() and then, in the same usb_host_lib_handle_events() call,
+  // has the hub driver recycle the root port: root_port_recycle() queues
+  // PORT_REQ_RECOVER and hub_process() runs hcd_port_recover(). Powering the port
+  // off anywhere in that stretch aborts inside espressif/usb 1.6.1 -- before the
+  // recycle, root_port_recycle() finds the port NOT_POWERED and calls abort();
+  // after it, hcd_port_recover() fails with ESP_ERR_INVALID_STATE and hub.c
+  // root_port_req's ESP_ERROR_CHECK aborts. EspUsbDevice's ESP32-P4 loopback CCID
+  // test hit the second (device.end() immediately followed by host.end()), and
+  // loopback/p4_end_after_device_free hits the first on every run by calling
+  // end() the moment usb_host_lib_info() reports no device.
+  //
+  // So whenever the port looks empty, let the library task finish two calls: the
+  // one that may be running and one that starts after this point, which drains
+  // whatever the release queued. It is not limited to a device having been seen
+  // above -- a device freed just before end() started is in the same window.
+  // usb_host_lib_unblock() makes an idle call return, so the wait costs a
+  // teardown with nothing pending only a few milliseconds.
+  if (attachedDevices() == 0)
   {
-    const uint32_t passesAtRelease = hostEventPasses_;
+    const uint32_t passesAtStart = hostEventPasses_;
     const uint32_t passWaitStartedAtMs = millis();
-    while (hostEventPasses_ - passesAtRelease < 2 && millis() - passWaitStartedAtMs < 300)
+    while (hostEventPasses_ - passesAtStart < 2 && millis() - passWaitStartedAtMs < 300)
     {
-      delay(5);
+      usb_host_lib_unblock();
+      delay(1);
     }
   }
   // A watchdog power cycle that was already under way finishes first, so it
