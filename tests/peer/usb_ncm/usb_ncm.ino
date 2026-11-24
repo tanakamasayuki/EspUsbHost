@@ -191,6 +191,10 @@ void loop()
     else if (command == 'a')
     {
       EspUsbHostNetworkConfig cfg; // dhcpClient = true
+      // Report the lease of every attach, even when the peer hands out the
+      // address the previous attach had: a test that restarts the host and
+      // attaches again waits for this line.
+      lastReportedIp = 0;
       attached = usb.networkAttachNetif(cfg, deviceAddress);
       Serial.printf("NETWORK_ATTACH ok=%u\n", attached ? 1 : 0);
     }

@@ -1866,6 +1866,21 @@ void EspUsbHost::end()
   // cycles.
   mscUnmountAll();
 
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+  // An attached USB NIC's netif comes down here too, for the same reason: lwIP
+  // may still send on it as it stops (a DHCP release), and that send completes
+  // only through the client task. Stopped later, from the client teardown, the
+  // send waited on the very task that was tearing down, timed out and logged
+  // "EP command error" on its flush. releaseClientResources() keeps a fallback.
+  for (DeviceState &device : devices_)
+  {
+    if (device.inUse && device.networkNetifAttached)
+    {
+      networkStopNetif(device);
+    }
+  }
+#endif
+
   // A running video stream owns isochronous transfers that are not held in an
   // EndpointState, so the endpoint teardown below never sees them. Left in
   // flight, they keep the device busy and usb_host_device_free_all() leaves it
@@ -15964,6 +15979,17 @@ bool EspUsbHost::releaseClientResources()
     {
       continue;
     }
+#if defined(ESP_USB_HOST_HAS_ESP_NETIF)
+    // A device still on the bus is closed here, not through DEV_GONE, so its
+    // netif has to be down by now. end() stops it first; this is the fallback.
+    // Left registered, the next attach failed on the "USB_NCM" key being taken,
+    // and the netif and its driver leaked (ESP32-S2 on 3.3.x, where end() leaves
+    // an occupied port powered).
+    if (device.networkNetifAttached)
+    {
+      networkStopNetif(device);
+    }
+#endif
     device.hasNetworkInterface = false;
     device.networkLinkUp = false;
     networkDrainTx(device);
