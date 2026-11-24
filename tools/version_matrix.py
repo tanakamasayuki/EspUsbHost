@@ -61,7 +61,7 @@ DEFAULT_EXAMPLES = [
     ("Info", "Info/EspUsbHostDeviceInfo"),
 ]
 
-DEFAULT_TARGETS = ["esp32s3", "esp32s2", "esp32p4"]
+DEFAULT_TARGETS = ["esp32s3", "esp32s2", "esp32p4", "esp32s31"]
 
 # Result cell states.
 PASS, FAIL, ABSENT, NO_PROFILE, NA_BOARD = "pass", "fail", "absent", "no-profile", "na-board"

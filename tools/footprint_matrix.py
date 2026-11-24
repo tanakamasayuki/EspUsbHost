@@ -35,6 +35,13 @@ TARGETS = {
     "esp32s3": "esp32:esp32:esp32s3:USBMode=default",
     "esp32s2": "esp32:esp32:esp32s2",
     "esp32p4": "esp32:esp32:esp32p4",
+    "esp32s31": "esp32:esp32:esp32s31",
+}
+
+# First library release that supports a target, where that is later than the
+# probes' own minimums. Older releases are reported as unavailable, not failed.
+TARGET_MINIMUM = {
+    "esp32s31": (2, 11, 0),
 }
 
 # category, minimum library version, supported targets
@@ -185,6 +192,7 @@ def find_size_tool(target: str) -> pathlib.Path | None:
         "esp32s3": "xtensa-esp32s3-elf-size",
         "esp32s2": "xtensa-esp32s2-elf-size",
         "esp32p4": "riscv32-esp-elf-size",
+        "esp32s31": "riscv32-esp-elf-size",
     }[target]
     found = shutil.which(executable)
     if found:
@@ -368,6 +376,13 @@ def build_mode(args) -> int:
                             results.append(skipped_row(
                                 probe, ref, version, args.target, core_version,
                                 UNAVAILABLE, f"{probe} requires EspUsbHost >= {'.'.join(map(str, minimum))}", commit,
+                            ))
+                            continue
+                        target_minimum = TARGET_MINIMUM.get(args.target)
+                        if parsed_version and target_minimum and parsed_version < target_minimum:
+                            results.append(skipped_row(
+                                probe, ref, version, args.target, core_version,
+                                UNAVAILABLE, f"{args.target} requires EspUsbHost >= {'.'.join(map(str, target_minimum))}", commit,
                             ))
                             continue
                         workspace = temporary_root / "build-work" / re.sub(r"[^A-Za-z0-9_.-]", "_", ref)
