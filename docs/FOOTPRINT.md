@@ -271,359 +271,447 @@ Legend: ❌ build/measurement failure · — feature unavailable or target not s
 | `v2.11.0` | 36.5 KiB | 36.5 KiB (+0.0) | 36.5 KiB (+0.0) | 36.5 KiB (+0.0) | 36.6 KiB (+0.2) | 36.5 KiB (+0.0) | 36.5 KiB (+0.0) | 37.9 KiB (+1.4) | 36.5 KiB (+0.0) | 36.5 KiB (+0.0) |
 | `v2.11.1` | 36.5 KiB | 36.5 KiB (+0.0) | 36.5 KiB (+0.1) | 36.5 KiB (+0.0) | 36.6 KiB (+0.2) | 36.5 KiB (+0.0) | 36.5 KiB (+0.0) | 37.9 KiB (+1.4) | 36.5 KiB (+0.0) | 36.5 KiB (+0.0) |
 
+## esp32s31
+
+### Flash
+
+| Library | Base | HID | Serial | Audio | Storage | MIDI | Vendor | Network | Ccid | Info |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `v2.0.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.0.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.2.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.3.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.3.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.3.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.4.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.4.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.6.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.4` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.5` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.6` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.7` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.8` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.9` | — | — | — | — | — | — | — | — | — | — |
+| `v2.8.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.4` | — | — | — | — | — | — | — | — | — | — |
+| `v2.10.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.10.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.10.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.11.0` | 474.5 KiB | 475.9 KiB (+1.3) | 478.5 KiB (+4.0) | 475.2 KiB (+0.6) | 515.9 KiB (+41.4) | 476.6 KiB (+2.0) | 479.4 KiB (+4.9) | 536.0 KiB (+61.4) | 491.0 KiB (+16.5) | 495.4 KiB (+20.9) |
+| `v2.11.1` | 474.7 KiB | 476.0 KiB (+1.3) | 478.6 KiB (+4.0) | 475.3 KiB (+0.6) | 516.0 KiB (+41.4) | 476.7 KiB (+2.0) | 479.5 KiB (+4.9) | 536.1 KiB (+61.4) | 491.1 KiB (+16.5) | 495.5 KiB (+20.9) |
+
+### Static RAM
+
+| Library | Base | HID | Serial | Audio | Storage | MIDI | Vendor | Network | Ccid | Info |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `v2.0.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.0.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.1.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.2.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.3.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.3.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.3.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.4.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.4.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.5.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.6.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.4` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.5` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.6` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.7` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.8` | — | — | — | — | — | — | — | — | — | — |
+| `v2.7.9` | — | — | — | — | — | — | — | — | — | — |
+| `v2.8.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.3` | — | — | — | — | — | — | — | — | — | — |
+| `v2.9.4` | — | — | — | — | — | — | — | — | — | — |
+| `v2.10.0` | — | — | — | — | — | — | — | — | — | — |
+| `v2.10.1` | — | — | — | — | — | — | — | — | — | — |
+| `v2.10.2` | — | — | — | — | — | — | — | — | — | — |
+| `v2.11.0` | 37.8 KiB | 37.8 KiB (+0.0) | 37.8 KiB (+0.0) | 37.8 KiB (+0.0) | 37.9 KiB (+0.2) | 37.8 KiB (+0.0) | 37.8 KiB (+0.0) | 39.2 KiB (+1.4) | 38.1 KiB (+0.4) | 38.1 KiB (+0.4) |
+| `v2.11.1` | 37.8 KiB | 37.8 KiB (+0.0) | 37.8 KiB (+0.1) | 37.8 KiB (+0.0) | 37.9 KiB (+0.2) | 37.8 KiB (+0.0) | 37.8 KiB (+0.0) | 39.2 KiB (+1.4) | 38.1 KiB (+0.4) | 38.1 KiB (+0.4) |
+
 ## Failures
 
-- `v2.0.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.0.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.1.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.2.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.3.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.4.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.5.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.6.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.4` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.5` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.6` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.7` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.8` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.7.9` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.8.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.9.4` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.10.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
-- `v2.11.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
-- `v2.11.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-lpnt0duh/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.0.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.0.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.0.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.0.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.1.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.1.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.1.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.1.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.1.3/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.2.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.2.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.3.0/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.3.1/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.3.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.3.2/src/EspUsbHost.h:7:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.4.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.4.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.4.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.5.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.5.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.5.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.5.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.5.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.6.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.6.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.4` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.5` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.5/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.6` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.6/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.7` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.7/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.8` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.8/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.7.9` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.7.9/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.8.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.8.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.9.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.9.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.9.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.3` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.9.3/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.9.4` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.9.4/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.10.0/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.10.1/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.10.2` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.10.2/src/EspUsbHost.h:8:10: fatal error: usb/usb_host.h: No such file or directory
+- `v2.11.0` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.0` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.11.0/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Base`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `HID`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Serial`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Audio`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Storage`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `MIDI`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Vendor`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Network`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Ccid`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
+- `v2.11.1` / `esp32s2` / `Info`: /tmp/espusb-footprint-r_hext_u/library-v2.11.1/src/EspUsbHost.h:13:2: error: #error "EspUsbHost needs usb/usb_host.h, which this arduino-esp32 build does not provide for this chip (ESP32-S2 on 4.0.0: use arduino-esp32 3.3.x)"
