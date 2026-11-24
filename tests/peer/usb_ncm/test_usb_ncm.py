@@ -175,3 +175,69 @@ def test_usb_ncm_dhcp_and_http_then_discovery_does_not_claim(dut, peers):
         r"notify=0x[0-9a-f]+ claim_attempts=0 claimed=0 managed=0 error=ESP_OK",
         report,
     ), report
+
+
+def _rx_frames(dut):
+    dut.write("d")
+    stats = dut.expect(r"NETWORK_STATS [^\r\n]*\r?\n", timeout=5).group(0).decode()
+    return int(re.search(r"rxFrames=(\d+)", stats).group(1))
+
+
+def test_usb_ncm_frames_arriving_while_netif_is_down_do_not_corrupt_the_heap(dut, peers):
+    """Frames the IP stack refuses are released exactly once.
+
+    With the USB NIC attached but its lwIP side stopped, every frame the device
+    sends makes esp_netif_receive() fail. ESP-IDF 6 frees the frame on that
+    failure; EspUsbHost 2.11.0 freed it a second time, and the heap was corrupt
+    from then on (found by EspUsbDevice's peer/ncm_stream, which stops the IP side
+    while the link stays up). ESP-IDF 5.5 reported success either way, so the
+    same test also passes there.
+
+    The device's broadcasts must actually reach the host while the netif is
+    down -- the rxFrames counter rising shows the failing path ran -- and the
+    heap must still be intact afterwards, and the link must work again once the
+    netif is back.
+    """
+    device = peers["device"]
+
+    _wait_device_link(device)
+    _wait_ncm_enumeration(dut)
+
+    dut.write("a")
+    dut.expect_exact("NETWORK_ATTACH ok=1")
+    dut.expect(r"ip=192\.168\.7\.\d", timeout=30)
+
+    dut.write("x")
+    dut.expect_exact("NETIF_STOP found=1")
+    before = _rx_frames(dut)
+
+    device.write("b")
+    device.expect(r"DEVICE_BURST sent=([1-9]\d*)\r?\n", timeout=10)
+
+    deadline = time.monotonic() + 5
+    after = _rx_frames(dut)
+    while after <= before and time.monotonic() < deadline:
+        time.sleep(0.2)
+        after = _rx_frames(dut)
+    assert after > before, f"no frames reached the host while its netif was down ({before} -> {after})"
+
+    dut.write("k")
+    dut.expect_exact("HEAP_CHECK ok=1")
+
+    dut.write("y")
+    dut.expect_exact("NETIF_START found=1")
+    # Ask rather than wait for the one-shot lease line: the netif may get the
+    # same address back, which the sketch does not announce a second time.
+    deadline = time.monotonic() + 30
+    while True:
+        dut.write("p")
+        ip = dut.expect(r"NETWORK_IP ip=([0-9.]+)\r?\n", timeout=5).group(1).decode()
+        if ip.startswith("192.168.7."):
+            break
+        assert time.monotonic() < deadline, f"the netif got no lease back (ip={ip})"
+        time.sleep(0.5)
+    dut.write("g")
+    dut.expect_exact("HTTP_GET code=200 body=ESPUSB_NCM_OK")
+
+    dut.write("k")
+    dut.expect_exact("HEAP_CHECK ok=1")

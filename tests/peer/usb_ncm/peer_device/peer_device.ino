@@ -1,5 +1,6 @@
 #include "EspUsbDevice.h"
 #include <WebServer.h>
+#include <NetworkUdp.h>
 
 // Peer device for the CDC-NCM host test. Brings up a USB network device
 // (CDC-NCM) with a DHCP server at 192.168.7.1 and serves a fixed body at "/".
@@ -8,6 +9,7 @@
 EspUsbDevice device;
 EspUsbDeviceNet net(device);
 WebServer server(80);
+NetworkUDP udp;
 
 static const char kBody[] = "ESPUSB_NCM_OK";
 
@@ -59,6 +61,22 @@ void loop()
       Serial.printf("DEVICE_READY ip=%s link=%u\n",
                     net.localIP().toString().c_str(),
                     device.ready() ? 1 : 0);
+    }
+    else if (command == 'b')
+    {
+      // Unsolicited frames for the host: UDP broadcasts on the USB link, sent
+      // whether or not the host's IP stack is up to take them.
+      unsigned sent = 0;
+      for (unsigned i = 0; i < 20; i++)
+      {
+        if (udp.beginPacket(IPAddress(192, 168, 7, 255), 9999) && udp.print("ESPUSB_NCM_BURST") > 0 &&
+            udp.endPacket())
+        {
+          sent++;
+        }
+        delay(5);
+      }
+      Serial.printf("DEVICE_BURST sent=%u\n", sent);
     }
     else if (command == 'e')
     {

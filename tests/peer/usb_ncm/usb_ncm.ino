@@ -1,5 +1,7 @@
 #include "EspUsbHost.h"
 #include <HTTPClient.h>
+#include "esp_heap_caps.h"
+#include "esp_netif.h"
 
 // Host side of the CDC-NCM peer test. Pairs with the EspUsbDevice NCM device in
 // peer_device/, which runs a DHCP server at 192.168.7.1 and serves a fixed body
@@ -222,6 +224,36 @@ void loop()
                     usb.networkReady(deviceAddress) ? 1 : 0,
                     static_cast<unsigned>(usb.deviceCount()),
                     usb.lastErrorName());
+    }
+    else if (command == 'x')
+    {
+      // Stop the lwIP side of the attached USB NIC behind EspUsbHost's back, so
+      // frames from the device keep arriving while the netif is down and
+      // esp_netif_receive() fails on them. ESP-IDF 6 frees the frame on that
+      // failure itself; EspUsbHost 2.11.0 freed it again and corrupted the heap.
+      esp_netif_t *netif = esp_netif_get_handle_from_ifkey("USB_NCM");
+      if (netif)
+      {
+        esp_netif_action_stop(netif, nullptr, 0, nullptr);
+      }
+      Serial.printf("NETIF_STOP found=%u\n", netif ? 1 : 0);
+    }
+    else if (command == 'y')
+    {
+      // Bring it back the way networkAttachNetif() started it, so the detach in
+      // the teardown stops a running netif as usual.
+      esp_netif_t *netif = esp_netif_get_handle_from_ifkey("USB_NCM");
+      if (netif)
+      {
+        esp_netif_action_start(netif, nullptr, 0, nullptr);
+        esp_netif_action_connected(netif, nullptr, 0, nullptr);
+      }
+      Serial.printf("NETIF_START found=%u\n", netif ? 1 : 0);
+    }
+    else if (command == 'k')
+    {
+      // A double free does not always fault at once; this walks every heap.
+      Serial.printf("HEAP_CHECK ok=%u\n", heap_caps_check_integrity_all(true) ? 1 : 0);
     }
     else if (command == 'g')
     {
