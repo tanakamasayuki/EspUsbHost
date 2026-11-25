@@ -322,7 +322,7 @@ wheels = [
 
 [[package]]
 name = "pytest-embedded"
-version = "2.9.3"
+version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock", version = "4.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -330,9 +330,9 @@ dependencies = [
     { name = "pexpect" },
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/cb/4b907df70f8d0a0f09093d8e01aa4838a50ae0ef6df9c7625ce971698c54/pytest_embedded-2.9.3.tar.gz", hash = "sha256:f49933a65324b0b244cc3a82fb1e926ee3a012b40dfada65508b9dbc7c451119", size = 37647, upload-time = "2026-08-31T11:53:19.769Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/12/4bc86a8cff1d9c652dcfb8ebaf0749b34b8e563c70db63091ae04a001204/pytest_embedded-2.10.1.tar.gz", hash = "sha256:1da0adec8191a6b0ee22730aa25fa8c7f5d6626d4b73aea91f4190446c69e007", size = 39343, upload-time = "2026-11-23T14:58:02.672Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/7f/792a19a23317d9a2c89b126ed52ab5d4bab1665c38924bd46014906bc048/pytest_embedded-2.9.3-py3-none-any.whl", hash = "sha256:82ad366a6808c4c932a025f1187b1d24213b9a56b1a778500f08d7d645feb45d", size = 34605, upload-time = "2026-08-31T11:53:18.644Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/ce/e398d563cf39556321a20637c6976361b3f89ceff704134eba6a8662c337/pytest_embedded-2.10.1-py3-none-any.whl", hash = "sha256:87206d0b6df342bd8cf942869f438b51bf888deedf6c5fb927e9528f9bc718e3", size = 35544, upload-time = "2026-11-23T14:58:01.302Z" },
 ]
 
 [[package]]
@@ -353,15 +353,15 @@ wheels = [
 
 [[package]]
 name = "pytest-embedded-serial"
-version = "2.9.3"
+version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyserial" },
     { name = "pytest-embedded" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/f3/62f2ced4415c51d70ac1bca4631457857c8600bd81f8db5311d874a8200b/pytest_embedded_serial-2.9.3.tar.gz", hash = "sha256:74dba0b5d8ef62015d4b4df0aa8a90c3b25bc6fe8fe832c159dc3e55675d9d8a", size = 5575, upload-time = "2026-08-31T11:53:21.541Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/9a/9161695e0731399207ff0c499fe362a4ce4c577d8658fee650329a2cf54a/pytest_embedded_serial-2.10.1.tar.gz", hash = "sha256:f5715a0dd5f577c1e76df5832224d84c1bbdfa0ff3da7b59372049aaa4ea1c94", size = 5964, upload-time = "2026-11-23T14:58:04.747Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b3/ee/69ee4e98400cd4680745ee77183b101e5d2f220a1f308c21f012ea266c0a/pytest_embedded_serial-2.9.3-py3-none-any.whl", hash = "sha256:1cf6b6c3acbe3496c4f5ed7af78d281271c644c2552c5640aff1d576a78a9c31", size = 5890, upload-time = "2026-08-31T11:53:20.703Z" },
+    { url = "https://files.pythonhosted.org/packages/15/24/bf3079b52eb0c6d19e731d9f0ba3dde285dbcbcf2514c829163aed4efd95/pytest_embedded_serial-2.10.1-py3-none-any.whl", hash = "sha256:e25bd5d8c7d382c9dced17d6b3a4a1ae1b2e3eab797a65cb6ae141c29f291851", size = 6337, upload-time = "2026-11-23T14:58:03.563Z" },
 ]
 
 [[package]]
